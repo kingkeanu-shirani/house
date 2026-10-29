@@ -1,0 +1,101 @@
+{
+ "format": "house-gate-signoff-v1",
+ "gate": "P2-S2",
+ "prev": "P1C",
+ "signed_by": "main session (countersigning P2-S2-merge-verified)",
+ "date": "2026-10-29",
+ "about": "Second signatures of gate record P2-S2 (the merged run A of phase 2: packages P2-S1+P2-S2 = WP1 WP2 WP3 WP4 WP7 WP9 WP11 + WP5 WP8, with the run-A fix round and the P2-S2 merge gate) vs P1C, drafted by `tier1_gate.py signoff P1C P2-S2 --package P2-S1+P2-S2 --reviewed catalog/analysis/phase2/WP2_reviewed.json` (14 golden rows; 0 verdict, 0 edit, 0 coverage, 0 gate-change rows: G2 and G3 have no verdict change vs P1C -- every trial's verdict fields, wrong-plan reason classes, reference steps and time are identical in all 2,430 trials --, no spec was edited, no action stopped succeeding in the coverage fuzz, the record was made by the committed gate code) and verified row by row by the P2-S2 merge gate (catalog/analysis/phase2/P2-S2_evidence/verify_signoff_p2s2.py): every golden row's entry is a spec entry whose only changed field is the final state digest, its digest is the re-recorded entry's in tests/data/room_golden.json (tier1_gate.golden_entries), the merged tree's reference reproduces it, and the same final state without WP2's logs.gone has HEAD's digest exactly (P2-S2_evidence/golden_attrib.py, golden_attrib.json: 14 of 14; every one of these references destroys an entity); the package's first signature is catalog/analysis/phase2/WP2_reviewed.json (P2-WP2, code P2). Rejected: none. Not signable here (no signature kind covers them): G7 (substep 2.95 ms and 1 h wait 1.085 s, +5.7 % / +5.4 % over P1C: inside P2-S1's 1.15 x budget, over the union's strictest 1.05 x -- a rules.json decision) and G10 (the main session's uncommitted catalog/analysis/phase1/closeout_VER2.json); see catalog/analysis/phase2/handoff_P2-S2-merge.md. The forced-realistic both-fail trial T-dda4e199f3f5b0-01 seed 1 is unchanged vs P1C and excused by the committed allowlist (expires 2026-11-30): nothing to sign. The main session reviews this file and commits it as tools/orchestration/gate_policy/signoffs/P2-S2.json (only the committed version counts). Countersigned by the main session on 2026-10-29: the 14 golden rows re-checked independently (exactly the 14 changed entries of tests/data/room_golden.json vs HEAD, each digest equal to the re-recorded entry, only the final state field changed); G7 is judged with P2-S2's bench 1.15 x (rules.json: run A's union is bounded by WP2's attribution budget) and G10 is re-recorded after closeout_VER2.json is committed.",
+ "rows": [
+  {
+   "kind": "golden",
+   "key": "specs/A-afe8d8c6d6d883-01",
+   "digest": "062f39077b3ecd76",
+   "evidence": "spec: only the final state digest changed (passes, steps 8, time 3624.011 s, evaluation unchanged); the merged tree's reference reproduces the entry and, without logs.gone (1 destroyed: canned_beans_1), HEAD's digest (golden_attrib.py); WP2's logs.gone (VERIFY_HARDENING section 25: the final record of every entity the episode destroys) changes the state digest of a reference that destroys an entity; WP2's own A/B: catalog/analysis/phase2/WP2_reviewed.json"
+  },
+  {
+   "kind": "golden",
+   "key": "specs/T-0adf708ce0749a-01",
+   "digest": "326768f98dc1bc23",
+   "evidence": "spec: only the final state digest changed (passes, steps 84, time 357.503 s, evaluation unchanged); the merged tree's reference reproduces the entry and, without logs.gone (5 destroyed: dog_waste_1, dog_waste_2, dog_waste_3, dog_waste_4), HEAD's digest (golden_attrib.py); WP2's logs.gone (VERIFY_HARDENING section 25: the final record of every entity the episode destroys) changes the state digest of a reference that destroys an entity; WP2's own A/B: catalog/analysis/phase2/WP2_reviewed.json"
+  },
+  {
+   "kind": "golden",
+   "key": "specs/T-1df40780f5ddf2-01",
+   "digest": "54630f66201ec417",
+   "evidence": "spec: only the final state digest changed (passes, steps 42, time 124.659 s, evaluation unchanged); the merged tree's reference reproduces the entry and, without logs.gone (4 destroyed: hen_egg_9, hen_egg_10, hen_egg_11, hen_egg_12), HEAD's digest (golden_attrib.py); WP2's logs.gone (VERIFY_HARDENING section 25: the final record of every entity the episode destroys) changes the state digest of a reference that destroys an entity; WP2's own A/B: catalog/analysis/phase2/WP2_reviewed.json"
+  },
+  {
+   "kind": "golden",
+   "key": "specs/T-238a7512e4dd6e-01",
+   "digest": "2fb72871f320f4ef",
+   "evidence": "spec: only the final state digest changed (passes, steps 28, time 151.509 s, evaluation unchanged); the merged tree's reference reproduces the entry and, without logs.gone (2 destroyed: chili_2, cooked_rice_1), HEAD's digest (golden_attrib.py); WP2's logs.gone (VERIFY_HARDENING section 25: the final record of every entity the episode destroys) changes the state digest of a reference that destroys an entity; WP2's own A/B: catalog/analysis/phase2/WP2_reviewed.json"
+  },
+  {
+   "kind": "golden",
+   "key": "specs/T-28ff695081cd2c-01",
+   "digest": "a278acb8475d75d6",
+   "evidence": "spec: only the final state digest changed (passes, steps 15, time 4237.193 s, evaluation unchanged); the merged tree's reference reproduces the entry and, without logs.gone (2 destroyed: detergent_pod_1, apple_1), HEAD's digest (golden_attrib.py); WP2's logs.gone (VERIFY_HARDENING section 25: the final record of every entity the episode destroys) changes the state digest of a reference that destroys an entity; WP2's own A/B: catalog/analysis/phase2/WP2_reviewed.json"
+  },
+  {
+   "kind": "golden",
+   "key": "specs/T-5c9694a5a29d0e-01",
+   "digest": "96effa1344e9a614",
+   "evidence": "spec: only the final state digest changed (passes, steps 29, time 99.742 s, evaluation unchanged); the merged tree's reference reproduces the entry and, without logs.gone (1 destroyed: spill_1), HEAD's digest (golden_attrib.py); WP2's logs.gone (VERIFY_HARDENING section 25: the final record of every entity the episode destroys) changes the state digest of a reference that destroys an entity; WP2's own A/B: catalog/analysis/phase2/WP2_reviewed.json"
+  },
+  {
+   "kind": "golden",
+   "key": "specs/T-73a13fb297c40f-01",
+   "digest": "f8bb0c4c20271410",
+   "evidence": "spec: only the final state digest changed (passes, steps 14, time 3601.439 s, evaluation unchanged); the merged tree's reference reproduces the entry and, without logs.gone (2 destroyed: cart_trash_bag_1, cart_trash_bag_2), HEAD's digest (golden_attrib.py); WP2's logs.gone (VERIFY_HARDENING section 25: the final record of every entity the episode destroys) changes the state digest of a reference that destroys an entity; WP2's own A/B: catalog/analysis/phase2/WP2_reviewed.json"
+  },
+  {
+   "kind": "golden",
+   "key": "specs/T-7e93003b0dcefa-01",
+   "digest": "52dd44538d0d8502",
+   "evidence": "spec: only the final state digest changed (passes, steps 46, time 466.543 s, evaluation unchanged); the merged tree's reference reproduces the entry and, without logs.gone (2 destroyed: debris_pile_1, debris_pile_1), HEAD's digest (golden_attrib.py); WP2's logs.gone (VERIFY_HARDENING section 25: the final record of every entity the episode destroys) changes the state digest of a reference that destroys an entity; WP2's own A/B: catalog/analysis/phase2/WP2_reviewed.json"
+  },
+  {
+   "kind": "golden",
+   "key": "specs/T-a03bc04a3a311c-01",
+   "digest": "db08b338ac1364af",
+   "evidence": "spec: only the final state digest changed (passes, steps 38, time 147.434 s, evaluation unchanged); the merged tree's reference reproduces the entry and, without logs.gone (4 destroyed: hen_egg_9, hen_egg_10, hen_egg_11, hen_egg_12), HEAD's digest (golden_attrib.py); WP2's logs.gone (VERIFY_HARDENING section 25: the final record of every entity the episode destroys) changes the state digest of a reference that destroys an entity; WP2's own A/B: catalog/analysis/phase2/WP2_reviewed.json"
+  },
+  {
+   "kind": "golden",
+   "key": "specs/T-cc81e71dc2182e-01",
+   "digest": "655b59d7c7451f01",
+   "evidence": "spec: only the final state digest changed (passes, steps 25, time 4763.193 s, evaluation unchanged); the merged tree's reference reproduces the entry and, without logs.gone (1 destroyed: detergent_pod_1), HEAD's digest (golden_attrib.py); WP2's logs.gone (VERIFY_HARDENING section 25: the final record of every entity the episode destroys) changes the state digest of a reference that destroys an entity; WP2's own A/B: catalog/analysis/phase2/WP2_reviewed.json"
+  },
+  {
+   "kind": "golden",
+   "key": "specs/T-d182fc681f310d-01",
+   "digest": "af866b5cb1888ae4",
+   "evidence": "spec: only the final state digest changed (passes, steps 9, time 402.525 s, evaluation unchanged); the merged tree's reference reproduces the entry and, without logs.gone (2 destroyed: garden_plant_10, garden_plant_11), HEAD's digest (golden_attrib.py); WP2's logs.gone (VERIFY_HARDENING section 25: the final record of every entity the episode destroys) changes the state digest of a reference that destroys an entity; WP2's own A/B: catalog/analysis/phase2/WP2_reviewed.json"
+  },
+  {
+   "kind": "golden",
+   "key": "specs/T-d389e2979f6aad-01",
+   "digest": "3e851db72ac7ab6b",
+   "evidence": "spec: only the final state digest changed (passes, steps 35, time 176.575 s, evaluation unchanged); the merged tree's reference reproduces the entry and, without logs.gone (2 destroyed: debris_pile_1, debris_pile_1), HEAD's digest (golden_attrib.py); WP2's logs.gone (VERIFY_HARDENING section 25: the final record of every entity the episode destroys) changes the state digest of a reference that destroys an entity; WP2's own A/B: catalog/analysis/phase2/WP2_reviewed.json"
+  },
+  {
+   "kind": "golden",
+   "key": "specs/X-bc4e8d373e62c5-01",
+   "digest": "5734f3604189bd23",
+   "evidence": "spec: only the final state digest changed (passes, steps 89, time 474.935 s, evaluation unchanged); the merged tree's reference reproduces the entry and, without logs.gone (8 destroyed: generic_item_1, glass_shard_1, glass_shard_10, glass_shard_11), HEAD's digest (golden_attrib.py); WP2's logs.gone (VERIFY_HARDENING section 25: the final record of every entity the episode destroys) changes the state digest of a reference that destroys an entity; WP2's own A/B: catalog/analysis/phase2/WP2_reviewed.json"
+  },
+  {
+   "kind": "golden",
+   "key": "specs/X-befab43585cde3-01",
+   "digest": "39b11fd0591e0cdd",
+   "evidence": "spec: only the final state digest changed (passes, steps 37, time 2653.336 s, evaluation unchanged); the merged tree's reference reproduces the entry and, without logs.gone (1 destroyed: apple_1), HEAD's digest (golden_attrib.py); WP2's logs.gone (VERIFY_HARDENING section 25: the final record of every entity the episode destroys) changes the state digest of a reference that destroys an entity; WP2's own A/B: catalog/analysis/phase2/WP2_reviewed.json"
+  }
+ ],
+ "rejected": [],
+ "summary": {
+  "signed": {
+   "golden::": 14
+  },
+  "rejected": 0
+ }
+}

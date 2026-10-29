@@ -21,6 +21,38 @@ standing orders run their commands at idle boundaries (a wait, a phase gap), eac
 as an action. The temporal monitor (kernel/monitor.py) samples after the action's settlement, after every substep,
 after every auto command and at the end of each step (after the Mind's update), so milestones record their true time.
 phase_done() ends the active phase of a multi-phase task, runs the gap and starts the next phase (kernel/phases.py).
+
+Verification hardening (VERIFY_HARDENING 6.2, 8.1, 10.5; WP2):
+
+    env.writes              the episode's last-writer log (world.WriterLog): writes[(rid, field)] -> (class, name, t)
+                            with class robot (an action phase and its own settle, an auto standing-order command, a
+                            substep physics consequence the kernel attributes to the robot), physical (every system
+                            tagged physical, the substep settle pass, the kernel's own bookkeeping), volition (systems
+                            tagged volition: people and pets; scheduled events; phase starts; reactions to the robot's
+                            sounds) or setup (after the baseline: the first request; writes outside the engine's frames).
+                            Outside world state: env.save stores it, a replay rebuilds it, no agent observes it
+    env.robot_placement(e)  P_R(e): e's placement fields after the robot's last placement change, or None
+    env.robot_attributable(rid, field, t, causes=None, unknown=None)
+                            a physical change at t linked to the robot: True when the robot wrote rid (or a container
+                            of it) by t or the cause chain (<= 5 physical links) reaches a standing robot write, False
+                            when its recorded causes rule the robot out, `unknown` (None) when the write reports no
+                            cause (6.2's conservative default: charged when it diverges from idle)
+    env.finish(settle_s=None, lookahead_s=None, process=None) -> evaluation
+                            how a verification run or harness episode ends (8.1): goal at the declared-done state D,
+                            an idle settle window sampled every 30 s (settle:<label> on a robot-attributable
+                            regression, "consumed" for the rest), the evaluation on the settled state F, and an
+                            optional idle look-ahead whose new harms are later:<label> (6.10). Not a step; recorded
+                            in the history, so a replay repeats it
+    env.fast_forward(seconds, tick=300)
+                            a plain wait on a coarse tick (10.5): substeps of `tick` seconds while nothing needs fine
+                            time (no event, standing order or phase due, no person or pet changing room or active in
+                            the robot's room, no physics consequence or harm flag in the last substep), fine 30 s
+                            substeps otherwise. A step like the wait it replaces; recorded, so a replay repeats it
+    env.idle                the idle counterfactual (counterfactual.Projections) the ledger of a hardened task compares
+                            with (set by the verifier or the harness). env.save keeps its digest, not the projections;
+                            HouseEnv.load(path, idle=...) attaches it after checking the digest, and a fork loaded
+                            without it raises IdleMissing when evaluation reads it (10.5: a fork judges like the
+                            uninterrupted run)
 """
 import copy
 import json
@@ -34,6 +66,7 @@ from . import camera as camera_mod      # the camera runtime: its system, after-
 from . import mind as mind_mod
 from . import monitor as monitor_mod
 from . import phases as phases_mod
+from . import plugins as plugins_mod
 from . import replays as replays_mod
 from .actions import NOVEL_OPERATE_MESSAGE, Ctx, motion_records
 from .errors import ActionError
@@ -44,7 +77,7 @@ from .plugins import (ACTIONS, AFTER, BEFORE, IDLE_PROBES, IDLE_TAKES_TICK, SYST
 from .predicates import check, digest, validate_predicate
 from .registry import default_registry
 from .schema import normalize, validate
-from .world import World, clone
+from .world import EXISTS, KEYED_KINDS, PLACEMENT_FIELDS, World, WriterLog, clone, is_bookkeeping
 
 body.register_plugins()                 # the robot body's system, invariant and event effects (TIER1_INTEGRATION 1.16)
 
@@ -56,6 +89,142 @@ SAFE = os.environ.get("HOUSE_SIM_SAFE") == "1" and not STRICT
 RUNTIME_DEFAULTS = {"steps": 0, "time_s": 0.0}
 SENSORS = {"symbolic", "language", "audio", "olfactory", "thermal", "proprioception"}
 SUBSTEP_S = 30.0
+CLOCK_DIGITS = 3                    # time_s is kept to the millisecond (_substep rounds it)
+
+# writers of the engine's own windows (WP2; the systems' come from plugins.SYSTEM_WRITERS, default physical)
+W_SETUP = ("setup", "reset")
+W_KERNEL = ("physical", "kernel")
+W_SETTLE = ("physical", "physics.settle")
+W_SETTLE_ROBOT = ("robot", "physics.settle")
+W_PERCEPTION = ("physical", "kernel.perception")
+W_PHASE = ("volition", "phase")
+W_SOUND = ("volition", "robot_sound")
+FINISH_TICK_BASE = 2000000          # substep index offset of finish's settle and look-ahead (their own RNG streams)
+SETTLE_MAX_S = 600.0
+LOOKAHEAD_MAX_S = 86400.0
+CAUSE_LINKS = 5                     # 6.2: a cause chain is followed back through at most 5 physical writes
+FF_QUIET_SUBSTEPS = 2               # fast_forward: fine substeps without activity before a coarse one
+# sections whose robot writes are the step's own bookkeeping (a standing order's trail, counters, logs): never a
+# robot-attributable regression in the settle window
+BOOKKEEPING_SECTIONS = frozenset(("action_log", "event_log", "order_log", "stats", "logs", "_sched", "notices",
+                                  "camera_log", "orders", "pending"))
+_WRITERS = {}
+
+
+def system_writer(name):
+    """The (class, name) writer of a system's writes: plugins.SYSTEM_WRITERS (WP1's @system(..., writer=)), default
+    physical. Interned per (class, name), so the World's segment check is an identity test."""
+    table = getattr(plugins_mod, "SYSTEM_WRITERS", None)
+    cls = table.get(name, "physical") if table else "physical"
+    key = (cls, name)
+    writer = _WRITERS.get(key)
+    if writer is None:
+        writer = _WRITERS[key] = key
+    return writer
+
+
+# the entity fields a selector key reads (predicates.select)
+SELECTOR_FIELDS = {"type": ("type", "is_a"), "category": ("category",), "label": ("label",), "tag": ("tags",),
+                   "tags_any": ("tags",), "within": ("location",), "room": ("location",)}
+
+
+def predicate_fields(rule):
+    """The entity fields a predicate reads: ({entity id: set of fields, or None for the whole record} of its direct
+    paths, set of fields its quantifiers and aggregates read on the entities they select). HouseEnv.finish narrows a
+    label's footprint (monitor.footprint: which records) to these fields (which writes)."""
+    direct, quant = {}, set()
+
+    def absolute(path):
+        parts = path.split(".")
+        if parts[0] != "entities" or len(parts) < 2:
+            return
+        if len(parts) == 2 or direct.get(parts[1], set()) is None:
+            direct[parts[1]] = None
+        else:
+            direct.setdefault(parts[1], set()).add(parts[2])
+
+    def relative(sub):
+        if not isinstance(sub, dict):
+            return
+        for key in ("all", "any"):
+            for child in sub.get(key) or []:
+                relative(child)
+        if "not" in sub:
+            relative(sub["not"])
+        path = sub.get("path")
+        if isinstance(path, str):
+            if path.startswith("$room"):
+                quant.update(("location", "relation"))
+            elif not path.startswith("$"):
+                quant.add(path.split(".")[0])
+        if isinstance(sub.get("ref"), str):
+            absolute(sub["ref"])
+
+    def selector(body):
+        if body.get("in") not in (None, "entities"):
+            return
+        for key in body.get("where") or {}:
+            if key not in ("ids", "not_ids"):
+                quant.update(SELECTOR_FIELDS.get(key, (str(key).split(".")[0],)))
+        relative(body.get("check"))
+        if isinstance(body.get("field"), str):
+            quant.add(body["field"].split(".")[0])
+
+    def walk(sub):
+        if not isinstance(sub, dict):
+            return
+        for key in ("all", "any"):
+            for child in sub.get(key) or []:
+                walk(child)
+        if "not" in sub:
+            walk(sub["not"])
+        for key in ("forall", "exists", "count", "agg", "ref_agg"):
+            if isinstance(sub.get(key), dict):
+                selector(sub[key])
+        for key in ("path", "ref"):
+            if isinstance(sub.get(key), str):
+                absolute(sub[key])
+
+    walk(rule)
+    return direct, quant
+
+
+def goal_items(task, phase=None):
+    """[(label, test(view) -> bool, footprint rule)] of a task's success conditions (or a phase's): each success
+    predicate (a labelled {"label", "pred"} item keeps its label; an unwrapped one the label runner.build recorded
+    for its index -- task["labels"]["success"], else hardening.labels.success, else task["success_labels"], as
+    evaluation.recorded_labels reads them; else "success_<i>"), the rubric ("rubric") and each required milestone
+    ("milestone:<name>"). HouseEnv.finish samples them during the settle window."""
+    source = phase if phase is not None else (task or {})
+    rules = list(source.get("success") or [])
+    names = None
+    for where in (source.get("labels"), (source.get("hardening") or {}).get("labels")):
+        if isinstance(where, dict) and isinstance(where.get("success"), list):
+            names = where["success"]
+            break
+    if names is None and isinstance(source.get("success_labels"), list):
+        names = source["success_labels"]
+    items = []
+    for i, rule in enumerate(rules):
+        label, pred = None, rule
+        if isinstance(rule, dict) and "pred" in rule and "label" in rule and len(rule) == 2:
+            label, pred = str(rule["label"]), rule["pred"]
+        elif isinstance(names, list) and i < len(names) and isinstance(names[i], str):
+            label = names[i]
+        items.append((label or "success_{}".format(i), (lambda view, p=pred: check(view, p)), pred))
+    rubric = source.get("rubric")
+    if rubric and rubric.get("items"):
+        def rubric_ok(view, rubric=rubric):
+            total = sum(float(item.get("weight", 1)) for item in rubric["items"]) or 1.0
+            got = sum(float(item.get("weight", 1)) for item in rubric["items"] if check(view, item["pred"]))
+            return got / total >= float(rubric.get("threshold", 1.0)) - 1e-9
+        items.append(("rubric", rubric_ok, {"all": [item["pred"] for item in rubric["items"]]}))
+    if phase is None:
+        for name in (task or {}).get("required_milestones") or []:
+            items.append(("milestone:" + str(name),
+                          (lambda view, n=name: n in ((view.get("$temporal") or {}).get("milestones") or {})),
+                          {"path": "$temporal.milestones." + str(name), "op": "exists"}))
+    return items
 
 
 def empty_stats():
@@ -215,6 +384,33 @@ class KnownMapView(MutableMapping):
         return "KnownMapView({!r})".format(sorted(self))
 
 
+def _never(field):
+    return False
+
+
+class IdleMissing(RuntimeError):
+    """env.idle read on an env loaded from a snapshot saved with an idle counterfactual that was not attached again
+    (HouseEnv.load(path, idle=...)). Not an AttributeError, so getattr(env, "idle", None) does not hide it."""
+
+
+def idle_record(idle):
+    """What a snapshot keeps of an idle counterfactual: {"digest", "checkpoints"} (counterfactual.Projections.digest
+    over the checkpoints; None for an object without one, which any attached counterfactual then matches)."""
+    fn = getattr(idle, "digest", None)
+    try:
+        count = len(idle)
+    except TypeError:
+        count = None
+    return {"digest": fn() if callable(fn) else None, "checkpoints": count}
+
+
+def _lookahead_guards():
+    """The ledger guards the look-ahead re-checks (6.10): WP1's ledger.LOOKAHEAD_GUARDS (landed: read directly, one
+    list for the ledger, the lint and finish; P2-S2 merge gate)."""
+    from . import ledger
+    return tuple(ledger.LOOKAHEAD_GUARDS)
+
+
 def _idle(probe, name, w, tick):
     """A system's idle probe: fn(w), or fn(w, tick) for a probe that registered with the tick (IDLE_TAKES_TICK)."""
     return probe(w, tick) if name in IDLE_TAKES_TICK else probe(w)
@@ -287,6 +483,11 @@ class HouseEnv:
         # "succeeded" without changing anything counted as driven to success). Off by default: it costs a diff
         self.track_effect = False
         self.last_step_effect = None
+        # the idle counterfactual (counterfactual.Projections) a hardened task's ledger compares with (VERIFY_HARDENING
+        # 6.2): set by the verifier or the harness (WP5 / WP10), read by evaluation through World._env_ref; kept by
+        # reset. A snapshot records its digest, not the projections (env.save; the idle property)
+        self._idle_pending = None
+        self.idle = None
         self.action_file = action_file
         self.reset()
 
@@ -335,6 +536,12 @@ class HouseEnv:
             camera_mod.note_start(self)         # the reset view's sightings (geometric camera only)
             self.world.commit()
         self._baseline = clone(state)
+        # the last-writer log starts at the baseline (WP2): what happened before it is setup, never charged
+        self.writes = WriterLog()
+        self.world.track(self.writes)
+        self._coarse = None             # fast_forward's coarse tick while it runs (else None)
+        self._ff = None
+        self.last_fast_forward = None
         self._known_map, self._history, self._undo, self._snapshots = {}, [], [], {}
         self._monitor = monitor_mod.Monitor(self._task)         # temporal evaluation (kernel/monitor.py)
         self._milestones = self._monitor.milestones
@@ -370,6 +577,7 @@ class HouseEnv:
         if not (self._phases.phases or task.get("request")):
             return
         self.world.begin()
+        self.world._writer = W_SETUP
         if self._phases.phases:
             self._phases.start_first(self)
         else:
@@ -385,6 +593,123 @@ class HouseEnv:
     def privileged_state(self):
         """Oracle/debug API. Never give this to an evaluated agent."""
         return clone(self.world.s)
+
+    # ----- the idle counterfactual (VERIFY_HARDENING 6.2, 10.5; WP2) -----
+    @property
+    def idle(self):
+        """The idle counterfactual (counterfactual.Projections) a hardened task's ledger compares with, or None.
+
+        An env loaded from a snapshot that was saved with one (HouseEnv.load without idle=) has none until the caller
+        attaches it again -- env.idle = projections, checked against the digest the snapshot recorded (a forked run
+        must judge against the uninterrupted run's counterfactual, 10.5); reading it before that raises IdleMissing,
+        so no evaluation of the fork judges against no counterfactual (counterfactual.diverges: every change)."""
+        pending = self._idle_pending
+        if pending is not None:
+            raise IdleMissing("this env was loaded from a snapshot saved with an idle counterfactual (digest {}, {} "
+                              "checkpoints): attach it (HouseEnv.load(path, idle=...) or env.idle = ...) before "
+                              "evaluating".format(pending.get("digest"), pending.get("checkpoints")))
+        return self._idle
+
+    @idle.setter
+    def idle(self, value):
+        pending = self._idle_pending
+        if pending is not None:
+            if value is None:
+                raise ValueError("this env's snapshot was saved with an idle counterfactual (digest {}): attach that "
+                                 "one, not None".format(pending.get("digest")))
+            want = pending.get("digest")
+            got = idle_record(value)["digest"]
+            if want is not None and got != want:
+                raise ValueError("idle counterfactual digest {} differs from the snapshot's {}: a fork must judge "
+                                 "against the uninterrupted run's counterfactual".format(got, want))
+            self._idle_pending = None
+        self._idle = value
+
+    # ----- attribution (VERIFY_HARDENING 6.2; WP2) ---------------------
+    def robot_placement(self, eid):
+        """P_R(e): the placement fields of eid ({field: value}) after the robot's last placement change, or None
+        (the robot never placed it). Placement guards read it when a person or pet moved e afterwards (6.2)."""
+        return self.writes.robot_placement(eid)
+
+    def robot_attributable(self, rid, field=None, t=None, causes=None, ignore=is_bookkeeping, unknown=None):
+        """Whether a physical change of rid's field (None: of any of its fields; a placement field: of its placement)
+        at time t (None: now) is linked to the robot (6.2's causal link, 8.1):
+
+        True      the robot wrote rid itself by t (bookkeeping fields aside), or an entity of its location chain (now,
+                  or in its final record for a destroyed one), or the change's cause chain -- `causes`, else the causes
+                  logged with the physical write standing at t -- reaches a record one of whose fields the robot was
+                  the last to write by then, followed back through at most CAUSE_LINKS physical writes;
+        False     not linked: no physical write of the field stands at t, or every branch of its recorded cause chain
+                  ends at a volition or setup write, at a record unchanged since the baseline, at a physical write
+                  without causes or after CAUSE_LINKS links;
+        unknown   (default None: "link unknown") the change is a physical write that reports no cause, so its link to
+                  the robot cannot be ruled out. 6.2's conservative default charges it whenever it diverges from idle,
+                  so a charging caller treats None as linked (the ledger: charged_field, charged_placement, _destroyed);
+                  no domain reports causes yet, so today this is every physical change of a record the robot did not
+                  write. finish's settle rule passes unknown=False (8.1: a regression is the robot's only on a record
+                  the robot wrote, or through a recorded cause)."""
+        log = self.writes
+        state = self.world.s
+        t = float(state.get("time_s", 0.0)) if t is None else float(t)
+        if ignore is None:
+            ignore = _never
+        if log.robot_wrote(rid, before=t, ignore=ignore):
+            return True
+        entities = state["entities"]
+        record = entities.get(rid)
+        if record is None and ":" not in rid:
+            record = self.world.gone_record(rid)
+        seen = {rid}
+        loc = (record or {}).get("location")
+        while isinstance(loc, str) and loc not in seen and loc in entities:
+            if log.robot_wrote(loc, before=t, ignore=ignore):
+                return True
+            seen.add(loc)
+            loc = entities[loc].get("location")
+        # the frontier: (cause id, t0, t1), the cause and the time window of the write that cites it
+        blind = False                   # the change is a physical write without a recorded cause
+        if causes:
+            frontier = [(cause, t, t) for cause in causes]
+        else:
+            frontier = []
+            if field is None:
+                fields = [f for f in log.fields(rid) if not ignore(f)]
+            elif field in PLACEMENT_FIELDS:
+                written = set(log.fields(rid))
+                fields = [f for f in PLACEMENT_FIELDS if f in written]
+            else:
+                fields = [field]
+            for f in fields:
+                entry = log.entry(rid, f, before=t)
+                if entry is None or entry[0] != "physical":
+                    continue
+                if entry[4]:
+                    frontier.extend((cause, entry[2], entry[3]) for cause in entry[4])
+                else:
+                    blind = True
+        visited = {rid}
+        for _ in range(CAUSE_LINKS):
+            nxt = []
+            for cause, t0, t1 in frontier:
+                if cause in visited:
+                    continue
+                visited.add(cause)
+                # the cause record reaches the robot when the robot's write of one of its fields stood while the citing
+                # write was made (6.2: "whose last writer before the change was the robot") -- a burner the robot
+                # switched on whose temperature a physical process keeps writing; its physical writes' own causes are
+                # the next links (a volition or setup write, or one without causes, ends the branch)
+                for f in log.fields(cause):
+                    if ignore(f):
+                        continue
+                    for cls, _, e0, e1, ids in log.during(cause, f, t0, t1):
+                        if cls == "robot":
+                            return True
+                        if cls == "physical" and ids:
+                            nxt.extend((c, e0, min(e1, t1)) for c in ids)      # judged when it was made
+            if not nxt:
+                break
+            frontier = nxt
+        return unknown if blind else False
 
     def known_map(self):
         """The robot's known map (TIER1_SWEEP 7.1): a copy of env.mind.map, {rid: {"label", "type", "exits",
@@ -534,9 +859,14 @@ class HouseEnv:
             level = level(ctx)
         if level is None:
             return
-        robot = self.world.s["robot"]
-        run_hooks("robot_sound", self.world, float(level), ctx.spec.name, robot.get("room"),
-                  list(robot.get("pos") or []))
+        w = self.world
+        robot = w.s["robot"]
+        saved = (w._writer, w._wcause)
+        w._writer, w._wcause = W_SOUND, None        # people's and pets' reactions are their own (WP2)
+        try:
+            run_hooks("robot_sound", w, float(level), ctx.spec.name, robot.get("room"), list(robot.get("pos") or []))
+        finally:
+            w._writer, w._wcause = saved
 
     def step(self, action, target="", destination="", **kwargs):
         if not all(isinstance(v, str) for v in (action, target, destination)):
@@ -560,6 +890,8 @@ class HouseEnv:
             action = queued.pop("action")
             target, destination = queued.pop("target", ""), queued.pop("destination", "")
             kwargs = queued
+        # the robot window (WP2): the action, its hooks and its own settle; the step's bookkeeping stays the robot's
+        w._writer, w._wcause = ("robot", action if isinstance(action, str) else "?"), None
         w.set_scalar("steps", state["steps"] + 1)
         camera_mod.begin_step(w)        # this step's frames and seen events start empty (no-op in room mode)
         self._advance_mode = "covered"  # the action pays for its own seconds at settlement
@@ -728,6 +1060,7 @@ class HouseEnv:
             self.realism.commit_grants(ok)      # after the action's duration, so a reading matches what is shown next
         self._end_of_step()
         if self._phases.phases:
+            w._writer, w._wcause = W_PHASE, None            # the task's own schedule (WP2)
             before = self._phases.active()
             self._phases.tick(self, end_of_step=True)       # a phase's at_s / when / budget end
             if self._phases.gap_left(self) is not None:
@@ -775,12 +1108,19 @@ class HouseEnv:
 
     def _end_of_step(self):
         """The end of a step after time advanced (TIER1_INTEGRATION 1.9 rule 5): the camera's step view and log, the
-        realism note of the view, the Mind's update, the monitor's end sample."""
-        view = camera_mod.end_step(self)
-        if self.realism is not None and hasattr(self.realism, "note_step"):
-            self.realism.note_step(view)        # camera tracked identity (CAM-RENDER)
-        self._update_mind()
-        self._monitor.sample(self, "end")
+        realism note of the view, the Mind's update, the monitor's end sample. Its writes are perception bookkeeping
+        (WP2: writer kernel.perception, class physical: never the robot's acts)."""
+        w = self.world
+        saved = (w._writer, w._wcause)
+        w._writer, w._wcause = W_PERCEPTION, None
+        try:
+            view = camera_mod.end_step(self)
+            if self.realism is not None and hasattr(self.realism, "note_step"):
+                self.realism.note_step(view)        # camera tracked identity (CAM-RENDER)
+            self._update_mind()
+            self._monitor.sample(self, "end")
+        finally:
+            w._writer, w._wcause = saved
 
     # ------------------------------------------------------------------
     def phase_done(self):
@@ -798,6 +1138,7 @@ class HouseEnv:
         if self.realism is not None:
             self.realism.begin_step()
         w.begin()
+        w._writer, w._wcause = ("robot", "phase_done"), None
         camera_mod.begin_step(w)
         if timeline.bus_on(state):
             # the agent already saw this step's notices: the observation phase_done returns lists only those perceived
@@ -808,6 +1149,7 @@ class HouseEnv:
             w.sec("phase")["notice_mark"] = {"step": steps, "t": now, "n": seen}
         ended = self._phases.end(self, "done")
         self._tick_index = phases_mod.GAP_TICK_BASE
+        w._writer = W_PHASE
         started = self._phases.start_next(self)
         timeline.derive_notices(self)               # the new phase's request reaches the robot now (once)
         if self.realism is not None:
@@ -896,7 +1238,7 @@ class HouseEnv:
                 remaining -= spent
                 waited += spent
             while remaining > 1e-9:
-                dt = min(remaining, SUBSTEP_S)
+                dt = min(remaining, SUBSTEP_S) if self._coarse is None else self._coarse_dt(remaining)
                 self._substep(dt)
                 remaining -= dt
                 waited += dt
@@ -921,38 +1263,84 @@ class HouseEnv:
         """One substep: systems in order (idle probes skip provably idle ones; a periodic system still keeps its
         schedule), events, physics settle, standing orders, notices, the monitor, phase boundaries."""
         w = self.world
-        w.set_scalar("time_s", round(w.s["time_s"] + dt, 3))
+        w.set_scalar("time_s", round(w.s["time_s"] + dt, CLOCK_DIGITS))
         tick = Tick(self, self._tick_index)
         self._tick_index += 1
         probes = IDLE_PROBES[0]
-        for _, name, max_dt, fn in SYSTEMS:
-            probe = SYSTEM_IDLE.get(name) if probes else None
-            period = SYSTEM_PERIODS.get(name)
-            if period:
-                acc = float(w.s.get("_sched", {}).get(name, 0.0)) + dt
-                if acc + 1e-9 >= period:
-                    if probe is None or not _idle(probe, name, w, tick):
-                        fn(w, acc, tick)
-                    acc = 0.0
-                w.sec("_sched")[name] = round(acc, 6)
-                continue
-            if probe is not None and _idle(probe, name, w, tick):
-                continue
-            sub = dt
-            while sub > 1e-9:
-                part = min(sub, max_dt)
-                fn(w, part, tick)
-                sub -= part
-        self._fire_events()
-        settle.settle(self, "substep")          # consequences of what systems and events changed in this substep
-        self._fire_orders()
-        timeline.derive_notices(self)           # speech, people coming and going (the kernel's own notices)
-        self._monitor.sample(self, "substep")
-        if self._phases.phases:
-            before = self._phases.active()
-            self._phases.tick(self)
-            if self._phases.active() is not before:
-                timeline.derive_notices(self)   # a new phase's request reaches a listening wait at this boundary
+        track = w._wtrack
+        tags = (getattr(plugins_mod, "SYSTEM_WRITERS", None) or {}) if track else None
+        saved = (w._writer, w._wcause)
+        ff = self._ff if self._coarse is not None else None
+        flags = self._flag_counts() if ff is not None else None
+        try:
+            for _, name, max_dt, fn in SYSTEMS:
+                probe = SYSTEM_IDLE.get(name) if probes else None
+                period = SYSTEM_PERIODS.get(name)
+                if period:
+                    acc = float(w.s.get("_sched", {}).get(name, 0.0)) + dt
+                    if acc + 1e-9 >= period:
+                        if probe is None or not _idle(probe, name, w, tick):
+                            if track:
+                                w._writer = _WRITERS.get((tags.get(name, "physical"), name)) or system_writer(name)
+                                w._wcause = None
+                            fn(w, acc, tick)
+                        acc = 0.0
+                    if track:
+                        w._writer, w._wcause = W_KERNEL, None
+                    w.sec("_sched")[name] = round(acc, 6)
+                    continue
+                if probe is not None and _idle(probe, name, w, tick):
+                    continue
+                if track:
+                    w._writer = _WRITERS.get((tags.get(name, "physical"), name)) or system_writer(name)
+                    w._wcause = None
+                sub = dt
+                while sub > 1e-9:
+                    part = min(sub, max_dt)
+                    fn(w, part, tick)
+                    sub -= part
+            if track:
+                w._writer, w._wcause = W_KERNEL, None
+            self._fire_events()
+            if track:
+                w._writer = W_SETTLE
+            # consequences of what systems and events changed in this substep
+            records = settle.settle(self, "substep")
+            if track and records:
+                self._robot_consequences(records)
+            if track:
+                w._writer = W_KERNEL
+            self._fire_orders()
+            timeline.derive_notices(self)           # speech, people coming and going (the kernel's own notices)
+            self._monitor.sample(self, "substep")
+            if self._phases.phases:
+                if track:
+                    w._writer = W_PHASE
+                before = self._phases.active()
+                self._phases.tick(self)
+                if self._phases.active() is not before:
+                    timeline.derive_notices(self)   # a new phase's request reaches a listening wait at this boundary
+            if ff is not None:
+                ff["busy"] = bool(records) or self._flag_counts() != flags
+                ff["substeps"].append(dt)
+        finally:
+            w._writer, w._wcause = saved
+
+    def _robot_consequences(self, records):
+        """A substep settle's consequences the kernel physics attributes to the robot (by "robot": what the robot
+        arranged, TIER1_PHYSICS 6.4) are robot writes (6.2), the rest stay physical."""
+        ids = set()
+        for record in records:
+            if isinstance(record, dict) and record.get("by") == "robot":
+                if isinstance(record.get("target"), str):
+                    ids.add(record["target"])
+                ids.update(i for i in record.get("ids") or () if isinstance(i, str))
+        if ids:
+            self.world.reclassify(sorted(ids), W_SETTLE, W_SETTLE_ROBOT)
+
+    def _flag_counts(self):
+        stats = self.world.s.get("stats") or {}
+        return tuple(stats.get(key, 0) for key in evaluation.GLOBAL_FLAGS)
 
     def _run_orders(self, idle):
         """Run the due auto standing orders; returns the seconds their commands took."""
@@ -967,32 +1355,38 @@ class HouseEnv:
         Returns (ok, message, category)."""
         w = self.world
         mode = self._advance_mode
+        saved = (w._writer, w._wcause)
         sp = w.savepoint()
         self._advance_mode = "covered"
         settle.begin_action(w)
+        # an auto standing-order command the robot issued is the robot's (WP2)
+        w._writer, w._wcause = ("robot", "order:" + str(command.get("action"))), None
         try:
-            result, ctx, spent = self._leaf(dict(command))
-        except ActionError as exc:
-            w.rollback_to(sp)
+            try:
+                result, ctx, spent = self._leaf(dict(command))
+            except ActionError as exc:
+                w.rollback_to(sp)
+                self._advance_mode = mode
+                if isinstance(exc, body.BodyRefusal):
+                    exc.apply(self)
+                return False, str(exc), exc.category
+            except Exception as exc:  # noqa: BLE001
+                if not SAFE:
+                    raise
+                w.rollback_to(sp)
+                self._advance_mode = mode
+                w.stat("internal_errors")
+                return False, "Internal simulator error ({})".format(type(exc).__name__), "internal"
+            settle.settle(self, "action", ctx)
+            w.release(sp)
+            self._monitor.sample(self, "order", at=w.s["time_s"] + spent)  # what it reached: at the command's end
+            message = _with_notes(result, ctx.notes)
+            if spent > 1e-9:
+                self._advance(spent)                # the command's time: the world keeps running (covered energy)
             self._advance_mode = mode
-            if isinstance(exc, body.BodyRefusal):
-                exc.apply(self)
-            return False, str(exc), exc.category
-        except Exception as exc:  # noqa: BLE001
-            if not SAFE:
-                raise
-            w.rollback_to(sp)
-            self._advance_mode = mode
-            w.stat("internal_errors")
-            return False, "Internal simulator error ({})".format(type(exc).__name__), "internal"
-        settle.settle(self, "action", ctx)
-        w.release(sp)
-        self._monitor.sample(self, "order", at=w.s["time_s"] + spent)  # what it reached: at the command's end
-        message = _with_notes(result, ctx.notes)
-        if spent > 1e-9:
-            self._advance(spent)                # the command's time: the world keeps running (covered energy)
-        self._advance_mode = mode
-        return True, message, ""
+            return True, message, ""
+        finally:
+            w._writer, w._wcause = saved
 
     def _run_gap(self, seconds):
         """A phase gap: an idle advance with every system and auto standing orders (TIER1_SWEEP 9)."""
@@ -1019,6 +1413,9 @@ class HouseEnv:
                 due = True
             if not due or (event.get("fired") and event.get("repeat_s") and state["time_s"] < event.get("next_s", 0)):
                 continue
+            if w._wtrack:
+                # a scheduled event of the task is volition (6.2: never charged to the robot)
+                w._writer, w._wcause = ("volition", "event:" + str(event.get("kind", event.get("effect", "event")))), None
             events = w.sec("events")
             events[i]["fired"] = True
             if event.get("repeat_s"):
@@ -1039,6 +1436,350 @@ class HouseEnv:
     def _update_milestones(self):
         """The monitor's end-of-step sample (milestones are sampled at every sample point since kernel v3.1)."""
         self._monitor.sample(self, "end")
+
+    # ----- the end of an episode: declared done, settle, look-ahead (VERIFY_HARDENING 8.1, 6.10; WP2) ----------
+    def finish(self, settle_s=None, lookahead_s=None, process=None):
+        """End the episode the way every verification run and harness episode ends (8.1). Not an action and no step:
+        the robot has declared done (state D) and does nothing from here on.
+
+        1. At D: the step count and time (for the budget), the evaluation, and each success label's value
+           (goal_items: labelled predicates, the rubric, required milestones).
+        2. settle_s seconds (None: the task's hardening block or "settle_s", default 60; 0..600) advance idle in 30 s
+           frames: systems, people, pets and auto standing orders run. After each, every label that held at D and no
+           longer holds is a regression: robot-attributable when a write since the previous sample that meets the
+           label's footprint (monitor.footprint) is the robot's (a standing order) or a physical write linked to the
+           robot (robot_attributable: a glass the robot left at the edge falls) -- unless the label is in `process`
+           (None: the hardening block's or the task's "process") -> failure "settle:<label>"; otherwise it is
+           consumed (a resident, a pet or a process changed it; listed in "consumed" with the writers).
+        3. The evaluation at the settled state F: success = every label held at D, no settle failure and no failure
+           at D or at F (the clock's own: "budget", missed deadlines, are judged at D).
+        4. lookahead_s seconds (None: the hardening block's or "lookahead_s", default 0; 0..86400) more of idle time
+           with fine ticks (6.10); a global flag, an invariant or a house.* guard first failing at the end is
+           "later:<label>" and fails the run. Success is not re-checked.
+
+        Returns the evaluation dict of F with success, failures, goal_fraction, budget_exceeded, steps and time_s as
+        decided above, plus "declared" {"steps", "time_s"}, "end_time_s", "consumed" [{"label", "t", "writers"}],
+        "settle" {"s", "samples", "regressions", "consumed"} and "lookahead" {"s", "labels"}. Recorded in the
+        history (a replay repeats it with the same arguments)."""
+        task = self._task or {}
+        hardening = task.get("hardening") if isinstance(task.get("hardening"), dict) else {}
+        if settle_s is None:
+            settle_s = hardening.get("settle_s", task.get("settle_s", 60.0))
+        if lookahead_s is None:
+            lookahead_s = hardening.get("lookahead_s", task.get("lookahead_s", 0.0))
+        if process is None:
+            process = hardening.get("process", task.get("process")) or ()
+        for label, value, top in (("settle_s", settle_s, SETTLE_MAX_S), ("lookahead_s", lookahead_s, LOOKAHEAD_MAX_S)):
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= top:
+                raise ValueError("finish: {} must be a number of seconds in 0..{:g} (got {!r})".format(label, top, value))
+        if isinstance(process, str) or not all(isinstance(p, str) for p in process):
+            raise ValueError("finish: process is a list of success labels")
+        # on the clock's grid (_substep keeps time_s to the millisecond): a settle off the grid (30.0004 s) would leave
+        # a remainder no frame can advance, and the settle loop would never end
+        settle_s, lookahead_s = round(float(settle_s), CLOCK_DIGITS), round(float(lookahead_s), CLOCK_DIGITS)
+        process = sorted(set(process))
+        w = self.world
+        state = w.s
+        at_d = self.evaluate()
+        declared = {"steps": state.get("steps", 0), "time_s": state.get("time_s", 0.0)}
+        items = self._finish_items()
+        held = self._held(items, self._view())
+        watch = [(label, test, (monitor_mod.footprint(rule), predicate_fields(rule))) for label, test, rule in items
+                 if held[label]]
+        regressions, consumed, samples = [], [], 0
+        self._tick_index = max(self._tick_index, FINISH_TICK_BASE)
+        end = round(float(state.get("time_s", 0.0)) + settle_s, CLOCK_DIGITS)
+        log = self.writes
+        log.recent = []
+        try:
+            while float(state.get("time_s", 0.0)) < end - 1e-6:
+                before = float(state.get("time_s", 0.0))
+                self._idle_frame(min(SUBSTEP_S, end - before))
+                samples += 1
+                if float(state.get("time_s", 0.0)) <= before:
+                    # the clock did not move (a remainder below its resolution): the window is over -- every run has
+                    # a cap (P7)
+                    end = before
+                recent, log.recent = log.recent, []
+                if not watch:
+                    continue
+                now_held = self._held(items, self._view())
+                keep = []
+                for label, test, fp in watch:
+                    if now_held.get(label):
+                        keep.append((label, test, fp))
+                        continue
+                    robot, writers = self._regression(fp, recent)
+                    entry = {"label": label, "t": round(float(state.get("time_s", 0.0)), 3), "writers": writers}
+                    if robot and label not in process:
+                        regressions.append(entry)
+                    else:
+                        consumed.append(entry)
+                watch = keep
+        finally:
+            log.recent = None
+        at_f = self.evaluate()
+        failures = self._finish_failures(at_d, at_f)
+        failures.extend("settle:" + r["label"] for r in regressions)
+        at_f_held = self._held(items, self._view())
+        listed = {c["label"] for c in consumed} | {r["label"] for r in regressions}
+        for label, _, _ in items:
+            if held[label] and label not in listed and not at_f_held[label]:
+                consumed.append({"label": label, "t": round(float(state.get("time_s", 0.0)), 3), "writers": []})
+        later = []
+        if lookahead_s > 0:
+            flags_f = self._harm_labels(at_f)
+            self._idle_frame(lookahead_s)
+            at_l = self.evaluate()
+            later = ["later:" + label for label in sorted(self._harm_labels(at_l) - flags_f)]
+            failures.extend(later)
+        goal_d = at_d.get("goal_fraction", 0.0) >= 1.0 - 1e-9 and all(held.values())
+        success = goal_d and not failures
+        result = dict(at_f)
+        penalty = (1.0 if at_f.get("success") else 0.0) - float(at_f.get("score", 0.0))
+        result.update({"success": success, "failures": failures, "goal_fraction": at_d.get("goal_fraction", 0.0),
+                       "budget_exceeded": at_d.get("budget_exceeded", False), "steps": declared["steps"],
+                       "time_s": declared["time_s"], "end_time_s": state.get("time_s", 0.0),
+                       "score": round((1.0 if success else 0.0) - penalty, 4), "declared": declared,
+                       "consumed": consumed,
+                       "settle": {"s": settle_s, "samples": samples, "regressions": [r["label"] for r in regressions],
+                                  "consumed": [c["label"] for c in consumed]},
+                       "lookahead": {"s": lookahead_s, "labels": later}})
+        if "unmet" in at_d:
+            result["unmet"] = at_d["unmet"]
+        record = {"command": {"action": "finish"}, "finish": {"settle_s": settle_s, "lookahead_s": lookahead_s,
+                                                              "process": process},
+                  "ok": True, "category": "", "message": "finished", "time_s": state.get("time_s", 0.0)}
+        if self.trace:
+            record["state_hash"] = digest(state)
+        self._history.append(record)
+        self._last_score = result["score"]
+        return result
+
+    def _view(self):
+        """The evaluation view finish samples labels on: with the derived-field overlay of a hardened task (WP1:
+        evaluation_view(..., task=))."""
+        mind = self.mind if self._uses_mind else None
+        return evaluation.evaluation_view(self.world.s, self._monitor, mind, task=self._task)
+
+    def _held(self, items, view):
+        """{label: value} of finish's labels on a view; a hardened task's protective label whose subject is gone is
+        not held (WP1's existence guard: evaluation.goal_status marks it "<label>:absent")."""
+        held = {label: bool(test(view)) for label, test, _ in items}
+        if evaluation.hardened(self._task) and not self._phases.phases:
+            mind = self.mind if self._uses_mind else None
+            for label, value in evaluation.goal_status(self._task, self.world.s, self._baseline, self._monitor, mind,
+                                                       view=view):
+                if label.endswith(":absent") and label[:-7] in held:
+                    held[label[:-7]] = False
+        return held
+
+    def _finish_items(self):
+        """The success labels finish watches: the task's (goal_items), or the active phase's in a multi-phase task
+        (labelled "<phase id>:<label>")."""
+        if self._phases.phases:
+            phase = self._phases.active()
+            if phase is None:
+                return []
+            prefix = str(phase.get("id", "phase")) + ":"
+            return [(prefix + label, test, rule) for label, test, rule in goal_items(self._task, phase)]
+        return goal_items(self._task)
+
+    def _finish_failures(self, at_d, at_f):
+        """The run's failures: those at D, then those new at F, except the clock's own (the budget and missed
+        deadlines are judged at D: the settle window is not the robot's time)."""
+        out = list(at_d.get("failures") or [])
+        seen = set(out)
+        for label in at_f.get("failures") or []:
+            if label in seen or label == "budget" or str(label).startswith("deadline:"):
+                continue
+            seen.add(label)
+            out.append(label)
+        return out
+
+    def _harm_labels(self, result):
+        """The look-ahead's harms in an evaluation (6.10, 6.4): global flags, invariant labels and the ledger guards
+        the look-ahead re-checks (house.damaged, the mess guards, house.waste, house.held_open: ledger.LOOKAHEAD_GUARDS
+        when the ledger is present)."""
+        flags = set(evaluation.GLOBAL_FLAGS)
+        inv = set()
+        state, baseline = self.world.s, self._baseline
+        allow = set((self._task or {}).get("allow", []))
+        for name, fn in sorted(plugins_mod.INVARIANTS.items()):
+            if name in allow:
+                continue
+            arity = evaluation._ARITY.get(fn)
+            if arity is None:
+                arity = evaluation._ARITY[fn] = evaluation._arity(fn)
+            label = fn(state, baseline, self.world) if arity >= 3 else fn(state, baseline)
+            if label:
+                inv.add(label)
+        guards = _lookahead_guards()
+        return {label for label in result.get("failures") or []
+                if label in flags or label in inv or str(label).split(":", 1)[0] in guards}
+
+    def _regression(self, fp, recent):
+        """(robot-attributable, writers) of a label's regression: the writes since the previous sample that meet its
+        footprint (the records it reads, narrowed to the fields it reads); robot-attributable when one is the
+        robot's, or physical and linked to the robot."""
+        robot, writers = False, set()
+        for rid, field, cls, name, t, causes in recent:
+            if not self._meets(fp, rid, field):
+                continue
+            writers.add((cls, name))
+            if cls == "robot" and (not is_bookkeeping(field) if field is not None else
+                                   rid[8:] not in BOOKKEEPING_SECTIONS):
+                robot = True
+            elif cls == "physical" and not robot and \
+                    self.robot_attributable(rid, field, t, list(causes) if causes else None, unknown=False):
+                robot = True
+        return robot, [list(wr) for wr in sorted(writers)]
+
+    def _meets(self, footprint, rid, field):
+        """Whether a write of rid's field can change a predicate with this footprint: (monitor.Footprint, the
+        predicate_fields of the predicate). A creation or destruction ("$exists") meets every record in scope."""
+        fp, (direct, quant) = footprint
+        if fp.always:
+            return True
+        if rid.startswith("section:"):
+            return rid[8:] in fp.sections
+        head, sep, rest = rid.partition(":")
+        if sep and head in KEYED_KINDS:
+            return head in fp.sections or (head == "rooms" and fp.any_entity)
+        if hasattr(fp, "meets"):
+            # WP3's field-level footprint (monitor.Footprint.meets: conservative, None = a creation or destruction)
+            record = self.world.s["entities"].get(rid) or self.world.gone_record(rid)
+            return bool(fp.meets(rid, None if field == EXISTS else field, record))
+        if rid in direct:
+            fields = direct[rid]
+            if fields is None or field in fields or field == EXISTS:
+                return True
+        if field != EXISTS and field not in quant:
+            return False
+        if fp.any_entity:
+            return True
+        if fp.types:
+            record = self.world.s["entities"].get(rid) or self.world.gone_record(rid) or {}
+            kinds = {("type", record.get("type")), ("category", record.get("category"))}
+            kinds.update(("type", t) for t in record.get("is_a") or ())
+            return bool(kinds & fp.types)
+        return rid in fp.ids and rid not in direct
+
+    def _idle_frame(self, seconds):
+        """Advance `seconds` of idle time as one frame that is not a step (finish's settle samples and look-ahead): the
+        robot does nothing; systems, people, pets, events and auto standing orders run, and the robot keeps
+        perceiving (the end-of-step updates). Returns the seconds advanced."""
+        w = self.world
+        state = w.s
+        strict_copy = clone(state) if STRICT else None
+        if self.realism is not None:
+            self.realism.begin_step()
+        w.begin()
+        w._writer, w._wcause = W_KERNEL, None
+        camera_mod.begin_step(w)
+        mode = self._advance_mode
+        self._advance_mode = "idle"
+        try:
+            idle = timeline.IdleRun(self, "finish") if timeline.has_auto(state) else None
+            waited = self._advance(seconds, idle=idle)
+        finally:
+            self._advance_mode = mode
+        if self.realism is not None:
+            self.realism.commit_grants(True)
+        self._end_of_step()
+        if STRICT:
+            self._strict_check(strict_copy)
+        w.commit()
+        if self.realism is not None:
+            self.realism.invalidate()
+        return waited
+
+    # ----- fast-forwarded waits (VERIFY_HARDENING 10.5; WP2) -----------------------------------------------------
+    def fast_forward(self, seconds, tick=300):
+        """A plain wait of `seconds` (1..604800) run on a coarse tick (10.5): substeps of `tick` seconds (a multiple of
+        30, 30..3600) whenever nothing needs fine time, fine 30 s substeps around anything that does -- an event, a
+        standing order or a phase that could fire before the next coarse boundary, a person or pet that changed room
+        or is active in the robot's room (moved, changed posture, activity or wakefulness: a resident asleep there is
+        no activity), a physics consequence or a raised harm flag in the last substep (and two quiet fine substeps
+        after any of them). Otherwise exactly env.step("wait", seconds=...): a step, recorded in the history (a
+        replay repeats it with the same tick). For battery and must-pass runs after the per-spec equivalence check;
+        core trials, the look-ahead and the agent harness use fine ticks. last_fast_forward reports the substeps run
+        ({"coarse", "fine", "seconds"})."""
+        if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or not 1 <= seconds <= 604800:
+            raise ValueError("fast_forward: seconds must be in 1..604800 (got {!r})".format(seconds))
+        if isinstance(tick, bool) or not isinstance(tick, (int, float)) or not SUBSTEP_S <= tick <= 3600 or \
+                abs(tick / SUBSTEP_S - round(tick / SUBSTEP_S)) > 1e-9:
+            raise ValueError("fast_forward: tick must be a multiple of 30 s in 30..3600 (got {!r})".format(tick))
+        self._coarse = float(tick)
+        self._ff = {"rooms": None, "quiet": 0, "busy": False, "substeps": []}
+        try:
+            result = self.step("wait", seconds=int(seconds))
+        finally:
+            ff, self._coarse, self._ff = self._ff, None, None
+        coarse = sum(1 for dt in ff["substeps"] if dt > SUBSTEP_S + 1e-9)
+        self.last_fast_forward = {"coarse": coarse, "fine": len(ff["substeps"]) - coarse,
+                                  "seconds": round(sum(ff["substeps"]), 3)}
+        if self._history:
+            self._history[-1]["fast_forward"] = float(tick)
+        return result
+
+    def _coarse_dt(self, remaining):
+        """The next substep's length while fast-forwarding: the coarse tick when nothing needs fine time, else 30 s."""
+        fine = min(remaining, SUBSTEP_S)
+        ff = self._ff
+        state = self.world.s
+        agents = self._agent_signatures(state)
+        before = ff["rooms"] or {}
+        robot_room = (state.get("robot") or {}).get("room")
+        # activity: someone changed room anywhere, or someone in the robot's room moved, got up, lay down, started or
+        # stopped doing something (a resident asleep in the room is no activity)
+        active = ff["rooms"] is not None and any(
+            sig[0] != (before.get(key) or (None,))[0] or (sig[0] == robot_room and sig != before.get(key))
+            for key, sig in agents.items()) or set(agents) != set(before) and ff["rooms"] is not None
+        ff["rooms"] = agents
+        if active or ff["busy"] or self._phases.phases:
+            ff["quiet"] = 0
+            return fine
+        dt = min(remaining, self._coarse)
+        if not self._quiet_until(state, float(state.get("time_s", 0.0)) + dt):
+            ff["quiet"] = 0
+            return fine
+        if ff["quiet"] < FF_QUIET_SUBSTEPS:
+            ff["quiet"] += 1
+            return fine
+        return dt
+
+    @staticmethod
+    def _agent_signatures(state):
+        """{"people:<id>" / "pets:<id>": (room, position, posture, activity, awake, state)} for fast_forward."""
+        out = {}
+        for kind in ("people", "pets"):
+            for pid, record in (state.get(kind) or {}).items():
+                if isinstance(record, dict):
+                    pos = record.get("pos")
+                    out[kind + ":" + pid] = (record.get("room", record.get("location")),
+                                             tuple(pos) if isinstance(pos, list) else pos, record.get("posture"),
+                                             record.get("activity"), record.get("awake"), record.get("state"))
+        return out
+
+    @staticmethod
+    def _quiet_until(state, horizon):
+        """True when no event and no standing order can fire before `horizon` (fast_forward)."""
+        steps = state.get("steps", 0)
+        for event in state.get("events") or ():
+            if not isinstance(event, dict) or (event.get("fired") and not event.get("repeat_s")):
+                continue
+            if "when" in event:
+                return False
+            if "at_step" in event and steps >= event["at_step"]:
+                return False
+            at = event.get("next_s", 0.0) if event.get("fired") else event.get("at_s")
+            if at is not None and float(at) <= horizon + 1e-9:
+                return False
+        for order in state.get("orders") or ():
+            if isinstance(order, dict) and (order.get("due") or not order.get("fired") or order.get("persistent")):
+                return False
+        return True
 
     # ------------------------------------------------------------------
     def evaluate(self):
@@ -1105,12 +1846,21 @@ class HouseEnv:
                    "actions_hash": actions_fingerprint(), "perception": self.perception_mode,
                    "camera": self.camera_mode,
                    "realism": self.realism.dump() if self.realism is not None else None,
-                   "monitor": self._monitor.record(), "mind": self._mind_dump()}
+                   "monitor": self._monitor.record(), "mind": self._mind_dump(),
+                   "writes": self.writes.dump(), "tick_index": self._tick_index, "last_score": self._last_score,
+                   # the idle counterfactual by digest (the projections can be ~20 MB for a 4 h budget, against 10.5's
+                   # 0.5-1 MB per snapshot): HouseEnv.load attaches the caller's after checking it
+                   "idle": self._idle_pending if self._idle_pending is not None else
+                   (idle_record(self._idle) if self._idle is not None else None)}
         envelope = {"payload": payload, "sha256": digest(payload)}
         Path(path).write_text(json.dumps(envelope, ensure_ascii=False), encoding="utf-8")
 
     @classmethod
-    def load(cls, path):
+    def load(cls, path, idle=None):
+        """The env saved at path (env.save), for continuing or forking it (10.5: a forked run computes what the
+        uninterrupted one does). idle: the idle counterfactual the saved env had (a snapshot records only its digest,
+        which must match); without it an env saved with one raises IdleMissing on evaluation until env.idle is set.
+        Passing one for a snapshot saved without one is a ValueError."""
         envelope = json.loads(Path(path).read_text(encoding="utf-8"))
         payload = envelope["payload"]
         if envelope.get("sha256") != digest(payload) or payload.get("format") != "house-state-v2":
@@ -1126,6 +1876,9 @@ class HouseEnv:
                 raise ValueError("Inconsistent held object")
         validate(check_config)
         env.world = World(state, env.registry)
+        env.writes = WriterLog.load(payload.get("writes"))     # a state saved before WP2: an empty log
+        env.world.track(env.writes)
+        env._tick_index = int(payload.get("tick_index", 0) or 0)
         env._camera_view = None
         env._baseline, env._history = payload["baseline"], payload["history"]
         env._known_map, env._undo, env._snapshots = payload["known_map"], payload["undo"], payload["snapshots"]
@@ -1149,7 +1902,17 @@ class HouseEnv:
                                          "connections": [{k: c.get(k) for k in ("id", "to", "kind", "door")}
                                                          for c in entry.get("connections") or [] if isinstance(c, dict)],
                                          "seen_s": entry.get("seen_s")}
-        env._last_score = env.evaluate()["score"]
+        recorded = payload.get("idle")
+        if isinstance(recorded, dict):
+            env._idle_pending = dict(recorded)
+            if idle is not None:
+                env.idle = idle                 # checked against the recorded digest
+        elif idle is not None:
+            raise ValueError("this snapshot was saved without an idle counterfactual: a fork judged against one would "
+                             "not compute what the uninterrupted run does")
+        # the score the next step's reward starts from: the saved env's (a state saved before it was recorded:
+        # evaluated here)
+        env._last_score = payload["last_score"] if "last_score" in payload else env.evaluate()["score"]
         return env
 
     def _mind_dump(self):
@@ -1191,6 +1954,8 @@ class HouseEnv:
             warnings.warn("Replay recorded with physics data {} (now {}): outcomes may differ".format(
                 recorded or "from before kernel v3.0", physics.physics_version()), RuntimeWarning, stacklevel=2)
         env.world = World(clone(data["start_state"]), env.registry)
+        env.writes = WriterLog()            # rebuilt by the re-run (WP2)
+        env.world.track(env.writes)
         env._camera_view = None
         timeline.start(env)
         env._sync_instruction()
@@ -1211,6 +1976,11 @@ class HouseEnv:
             command = dict(record["command"])
             if record.get("phase_done"):
                 result = env.phase_done()
+            elif record.get("finish"):
+                env.finish(**record["finish"])
+                result = {"ok": True}
+            elif record.get("fast_forward"):
+                result = env.fast_forward(command.get("seconds", 1), tick=record["fast_forward"])
             else:
                 result = env.step(**command)
             if result["ok"] != record["ok"]:

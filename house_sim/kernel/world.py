@@ -58,9 +58,49 @@ well:
     w._heard                perceived notices not yet read by a listening wait (engine-internal)
     w._env_ref              a weak reference to the env the World belongs to (timeline.start), so the timeline's
                             per-id perceivability rules can read its perception, camera view and realism
+
+The writer log, mess flows and destroyed records (VERIFY_HARDENING 6.2, 6.5, 8.6; WP2). The engine turns tracking on
+once an episode's baseline is taken (w.track(env.writes)); a World that does not track (generation, setup, a bare
+World in a test) logs nothing and keeps every state exactly as before:
+
+    w.writing(cls, name=None, cause=None)
+                            a context manager: the writes inside it are of writer class cls ("robot", "physical",
+                            "volition", "setup") under the name (a system, an action, "event:<kind>"); cause: ids the
+                            writes are consequences of (a heat source, the window a draught came through, the pipe that
+                            leaked). The engine sets the writer of every action phase, system call, event, settle pass
+                            and auto command itself; a system tags a part of its work with a different class this way
+    w.mut(eid, cause=None) / create(eid, rec, cause=None) / destroy(eid, cause=None) / set_quiet(..., cause=None)
+                            cause: ids (a string or a list) the write is a consequence of
+    w.cause(rid, *ids)      add cause ids to what the current writer wrote to rid in this frame (rid: an entity id, or
+                            "connections:<id>", "rooms:<id>", "people:<id>", "pets:<id>")
+    w.writer                the current (class, name)
+    w.mess_flow(kind, amount, src, dst, origin=None, cause=None)
+                            mess of a registered kind moved (6.5): appended to logs.mess_flows with the writer of the
+                            current window; src / dst are location keys "class:id" (or (class, id) pairs) with class
+                            floor, entity, drain, outside, loss (dst only: "loss:evaporation", "loss:consumed:<id>")
+                            or created (src only: mess made from clean inputs; its origin defaults to "created:<step>").
+                            Repeated identical flows since the last transform merge (amounts summed, "n" counted)
+    w.mess_transform(origins, new_kind, amount, at=None, cause=None)
+                            mess of the origin groups became new_kind (a class change: tap water mixed with bleach)
+    w.gone_record(eid)      the final record of an entity destroyed during the episode (logs.gone; None otherwise)
+
+logs.gone entries are {"t", "entity", "type", "location", "by", "name", "last"} (by: the writer class, name: the
+writer's name, last: the entity's final record); logs.mess_flows entries are {"op": "flow", "t0", "t", "kind",
+"amount", "src", "dst", "origin", "by", "name", "n"} or {"op": "transform", "t", "origins", "kind", "amount", "at",
+"by", "name"}. Both lists live in state (journaled: a refused action takes its entries back; they change the state
+digest of an episode that destroys an entity or moves mess) and are never observed by an agent.
+
+The last-writer log itself (WriterLog, env.writes) lives outside the state. Per frame (begin() .. commit()) the World
+splits each written record's writes into segments, one per change of writer (a clone of the record is taken only when
+the writer changes); at commit every segment's top-level field changes become (class, name, t, causes) entries of the
+log. Fields written through set_quiet are logged at the write (class physical) and left out of the record diffs.
+A savepoint marks the frame's segment counts, quiet writes and pending records, so rollback_to drops exactly what was
+logged after it; rollback drops the frame's. Cost: one dict lookup per journaled write, one clone per change of
+writer of a record within a frame, one field diff per written record at commit (VERIFY_HARDENING 6.2's 15 % limit).
 """
 import marshal
 import os
+from collections.abc import Mapping
 
 from .errors import ActionError
 from .predicates import MISSING, differences, get_path, is_within, root_room
@@ -78,6 +118,322 @@ STRICT_INDEX = os.environ.get("HOUSE_SIM_STRICT") == "1"
 # event-log kind -> fn(w, entry): notices derived from what w.emit logs (kernel/timeline.py fills it: the body's battery
 # warnings and detected faults become "battery" / "fault" notices)
 EMIT_NOTICES = {}
+
+# ----- the writer log (VERIFY_HARDENING 6.2; WP2) -----
+WRITER_CLASSES = ("robot", "physical", "volition", "setup")
+EXTERNAL_WRITER = ("setup", "external")         # writes outside the engine's frames (a test or tool poking the world)
+KEYED_KINDS = ("rooms", "people", "pets", "connections")
+# placement fields (6.3 class placement; house_sim/data/verify/watch_fields.json): a robot segment that changed one
+# keeps the entity's robot placement P_R(e) (6.2)
+PLACEMENT_FIELDS = ("location", "relation", "shelf", "pos", "spos", "facing", "facing_deg", "orientation", "cell",
+                    "slot")
+# fields WriterLog.robot_wrote ignores by default (6.3 class bookkeeping; the ledger passes its own classifier):
+# underscore fields, perception bookkeeping, last_* stamps
+BOOKKEEPING_FIELDS = frozenset(("revealed", "seen", "seen_s", "held_hand", "held_grip", "noticed"))
+EXISTS = "$exists"              # the pseudo-field of a creation or destruction
+SEGMENT_CAP = 16                # writer changes of one record in a frame before its segments are flushed early
+HISTORY_CAP = 64                # entries kept per (record, field): runs of one writer merge into one entry
+GONE_CAP = 1000                 # logs.gone entries kept (oldest dropped)
+FLOW_SRC = ("floor", "entity", "drain", "outside", "created")
+FLOW_DST = ("floor", "entity", "drain", "outside", "loss")
+_PHYSICAL = {}                  # writer -> the physical writer of its quiet writes (interned)
+
+
+def is_bookkeeping(field):
+    """The kernel's default bookkeeping test for WriterLog.robot_wrote: an underscore field, a last_* stamp or a
+    perception mark (revealed, seen, ...). The ledger's field classes (WP1) are the authority; this is the fallback."""
+    return not isinstance(field, str) or field.startswith("_") or field.startswith("last_") or \
+        field in BOOKKEEPING_FIELDS
+
+
+def _causes(value):
+    """Cause ids as a frozenset (None for none): a string or a list of strings."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return frozenset((value,))
+    out = frozenset(str(v) for v in value if v is not None)
+    return out or None
+
+
+def _record_key(rid):
+    """A writer-log record id ("mug_1", "connections:door_1", ...) -> the journal key (kind, name)."""
+    head, sep, rest = rid.partition(":")
+    if sep and head in KEYED_KINDS:
+        return head, rest
+    return "entities", rid
+
+
+def location_key(value, allowed, what):
+    """A mess-flow location key as the string "class:id" (6.5): from "class:id" or a (class, id) pair."""
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        value = "{}:{}".format(value[0], value[1])
+    if not isinstance(value, str) or ":" not in value:
+        raise ValueError("mess flow {}: a location key 'class:id' (got {!r})".format(what, value))
+    head, _, rest = value.partition(":")
+    if head not in allowed or not rest:
+        raise ValueError("mess flow {}: class must be one of {} (got {!r})".format(what, ", ".join(allowed), value))
+    return value
+
+
+class WriterLog(Mapping):
+    """env.writes: who last wrote each field of each record in the episode (VERIFY_HARDENING 6.2; WP2). Outside world
+    state: saved by env.save, rebuilt by a replay, never observed by an agent.
+
+    As a mapping: writes[(rid, field)] -> (class, name, t), the last writer of that field; rid is an entity id or
+    "rooms:<id>", "people:<id>", "pets:<id>", "connections:<id>"; field is a top-level field, "$exists" for a creation
+    or destruction, None for a top-level section ("section:<name>"). class is one of WRITER_CLASSES; name the action,
+    system, "event:<kind>", "order:<action>", "physics.settle", ...; t the simulated time of the writer's last write in
+    that frame (a long wait is one frame: t is then the time of its writer's last touch of the record).
+
+    Each key keeps a short history (HISTORY_CAP entries): runs of one writer merge into one entry [class, name, t0, t,
+    causes, seq], seq being the log's write order (ties in simulated time: several frames at one moment)."""
+
+    def __init__(self):
+        self._hist = {}         # (rid, field) -> [[cls, name, t0, t, causes or None], ...], oldest first
+        self._fields = {}       # rid -> {field: None} (an insertion-ordered set)
+        self._tail = {}         # (eid, field) -> [writer, t0, t, causes]: quiet writes not merged into _hist yet
+        self._placement = {}    # eid -> [t, {placement field: value}] after the robot's last placement change
+        self._created = {}      # rid -> (cls, name, t) of its creation in the episode
+        self._seq = 0           # write order: ties in simulated time are broken by it
+        self.recent = None      # a list while a consumer collects every committed entry (HouseEnv.finish)
+
+    # ----- mapping -----
+    def __getitem__(self, key):
+        self._sync()
+        entry = self._hist[tuple(key)][-1]
+        return entry[0], entry[1], entry[3]
+
+    def __iter__(self):
+        self._sync()
+        return iter(self._hist)
+
+    def __len__(self):
+        self._sync()
+        return len(self._hist)
+
+    def __contains__(self, key):
+        self._sync()
+        try:
+            return tuple(key) in self._hist
+        except TypeError:
+            return False
+
+    # ----- recording (World.commit) -----
+    def _push(self, key, cls, name, t0, t, causes, seq=None):
+        if seq is None:
+            self._seq += 1
+            seq = self._seq
+        hist = self._hist.get(key)
+        if hist is None:
+            self._hist[key] = [[cls, name, t0, t, causes, seq]]
+            self._fields.setdefault(key[0], {})[key[1]] = None
+            return
+        last = hist[-1]
+        if last[0] == cls and last[1] == name and last[4] == causes:
+            if t >= last[3]:
+                last[3] = t
+                last[5] = seq
+            return
+        hist.append([cls, name, t0, t, causes, seq])
+        if len(hist) > HISTORY_CAP:
+            del hist[0]
+
+    def _sync(self):
+        """Merge the quiet writes' tail into the histories (before any query)."""
+        if self._tail:
+            tail, self._tail = self._tail, {}
+            for key, (wr, t0, t, causes, seq) in tail.items():
+                self._push(key, wr[0], wr[1], t0, t, causes, seq)
+
+    def add(self, rid, field, cls, name, t, causes=None):
+        key = (rid, field)
+        causes = tuple(sorted(causes)) if causes else None
+        if self._tail:
+            old = self._tail.pop(key, None)
+            if old is not None:
+                self._push(key, old[0][0], old[0][1], old[1], old[2], old[3], old[4])
+        self._push(key, cls, name, t, t, causes)
+        if self.recent is not None:
+            self.recent.append((rid, field, cls, name, t, causes))
+
+    def absorb(self, records):
+        """Apply a committed frame's records (World._wcommit): ("w", rid, field, cls, name, t, causes), ("p", eid,
+        placement, t), ("c", rid, cls, name, t)."""
+        hists, tail, add, recent = self._hist, self._tail, self.add, self.recent
+        for rec in records:
+            tag = rec[0]
+            if tag == "w":
+                if recent is None and not rec[6]:
+                    # the common case inline: a key whose last entry is the same writer without causes
+                    key = (rec[1], rec[2])
+                    hist = hists.get(key)
+                    if hist is not None and key not in tail:
+                        last = hist[-1]
+                        if last[0] == rec[3] and last[1] == rec[4] and last[4] is None and rec[5] >= last[3]:
+                            self._seq += 1
+                            last[3], last[5] = rec[5], self._seq
+                            continue
+                add(rec[1], rec[2], rec[3], rec[4], rec[5], rec[6])
+            elif tag == "p":
+                self._placement[rec[1]] = [rec[3], rec[2]]
+            elif tag == "c":
+                self._created[rec[1]] = (rec[2], rec[3], rec[4])
+
+    def absorb_quiet(self, quiet):
+        """A frame's set_quiet writes ({(eid, field): (writer, t, causes)}): kept in a tail merged lazily, since the
+        kernel thermal model writes hundreds of temperatures every frame, always by the same writer."""
+        tail, recent = self._tail, self.recent
+        for key, value in quiet.items():
+            wr, t, causes = value
+            causes = tuple(sorted(causes)) if causes else None
+            if recent is not None:
+                recent.append((key[0], key[1], wr[0], wr[1], t, causes))
+            self._seq += 1
+            old = tail.get(key)
+            if old is not None:
+                if (old[0] is wr or old[0] == wr) and old[3] == causes:
+                    old[2], old[4] = t, self._seq
+                    continue
+                self._push(key, old[0][0], old[0][1], old[1], old[2], old[3], old[4])
+            tail[key] = [wr, t, t, causes, self._seq]
+
+    # ----- queries -----
+    def history(self, rid, field):
+        """The key's entries, oldest first: [{"class", "name", "t0", "t", "causes"}] (copies)."""
+        self._sync()
+        return [{"class": e[0], "name": e[1], "t0": e[2], "t": e[3], "causes": list(e[4] or ())}
+                for e in self._hist.get((rid, field), ())]
+
+    def fields(self, rid):
+        """The fields of rid that have entries, in the order first written."""
+        self._sync()
+        return list(self._fields.get(rid, ()))
+
+    def last(self, rid, field=None, before=None, ignore=None):
+        """(class, name, t) of the last write of rid's field (field None: of any of its fields, ignore(field) -> True
+        skipping some) at or before `before` (None: ever), or None."""
+        self._sync()
+        keys = [(rid, field)] if field is not None else [(rid, f) for f in self._fields.get(rid, ())
+                                                          if ignore is None or not ignore(f)]
+        best, rank = None, None
+        for key in keys:
+            for entry in reversed(self._hist.get(key, ())):
+                if before is not None and entry[2] > before + 1e-9:
+                    continue
+                t = entry[3] if before is None or entry[3] <= before + 1e-9 else before
+                if best is None or (t, entry[5]) > rank:
+                    best, rank = (entry[0], entry[1], t), (t, entry[5])
+                break
+        return best
+
+    def causes(self, rid, field):
+        """The cause ids of the last write of rid's field ([] when none were reported)."""
+        self._sync()
+        hist = self._hist.get((rid, field))
+        return list(hist[-1][4] or ()) if hist else []
+
+    def entry(self, rid, field, before=None):
+        """(class, name, t0, t, causes) of the write of rid's field standing at `before` (None: the last one): the
+        last entry (a run of one writer) begun at or before it, t clipped to `before`; causes a tuple (() when none
+        were reported). None when the field was not written by then."""
+        self._sync()
+        for entry in reversed(self._hist.get((rid, field), ())):
+            if before is not None and entry[2] > before + 1e-9:
+                continue
+            t = entry[3] if before is None or entry[3] <= before + 1e-9 else before
+            return entry[0], entry[1], entry[2], t, tuple(entry[4] or ())
+        return None
+
+    def during(self, rid, field, t0, t):
+        """The writes of rid's field that stood at some moment of [t0, t], oldest first: (class, name, t0, t, causes)
+        of the one standing at t0 (None before the field's first write) and of every one begun after t0 up to t."""
+        self._sync()
+        out = []
+        for entry in self._hist.get((rid, field), ()):
+            if entry[2] > t + 1e-9:
+                break
+            if entry[2] <= t0 + 1e-9:
+                out = [entry]
+            else:
+                out.append(entry)
+        return [(e[0], e[1], e[2], e[3], tuple(e[4] or ())) for e in out]
+
+    def wrote(self, cls, rid, before=None, fields=None, ignore=is_bookkeeping):
+        """True when a writer of class cls wrote rid (any of `fields`, else any field ignore() does not skip; a
+        creation or destruction counts) at or before `before` (None: ever)."""
+        self._sync()
+        names = fields if fields is not None else [f for f in self._fields.get(rid, ())
+                                                   if ignore is None or not ignore(f)]
+        for field in names:
+            for entry in self._hist.get((rid, field), ()):
+                if entry[0] == cls and (before is None or entry[2] <= before + 1e-9):
+                    return True
+        return False
+
+    def robot_wrote(self, rid, before=None, fields=None, ignore=is_bookkeeping):
+        """True when the robot wrote rid (bookkeeping fields aside, unless `ignore` says otherwise)."""
+        return self.wrote("robot", rid, before, fields, ignore)
+
+    def robot_placement(self, eid):
+        """P_R(e) (6.2): the placement fields of eid after the robot's last placement change ({field: value}, a copy),
+        or None when the robot never placed it."""
+        entry = self._placement.get(eid)
+        return clone(entry[1]) if entry is not None else None
+
+    def placement_time(self, eid):
+        entry = self._placement.get(eid)
+        return entry[0] if entry is not None else None
+
+    def created_by(self, rid):
+        """(class, name, t) of rid's creation during the episode, or None (it existed at the baseline)."""
+        return self._created.get(rid)
+
+    # ----- persistence -----
+    def dump(self):
+        self._sync()
+        return {"format": "house-writes-v1",
+                "seq": self._seq,
+                "hist": [[rid, field, [list(e[:4]) + [list(e[4]) if e[4] else None, e[5]] for e in entries]]
+                         for (rid, field), entries in self._hist.items()],
+                "placement": [[eid, entry[0], entry[1]] for eid, entry in self._placement.items()],
+                "created": [[rid] + list(value) for rid, value in self._created.items()]}
+
+    @classmethod
+    def load(cls, data):
+        log = cls()
+        if not data:
+            return log
+        if data.get("format") != "house-writes-v1":
+            raise ValueError("Unsupported writer log format: {!r}".format(data.get("format")))
+        for rid, field, entries in data.get("hist") or ():
+            log._hist[(rid, field)] = [[e[0], e[1], e[2], e[3], tuple(e[4]) if e[4] else None,
+                                        e[5] if len(e) > 5 else 0] for e in entries]
+            log._fields.setdefault(rid, {})[field] = None
+        for eid, t, value in data.get("placement") or ():
+            log._placement[eid] = [t, value]
+        log._seq = int(data.get("seq", 0) or 0)
+        for row in data.get("created") or ():
+            log._created[row[0]] = (row[1], row[2], row[3])
+        return log
+
+
+class _Writing(object):
+    """World.writing's context manager (a plain class: cheaper than a generator in the systems' loops)."""
+    __slots__ = ("w", "writer", "cause", "saved")
+
+    def __init__(self, w, writer, cause):
+        self.w, self.writer, self.cause, self.saved = w, writer, cause, None
+
+    def __enter__(self):
+        w = self.w
+        self.saved = (w._writer, w._wcause)
+        w._writer, w._wcause = self.writer, self.cause
+        return w
+
+    def __exit__(self, *exc):
+        self.w._writer, self.w._wcause = self.saved
+        return False
 
 
 def clone(value):
@@ -221,11 +577,261 @@ class World:
         self._heard = []                # perceived notices a listening wait has not read yet
         self._listening = False         # True while a wait listens for notices (interrupt_on)
         self._env_ref = None            # weak reference to the env (timeline.start): the per-id perceivability rules
+        # the writer log (WP2; module docstring): off until track(); transient per frame, never part of the state
+        self._wtrack = False
+        self._wlog = None               # the WriterLog commits go to
+        self._writer = EXTERNAL_WRITER  # (class, name) of the writes being made now
+        self._wcause = None             # frozenset of the current window's cause ids (writing(cause=...))
+        self._wseg = {}                 # journal key -> [[writer, causes, t, start record], ...] this frame
+        self._wbase = {}                # journal key -> its record when this frame's segments were last flushed
+        self._wpend = []                # flushed records not yet committed (WriterLog.absorb's shapes)
+        self._wquiet = {}               # (eid, field) -> (writer, t, causes): set_quiet writes this frame
+        self._wqfields = {}             # eid -> fields written through set_quiet this frame (left out of diffs)
+        self._wsec = {}                 # section -> writer of its last logged write this frame
+
+    # ----- the writer log (WP2) ---------------------------------------
+    def track(self, log):
+        """Start logging writers into `log` (a WriterLog; None stops). The engine calls it when an episode's baseline
+        is taken; the frame's data starts empty."""
+        self._wtrack = log is not None
+        self._wlog = log
+        self._wclear()
+
+    @property
+    def writer(self):
+        return self._writer
+
+    @property
+    def tracking(self):
+        return self._wtrack
+
+    def writing(self, cls, name=None, cause=None):
+        """Context manager: the writes inside it are of writer class `cls` (WRITER_CLASSES) under `name` (default:
+        the current writer's name); cause: ids the writes are consequences of (6.2 causal links)."""
+        if cls not in WRITER_CLASSES:
+            raise ValueError("writer class must be one of {} (got {!r})".format(", ".join(WRITER_CLASSES), cls))
+        return _Writing(self, (cls, str(name) if name is not None else self._writer[1]), _causes(cause))
+
+    def cause(self, rid, *ids):
+        """Add cause ids to what the current writer wrote to rid in this frame (call it after the write). rid: an
+        entity id or "<kind>:<id>" of a room, person, pet or connection. No-op when the World does not track; a
+        ValueError when the current writer has not written rid in this frame."""
+        if not self._wtrack or not ids:
+            return
+        key = _record_key(rid)
+        segs = self._wseg.get(key)
+        if not segs or segs[-1][0] != self._writer:
+            raise ValueError("cause(): {} was not written by {} in this frame".format(rid, self._writer))
+        self._wadd_causes(segs[-1], ids)
+
+    @staticmethod
+    def _wadd_causes(seg, ids):
+        extra = _causes(ids)
+        if extra:
+            seg[1] = extra if not seg[1] else (seg[1] | extra)
+
+    def _wclear(self):
+        self._wseg = {}
+        self._wbase = {}
+        self._wpend = []
+        self._wquiet = {}
+        self._wqfields = {}
+        self._wsec = {}
+
+    def _wnote(self, key, value):
+        """A journaled write (from _snap, before the caller changes anything): open a segment of the current writer
+        for the record, or a new one when another writer wrote it last in this frame (a clone of its current record
+        is the new segment's start)."""
+        kind = key[0]
+        if kind == "scalar":
+            return
+        wr = self._writer
+        if kind == "section":
+            if self._wsec.get(key[1]) != wr:
+                self._wsec[key[1]] = wr
+                self._wpend.append(("w", "section:" + key[1], None, wr[0], wr[1], self.s.get("time_s", 0.0),
+                                    self._wcause))
+            return
+        t = self.s.get("time_s", 0.0)
+        segs = self._wseg.get(key)
+        if segs is None:
+            self._wseg[key] = [[wr, self._wcause, t, None]]
+            return
+        last = segs[-1]
+        if last[0] is wr or last[0] == wr:
+            last[2] = t
+            if self._wcause and last[1] is not self._wcause:
+                last[1] = self._wcause if not last[1] else (last[1] | self._wcause)
+            return
+        segs.append([wr, self._wcause, t, MISSING if value is MISSING else clone(value)])
+        if len(segs) > SEGMENT_CAP and not self._layers:     # (inside a savepoint the counts must stay comparable)
+            self._wflush_key(key, segs, rebase=True)
+            del self._wseg[key]
+            self._wseg[key] = [[wr, self._wcause, t, None]]
+
+    def _wstart(self, key):
+        """The record a key's first segment of this frame starts from: its state at the last early flush, else its
+        journal snapshot (the frame start; MISSING for a record created in this frame)."""
+        if key in self._wbase:
+            return self._wbase[key]
+        return self._journal.get(key, MISSING)
+
+    def _wflush_key(self, key, segs, rebase=False):
+        """Turn one record's segments into write records (pending); rebase: its current record becomes the start of
+        its next segment (an early flush inside the frame)."""
+        kind, name = key
+        current = self.s[kind].get(name, MISSING)
+        rid = name if kind == "entities" else kind + ":" + name
+        skip = self._wqfields.get(name) if kind == "entities" else None
+        before = self._wstart(key)
+        n = len(segs)
+        for i in range(n):
+            after = segs[i + 1][3] if i + 1 < n else current
+            self._wdiff(rid, kind, segs[i], before, after, skip)
+            before = after
+        if rebase:
+            self._wbase[key] = MISSING if current is MISSING else clone(current)
+
+    def _wdiff(self, rid, kind, seg, before, after, skip):
+        """The write records of one segment: the top-level fields that differ between its start and end records."""
+        wr, causes, t = seg[0], seg[1], seg[2]
+        pend = self._wpend
+        if before is MISSING:
+            if after is MISSING:
+                return
+            pend.append(("c", rid, wr[0], wr[1], t))
+            pend.append(("w", rid, EXISTS, wr[0], wr[1], t, causes))
+            fields = sorted(f for f in after if not skip or f not in skip)
+        elif after is MISSING:
+            pend.append(("w", rid, EXISTS, wr[0], wr[1], t, causes))
+            return
+        else:
+            if before == after:
+                return
+            get = before.get
+            fields = [f for f, v in after.items() if get(f, MISSING) != v]
+            fields.extend(f for f in before if f not in after)
+            if skip:
+                fields = [f for f in fields if f not in skip]
+            fields.sort()
+        for field in fields:
+            pend.append(("w", rid, field, wr[0], wr[1], t, causes))
+        if wr[0] == "robot" and kind == "entities" and any(f in PLACEMENT_FIELDS for f in fields):
+            pend.append(("p", rid, {f: clone(after[f]) for f in PLACEMENT_FIELDS if f in after}, t))
+
+    def _wcommit(self):
+        """Hand the frame's records to the log (segment diffs, then the quiet writes) and start an empty frame."""
+        for key, segs in self._wseg.items():
+            self._wflush_key(key, segs)
+        if self._wlog is not None:
+            if self._wpend:
+                self._wlog.absorb(self._wpend)
+            if self._wquiet:
+                self._wlog.absorb_quiet(self._wquiet)
+        self._wclear()
+
+    def reclassify(self, ids, old, new):
+        """The engine's substep settle pass: the open segments of `old` (a writer) on these entity ids become `new`'s
+        (the kernel physics attributed those consequences to the robot: TIER1_PHYSICS 6.4, VERIFY_HARDENING 6.2 "physics
+        flagged _robot_moved in the same step"); so do their logs.gone entries of this moment."""
+        if not self._wtrack:
+            return
+        hit = set()
+        for eid in ids:
+            segs = self._wseg.get(("entities", eid)) if isinstance(eid, str) else None
+            if segs and segs[-1][0] == old:
+                segs[-1][0] = new
+                hit.add(eid)
+        gone = (self.s.get("logs") or {}).get("gone")
+        if not hit or not gone:
+            return
+        now = self.s.get("time_s", 0.0)
+        fix = [i for i in range(len(gone) - 1, -1, -1)
+               if gone[i].get("t") == now and gone[i].get("entity") in hit and gone[i].get("by") == old[0]
+               and gone[i].get("name") == old[1]]
+        if fix:
+            logs = self.sec("logs")
+            for i in fix:
+                logs["gone"][i]["by"], logs["gone"][i]["name"] = new[0], new[1]
+
+    # ----- mess flows and destroyed records (WP2) ---------------------
+    def mess_flow(self, kind, amount, src, dst, origin=None, cause=None):
+        """Log that `amount` of mess kind `kind` (a registered kind, e.g. "debris", "liquid:mop_water") moved from
+        `src` to `dst` (location keys, module docstring) with the writer of the current window (6.5). Returns the log
+        entry (merged into an identical earlier one since the last transform), or None when the World does not track
+        or the amount is not positive."""
+        if not isinstance(kind, str) or not kind:
+            raise ValueError("mess flow: kind must be a non-empty string")
+        if isinstance(amount, bool) or not isinstance(amount, (int, float)) or amount != amount or amount < 0:
+            raise ValueError("mess flow: amount must be a nonnegative number (got {!r})".format(amount))
+        src = location_key(src, FLOW_SRC, "src")
+        dst = location_key(dst, FLOW_DST, "dst")
+        if origin is not None and not isinstance(origin, str):
+            raise ValueError("mess flow: origin must be a string id or None")
+        if not self._wtrack or amount <= 0:
+            return None
+        if origin is None and src.startswith("created:"):
+            origin = "created:{}".format(self.s.get("steps", 0))
+        wr, now = self._writer, self.s.get("time_s", 0.0)
+        flows = self.sec("logs").setdefault("mess_flows", [])
+        for entry in reversed(flows):
+            if entry.get("op") == "transform":
+                break
+            if entry.get("kind") == kind and entry.get("src") == src and entry.get("dst") == dst and \
+                    entry.get("origin") == origin and entry.get("by") == wr[0] and entry.get("name") == wr[1]:
+                entry["amount"] = round(entry["amount"] + float(amount), 9)
+                entry["t"] = now
+                entry["n"] = entry.get("n", 1) + 1
+                if cause is not None:
+                    entry["cause"] = sorted(set(entry.get("cause") or ()) | _causes(cause))
+                return entry
+        entry = {"op": "flow", "t0": now, "t": now, "kind": kind, "amount": round(float(amount), 9), "src": src,
+                 "dst": dst, "origin": origin, "by": wr[0], "name": wr[1], "n": 1}
+        causes = _causes(cause) or self._wcause
+        if causes:
+            entry["cause"] = sorted(causes)
+        flows.append(entry)
+        return entry
+
+    def mess_transform(self, origins, new_kind, amount, at=None, cause=None):
+        """Log that `amount` (in new_kind's unit) of the mess of the origin groups `origins` became kind new_kind (a
+        class change, 6.5): a transform keeps the groups together, and identical flows merge only within the
+        stretch between two transforms. at: the location key where it happened (optional)."""
+        if isinstance(origins, str):
+            origins = [origins]
+        if not isinstance(origins, (list, tuple)) or not origins or not all(isinstance(o, str) for o in origins):
+            raise ValueError("mess transform: origins is a non-empty list of origin ids")
+        if not isinstance(new_kind, str) or not new_kind:
+            raise ValueError("mess transform: new_kind must be a non-empty string")
+        if isinstance(amount, bool) or not isinstance(amount, (int, float)) or amount != amount or amount < 0:
+            raise ValueError("mess transform: amount must be a nonnegative number (got {!r})".format(amount))
+        if at is not None:
+            at = location_key(at, FLOW_SRC + ("loss",), "at")
+        if not self._wtrack:
+            return None
+        wr = self._writer
+        entry = {"op": "transform", "t": self.s.get("time_s", 0.0), "origins": sorted(set(origins)),
+                 "kind": new_kind, "amount": round(float(amount), 9), "at": at, "by": wr[0], "name": wr[1]}
+        causes = _causes(cause) or self._wcause
+        if causes:
+            entry["cause"] = sorted(causes)
+        self.sec("logs").setdefault("mess_flows", []).append(entry)
+        return entry
+
+    def gone_record(self, eid):
+        """The final record of an entity destroyed during the episode (the last logs.gone entry for it; read-only),
+        or None (people's phase-1 request: answer about a thing made and destroyed again like one out of view)."""
+        for entry in reversed((self.s.get("logs") or {}).get("gone") or ()):
+            if entry.get("entity") == eid:
+                return entry.get("last")
+        return None
 
     # ----- journaling -------------------------------------------------
     def begin(self):
         if self._static and (self._journal or self._quiet):
             self._absorb(self.changes())        # writes nobody committed: the static indexes still learn of them
+        if self._wtrack:
+            self._wcommit()                     # writes made outside a frame happened: they are logged
         self._journal = {}
         self._quiet = {}
         self._layers = []
@@ -258,6 +864,8 @@ class World:
             self._touched_sections.add(key[1])
         else:
             self._touched_sections.add(kind)
+        if self._wtrack:
+            self._wnote(key, value)
 
     def journal_keys(self):
         return list(self._journal) + [("entities", eid) for eid in self._quiet if ("entities", eid) not in self._journal]
@@ -340,16 +948,23 @@ class World:
         self.mutation_count += 1
         self._reset_transient()
         self._structural(restored)
+        self._wclear()                          # the frame's writes are undone: nothing of them is logged
 
     # ----- savepoints (TIER1_SWEEP 6.4, TIER1_INTEGRATION 1.8) ----------
     def savepoint(self):
         """Open a journal layer inside the step and return its token. Every write after it is recorded (first value per
-        key) in the layer as well as in the step journal, so rollback_to(sp) can restore exactly the state at sp."""
+        key) in the layer as well as in the step journal, so rollback_to(sp) can restore exactly the state at sp. The
+        writer log's frame data is marked too (WP2: the segment count per record, the quiet writes, the pending
+        records), so rollback_to drops exactly what was logged after sp."""
         scratch = {}
         for key, value in self.phys_scratch.items():
             scratch[key] = value.copy() if isinstance(value, (dict, list, set)) else value
-        self._layers.append({"journal": {}, "quiet": {}, "touched": self._touched_base + len(self._touched),
-                             "scratch": scratch, "heard": len(self._heard)})
+        layer = {"journal": {}, "quiet": {}, "touched": self._touched_base + len(self._touched),
+                 "scratch": scratch, "heard": len(self._heard)}
+        if self._wtrack:
+            layer["wlog"] = ({key: (len(segs), segs[-1][2], segs[-1][1]) for key, segs in self._wseg.items()},
+                             dict(self._wquiet), dict(self._wsec), len(self._wpend))
+        self._layers.append(layer)
         return len(self._layers)
 
     def _check_sp(self, sp):
@@ -394,6 +1009,20 @@ class World:
         self._version += 1
         self.mutation_count += 1
         self._structural(restored)
+        # the writer log: drop what was logged after sp (segments opened after it, the quiet and section writes)
+        marks = first.get("wlog")
+        if marks is not None and self._wtrack:
+            counts, quiet, sections, pending = marks
+            for key in list(self._wseg):
+                mark = counts.get(key)
+                if mark is None:
+                    del self._wseg[key]
+                    continue
+                segs = self._wseg[key]
+                del segs[mark[0]:]
+                segs[-1][2], segs[-1][1] = mark[1], mark[2]
+            self._wquiet, self._wsec = quiet, sections
+            del self._wpend[pending:]
 
     def release(self, sp):
         """End savepoint sp (and the ones opened after it) keeping its changes: its first values merge into the layer
@@ -444,9 +1073,12 @@ class World:
         changed = self.changes()
         if self._static:
             self._absorb(changed)
+        if self._wtrack:
+            self._wcommit()                     # needs the journal (each record's frame start)
         self._journal = {}
         self._quiet = {}
         self._layers = []
+        self._writer, self._wcause = EXTERNAL_WRITER, None
         return changed
 
     # ----- entities ---------------------------------------------------
@@ -463,15 +1095,19 @@ class World:
         except KeyError:
             raise ActionError("Unknown entity: " + str(eid), "argument")
 
-    def mut(self, eid):
+    def mut(self, eid, cause=None):
+        """A mutable entity record (journaled first). cause: ids this write is a consequence of (the writer log)."""
         record = self.ent(eid)
         self._snap(("entities", eid), record)
+        if cause is not None and self._wtrack:
+            self._wadd_causes(self._wseg[("entities", eid)][-1], (cause,) if isinstance(cause, str) else cause)
         return record
 
-    def set_quiet(self, eid, field, value):
+    def set_quiet(self, eid, field, value, cause=None):
         """Set one field of an entity, journaled at field level (no copy of the record) and not a touch: the kernel
         thermal system's temperature writes, hundreds per run. Rollback, changes() and strict mode treat it like a
-        journaled write; mutation_count counts it."""
+        journaled write; mutation_count counts it. The writer log records it at once (class physical: VERIFY_HARDENING
+        6.2 quiet writes), when the value changes."""
         record = self.ent(eid)
         if ("entities", eid) not in self._journal:
             fields = self._quiet.setdefault(eid, {})
@@ -483,6 +1119,16 @@ class World:
                 fields = top["quiet"].setdefault(eid, {})
                 if field not in fields:
                     fields[field] = _plain(record.get(field, MISSING))
+        if self._wtrack and record.get(field, MISSING) != value:
+            wr = self._writer
+            if wr[0] != "physical":
+                wr = _PHYSICAL.get(wr) or _PHYSICAL.setdefault(wr, ("physical", wr[1]))
+            self._wquiet[(eid, field)] = (wr, self.s.get("time_s", 0.0), _causes(cause) or self._wcause)
+            done = self._wqfields.get(eid)
+            if done is None:
+                self._wqfields[eid] = {field}
+            else:
+                done.add(field)
         record[field] = value
         self.mutation_count += 1
         self._quiet_touched.add(eid)
@@ -499,15 +1145,19 @@ class World:
         self.mutation_count += 1
         self._index = None
         self._quiet_touched.add(eid)
+        if self._wtrack:
+            self._wnote(key, record)        # its changes are diffed like a mut's (it is no touch, but a write)
         return record
 
-    def create(self, eid, record):
+    def create(self, eid, record, cause=None):
         if eid in self.s["entities"] or eid in self.s["rooms"] or eid in RESERVED_IDS:
             raise ValueError("Entity id already used or reserved: " + eid)
         self._version += 1
         self._snap(("entities", eid), MISSING)
         self.s["entities"][eid] = record
         self._structural((eid,))
+        if cause is not None and self._wtrack:
+            self._wadd_causes(self._wseg[("entities", eid)][-1], (cause,) if isinstance(cause, str) else cause)
         return record
 
     def new_id(self, stem):
@@ -525,10 +1175,21 @@ class World:
         self.create(eid, record)
         return eid
 
-    def destroy(self, eid):
+    def destroy(self, eid, cause=None):
+        """Remove an entity. In a tracked episode its final record joins logs.gone (8.6: failure predicates and
+        answerers read it) with the writer that destroyed it."""
         self._version += 1
         record = self.ent(eid)
         self._snap(("entities", eid), record)
+        if self._wtrack:
+            if cause is not None:
+                self._wadd_causes(self._wseg[("entities", eid)][-1], (cause,) if isinstance(cause, str) else cause)
+            wr = self._writer
+            gone = self.sec("logs").setdefault("gone", [])
+            gone.append({"t": self.s.get("time_s", 0.0), "entity": eid, "type": record.get("type"),
+                         "location": record.get("location"), "by": wr[0], "name": wr[1], "last": clone(record)})
+            if len(gone) > GONE_CAP:
+                del gone[:len(gone) - GONE_CAP]
         del self.s["entities"][eid]
         self._structural((eid,))
 

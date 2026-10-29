@@ -42,6 +42,17 @@ face seen this step. Tracked identity (Knowledge entries' "ident": [level, place
 per step by note_step(view) and keeps a thing's identity -- never its condition -- while it has not moved; people and
 pets the camera cannot identify are shapes keyed by a handle per sighting. Room mode renders exactly as before.
 
+Perception evidence (VERIFY_HARDENING 15.2-15.3, WP7; read by tasks/perceive.py, never by an agent): the act log
+(Realism.acts: per action, taken before it ran -- its converted arguments, the things it named and what the robot knew
+of each: unresolved, entity and field levels, the true values then), the grant log (grants_log: every grant a step
+applied, with when and the true values then), and while record_observations is on an ObservationLog that stamps
+every recorded observation and message with its time and step and keeps the knowledge levels of what each
+observation listed. All three live outside world state and are saved with the episode (dump / load). The knowledge
+signature is split: a move the robot tracked (settle_moves: the thing seen, identified, in its own lit room when the
+step began and when it ended) keeps its identity and the grants of INTRINSIC_FIELDS (Knowledge.retain); every other
+grant lapses as an unseen move makes it. An unfamiliar thing's names in a message are those of every type it could be
+(unfamiliar_names), so a domain's generic wording reads the same whatever it truly is (closeout_REV latch / mark).
+
 Robot body (kernel v3.0; TIER1_INTEGRATION 1.3, TIER1_EMBODIMENT 6): the lens clarity in the observation context is
 the body's (body.clarity, the sensors_view clarity: camera_clean capped by lens scratches); with imaging off (privacy
 mode, cameras off or failed, a room privacy policy, powered down) the robot's room is dark for the cameras whatever
@@ -242,6 +253,18 @@ PROVENANCE_FIELDS = ("liquid", "contents", "product")
 IDENTITY_KEYS = ("label", "kind", "candidates", "descriptor")
 # placeholder type names/labels that say nothing about what a thing is (never rewritten in messages)
 GENERIC_NAMES = {"object", "item", "thing", "generic item", "generic_item", "portable object", "portable_object"}
+# JSON message keys whose values name a thing (an unfamiliar thing's name is rewritten there as in free text); the other
+# descriptive keys carry the kernel's own renderings (shape, colour, material guess, print) and are left alone
+NAMING_KEYS = ("label", "descriptor", "name", "title")
+# what an unfamiliar thing's name is rewritten to in a message that names several unfamiliar things of different looks
+UNFAMILIAR_WORDS = "unfamiliar object"
+# what a thing is, whatever its placement (VERIFY_HARDENING 15.2, WP7: the split knowledge signature): identity fields
+# (labels and print, the identity class of 6.3) and intrinsic physical fields (mass, size, material, what it contains).
+# Their grants and the entity's identity level survive a move the robot tracked (it saw the thing before and after);
+# placement-dependent and visible-state fields lapse as before
+INTRINSIC_FIELDS = frozenset(DEFAULT_TIERS["read"]) | frozenset((
+    "label", "name", "name_label", "material", "mass_kg", "weight_kg", "size_m", "capacity_l", "inner_size_m",
+    "volume_l")) | CONTENT_FIELDS
 # dict-valued {kind: amount} fields shown as word buckets (never exact floats) unless measured with a tool
 WORD_BUCKETS = {"odor": ((0.3, 0.6), ("faint", "noticeable", "strong")),
                 "damage": ((0.3, 0.6), ("light", "moderate", "severe"))}
@@ -435,6 +458,10 @@ class Handles:
             self.by_id[eid], self.by_handle[handle] = handle, eid
 
 
+# the placement fields of a knowledge entry's signature (a change of any of them is a move)
+SIGNATURE_KEYS = ("location", "pos", "spos", "relation", "shelf")
+
+
 class Knowledge:
     """What the robot has learned: {eid: {"sig": placement signature, "fields": {field: [level, value digest]}}}.
     Geometric camera mode adds "ident": [view level, placement signature] (tracked identity, TIER1_CAMERA 11.2): the
@@ -445,7 +472,7 @@ class Knowledge:
 
     @staticmethod
     def signature(record):
-        return _digest([record.get("location"), record.get("pos"), record.get("spos"), record.get("relation"), record.get("shelf")])
+        return _digest([record.get(k) for k in SIGNATURE_KEYS])
 
     def grant(self, eid, record, level, fields=None):
         entry = self.data.get(eid)
@@ -467,12 +494,26 @@ class Knowledge:
             entry["level"] = max(entry.get("level", GLANCE), level)
 
     def stale(self, eid, field):
-        """(level, remembered value) of a field whose current value no longer matches what was learned."""
+        """(level, remembered value) of a field whose current value no longer matches what was learned (a grant that
+        lapsed when a tracked move re-keyed the entry is still remembered: "lapsed")."""
         entry = self.data.get(eid) or {}
         known = entry.get("fields", {}).get(field)
+        if known is None:
+            known = (entry.get("lapsed") or {}).get(field)
         if known is None or len(known) < 4:
             return None
         return known[0], known[3]
+
+    @staticmethod
+    def _holding(known, current):
+        """The level of grant `known` for the field's current value: its level while the value is what was learned
+        (continuous values drift: knowledge holds while within ~tool precision of it), else GLANCE."""
+        if known[1] != _digest(current):
+            if len(known) > 2 and isinstance(current, float) and isinstance(known[2], float) and \
+                    abs(current - known[2]) <= max(0.5, 0.02 * abs(known[2])):
+                return known[0]
+            return GLANCE
+        return known[0]
 
     def level(self, eid, record, field):
         entry = self.data.get(eid)
@@ -481,14 +522,40 @@ class Knowledge:
         known = entry["fields"].get(field)
         if known is None:
             return GLANCE
-        current = record[field] if field in record else _field_value(record, field)
-        if known[1] != _digest(current):
-            # continuous values drift: knowledge holds while within ~tool precision of what was learned
-            if len(known) > 2 and isinstance(current, float) and isinstance(known[2], float) and \
-                    abs(current - known[2]) <= max(0.5, 0.02 * abs(known[2])):
-                return known[0]
-            return GLANCE
-        return known[0]
+        return self._holding(known, record[field] if field in record else _field_value(record, field))
+
+    def levels(self, eid, record):
+        """{field: level} of every grant of eid above a glance that still holds where it is now (level's rule, the
+        signature computed once): what the act log records of a command's target."""
+        entry = self.data.get(eid)
+        if entry is None or entry["sig"] != self.signature(record):
+            return {}
+        out = {}
+        for name in sorted(entry["fields"]):
+            if name.startswith("_"):
+                continue
+            lvl = self._holding(entry["fields"][name], record[name] if name in record else _field_value(record, name))
+            if lvl > GLANCE:
+                out[name] = lvl
+        return out
+
+    def retain(self, eid, record, keep):
+        """A move the robot tracked (VERIFY_HARDENING 15.2, WP7): re-key eid's entry to where it is now, keeping the
+        grants of the fields in `keep` (identity and intrinsic fields) and the entity's identity level; every other
+        grant lapses as an unseen move makes it (remembered for the stale rendering, never a current grant)."""
+        entry = self.data.get(eid)
+        if entry is None:
+            return
+        sig = self.signature(record)
+        fields, lapsed = {}, dict(entry.get("lapsed") or {})
+        for name, known in entry["fields"].items():
+            if name in keep:
+                fields[name] = known
+            else:
+                lapsed[name] = known
+        entry["sig"], entry["fields"] = sig, fields
+        if lapsed:
+            entry["lapsed"] = lapsed
 
     def entity_level(self, eid, record):
         entry = self.data.get(eid)
@@ -537,6 +604,49 @@ class Knowledge:
         self.data = copy.deepcopy(data or {})
 
 
+class ObservationLog(list):
+    """Realism.observed while record_observations is on: the recorded observations and action messages in order (the
+    items are exactly what they always were, so readers that walk the list see no change), with, per item, when it was
+    recorded -- stamps[i] = (world time_s, step count) -- and, for an observation, what the robot knew of each thing it
+    listed then -- evidence[i] = {eid: {"levels": {field: level above a glance}, "truth": {field: true value}}} (None for
+    a message). tasks/perceive.py builds its time-aware evidence index from it (VERIFY_HARDENING 15.2, WP7)."""
+
+    def __init__(self, realism=None):
+        super().__init__()
+        self._realism = realism
+        self.stamps = []
+        self.evidence = []
+
+    def append(self, item):
+        super().append(item)
+        env = getattr(self._realism, "env", None)
+        state = env.world.s if env is not None and getattr(env, "world", None) is not None else {}
+        self.stamps.append((float(state.get("time_s", 0.0) or 0.0), int(state.get("steps", 0) or 0)))
+        self.evidence.append(None)
+
+    def note(self, snapshot):
+        """The evidence snapshot of the item appended last."""
+        if self.evidence:
+            self.evidence[-1] = snapshot
+
+    def clear(self):
+        super().clear()
+        self.stamps, self.evidence = [], []
+
+
+def _evidence_value(value):
+    """A true value as the evidence logs keep it: scalars as they are, short lists of scalars copied, anything else
+    by digest (a dict value is compared, never read back)."""
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        return value if len(value) <= 200 else "#" + _digest(value)
+    if isinstance(value, (list, tuple)) and len(value) <= 6 and all(v is None or isinstance(v, (bool, int, float, str))
+                                                                    for v in value):
+        return list(value)
+    return "#" + _digest(value)
+
+
 class Realism:
     def __init__(self, env):
         self.env = env
@@ -553,8 +663,24 @@ class Realism:
         self._groups = None
         self.pending = []          # grants of the step in progress (applied only if it succeeds)
         self._room_ctx = None
-        self.observed = []         # optional log of observations/messages (verifier perceivability check)
+        # optional log of observations/messages (verifier perceivability check; tasks/perceive.py's evidence index):
+        # an ObservationLog, a list that also stamps each item with its time and step
+        self.observed = ObservationLog(self)
         self.record_observations = False
+        # the act log (VERIFY_HARDENING 15.3, WP7; hidden, kept outside world state): one record per action, taken
+        # before it ran -- {"step", "t", "action", "ok", "args" (true ids), "ids", "targets": {eid: {"unresolved",
+        # "novel", "level", "ident", "seen", "fields": {field: level}, "values": {field: true value}}}, "placed": {id:
+        # location} where a successful step put things (only when it moved any)} -- and the grant log: {"step", "t",
+        # "id", "level", "values": {field: true value}} per grant a successful step applied
+        self.acts = []
+        self.grants_log = []
+        self._act = None
+        self._act_open = False
+        # tracked moves (the split knowledge signature, WP7): moves of known things during the step in progress, and
+        # what the robot perceived when it began ({"view": (room, dark) or None, "seen": ids perceived})
+        self.track_moves = True
+        self._moves = {}
+        self._before = None
         self._group_cache = {}     # (looks_like, type, is_a, category) -> group name (or None)
         self._common = {}          # group -> glance values every unresolved member shows (color, size)
         self._shared = {}          # group -> words every member's type/category/label shares
@@ -1898,6 +2024,144 @@ class Realism:
         self._ever.update(state["entities"])      # ids of things this step destroys still get translated
         self._step_gone = {}
         self._printed = set()           # print of an unfamiliar thing read this step (keep_print)
+        self.settle_moves()             # the previous step's moves, now that its end is perceived
+        mind = getattr(self.env, "mind", None)
+        self._before = {"view": self._last_view, "seen": frozenset(getattr(mind, "now", None) or ()),
+                        "beliefs": getattr(mind, "seen", None)}
+        trail = state.get("action_log") or ()
+        self._trail_last = trail[-1] if trail else None
+        self._act, self._act_open = None, True
+
+    # ----- the act log and tracked moves (VERIFY_HARDENING 15.2-15.3, WP7) -------------------------------------
+    def _open_act(self, args):
+        """The act log record of the step in progress, from the command's converted arguments (true ids), taken
+        before the action runs: what it named and what the robot knew of each named thing at that moment. Completed
+        with the action's name and outcome by commit_grants."""
+        state = self.env.world.s
+        entities = state["entities"]
+        ids = []
+
+        def collect(value, depth=0):
+            if isinstance(value, str):
+                if value in entities and value not in ids:
+                    ids.append(value)
+            elif isinstance(value, (list, tuple)) and depth < 2:
+                for v in value[:64]:
+                    collect(v, depth + 1)
+            elif isinstance(value, dict) and depth < 2:
+                for v in list(value.values())[:64]:
+                    collect(v, depth + 1)
+        for key in sorted(args):
+            collect(args[key])
+        seen = (self._before or {}).get("seen") or ()
+        targets = {}
+        for eid in ids:
+            record = entities[eid]
+            ident, gname, _group, _portion = self._identify(eid, record, self.knowledge.entity_level(eid, record))
+            targets[eid] = {"unresolved": _unidentified(ident, record), "group": gname,
+                            "novel": gname is None and _novel_identity(ident),
+                            "level": self.knowledge.entity_level(eid, record),
+                            "ident": self.knowledge.ident_level(eid, record), "seen": eid in seen,
+                            "fields": self.knowledge.levels(eid, record),
+                            "values": {k: _evidence_value(v) for k, v in sorted(record.items())
+                                       if not k.startswith("_") and self.tier(record, k) != "never"}}
+        self._act = {"step": int(state.get("steps", 0)), "t": float(state.get("time_s", 0.0)),
+                     "args": copy.deepcopy(args), "ids": ids, "targets": targets}
+
+    def _close_act(self, ok):
+        """Completes the step's act record from the world's action trail (its last entry is this step's: the action as
+        run, a scheduled one included) and appends it to the act log."""
+        state = self.env.world.s
+        trail = state.get("action_log") or ()
+        last = trail[-1] if trail and isinstance(trail[-1], dict) and trail[-1].get("step") == state.get("steps") else None
+        if last is not None and last is getattr(self, "_trail_last", None):
+            last = None                 # no action this step (phase_done): the trail's last entry is an earlier step's
+        act, self._act, self._act_open = self._act, None, False
+        if last is None:
+            return
+        if act is None:
+            # the command never reached the action with converted arguments (refused before, or a scheduled one)
+            target = last.get("target")
+            act = {"step": int(state.get("steps", 0)), "t": float(last.get("time_s") or 0.0), "args": {},
+                   "ids": [target] if isinstance(target, str) and target in state["entities"] else [], "targets": {}}
+        act["action"], act["ok"] = str(last.get("action") or ""), bool(ok)
+        placed = self._placements() if ok else {}
+        if placed:
+            act["placed"] = placed
+        self.acts.append(act)
+
+    def _placements(self):
+        """{id: location} of every thing whose location the step in progress changed (from the world journal, before
+        it is committed): where the step put things, whatever the verb -- perceive's agent rule matches a command that
+        puts a branch's thing at the branch's destination by this, not by its name (review A-gaming-4)."""
+        world = self.env.world
+        journal = getattr(world, "_journal", None)
+        if not isinstance(journal, dict) or not journal:
+            return {}
+        entities = world.s["entities"]
+        out = {}
+        for key, before in journal.items():
+            if not (isinstance(key, tuple) and len(key) == 2 and key[0] == "entities") or not isinstance(before, dict):
+                continue
+            after = entities.get(key[1])
+            if isinstance(after, dict) and after.get("location") != before.get("location") and \
+                    isinstance(after.get("location"), str):
+                out[key[1]] = after["location"]
+        return dict(sorted(out.items()))
+
+    def _note_move(self, eid, before, after):
+        """A thing the robot had knowledge of changed placement during the step in progress (and not in the robot's
+        hands or by its own push: those keep their knowledge): remember where it was known, for settle_moves."""
+        entry = self.knowledge.data.get(eid)
+        if entry is None or not self.track_moves:
+            return
+        sig_before = Knowledge.signature(before)
+        if entry["sig"] != sig_before or Knowledge.signature(after) == sig_before:
+            return
+        ident = entry.get("ident")
+        beliefs = (self._before or {}).get("beliefs") or {}
+        self._moves[eid] = {"sig": sig_before, "ident": int(ident[0]) if ident and ident[1] == sig_before else 0,
+                            "room": (beliefs.get(eid) or {}).get("room")}
+
+    def settle_moves(self):
+        """Decide the moves of the step that ended (VERIFY_HARDENING 15.2, WP7: the split knowledge signature). A move
+        is tracked when the robot perceived the thing, identified, in its own lit room both when the step began and
+        when it ended, without changing rooms (geometric camera: at identify level at both places); then identity and
+        intrinsic fields keep their grants (Knowledge.retain) and placement-dependent and visible-state fields lapse
+        as for an unseen move. Run at the next observation or step, and before a dump, so it is the same whenever it
+        runs. Idempotent."""
+        moves, self._moves = self._moves, {}
+        before = self._before
+        if not moves or before is None or not self.track_moves:
+            return
+        mind = getattr(self.env, "mind", None)
+        now = getattr(mind, "now", None)
+        state = self.env.world.s
+        rid = state["robot"].get("room")
+        view = before.get("view")
+        if now is None or not view or view[0] != rid or view[1] or not self._last_view or \
+                self._last_view != (rid, False):
+            return
+        from .predicates import root_room
+        geo = isinstance(state["robot"].get("view"), dict)
+        kept = False
+        for eid in sorted(moves):
+            move = moves[eid]
+            record = state["entities"].get(eid)
+            entry = self.knowledge.data.get(eid)
+            if record is None or entry is None or entry["sig"] != move["sig"]:
+                continue
+            if eid not in before["seen"] or eid not in now or move.get("room") != rid or root_room(state, eid) != rid:
+                continue
+            if geo:
+                ident = entry.get("ident")
+                if move.get("ident", 0) < VIEW_LEVELS["identify"] or not ident or ident[0] < VIEW_LEVELS["identify"] \
+                        or ident[1] != Knowledge.signature(record):
+                    continue
+            self.knowledge.retain(eid, record, INTRINSIC_FIELDS)
+            kept = True
+        if kept:
+            self.version += 1
 
     def keep_print(self, values):
         """The step's result shows these strings as printed on an unfamiliar thing (core read): outbound_message leaves
@@ -1944,6 +2208,8 @@ class Realism:
                     ident = entry.get("ident")
                     if ident and ident[1] == self.knowledge.signature(before):
                         entry["ident"] = [ident[0], entry["sig"]]       # ... and still knows what it is
+            elif eid in self.knowledge.data and any(before.get(k) != after.get(k) for k in SIGNATURE_KEYS):
+                self._note_move(eid, before, after)      # moved by someone or something else: settle_moves decides
 
     def commit_grants(self, ok):
         grants, self.pending = self.pending, []
@@ -1961,6 +2227,7 @@ class Realism:
                     entry["sig"] = self.knowledge.signature(record)     # it moved with the robot, not unseen
         self._held_before = set()
         self._step_changes(ok)
+        self._close_act(ok)
         if not ok:
             return
         for eid, level, fields in grants:
@@ -1973,13 +2240,18 @@ class Realism:
                 names = [f for f in record if not f.startswith("_") and self.tier(record, f) != "measure"]
                 inspect_names = [f for f in names if self.tier(record, f) != "read"]
                 self.knowledge.grant(eid, record, INSPECT, inspect_names)
+                self._log_grant(state, eid, record, INSPECT, inspect_names)
                 if level == READ:
-                    self.knowledge.grant(eid, record, READ, [f for f in names if self.tier(record, f) == "read"])
+                    read_names = [f for f in names if self.tier(record, f) == "read"]
+                    self.knowledge.grant(eid, record, READ, read_names)
+                    self._log_grant(state, eid, record, READ, read_names)
                 entry = self.knowledge.data.get(eid)
                 if entry is not None:
                     entry["level"] = max(entry.get("level", GLANCE), level)
             else:
                 self.knowledge.grant(eid, record, level, list(fields) if fields is not None else None)
+                self._log_grant(state, eid, record, level, list(fields) if fields is not None else
+                                [k for k in record if not k.startswith("_")])
                 if level == READ and fields is not None and self._read_identifies(record, fields):
                     entry = self.knowledge.data.get(eid)
                     if entry is not None:
@@ -1990,6 +2262,18 @@ class Realism:
                 if entry is not None:
                     entry["fields"]["_contents"] = [INSPECT, _digest(sorted(self._children(state, eid)))]
 
+    def _log_grant(self, state, eid, record, level, names):
+        """The grant log (WP7): what a successful step let the robot learn of eid, at which level, with the true values
+        of those fields then -- the evidence of what it perceived, by time (tasks/perceive.py)."""
+        values = {}
+        for name in names:
+            if name.startswith("_") or self.tier(record, name) == "never":
+                continue
+            values[name] = _evidence_value(_field_value(record, name))
+        if values:
+            self.grants_log.append({"step": int(state.get("steps", 0)), "t": float(state.get("time_s", 0.0)),
+                                    "id": eid, "level": int(level), "values": values})
+
     def grant_prior(self, eid, record, level):
         """Knowledge the robot brought into the episode (setup op prior_knowledge, TIER1_SWEEP 7.4): eid as `record`
         showed it then, at `level` ("glance" / "inspect" / "read" / "touch" / "measure"), with the same field rule as
@@ -1998,15 +2282,19 @@ class Realism:
         if not isinstance(lvl, int) or lvl <= GLANCE:
             return
         names = [f for f in record if not f.startswith("_") and self.tier(record, f) not in ("measure", "never")]
+        state = self.env.world.s
         if lvl in (INSPECT, READ):
             self.knowledge.grant(eid, record, INSPECT, [f for f in names if self.tier(record, f) != "read"])
+            self._log_grant(state, eid, record, INSPECT, [f for f in names if self.tier(record, f) != "read"])
             if lvl == READ:
                 self.knowledge.grant(eid, record, READ, [f for f in names if self.tier(record, f) == "read"])
+                self._log_grant(state, eid, record, READ, [f for f in names if self.tier(record, f) == "read"])
             entry = self.knowledge.data.get(eid)
             if entry is not None:
                 entry["level"] = max(entry.get("level", GLANCE), lvl)
         else:
             self.knowledge.grant(eid, record, lvl, None)
+            self._log_grant(state, eid, record, lvl, [k for k in record if not k.startswith("_")])
         self.version += 1
 
     def memory_output(self):
@@ -2202,6 +2490,8 @@ class Realism:
         del said[:-500]
         self._agent_text = tuple(sorted({v for k, v in out.items() if k not in entity_keys and isinstance(v, str)
                                          and len(v.strip()) >= 3 and v not in state["entities"]}, key=lambda s: (-len(s), s)))
+        if self._act_open and self._act is None:
+            self._open_act(out)         # the step's command, before its action runs (an availability probe is none)
         return out
 
     def out_text(self, text, visible=None, issue=True):
@@ -2464,41 +2754,82 @@ class Realism:
 
         For a look-alike the names are those of the whole group -- every member type's label and type name and every
         in-house member's own label -- so a generic word that happens to equal one member's name is rewritten for
-        every member alike (messages stay byte-identical across the group). An unfamiliar thing has no group: its own
-        label and type are rewritten, except inside the agent's own echoed words (protected=True), where rewriting
-        would confirm a guessed name."""
-        entities = self.env.world.s["entities"]
+        every member alike (messages stay byte-identical across the group).
+
+        An unfamiliar thing has no group, and what it truly is could be any type: its names are those of every type it
+        could be (unfamiliar_names: every portable type's label and type name, every type's for an unfamiliar fixture),
+        never its own type's alone. Rewriting only its own type's names told the twins apart wherever a domain's
+        generic wording happened to name that type ("Hold the padlock" came back as "Hold the unfamiliar medium object"
+        for an unfamiliar padlock alone: closeout_REV latch / mark, admin_inventory's luggage scale; VERIFY_HARDENING
+        WP7). Such a name is rewritten where a phrase names a thing by it -- after an article or demonstrative ("the
+        padlock", "a pencil": the article follows the rewrite, "an unfamiliar ...") in free text, or as a whole naming
+        value (a JSON label / name / title) -- unless it is a name of another identified thing the command named (its
+        label, a word of it, its type or category), a room or a resident; its own label is rewritten wherever it
+        appears when it is its own (not its type's default), as before. Every rule reads only what the robot perceives,
+        so the rewrite is the same whatever the unfamiliar thing truly is. Never inside the agent's own echoed words
+        (protected=True), where rewriting would confirm a guessed name."""
+        state = self.env.world.s
+        entities = state["entities"]
         step_gone = getattr(self, "_step_gone", {})
-        group_names, novel_names, labels, kinds, cands = {}, {}, set(), set(), set()
+        group_names, own_names, labels, kinds, cands = {}, {}, set(), set(), set()
+        novel_shown, others, fixture = set(), [], False
         for eid in sorted(involved):
             rec = entities.get(eid) or step_gone.get(eid)
             if rec is None:
                 continue
             ident, gname, _group, _portion = self._identify(eid, rec, self.knowledge.entity_level(eid, rec))
             if not _unidentified(ident, rec):
+                others.append(rec)
                 continue
             shown = str(ident.get("label") or "object")
             labels.add(shown.lower())
             kind = str(ident.get("kind") or "")
             kinds.update({kind.lower(), kind.lower()[len("unidentified "):] if kind.startswith("unidentified ") else "unidentified " + kind.lower()})
             cands.update(str(c).lower() for c in ident.get("candidates") or ())
-            own = [str(rec.get("label") or ""), str(rec.get("type") or "").replace("_", " "), str(rec.get("type") or "")]
-            target = group_names if gname else novel_names
-            for name in own + (sorted(self._group_names(gname)) if gname else []):
-                if len(name) > 2 and name.lower() not in GENERIC_NAMES:
-                    target.setdefault(name.lower(), shown)
-        if not group_names and not novel_names:
+            if gname:
+                own = [str(rec.get("label") or ""), str(rec.get("type") or "").replace("_", " "), str(rec.get("type") or "")]
+                for name in own + sorted(self._group_names(gname)):
+                    if len(name) > 2 and name.lower() not in GENERIC_NAMES:
+                        group_names.setdefault(name.lower(), shown)
+                continue
+            novel_shown.add(shown)
+            fixture = fixture or not rec.get("portable")
+            label = str(rec.get("label") or "")
+            default = str((self.env.registry.resolve(rec.get("type")) or {}).get("label") or "") \
+                if rec.get("type") and self.env.registry.known(rec.get("type")) else ""
+            if len(label) > 2 and label.lower() not in GENERIC_NAMES and label.lower() != default.lower():
+                own_names.setdefault(label.lower(), shown)      # its own label, the same for every twin of that look
+        if not group_names and not novel_shown:
             return None
-        names = dict(novel_names)
+        novel_label = sorted(novel_shown)[0] if len(novel_shown) == 1 else UNFAMILIAR_WORDS
+        names = dict(own_names)
         names.update(group_names)
         # phrases kept verbatim in free text: the perceived identity strings (unless one is itself a true name)
         keep = {p for p in labels | kinds | cands if p and p not in names}
+        universal = excluded = None
+        if novel_shown:
+            universal = self.unfamiliar_names(every=fixture)
+            excluded = self._perceived_names(state, others) | keep
 
         def compile_names(found):
             return re.compile(r"(?i)(?<![A-Za-z0-9_])(?:" + "|".join(re.escape(p) for p in sorted(set(found) | keep, key=lambda s: (-len(s), s)))
                               + r")(?![A-Za-z0-9_])")
         pattern = compile_names(names)
         group_pattern = compile_names(group_names) if group_names else None
+
+        def article(det, replacement):
+            low = det.lower()
+            if low not in ("a", "an"):
+                return det
+            word = "an" if replacement[:1].lower() in "aeiou" else "a"
+            return word.capitalize() if det[:1].isupper() else word
+
+        def unfamiliar(text):
+            def one(m):
+                if m.group("name").lower() in excluded:
+                    return m.group(0)
+                return article(m.group("det"), novel_label) + m.group("sp") + novel_label
+            return universal[1].sub(one, text)
 
         def apply(text, key=None, protected=False):
             if key in IDENTITY_KEYS:
@@ -2510,8 +2841,74 @@ class Realism:
                 if group_pattern is None:
                     return text
                 return group_pattern.sub(lambda m: group_names.get(m.group(0).lower(), m.group(0)), text)
-            return pattern.sub(lambda m: names.get(m.group(0).lower(), m.group(0)), text)
+            naming = universal is not None and (key is None or key not in DESCRIPTIVE_KEYS or key in NAMING_KEYS)
+            if naming and key in NAMING_KEYS:
+                low = text.strip().lower()
+                if low in universal[0] and low not in excluded and low not in names:
+                    return novel_label      # a whole naming value that is a name it could truly have
+            if not naming:
+                return pattern.sub(lambda m: names.get(m.group(0).lower(), m.group(0)), text)
+            out, pos = [], 0
+            for m in pattern.finditer(text):
+                out.append(unfamiliar(text[pos:m.start()]))
+                out.append(names.get(m.group(0).lower(), m.group(0)))
+                pos = m.end()
+            out.append(unfamiliar(text[pos:]))
+            return "".join(out)
         return apply
+
+    def unfamiliar_names(self, every=False):
+        """(names, pattern) of the names an unfamiliar thing could truly have: the label, the type name and the
+        type name with spaces of every portable registry type (every=True: of every type, for an unfamiliar fixture),
+        lower case, without generic placeholders and names of two letters or fewer; pattern finds such a name after an
+        article or demonstrative (groups "det", "sp", "name"; a trie of the names, so a long message is matched in one
+        sweep). Built once per registry."""
+        reg = self.env.registry
+        cache = _UNFAMILIAR_NAMES.get(id(reg))
+        if cache is None or cache[0] is not reg:
+            cache = _UNFAMILIAR_NAMES[id(reg)] = (reg, {})
+        found = cache[1].get(bool(every))
+        if found is None:
+            names = set()
+            for type_name in sorted(getattr(reg, "types", {}) or {}):
+                props = reg.resolve(type_name) or {}
+                if not every and not props.get("portable"):
+                    continue
+                for value in (props.get("label"), type_name.replace("_", " "), type_name):
+                    word = str(value or "").strip().lower()
+                    if len(word) > 2 and word not in GENERIC_NAMES:
+                        names.add(word)
+            names = frozenset(names)
+            pattern = re.compile(r"(?i)(?<![A-Za-z0-9_])(?P<det>the|an|a|this|that)(?P<sp>\s+)(?P<name>"
+                                 + _trie_pattern(names) + r")(?![A-Za-z0-9_-])")
+            found = cache[1][bool(every)] = (names, pattern)
+        return found
+
+    def _perceived_names(self, state, records):
+        """Lower-case names the robot knows for identified things a command named (their labels, the words of those
+        labels, their types and categories), and of the rooms and residents: a message may name them, and those words
+        are never rewritten as an unfamiliar thing's names."""
+        out = set(GENERIC_NAMES)
+
+        def add(value):
+            word = str(value or "").strip().lower()
+            if word:
+                out.add(word)
+                out.add(word.replace("_", " "))
+                out.update(w for w in TOKEN_RE.findall(word.replace("_", " ")) if len(w) > 2)
+        for rec in records:
+            for key in ("label", "type", "category"):
+                add(rec.get(key))
+        for rid, room in (state.get("rooms") or {}).items():
+            add(rid)
+            add((room or {}).get("label"))
+            add((room or {}).get("type"))
+        for group in ("people", "pets"):
+            for aid, agent in (state.get(group) or {}).items():
+                add(aid)
+                for key in ("label", "species", "role"):
+                    add((agent or {}).get(key))
+        return out
 
     def _entity_group(self, state, record):
         """The look-alike group a record belongs to for the robot (a portion: its source's), or None (novel things
@@ -2614,6 +3011,7 @@ class Realism:
 
     # ----- observation -----------------------------------------------------------------------------------
     def observe(self):
+        self.settle_moves()             # the last step's moves (its end is what this observation shows)
         self._room_ctx = self._plain_now = self._dark_now = None
         self._geo_infos = self._geo_view = self._geo_m = None
         state = self.env.world.s
@@ -2845,7 +3243,25 @@ class Realism:
             self.out_obj(km, visible=perceived_ids, issue=True)
         if self.record_observations:
             self.observed.append(copy.deepcopy(obs))
+            if isinstance(self.observed, ObservationLog):
+                self.observed.note(self._evidence_snapshot(state, visible))
         return obs
+
+    def _evidence_snapshot(self, state, visible):
+        """What the robot knew of each thing an observation lists (ObservationLog.evidence): the levels of its grants
+        that hold (above a glance) and the true values of the fields shown (with its label), for the evidence index."""
+        out = {}
+        for eid in sorted(visible):
+            record = state["entities"].get(eid)
+            if record is None:
+                continue
+            shown = visible[eid]
+            truth = {k: _evidence_value(_field_value(record, k)) for k in sorted(shown)
+                     if k in record and not k.startswith("_")}
+            truth["label"] = _evidence_value(record.get("label"))
+            out[eid] = {"levels": self.knowledge.levels(eid, record) if eid in self.knowledge.data else {},
+                        "truth": truth}
+        return out
 
     @staticmethod
     def _camera_channel(block):
@@ -3164,7 +3580,12 @@ class Realism:
 
     # ----- persistence -----------------------------------------------------------------------------------
     def dump(self):
+        self.settle_moves()
         out = {"handles": self.handles.dump(), "knowledge": self.knowledge.dump()}
+        if self.acts:
+            out["acts"] = copy.deepcopy(self.acts)
+        if self.grants_log:
+            out["grants"] = copy.deepcopy(self.grants_log)
         if self._request_from:
             out["requests"] = copy.deepcopy(self._request_from)
         if self.gone:
@@ -3175,7 +3596,47 @@ class Realism:
             out["said"] = list(self._agent_said)
         if self._geo_spell or self._geo_keyed:
             out["geo"] = {"spell": dict(sorted(self._geo_spell.items())), "keyed": sorted(self._geo_keyed)}
+        observed = self._dump_observed()
+        if observed is not None:
+            out["observed"] = observed
+        if not self.track_moves:
+            out["track_moves"] = False
         return out
+
+    def _dump_observed(self):
+        """The observation log as evaluation reads it (VERIFY_HARDENING 10.5: a snapshot holds everything evaluation
+        reads): its items, stamps and evidence snapshots, and whether recording is on -- so a run forked from a snapshot
+        judges reports, acts and claims on the evidence perceived before the snapshot, and keeps judging new claims
+        (review A-spec-2). None while nothing was recorded and recording is off (the dump is then what it always was)."""
+        log = self.observed
+        if not self.record_observations and not log:
+            return None
+        items = list(log or ())
+        stamps = list(getattr(log, "stamps", None) or ())
+        evidence = list(getattr(log, "evidence", None) or ())
+        return {"record": bool(self.record_observations), "items": copy.deepcopy(items),
+                "stamps": [list(s) if isinstance(s, (list, tuple)) else None for s in stamps[:len(items)]],
+                "evidence": copy.deepcopy(evidence[:len(items)])}
+
+    def _load_observed(self, data):
+        """Restore the observation log of a dump (_dump_observed): items exactly as recorded, with their stamps and
+        evidence; a dump without one restores an empty log with recording off, as it was saved."""
+        log = ObservationLog(self)
+        record = False
+        if isinstance(data, dict):
+            items = [copy.deepcopy(i) for i in data.get("items") or ()]
+            list.extend(log, items)
+            stamps = list(data.get("stamps") or ())
+            evidence = list(data.get("evidence") or ())
+            for i in range(len(items)):
+                stamp = stamps[i] if i < len(stamps) else None
+                log.stamps.append((float(stamp[0]), int(stamp[1])) if isinstance(stamp, (list, tuple)) and
+                                  len(stamp) == 2 else None)
+                snap = evidence[i] if i < len(evidence) else None
+                log.evidence.append(copy.deepcopy(snap) if isinstance(snap, dict) else None)
+            record = bool(data.get("record"))
+        self.observed = log
+        self.record_observations = record
 
     def load(self, data):
         self.handles.load((data or {}).get("handles"))
@@ -3189,9 +3650,36 @@ class Realism:
         self._geo_spell = {str(k): int(v) for k, v in (geo.get("spell") or {}).items()}
         self._geo_keyed = set(geo.get("keyed") or ())
         self._request_from = copy.deepcopy((data or {}).get("requests") or {})
+        self.acts = copy.deepcopy((data or {}).get("acts") or [])
+        self.grants_log = copy.deepcopy((data or {}).get("grants") or [])
+        self._load_observed((data or {}).get("observed"))
+        self.track_moves = (data or {}).get("track_moves", True) is not False
+        self._moves, self._before, self._act, self._act_open = {}, None, None, False
         self._ever = set(self.env.world.s["entities"]) | {e for e in self.handles.by_id if not e.startswith("shape:")} | set(self.gone)
         self.version += 1
         self.invalidate()
+
+
+_UNFAMILIAR_NAMES = {}     # id(registry) -> (registry, {every: (names, pattern)}): Realism.unfamiliar_names
+
+
+def _trie_pattern(words):
+    """A regular expression (no groups) matching exactly the given lower-case words, built as a trie so that matching
+    tries each character once instead of every word in turn (thousands of type names)."""
+    root = {}
+    for word in words:
+        node = root
+        for ch in word:
+            node = node.setdefault(ch, {})
+        node[""] = {}
+
+    def build(node):
+        branches = [re.escape(ch) + build(node[ch]) for ch in sorted(k for k in node if k)]
+        if not branches:
+            return ""
+        body = branches[0] if len(branches) == 1 else "(?:" + "|".join(branches) + ")"
+        return "(?:" + body + ")?" if "" in node else body
+    return build(root) or "(?!)"
 
 
 class _FastRng:

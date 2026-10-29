@@ -1,0 +1,86 @@
+{
+ "id": "verify_A_bugs",
+ "review": "review_A_bugs",
+ "run": "A",
+ "lens": "bugs (correctness)",
+ "date": "2026-10-29",
+ "verdicts": [
+  {
+   "id": "A-bugs-1",
+   "confirmed": true,
+   "owner": "WP5",
+   "severity": "high",
+   "reviewer_owner": "WP5",
+   "reviewer_severity": "high",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-bugs/standard_gate.py on the live tree: gates at standard {G1-G5 True, G6 None, G7-G9 True}; score 80 and 100 both give verdict PROVISIONAL and level_passes(standard) False. Code read: strength.gates sets G6 = None unless record['heldout']['ran'] (strength.py:313). verify_hardened runs S7 only under `if level == \"full\" and public_ok` (verify.py:2497), so at standard heldout.ran is always False. strength.verdict's core_gates includes G6 (strength.py:336), so no standard record can reach PENDING_GATE or PENDING_REVIEW. level_passes at standard returns verdict in (HARDENED, PENDING_GATE, PENDING_REVIEW) (strength.py:351-358). Its own docstring says standard needs 'G3, G4, G8 and the quota part of G9 ... verdict PENDING_GATE', and section 24 item 2 lists G1, G2, G3, G4, G5, G7, G8 and G9's quota, not G6. checklog.stop_loss parks a spec after 8 standard checks without a PASSING verdict (checklog.py:145-156), so once WP6 makes G3 / G8 reachable, every schema-4 spec's --check exits non-zero and every spec is parked. No test covers it: test_level_passes only asserts FAIL -> False at standard and PENDING_GATE -> True at full. There is also a related gap in the 'projected score': heldout_component returns 0 when S7 did not run (strength.py:225-228), so a standard score is capped at 90 instead of projecting c_heldout. That fits the fix: judge the standard level on the gates it runs. Not refuted. Severity stays high even though it is latent today (masked by G3 / G8 False until WP6): it makes acceptance criterion 24.2 impossible to meet for every spec as soon as the next package lands."
+  },
+  {
+   "id": "A-bugs-2",
+   "confirmed": true,
+   "owner": "WP2",
+   "severity": "low",
+   "reviewer_owner": "WP2",
+   "reviewer_severity": "medium",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-bugs/finish_hang.py: settle 60 gives 'finished: frames 2'; settle 30.0004 gives 'HANG after 48820 idle frames; time_s = 30.0' (20 s watchdog, exit 3). Code read: HouseEnv.finish loops on the world clock (`while time_s < end - 1e-6`, engine.py:1416). _substep stores round(time_s + dt, 3) (engine.py:1190), so a remaining settle under 0.5 ms advances nothing. _advance's own loop ends on `remaining` and so terminates, but finish re-enters it forever. The look-ahead calls _idle_frame once and cannot hang. The only checks on the input are range checks: finish (0..600) and spec.check_structure (spec.py:477-480, `0 <= value <= SETTLE_MAX_S`). The defect is real: P7 says every run has a cap, and the gate would hang without output. Severity corrected to low because the trigger is contrived. Every caller (verify.reference_run / wrong_run / _confirm_sample, perceive.py:345, the replay at engine.py:1882) passes the task's own settle_s or the default 60. No authored spec sets a spec-level settle_s (the settle_s hits in tools_vehicles__examples.json are skill arguments). Only a hand-written sub-millisecond fraction (e.g. 30.0004) reaches the loop. The fix is trivial and belongs in engine.py: stop when a frame advanced less than 1 ms, or round `end` to the clock grid. WP8 may also reject off-grid values."
+  },
+  {
+   "id": "A-bugs-3",
+   "confirmed": true,
+   "owner": "WP1",
+   "severity": "medium",
+   "reviewer_owner": "WP1",
+   "reviewer_severity": "medium",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-bugs/window_restore.py: window, sash_window, casement_window and skylight all get restore class exterior_door (as do sliding_door and exterior_door). For book_spec plus a window in envelope.change, envelope_classes gives {'restore_changes': ['{win}']} and escapes.price gives [('hold_open', '{win}')]. restore.json's exterior_door class is the only class with a field rule ({'exterior': True}, hold 300 s), and the window types carry exterior: true. Ledger.restore_class therefore selects them, and Ledger.ambient also refuses ambient status to anything restore class. 6.9 enumerates the restore class (exterior doors, gates, pet / child / pool gates, fire doors, fridge, freezer, oven, dishwasher, safe, medicine cabinet) with no windows. 6.4 / 6.7 leave a window's `open` an ordinary setting, judged by house.changed at F. So windows wrongly get house.left_open and house.held_open (a 300 s open-time limit while airing). Every envelope.change entry on a window is also priced as the 1-point hold_open quota escape of section 18 ('a restore-class envelope.change entry'). WP3.json requests[1] flagged exactly this to WP1, and no WP1 deliverable answers it. Owner WP1 is right: restore.json is WP1's data file. Severity medium stands: it is schema-4 only, but it affects every airing and close-the-window task, an entry family the review itself cites (T-6203fdc5fa8986-01)."
+  },
+  {
+   "id": "A-bugs-4",
+   "confirmed": true,
+   "owner": "WP1",
+   "severity": "medium",
+   "reviewer_owner": "WP1",
+   "reviewer_severity": "medium",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-bugs/lights_geo.py T-7ef5816c160945-01 0. Own mode: no light labels. Eval-geom: house.changed on ceiling_light_6.lit and light_switch_8/9/10/11.on. The trace shows pets.check_on approaching light_switch_10 and calling switch_on, and the writes are ('robot', 'switch_on', 24.0) on the switch group and the light's lit / on. My <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_VRF-A-bugs/lights_all.py shows the full failure lists: own ['house.agent_moved:cat_1']; eval-geom the same plus the five light / switch labels. So the light labels exist only in the evaluation mode (the cat label is a separate, mode-independent matter). Called directly, Ledger.ambient returns 'category:light' for ceiling_light on and brightness, but None for ceiling_light lit, light_switch on, dimmer_switch on and dimmer_switch level. ambient.json's light entry selects only light / light_bulb categories and named lamp types, with fields [on, brightness]; watch_fields.json classes lit as a setting. 6.7 makes lights ambient and says outright that 'a realistic-camera agent that switches on every light to see better passes where lights are ambient'. With this data such an agent, and any geometric reference that lights a dark room, fails house.changed. Not refuted. Owner WP1 (ambient.json), with the electrical WP-D's field classes as a consumer. Severity medium: latent until schema-4 specs exist, but it is a false failure of legitimate behaviour in the scored mode."
+  },
+  {
+   "id": "A-bugs-5",
+   "confirmed": true,
+   "owner": "WP5",
+   "severity": "low",
+   "reviewer_owner": "WP5",
+   "reviewer_severity": "medium",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-bugs/runcache_domains.py with a fresh cache folder in <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_VRF-A-bugs/rc. A first run with HOUSE_SIM_DOMAINS=core (1 module, 6 systems) stored idle_digest f746cab2.... A second run with every domain (17 modules, 117 systems) got 'cached': true with the same idle_digest f746cab2.... A run with every domain into an empty folder (<home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_VRF-A-bugs/rc_fresh) gave idle_digest 029ab565.... The key in verify._mode_job (verify.py:2198-2200) holds sim_spec, seeds, mode, gen, extras, flags, lookahead and audit.fingerprint(). That fingerprint is a digest of file contents only (house_sim/audit.py:18-27) and does not include plugins.domain_modules(), while disk_cache does. 21.1 / 22.8 require that a cached run be reused 'only when everything that determines its simulation is unchanged'. Confirmed. Severity corrected to low. It needs a debugging environment switch that authors do not set for a --check. The gate and --verify never use the cache (verify.py:83; cli passes cache only for --check). The tests that exercise the cache use temp folders or cache=False, so a HOUSE_SIM_DOMAINS=core test run cannot poison reports/cache/runs. Only the author's local verdict and check-log row can be wrong; the gate's HARDENED comes from its own uncached full run."
+  },
+  {
+   "id": "A-bugs-6",
+   "confirmed": true,
+   "owner": "WP5",
+   "severity": "low",
+   "reviewer_owner": "WP5",
+   "reviewer_severity": "low",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-bugs/ref_specerror.py. The reference error is \"SpecError: skill fetch: got an unexpected keyword argument 'handd'\" with harness_error True. The wrong plan with the same step has the same message and harness_error None. _harness_errors lists the reference (G7). Code read: Runner.skill raises SpecError for a bad argument, and its comment says that is 'the spec's error, not a harness error inside the skill (VERIFY_HARDENING 14.5)' (runner.py:443-453). wrong_run excludes (PlanError, SpecError) from harness_error (verify.py:1363-1367). reference_run catches only PlanError and marks every other exception harness_error (verify.py:1260-1265), so the two runs are inconsistent against 14.5. One part of the detail is refuted: the held-out 'skill debt' claim. _skill_debt matches only skills.py, kernel/ and systems/ frames (verify.py:699, 976-991), and the SpecError's innermost frame is tasks/runner.py, so it would count as a harness seed, not skill debt. Also, a bad reference step on V already fails G1, and then S7 never runs (public_ok). The effect is misattribution in the record (a G7 / harness report against the harness instead of a spec error) with an unchanged FAIL verdict. Low stands."
+  },
+  {
+   "id": "A-bugs-7",
+   "confirmed": true,
+   "owner": "WP8",
+   "severity": "low",
+   "reviewer_owner": "WP8",
+   "reviewer_severity": "low",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-bugs/cs_ab.py against the reviewer's git-archive HEAD tree (HEAD is still 81e7a91) and the live tree. At HEAD, success -1 / true and failure 5 return problems. On the live tree all of them raise TypeError (\"'int' object is not iterable\"), for legacy and schema-4 specs alike. wrong null / 0 / true and variants -1 / true raise at HEAD too: pre-existing, as the reviewer says. To check the compiler's actual path (expand then check_structure, catching only SpecError, compiler.py:51-55) I wrote <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_VRF-A-bugs/cs_compile_path.py with a well-formed spec (three phrasings) that differs only in the malformed key. At HEAD, a legacy spec with success -1 / true or failure 5 compiles as CANDIDATE (the malformed list was not flagged at all), and the schema-4 one as INVALID. On the live tree all five cases ABORT with TypeError, so one malformed authored spec stops compile_specs for the whole catalog. The cause is spec.label_problems iterating `scope.get(key) or ()` with no list check (spec.py:661). Confirmed as a regression. Low stands: it needs a malformed authored file, and the crash is loud, not a silent pass."
+  }
+ ],
+ "summary": {
+  "findings": 7,
+  "confirmed": 7,
+  "refuted": 0,
+  "severity_changes": {
+   "A-bugs-2": "medium -> low",
+   "A-bugs-5": "medium -> low"
+  },
+  "owner_changes": {},
+  "partly_refuted": {
+   "A-bugs-6": "the held-out skill-debt consequence (it is a harness seed, and S7 does not run once V's reference fails)"
+  }
+ },
+ "notes": "Adversarial verification of review_A_bugs.json (7 findings) against the live tree on 2026-10-29, HEAD 81e7a91. Every repro script of the reviewer in <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-bugs/ was re-run unchanged from the project root (the runcache repro into my own scratch cache folders). All 7 reproduce, and each is a real defect against VERIFY_HARDENING.md (5.2, 6.7, 6.9, 14.5, 21.1, 22.8, 24 item 2, P7) or a regression against HEAD: 7 confirmed, 0 refuted. Corrections: A-bugs-2 medium -> low (only a sub-millisecond settle_s fraction triggers the hang, and no caller computes one). A-bugs-5 medium -> low (only with HOUSE_SIM_DOMAINS set for a local --check; the gate and --verify never use the cache). A-bugs-6's held-out skill-debt consequence is refuted (the core of the finding stands). All owners are unchanged. A-bugs-1 is latent until WP6 lands but blocks acceptance criterion 24.2 for every spec once it does. The related zero c_heldout at standard caps the 'projected' score at 90. My extra scripts are in <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_VRF-A-bugs/: cs_compile_path.py (the compiler's expand + check_structure path, HEAD vs live) and lights_all.py (the full failure lists and Ledger.ambient decisions for lights and switches). No project file was edited; the only write is this file. No commits, nothing under %USERPROFILE%\\.house_ai, no network or paid calls."
+}

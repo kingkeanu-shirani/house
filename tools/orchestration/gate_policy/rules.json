@@ -2866,7 +2866,7 @@
     "verdict"
    ],
    "bench": [
-    1.05,
+    1.15,
     "prev"
    ],
    "codes": [
@@ -2912,7 +2912,7 @@
     "P2-WP5",
     "P2-WP8"
    ],
-   "note": "phase 2 stage 2 merged: WP5 WP8",
+   "note": "phase 2 stage 2 merged: WP5 WP8; bench 1.15 x: run A recorded P2-S1+P2-S2 as one union against P1C, so the union's strictest factor must be WP2's attribution budget (6.2: at most 15 %); WP5 and WP8 add no simulation cost",
    "policy": false,
    "requires": [],
    "stage": "P2-S2"

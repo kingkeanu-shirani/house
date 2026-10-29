@@ -8,7 +8,9 @@ files `tasks/authored/*__examples.json` (all passing; copy their patterns).
 Tools:
 - `python tools/show_entries.py batch N` — your entries with their analysis records (interpretation, mechanics,
   success, plausible-wrong behaviors, protected side effects, conditional branches, user-sim needs).
-- `python -m house_sim --check FILE --workers 2 [--ids ID ...] [--seeds 0]` — verify (all 5 seeds by default).
+- `python -m house_sim --check FILE --workers 2 [--ids ID ...] [--seeds 0]` — verify (all 5 seeds by default; a
+  schema-4 spec: its coverage seeds at `--level standard`, with `--level quick|full`, `--heldout N`, `--json OUT`,
+  `--no-cache` and the debugging options `--battery`, `--mustpass`, `--modes`; docs/KERNEL_API.md "Verification core").
 - `python tools/show_house.py SEED [room ...]` — ASCII room grids; `python -m house_sim --describe ACTION`.
 
 ## Non-negotiable rules
@@ -50,6 +52,49 @@ Tools:
     `target_fidelity` (from the analysis). Be honest: fidelity is what the simulator checks, not what the real skill
     needs.
 
+## Schema 4: what a new spec declares (docs/design/VERIFY_HARDENING.md 5.4, 24; docs/TASK_SPEC.md "Schema 4")
+
+Every spec authored from now on is `"schema": 4`; a catalog id outside `catalog/review/legacy_ids.json` without it is
+INVALID (L-SCHEMA). The rules above still hold; schema 4 replaces rules 3-5 and 7 by defaults plus declarations, and
+`--check` (level `standard`) runs the generated cheaters and the legitimate variants against the spec.
+
+1. **Start from the drafts.** `python tools/show_entries.py batch N` prints each entry's analysis record with the
+   draft protect map; `python tools/protect_map.py ID` the same for one entry; `python -m house_sim --draft-hardening
+   FILE --ids ID` prints the envelope generalised from the reference's footprint, the labels each wrong plan was
+   observed to fail with (suggestions only: write `expect` from the plan's intent, never by copying them), candidate
+   answers, default instruction roles, proposed `process` labels, the look-ahead trigger and the formula budget.
+   Nothing is written into the spec.
+2. **The house is protected by default.** Do not write `side_effects` / `preserve` for collateral harm: the ledger
+   watches every field of every entity against the idle rollout. Declare instead what the task may change
+   (`envelope`: the targets' `to` scopes exactly their destination, tools and consumables as `type:` selectors
+   within the work rooms, non-targets the reference moves for access with the default
+   `["baseline", "home", "owner", "rooms:work"]`); revoke ambient lights / doors with `protections.restore` when the
+   analysis protects them; `protections.off` costs 5 points and a review.
+3. **Map every protect item** of the analysis record in `protect_map` (each exactly once, by its text): to a ledger
+   guard (`house:moved`, `house:changed:{oven}.clock_offset_s`, ...), a labelled `fail:` / `never:` / `timing:`
+   predicate, an invariant or, for the harm its flag names, a `flag:`; or `waive` it with a reason (priced, reviewed).
+   Every reference must be shown to bite (a wrong plan's `expect`, a battery run or a probe); 80 % of the items, and
+   all of them for `risk >= 2`.
+4. **Label every predicate** (`{"label": "clog_cleared", "pred": ...}`), and give **every wrong plan** a specific
+   `expect` (the labels it must fail with: `goal:clog_cleared`, `fail:vase_broken`, `house:moved:{vase}`, never a bare
+   `goal`) and its `mistake` (the top-level step indices that make it wrong). At least 2 wrong plans, one per branch;
+   each must run fully, fail for its reason and pass once its mistake is fixed (attribution, 14.4).
+5. **Declare the hidden answers** (`answers`) wherever L-ANSWERS asks: weights, counts, which item (with `group` and
+   `evidence`), where (`place`), when (`time`, drawn by the `time` op), which branch (`_branch` with evidence). Draw
+   them with the randomising ops (`choose` with `weights`, `sample`, `shuffle`, `arrange`, `time`; section "Randomising setup ops" below) so a
+   memorised answer fails; never name an answer in the instruction.
+6. **Timing** (`timing`) replaces fixed waits for "when X happens" entries; `settle_s` stays 60 unless the entry
+   needs less (priced); `process` labels for goals a started process may legitimately change during settle.
+7. **Speech is scored by content**: `said` with claim patterns, typed reports, relays by `key_claims`; `told_count` /
+   `facts.last_speech.to` alone are no evidence (L-SPEECH).
+8. **Budgets** come from the formula (3 x the minimal reference + the survey or search allowance; 17); a looser one
+   needs `budget_reason` (reviewed, halves the budget component).
+9. **Every escape has a price** (`house_sim/data/verify/escapes.json`): quota escapes up to 3 points are free of
+   review, the rest need an accepted record in `catalog/review/exemptions.jsonl` from an eligible reviewer (never a
+   session that checked the spec); at most 15 points and 2 exemptions (L-ESCAPE, gate G9).
+10. **Done** means HARDENED (strength score >= 75 and gates G1-G9, private stages at the gate); authoring machines stop
+    at PENDING_GATE (no split key).
+
 ## Special kinds
 
 - **primitive** entries (action vocabulary): a micro-scenario where the verb is required and correct use is checked;
@@ -83,6 +128,23 @@ file stem) and use `"extends"` + `"params"`; each entry still gets its own spec,
 - Setup failures raise SpecError with the reason: if a helper needs a room the generated house may lack, add
   `house.require` (e.g. `["garage"]`, `["laundry_room"]`, `["patio"]`).
 - `python tools/show_house.py SEED room ...` shows the grid; `python tools/layout_audit.py` checks generator health.
+
+## Randomising setup ops (VERIFY_HARDENING 9.2; tasks/setup.py, WP9)
+
+Every draw comes from the setup RNG `random.Random("setup:<catalog_id>:<seed>")`, in every schema:
+
+| op | form | binds |
+|---|---|---|
+| `shuffle` | `{"op": "shuffle", "var": "order", "from": [...] or "{group}"}` | `order` (a seeded permutation) and `order_1 .. order_n` |
+| `sample` | `{"op": "sample", "var": "dry", "from": "{plants}", "k": 2 or {"min": 1, "max": 3}, "rest": "wet"}` | a subset of a drawn size (default 1 .. n-1) in the order of `from`; `rest` the others |
+| `arrange` | `{"op": "arrange", "items": "{bottles}", "on": "{counter}" or ["{c1}", "{c2}"], "order": "shuffled", "gap_m": [0.05, 0.25], "var": "row"}` | places the things left to right in a seeded order with random gaps, wrapping to the next surface; `row` the order |
+| `time` | `{"op": "time", "var": "onset", "min": 600, "max": 3000, "never_p": 0.25, "step_s": 30}` | a time, or null with probability `never_p` (an `event` whose `at_s` is null is not scheduled) |
+| `choose` | `{"op": "choose", "var": "burner", "from": [...], "weights": [3, 1, 1]}` | one option, weighted (without `weights` exactly the old choice) |
+
+In schema 4, `spawn` with `count` binds `var_1 .. var_n` to the members in a seeded order (no positional tells), and
+scenario helpers that take role lists accept `"random"` or a `sample` binding (`ctx.sample_roles`). Look-alike group
+members and unfamiliar things are placed by their look, not their hidden properties. `apply_setup(..., audit=True)`
+is the audit fast path (bindings and placements only) of the 200-build audits (9.7).
 
 ## Gaps
 

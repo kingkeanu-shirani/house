@@ -1,0 +1,41 @@
+{
+  "id": "WP1",
+  "package": "P2-WP1 LEDGER (VERIFY_HARDENING section 25)",
+  "landed": [
+    "house_sim/kernel/ledger.py: the house ledger of 6.1-6.12 -- every guard of 6.4 with its allowance (moved, misplaced with to scopes, removed, lost, hidden, held, changed with revocable ambient allowances, touched, damaged, soiled/soiled_room, wet/wet_room, left_open, held_open from WP3's open intervals, agent_moved, confined, created_hazard, the mess balance of 6.5 over @mess_kind and logs.mess_flows, waste per resource) plus WP4's content guards; one placement label per entity; protections.off per guard or guard:<id>; failures / findings / lookahead_failures / footprint (envelope draft) / validate_envelope / validate_protections",
+    "attribution 6.2: WP2's writer log when present (env.writes, robot_placement P_R, robot_attributable causal link, $exists and logs.gone for destructions, people:/pets: rids), else the section-25 stub (move log, _robot_moved, divergence from idle); only entities written since the baseline are examined (about 7 ms per evaluation in a 650-entity house)",
+    "house_sim/kernel/counterfactual.py: project(state), Projections (bracket, values, to_dict/from_dict, digest), diverges((key, actual), idle, t, tol), value_at, interval_for, rollout(env, horizon_s, interval_s, on_sample); rollouts deterministic and identical in oracle/realistic and room/geometric",
+    "house_sim/kernel/evaluation.py (schema 4 only): labelled predicates, result['unmet'], fail:<label>, strict:safety|privacy|authority, derived-field overlay (derived_view, evaluation_view(task=)), existence guard <label>:absent with absent_ok, logs.gone last records for failure predicates, ledger labels against idle (argument or env.idle), goal_status for HouseEnv.finish",
+    "house_sim/kernel/plugins.py: @system(..., writer=) -> SYSTEM_WRITERS, @mess_kind, @derived_field, @settings_skill + settings_steps (kernel defaults for on, open, settings.<name>), load_domains imports only the committed DOMAINS list (closeout_REV finding 1)",
+    "house_sim/data/verify/: watch_fields.json (773 names, 38 patterns), location_classes.json, valuables.json, ambient.json, restore.json, agents.json, mess_classes.json, resources.json",
+    "tools/field_census.py (census, --check, --reclassify, --unclassified) and catalog/analysis/phase2/field_census.json: 993 fields written by the 243 specs' idle/reference/wrong runs on seeds 0-1, all explicitly classified",
+    "tests/test_ledger.py (71 tests) and tests/test_counterfactual.py (18 tests)"
+  ],
+  "deviations": [
+    {"what": "settle: and later: labels are produced by WP2's HouseEnv.finish, not by an evaluate(done=...) path", "why": "WP2's finish landed first and composes the run's result from evaluate at D and F; a duplicate path in evaluation would be dead code. evaluation provides goal_status (labelled goal with the existence guard) and ledger.LOOKAHEAD_GUARDS, which finish uses."},
+    {"what": "Recorded labels read from task['labels'] (then hardening.labels, then task['success_labels']); unlabelled success predicates are success_<i>, unlabelled failures fail:failure_<i>", "why": "the same place and names as WP2's goal_items, so unmet and settle: labels agree"},
+    {"what": "The existence guard of 8.6 is applied inside evaluate, not by runner.build", "why": "equally automatic, no spec rewriting, and WP2's finish picks it up through goal_status"},
+    {"what": "Idle projections keep setting and condition fields, not identity fields", "why": "halves the projection (about 230 KB vs 600 KB per checkpoint); an identity change by a physical writer is rare and without an idle value is charged (conservative)"},
+    {"what": "Never-touch for always-on devices covers only their power and control fields", "why": "the literal rule fired on every fridge door a reference opens; detectors, valves, breakers, medical devices and others' private devices stay fully never-touch"},
+    {"what": "Relocated, wrong-sink and unlisted-transit mess also fires mess_unaccounted", "why": "6.5's balance formula counts only sunk, lost and listed transit as accounted; followed literally"},
+    {"what": "Restore-class open state (restore.json open_paths, mech.* included) is judged by house.left_open only, not also house.changed", "why": "one specific label for one harm"},
+    {"what": "The 704 census-written fields no rule classified were classified in the kernel watch_fields.json by name", "why": "L-WATCH part 1 is an error and the WP-D watch files do not exist yet; domains refine per type in watch/<domain>.json"}
+  ],
+  "not_done": [
+    {"what": "closeout_REV findings 2-10 (isolated copy .gitignore, unchecked-hash .pyc, stale isolate base, perf-switch disguise, py39_lint gaps, rules question, cleaning/spray-bottle/latch-mark tells)", "why": "not in WP1's files: gate tool (P2-WP10 / K-GATE3), py39_lint (P2-S4), domain packages; finding 1 (load_domains) is fixed here"},
+    {"what": "closeout_breakages rows and closeout_INT3 requests", "why": "domain rows (VER2: all ten FIXED) and main-session / WP9 requests; none lies in WP1's files"},
+    {"what": "Domain mess kinds, derived fields, settings skills, volition tags of the people and pets systems, per-domain watch files", "why": "WP-D's by section 25; the kernel registries and data they plug into have landed"},
+    {"what": "setup.py package_data for data/verify/*.json", "why": "setup.py is not a WP1 file (request to the main session)"}
+  ],
+  "outcome_changes": [],
+  "tests": {"new_tests": 89, "passed": true, "strict_passed": true},
+  "specs": {"total": 243, "passed": 243},
+  "requests": [
+    "WP5: build the hardening block (envelope, protections, absent_ok, reference_resources, reference_open_s, hold_limits), record unwrapped labels in task['labels'], set env.idle from counterfactual.rollout(env, budget + settle + lookahead, counterfactual.interval_for(budget)), use ledger.footprint for --draft-hardening",
+    "WP8: spec.check_structure calls ledger.validate_envelope(spec['envelope']) and ledger.validate_protections(spec['protections']); L-WATCH = tools/field_census.py --check (error) and --unclassified (warning until WP-D)",
+    "WP-D: register @mess_kind measures, @derived_field recomputes, @settings_skill; tag people/pets systems writer='volition'; classify fields in house_sim/data/verify/watch/<domain>.json",
+    "WP10: the harness sets env.idle from a cached rollout per (spec, seed, mode, fingerprint); R0 reruns tools/field_census.py",
+    "main session: add 'data/verify/*.json' and 'data/verify/watch/*.json' to setup.py package_data"
+  ],
+  "notes": "Full unit suite (green_tests.py 3): 150 runs ok, 5,191 tests per mode, 0 failures. All 243 authored specs in own mode (combined file, --check --workers 3): 243 passed. py39_lint 496 files, 0 violations. WP1 adds no key or label to a task without a hardening block, and load_domains imports the same modules in the same order as before, so no schema 2/3 outcome changes. Handoff: catalog/analysis/phase2/handoff_WP1.md."
+}

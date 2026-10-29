@@ -1,0 +1,52 @@
+{
+  "id": "WP3",
+  "files": ["house_sim/kernel/monitor.py", "tests/test_timing.py", "catalog/analysis/phase2/WP3.json",
+            "catalog/analysis/phase2/handoff_WP3.md"],
+  "landed": [
+    "timing key (VERIFY_HARDENING 8.5) for task, variant and phase: trigger/act (predicate or milestone name) sampled at every monitor sample point; maximal trigger and act intervals recorded at sample resolution (action samples stamped at the action's end); top-level window from the episode start (the reset baseline gives what held at t=0); phase items recorded only while their phase runs (labels <id>/<label>)",
+    "timing:<label>:early|late|unheld|unneeded|no_trigger from Monitor.failures (so evaluation.evaluate and score_phase list them unchanged); Monitor.decided returns fail once a timing outcome cannot change (early at once, late after hi, unheld when the answer ends or ends short, unneeded once a later trigger would make it early)",
+    "monitor.validate_timing(items, names=(), strict=True) -> problems; validate_task (HouseEnv) now rejects malformed timing items (strict False); strict adds the sample-resolution lint (window >= 120 s, not_before_s a multiple of 30 s)",
+    "monitor.timing_outcome(item, trigger, act, t0, now, init): pure verdict, usable as the battery's fixed-timer exposure arithmetic (9.7, B7, P7)",
+    "Monitor.intervals(label, which='act'|'trigger') and 'open:<eid>'; Monitor.timing_verdicts(state, phase)",
+    "open intervals of restore-class items (6.9) for hardened (schema-4) tasks: {start, end, by: robot|other|setup}, robot attribution by sample point (action / standing-order samples), unattended_s / unattended_at for every item matching a zero_when_protected class (protected agent in the gate's connected zone, robot farther than near_m); restore class and is_open follow WP1's restore.json with the ledger's matching rule; Monitor.open_intervals / open_items / longest_open; WP1's house.held_open consumes it (verified end to end)",
+    "Footprint.fields and Footprint.meets(eid, field, record=None) for the settle window (8.1) and the battery's 'about X' (10.4); sampling footprints unchanged except that WP4's said form is always-sampled (WP4 request)",
+    "derived-field overlay (8.2, WP1's evaluation.derived_view) applied to the monitor's temporal predicates for hardened tasks, with derived-reading predicates re-evaluated at every sample",
+    "record()/result() gain 'timing' and 'open' only for tasks that use them (legacy records and results unchanged); save/load and replay carry them",
+    "tests/test_timing.py: 44 tests (validation, every outcome and its decision time, initially/if_no_trigger/hold/anticipation, exposure arithmetic, episodes with events and robot actions, milestone names, phases, persistence and replay, determinism, oracle/realistic x room/geometric, derived overlay, open intervals with writers, baseline, exposure, save/load, restore class, footprint fields, legacy invariance)"
+  ],
+  "deviations": [
+    {"what": "The lint's 'within_s >= 120' is applied to the window width within_s - not_before_s (and within_s >= not_before_s); not_before_s a multiple of 30 s; both only in strict (lint) mode", "why": "8.5's own anticipation example {not_before_s: -900, within_s: 0} would fail the literal rule; the engine runs any well-formed item"},
+    {"what": "Defaults chosen where 8.5 is silent: hold 'end' (0 = no requirement), if_no_trigger 'forbid' plus an explicit third value 'allow', initially 'false'; label and within_s required", "why": "hard by default (P2); authors opt out explicitly"},
+    {"what": "Labels follow the table literally and are reported as if the run ended now (late before hi is reported, not decided); an early close that still holds through the window gives early and late", "why": "matches 8.5's conditions and the existing response_open convention; decided() carries the 'decided at' column"},
+    {"what": "A milestone-name trigger/act reads the milestone's live per-sample truth (held_for_s included), not its latched first-reach time", "why": "'the maximal intervals during which it held' needs the live value; a latched milestone would never end an interval"},
+    {"what": "Open-interval attribution by sample point (action / standing-order sample = robot) instead of WP2's writer log; by is robot|other|setup", "why": "the engine samples right after the robot's window, so it is exact and independent of when WP2's per-step diff reaches env.writes; the ledger's writer_of_by maps other to physical"},
+    {"what": "unattended_s (the key WP1's ledger reads) is computed for every item matching any zero_when_protected class; zone = rooms in connects (else its room); near_m measured from the room the robot reaches the gate from (geometry.anchor)", "why": "keeps the ledger's 0 s rule fed whichever matching class it names first; 6.9 leaves zone and distance open"}
+  ],
+  "not_done": [
+    {"what": "Closing the vacuous-trigger case (a scheduled event after the run ends leaves a forbid/allow timing item without t_T)", "why": "needs run-length or lint rules outside monitor.py (WP5 runner/verify, WP8 lint, WP6 B7); requested"},
+    {"what": "evaluate()['temporal']['timing'] for tasks whose only temporal key is timing", "why": "evaluation._has_temporal is WP1's file; Monitor.result() already has the block; requested"},
+    {"what": "timing reaching built tasks from specs (TASK_KEYS/LIST_KEYS/PHASE_KEYS, temporal_problems, check_structure)", "why": "spec.py is WP8's and runner.build is WP5's; requested"},
+    {"what": "Dynamic lint: act false at t=0 on every seed for initially 'false'", "why": "needs built seeds (WP8 lint.run dynamic)"},
+    {"what": "Phase-1 carry-over rows", "why": "none of the open rows (closeout_breakages 10 domain rows, closeout_REV findings confirmed in closeout_VER2, closeout_INT3 requests) lies in monitor.py or test_timing.py"}
+  ],
+  "outcome_changes": [],
+  "tests": {"new_tests": 44, "passed": true, "strict_passed": true},
+  "specs": {"total": 243, "passed": 243},
+  "verification": {
+    "unit_suite": "tools/orchestration/green_tests.py 3: 4956 tests, 0 failures, every file normal and HOUSE_SIM_STRICT=1 (2026-10-29, shared tree)",
+    "specs_own_mode": "python -m house_sim --check <all 243 authored specs combined> --workers 3: 243 passed, 0 failed",
+    "after_last_change": "said footprint + is_open alignment: test_timing, test_monitor, test_speech, test_reports, test_report_truth, test_phases, test_finish, test_ledger green normal and strict",
+    "legacy_differential": "28 legacy specs (8 with temporal keys + 20 sampled) through verify.run_trial with HEAD's monitor.py vs this one: identical trial records, final evaluations and monitor records (seed 0)",
+    "py39_lint": "clean for monitor.py and test_timing.py",
+    "sweep_bench": "ok (monitor_idle 0.0031 ms, monitor_quant 0.036 ms)"
+  },
+  "requests": [
+    "WP1: evaluation._has_temporal should count the 'timing' key so evaluate()['temporal'] carries Monitor.result()['timing'].",
+    "WP1: restore.json class exterior_door selects fields {exterior: true}, which also matches windows (core window type has exterior: true) and garden gates; restrict it (e.g. is_a door with the field, or exclude_fields for windows) unless windows are meant to be restore class (house.left_open, house.held_open after 300 s of airing).",
+    "WP8: add 'timing' to spec.TASK_KEYS, LIST_KEYS ('+timing'), PHASE_KEYS and temporal_problems; check_structure calls monitor.validate_timing(items, names, strict=True) per scope; the dynamic initially-false check goes in lint.run(dynamic=...); document the timing defaults (hold 'end', if_no_trigger 'forbid'|'require'|'allow', initially 'false').",
+    "WP5: runner.build passes 'timing' through for task and phases (bindings substituted); close the vacuous-trigger gap (a seed whose scheduled event falls after the run's end) by running through the event or by a lint requiring if_no_trigger 'require' / an event-dependent success predicate.",
+    "WP6: B7/P7 exposure = monitor.timing_outcome(item, [[t_T, None]] or [], [[tau, None]], 0.0, budget)['labels'] == [] per drawn onset; consider a B7 variant that declares done before the seed's event.",
+    "WP2 (optional): finish()'s _meets is per record; Footprint.meets(eid, field, record) gives field-level precision with env.writes' fields."
+  ],
+  "notes": "WP3 changes no schema 2/3 outcome: timing and open tracking exist only for tasks with a timing key or a hardening block, and the legacy differential plus the 243/243 own-mode check confirm it. Cost: legacy samples pay one empty loop and one boolean test; a timing item about 0.0015 ms per sample untouched; open tracking about 0.002-0.004 ms per sample. Handoff: catalog/analysis/phase2/handoff_WP3.md."
+}

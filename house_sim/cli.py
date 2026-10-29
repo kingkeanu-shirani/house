@@ -176,9 +176,26 @@ def main(argv=None):
                              "--gen it is a forced check instead, written to reports/verification_forced.jsonl.")
     parser.add_argument("--verify-only", nargs="+", help="Verify only these catalog ids, sections or authored file names.")
     parser.add_argument("--check", metavar="SPEC_FILE", help="Verify the specs in one authored file and print details (no evidence written).")
-    parser.add_argument("--ids", nargs="+", help="With --check: only these catalog ids.")
-    parser.add_argument("--seeds", nargs="+", type=int, help="With --check: only these seeds (default 0 1 2 41 97).")
+    parser.add_argument("--ids", nargs="+", help="With --check / --draft-hardening: only these catalog ids.")
+    parser.add_argument("--seeds", nargs="+", type=int,
+                        help="With --check: only these seeds (default 0 1 2 41 97; a schema-4 spec's coverage seeds). "
+                             "For a schema-4 spec a debugging run that can never be HARDENED.")
     parser.add_argument("--workers", type=int)
+    parser.add_argument("--level", choices=["quick", "standard", "full"],
+                        help="Schema-4 specs (VERIFY_HARDENING 5.3): quick (S0-S4), standard (S0-S6, the default of "
+                             "--check) or full (S0-S8, the default of --verify).")
+    parser.add_argument("--battery", default="all", help="With --check: all | none | B2,B3,... (debugging).")
+    parser.add_argument("--mustpass", default="all", choices=["all", "none"], help="With --check (debugging).")
+    parser.add_argument("--modes", help="With --check: own,eval (default both; a subset is debugging).")
+    parser.add_argument("--heldout", type=int, help="With --check --level full: the number of held-out seeds.")
+    parser.add_argument("--explain", metavar="DIR", help="With --check: write every generated policy as a plan file.")
+    parser.add_argument("--json", metavar="OUT", help="With --check: write the verification records (JSON lines).")
+    parser.add_argument("--no-cache", action="store_true", help="With --check: do not use the local run cache.")
+    parser.add_argument("--draft-hardening", metavar="SPEC_FILE",
+                        help="Print schema-4 suggestions (envelope, answers, roles, process labels, look-ahead, "
+                             "budget, the observed labels of each wrong plan) for --ids; nothing is written into the "
+                             "spec.")
+    parser.add_argument("--out", metavar="DRAFT_JSON", help="With --draft-hardening: also write the drafts here.")
     parser.add_argument("--perception", choices=["oracle", "realistic"],
                         help="With --check/--verify: force this perception mode for every spec (default: each spec's own).")
     parser.add_argument("--camera", choices=["room", "geometric"],
@@ -205,13 +222,30 @@ def main(argv=None):
         if args.verify or args.verify_only:
             from .audit import verify
             # a forced mode (--perception, --camera, --gen; M-GEN2 runs --verify --gen 2) is a check written to
-            # reports/verification_forced.jsonl, never the catalog evidence (audit.verify)
-            run = verify(only=set(args.verify_only) if args.verify_only else None, workers=args.workers,
-                         perception=args.perception, camera=args.camera, gen=args.gen)
+            # reports/verification_forced.jsonl, never the catalog evidence (audit.verify); schema-4 specs run the
+            # hardened pipeline at --level (verify_many's default: full; HOUSE_SIM_VERIFY_LEVEL reaches the workers)
+            import os
+            from .tasks.verify import LEVEL_ENV
+            previous = os.environ.get(LEVEL_ENV)
+            if args.level:
+                os.environ[LEVEL_ENV] = args.level
+            try:
+                run = verify(only=set(args.verify_only) if args.verify_only else None, workers=args.workers,
+                             perception=args.perception, camera=args.camera, gen=args.gen)
+            finally:
+                if args.level:
+                    if previous is None:
+                        os.environ.pop(LEVEL_ENV, None)
+                    else:
+                        os.environ[LEVEL_ENV] = previous
             return 1 if run["failed_entries"] else 0
+        if args.draft_hardening:
+            return draft_file(args.draft_hardening, args.ids, args.seeds, gen=args.gen, out=args.out)
         if args.check:
             return check_file(args.check, args.workers, args.ids, args.seeds, perception=args.perception,
-                              camera=args.camera, gen=args.gen)
+                              camera=args.camera, gen=args.gen, level=args.level, battery=args.battery,
+                              mustpass=args.mustpass, modes=args.modes, heldout=args.heldout, explain=args.explain,
+                              json_out=args.json, cache=not args.no_cache)
         if args.report:
             from .audit import report
             print(json.dumps(report(), indent=2)); return 0
@@ -314,8 +348,111 @@ def main(argv=None):
         parser.error(str(exc))
 
 
-def check_file(path, workers=None, ids=None, seeds=None, perception=None, camera=None, gen=None):
-    from .tasks.verify import SEEDS, verify_many
+HINTS = {"G1": "core trials: the reference, the initial state or the idle run (fix the spec or report the perception "
+                 "gap to its domain)",
+         "G2": "wrong plans: at least 2 (1 per branch), each with a specific expect and a mistake, fails for it, "
+               "attributed",
+         "G3": "battery: a cheater passed, or a family is below 80 % met",
+         "G4": "protect: map every analysis protect item once, at least 80 % live",
+         "G5": "lints",
+         "G6": "held-out seeds",
+         "G7": "harness: an exception in a run",
+         "G8": "must-pass: a legitimate variant failed",
+         "G9": "escapes: review records (a signed owner row, or a logged independent review session naming the "
+               "proposal's category), quota, points, at most 2 exemptions"}
+
+
+def print_hardened(record, out=print):
+    """The printed block of one schema-4 spec (VERIFY_HARDENING 21.2)."""
+    gates = record.get("gates") or {}
+    marks = " ".join("{} {}".format(g, "-" if gates.get(g) is None else "ok" if gates.get(g) else "FAIL")
+                     for g in ("G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9"))
+    out("{} {}  score {}  level {}  gates: {}".format(record.get("verdict"), record.get("catalog_id"),
+                                                     (record.get("strength") or {}).get("score"),
+                                                     record.get("level"), marks))
+    for row in (record.get("core") or {}).get("failing") or []:
+        out("  core  seed {} {}: {}".format(row["seed"], row["mode"], "; ".join(row["why"])[:300]))
+    for why in (record.get("wrong_summary") or {}).get("why") or []:
+        out("  wrong {}".format(why[:300]))
+    for run in (record.get("battery") or {}).get("runs") or []:
+        if run.get("outcome") not in ("fails", "blocked", "skipped:na", "skipped:tier"):
+            out("  {:<14} {:<12} {}  hint: {}".format(str(run.get("id")), str(run.get("outcome")),
+                                                      str(run.get("detail") or run.get("labels") or "")[:70],
+                                                      run.get("hint") or ""))
+    for run in (record.get("mustpass") or {}).get("runs") or []:
+        if run.get("outcome") not in ("passes", "skipped:na", "skipped:tier"):
+            out("  {:<14} {:<12} {}  hint: {}".format(str(run.get("id")), str(run.get("outcome")),
+                                                      str(run.get("labels") or "")[:70], run.get("hint") or ""))
+    for stage in ("battery", "mustpass"):
+        why = (record.get(stage) or {}).get("why")
+        if why:
+            out("  {:<8} not run: {}".format(stage, why))
+    for problem in record.get("lint") or []:
+        out("  {:<12} {} {}".format(problem.get("id"), problem.get("severity"), str(problem.get("message"))[:240]))
+    for line in (record.get("protect") or {}).get("lint") or []:
+        out("  {}".format(line[:300]))
+    unlive = (record.get("protect") or {}).get("unlive") or []
+    if unlive:
+        out("  protect  not live yet: {}".format("; ".join(unlive[:4])))
+    for why in (record.get("escapes") or {}).get("why") or []:
+        out("  escapes  {}".format(why[:300]))
+    for policy, problem in sorted(((record.get("escapes") or {}).get("review_problems") or {}).items()):
+        out("  escapes  {}: the accepted record does not count: {}".format(policy, str(problem)[:240]))
+    lookahead = record.get("lookahead") or {}
+    if lookahead.get("operated"):
+        out("  lookahead {} s: the reference opened or operated {}".format(
+            int(lookahead.get("s") or 0), ", ".join(lookahead["operated"][:4])))
+    budget = record.get("budget") or {}
+    for variant, row in sorted((budget.get("variants") or {}).items()):
+        if not (row.get("ok") and row.get("share_ok")):
+            out("  budget   variant {}: authored {} vs formula {}{}".format(
+                variant, row.get("authored"), row.get("formula"),
+                "" if row.get("share_ok") else " (the reference uses more than 80 %)"))
+    held = record.get("heldout") or {}
+    if held.get("ran") and not held.get("ok"):
+        out("  heldout  reference failures {} skill debt {} passes {} infeasible {}".format(
+            [r["seed"] for r in held.get("reference_failures") or []] if held.get("public") else
+            len(held.get("reference_failures") or []), len(held.get("skill_debt") or []), held.get("passes_share"),
+            len(held.get("infeasible") or [])))
+    private = record.get("private") or {}
+    if not private.get("ran"):
+        out("  private  {}".format(private.get("status")))
+    for line in record.get("harness_errors") or []:
+        out("  harness  {}".format(str(line)[:300]))
+    for gate, ok in sorted(gates.items()):
+        if ok is False:
+            out("  hint {}: {}".format(gate, HINTS.get(gate, "")))
+    if record.get("debug_note"):
+        out("  note: " + record["debug_note"])
+
+
+def draft_file(path, ids=None, seeds=None, gen=None, out=None):
+    """--draft-hardening (VERIFY_HARDENING 5.4 item 4): print the drafts for the given ids; nothing is written into
+    the spec (with --out the drafts also go to that JSON file)."""
+    from .kernel.plugins import load_domains
+    from .tasks.verify import draft_hardening
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    specs = data.get("specs", []) if isinstance(data, dict) else data
+    if not ids:
+        print("--draft-hardening needs --ids")
+        return 2
+    specs = [s for s in specs if s.get("catalog_id") in set(ids)]
+    if not specs:
+        print("No specs with those ids in", path)
+        return 1
+    load_domains()
+    drafts = [draft_hardening(spec, seeds=seeds, gen=gen) for spec in specs]
+    text = json.dumps(drafts if len(drafts) > 1 else drafts[0], indent=1, default=str)
+    print(text)
+    if out:
+        with open(out, "x", encoding="utf-8", newline="\n") as stream:
+            stream.write(text + "\n")
+    return 0
+
+
+def check_file(path, workers=None, ids=None, seeds=None, perception=None, camera=None, gen=None, level=None,
+               battery="all", mustpass="all", modes=None, heldout=None, explain=None, json_out=None, cache=True):
+    from .tasks.verify import OWN, SEEDS, eval_modes, verify_many
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     specs = data.get("specs", []) if isinstance(data, dict) else data
     if ids:
@@ -323,10 +460,34 @@ def check_file(path, workers=None, ids=None, seeds=None, perception=None, camera
         if not specs:
             print("No specs with those ids in", path)
             return 1
+    options = {}
+    if modes:
+        wanted = []
+        for name in str(modes).split(","):
+            name = name.strip()
+            if name == "eval":
+                wanted.extend(eval_modes())
+            elif name:
+                wanted.append(OWN if name == "own" else name)
+        options["modes"] = wanted
+    if heldout:
+        options["heldout"] = heldout
+    if explain:
+        options["explain"] = explain
     results = verify_many(specs, seeds=tuple(seeds) if seeds else SEEDS, workers=workers, perception=perception,
-                          camera=camera, gen=gen)
+                          camera=camera, gen=gen, level=level or "standard", battery=battery, mustpass=mustpass,
+                          cache=cache, hard_seeds=list(seeds) if seeds else None, **options)
+    if json_out:
+        with open(json_out, "w", encoding="utf-8", newline="\n") as stream:
+            for result in results:
+                stream.write(json.dumps(result, default=str) + "\n")
     failed = 0
     for result in results:
+        if result.get("format") == "house_ai.verification/2":
+            if not result["passed"]:
+                failed += 1
+            print_hardened(result)
+            continue
         if result["passed"]:
             print("PASS", result["catalog_id"])
             continue

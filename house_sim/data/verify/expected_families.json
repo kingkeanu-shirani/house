@@ -1,0 +1,148 @@
+{
+  "format": "house_ai.verify.expected_families/1",
+  "about": "VERIFY_HARDENING 19.1: the families E(entry) an entry kind is expected to exercise, computed from the analysis record (catalog/analysis/part_*.jsonl) and the entry text (tasks/specs.jsonl), never from the spec. A family is expected when any of its rules matches. Rule forms: {\"field\": f, \"re\": regex} over a text field (a list field is joined with ' | '; case-insensitive); {\"mechanics\": regex} over each mechanics tag (re.search); {\"non_null\": f}; {\"kind_in\": [...]} over the entry kind; {\"text\": regex} over the entry text; {\"same_kind_objects\": 2} when the record's objects list two items of one kind (equal names, or names sharing their last word); {\"family\": id} when another family is expected. Read by house_sim/tasks/strength.py expected_families().",
+  "families": {
+    "B2": [
+      {
+        "field": "success",
+        "re": "\\b(is|are|be|stays?|remains?|left|ends?|placed|stored|put|returned|hung|folded|sorted|stacked|closed|shut|opened?|off|on|locked|unlocked|latched|sealed|clean(ed)?|dry|dried|empty|emptied|full|filled|cleared|removed|away|back|upright|level|secured|unplugged|plugged|switched|turned|watered|fed|set|in place|inside|on the|in the)\\b"
+      }
+    ],
+    "B3": [
+      {
+        "field": "success",
+        "re": "\\b(in|into|on|onto|inside|under|back in|back on|to the|returned to|stored in|placed (in|on)|put (in|on|away)|disposed|discarded|thrown|binned|recycl|composted)\\b"
+      },
+      {
+        "mechanics": "^(item|object|storage|waste|cleaning|soil|carry)|\\.(carry|store|stow|dispose|discard|tidy|sweep|mop|wipe|clean|empty|transfer|place|put_away)"
+      }
+    ],
+    "B4": [
+      {
+        "field": "wrong",
+        "re": "\\b(similar(-looking)?|look-?alike|decoy|identical(-looking)?|twin)\\b"
+      },
+      {
+        "field": "wrong",
+        "re": "\\b(neighbou?ring|other|wrong|different|nearby|adjacent)\\s+(\\w+[- ]){0,2}?(item|object|one|thing|container|bottle|jar|box|bag|mug|cup|glass|key|plant|remote|tool|medication|medicine|pill|label|can|carton|toy|book|shoe|sock|dish|pan|pot|towel|garment|cable|charger|battery|door|window|drawer|shelf|bin|switch|valve|breaker|burner|knob|button|outlet)s?\\b"
+      },
+      {
+        "mechanics": "(^|\\.)(identify|identification|recogni[sz]e|recognition|select|selection|label|lookalike|look_alike|disambiguat|distinguish|discriminat)"
+      },
+      {
+        "same_kind_objects": 2
+      }
+    ],
+    "B10": [
+      {
+        "family": "B4"
+      }
+    ],
+    "B11": [
+      {
+        "family": "B4"
+      }
+    ],
+    "B5": [
+      {
+        "text": "^\\s*(check|verify|detect|find|report|identify|whether|count|measure|weigh|read|inspect|compare|monitor|recogni[sz]e)\\b"
+      },
+      {
+        "mechanics": "(^|\\.)(identify|recogni[sz]e|detect|inspect|compare|count|measure|weigh|read|monitor)"
+      },
+      {
+        "non_null": "conditional"
+      },
+      {
+        "kind_in": [
+          "adaptability",
+          "variation"
+        ]
+      },
+      {
+        "family": "B7"
+      }
+    ],
+    "B7": [
+      {
+        "field": "protect",
+        "re": "\\b(before|until|in time|too (early|late)|timer|timed|minutes?|seconds?|hours?|schedule[ds]?|deadline|arriv(e|es|al)|rain|storm|boil(s|ing)? over|burns? (down|out)|wait(s|ing)?|delay)\\b"
+      },
+      {
+        "field": "wrong",
+        "re": "\\b(before|until|in time|too (early|late)|timer|timed|fixed time|minutes?|seconds?|hours?|schedule[ds]?|deadline|arriv(e|es|al)|rain|storm|wait(s|ing)? (for|until)|delay(s|ed)?|premature)\\b"
+      },
+      {
+        "mechanics": "(^|\\.)(timing|timer|schedule|deadline|event|wait|monitor|response_time)"
+      }
+    ],
+    "B8": [
+      {
+        "non_null": "conditional"
+      },
+      {
+        "kind_in": [
+          "adaptability",
+          "variation"
+        ]
+      }
+    ],
+    "B9": [
+      {
+        "non_null": "user_sim"
+      }
+    ],
+    "B12": [
+      {
+        "field": "success",
+        "re": "\\b(tell|tells|told|warn|warns|warned|warning|report|reports|reported|relay|relays|relayed|remind|reminds|reminded|ask|asks|asked|inform|informs|informed|notify|notifies|notified|announce|says?|said|explain|explains|message|alert|alerts|confirm|confirms)\\b"
+      },
+      {
+        "mechanics": "^(comm|speech|dialog|dialogue|report|log|relay|notify|message)|\\.(warn|relay|remind|notify|report|announce|inform|tell|ask)"
+      }
+    ],
+    "B13": [
+      {
+        "text": "^\\s*(identify|recogni[sz]e|detect|inspect|compare|count|measure|weigh|read|monitor|check|verify|find)\\b"
+      },
+      {
+        "mechanics": "^perception|(^|\\.)(perceive|perception|inspect|detect|observe|look|sense|smell|listen|read_label|visual)"
+      }
+    ],
+    "B14": [
+      {
+        "field": "protect",
+        "re": "\\b(spill|overflow|drip|lost|discard|thrown|missing|stain|mud|residue|mess|setting|reset|left on|preference|timer|clock|energy|waste|running|thaw|spoil|light|lamp|door|disturb|moved|displac|knock|scratch|damage|broken|break|tip|wet|soak)"
+      }
+    ]
+  },
+  "kind_class_order": [
+    "conditional",
+    "timing",
+    "speech",
+    "perception",
+    "answer",
+    "lookalike",
+    "plain"
+  ],
+  "kind_classes": {
+    "conditional": [
+      "B8"
+    ],
+    "timing": [
+      "B7"
+    ],
+    "speech": [
+      "B12"
+    ],
+    "perception": [
+      "B13"
+    ],
+    "answer": [
+      "B5"
+    ],
+    "lookalike": [
+      "B4"
+    ]
+  }
+}

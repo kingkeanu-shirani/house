@@ -1,0 +1,75 @@
+tier-1 gate P2-S2  (2026-10-29T17:54:26+00:00)
+packages: P2-S1+P2-S2   stage: P2-S2   previous gate: P1C   seeds: 0 1 2 41 97   jobs: 7
+allowed differences: fingerprint, obs, state, verdict   reviewed codes: P2
+policy: rules committed at HEAD (3f8af7ed5ebc); allowlist committed at HEAD (1 entries, 0 expired, 0 invalid); bound registry committed at HEAD; second signatures tools/orchestration/gate_policy/signoffs/P2-S2.json: not committed
+GATE PASS  made by the committed gate code (commit f450fefb0773, code f6f735855092)
+
+G0   PASS  action fingerprint 231aec38c2e2 (427 actions, 117 systems); changed vs P1C (allowed)
+G1   PASS  78 test files x normal+strict: 5413 tests (normal), 0 failing run(s); wall-clock bounds: 27 relaxed, 0 with a skip exception; Python 3.9 lint: 507 file(s), 0 violations
+G1b  PASS  isolated domains 16/16 files ok; kernel files with HOUSE_SIM_DOMAINS=core 33/33 ok
+G1c  N/A   no import-inert modules listed for this package
+G2   PASS  own mode: 243/243 specs pass (1215 trials); vs P1C: 0 verdict change(s) (0 reviewed, 0 signed), 123 state-digest change(s), 0 observation-digest change(s)
+G3   PASS  forced realistic: 242/243 specs pass (1215 trials); vs P1C: 0 verdict change(s) (0 reviewed, 0 signed), 124 state-digest change(s), 0 observation-digest change(s); 255 realistic-spec trials identical in G2 and G3
+G4   PASS  perception audit geometric: 0 leaks, 0 crashes; room: 0 leaks, 0 crashes
+G5   PASS  layout: 240 houses, 0 problems; counts equal to P1C; generation-1 digests 60/60 equal to tests/data/gen1_digests.json
+G6   PASS  fuzz battery: 1800 commands, 0 defects, 0 nondeterministic, 39 of 427 actions succeed; coverage: 44295 commands, 0 defects, 0 nondeterministic, 278 of 427 actions succeed; geometric: 1800 commands, 0 defects, 0 nondeterministic, 39 of 427 actions succeed; room: 1800 commands, 0 defects, 0 nondeterministic, 42 of 427 actions succeed; per-action success coverage (all variants): 281 of 427 registered actions succeed at least once; never: address_envelope, aerate, assist_sit, bag_leaves, bind, blend, brew, brush_pet, call, cancel_watch, carve, catch, caulk, change_aquarium_water, change_litter, change_tire, check_calendar, clean_camera, clear_gutter, collect_eggs, condition, connect_charger, connect_hose, copy, crate, cross_off, crush, cube, cut_with, deadhead, decline_visitor, defrost, depill, descale, diff, dig, disassemble, drag, dress_assist, drill, drive_to, edge, fertilize, fillet, forget, free_stuck_robot, get_up, grate, g...
+G7   FAIL  2.95 ms/substep (best of 5), 1 h wait 1.085 s (seeds 0-3, best of 5); vs P1C (1.05x): OVER: substep_ms 2.95 > prev x 1.05 = 2.929; wait_1h_s 1.085 > prev x 1.05 = 1.081; wall-clock bounds alone: 27 x 2 modes, 0 failing every one of 3 attempts
+G8   FAIL  room golden: golden ok, golden_all ok; 14 entr(ies) re-recorded vs the previous record P1C: specs/A-afe8d8c6d6d883-01 (edited), specs/T-0adf708ce0749a-01 (edited), specs/T-1df40780f5ddf2-01 (edited), specs/T-238a7512e4dd6e-01 (edited), specs/T-28ff695081cd2c-01 (edited), specs/T-5c9694a5a29d0e-01 (edited), specs/T-73a13fb297c40f-01 (edited), specs/T-7e93003b0dcefa-01 (edited), ...; 14 without the main session's signed golden row
+G9   PASS  physics_audit: ok; camera: geometric tool runs in G4/G6 ok; body_audit: ok; sweep_bench: ok; gen-2 timing: gen2/gen1 time 1.04 ok; layout_audit gen 2: ok; test_generator_compat: ok; test_generator_gen2: ok
+G10  FAIL  117 changed file(s); 1 outside the list of P2-S1+P2-S2: catalog/analysis/phase1/closeout_VER2.json
+
+compare P1C -> P2-S2 (packages: P2-S1+P2-S2; allowed: fingerprint,obs,state,verdict; codes: P2)
+G0   PASS  action fingerprint changed 0eec7120d723 -> 231aec38c2e2 (allowed for this package)
+G2   PASS  1215 trials vs 1215: 0 verdict change(s) (0 reviewed, 0 signed), 123 with changed state digests (allowed), 0 with a changed observation digest (allowed)
+G3   PASS  1215 trials vs 1215: 0 verdict change(s) (0 reviewed, 0 signed), 124 with changed state digests (allowed), 0 with a changed observation digest (allowed)
+G5   PASS  layout counts equal (0 problems)
+           generation-1 digests vs previous gate: 60/60 equal
+G4   PASS  perception audit: geometric: leaks 0 -> 0, errors 0 -> 0
+           room: leaks 0 -> 0, errors 0 -> 0
+G6   PASS  fuzz: battery: defects 0 -> 0, nondeterministic 0 -> 0, commands 1800 -> 1800, succeeded 294 -> 297, actions succeeding 38 -> 39 of 427
+           coverage: defects 0 -> 0, nondeterministic 0 -> 0, commands 44295 -> 44295, succeeded 30437 -> 30437, actions succeeding 278 -> 278 of 427
+           geometric: defects 0 -> 0, nondeterministic 0 -> 0, commands 1800 -> 1800, succeeded 560 -> 512, actions succeeding 39 -> 39 of 427
+           room: defects 0 -> 0, nondeterministic 0 -> 0, commands 1800 -> 1800, succeeded 440 -> 487, actions succeeding 41 -> 42 of 427
+           union: defects None -> None, nondeterministic None -> None, commands None -> None, succeeded 281 -> 281
+           coverage: 278 of 427 registered actions succeed at least once; never: address_envelope, aerate, align, assist_sit, bag_leaves, bind, blend, brew, brush_pet, call, cancel_watch, carve, catch, caulk, change_aquarium_water, change_litter, change_tire, check_calendar, clean_camera, clear_gutter, collect_eggs, condition, connect_charger, connect_hose, copy, crate, cross_off, crush, cube, cut_with, deadhead, decline_visitor, defrost, depill, descale, diff, dig, disassemble, drag, dress_assist, drill, drive_to, edge, fertilize, fillet, forget, free_stuck_robot, get_up, grate, grind, grind_coffee, harvest, hold_steady, insert, juice, jump_start, knead, lace_shoes, light...
+G7   FAIL  substep_ms: 2.79 -> 2.95 (+5.7%; limit 2.929 = prev x 1.05)  OVER BUDGET
+           wait_1h_s: 1.0291 -> 1.0845 (+5.4%; limit 1.081 = prev x 1.05)  OVER BUDGET
+           day_s: 5.7 -> 6.237 (+9.4%; limit 5.985 = prev x 1.05)  OVER BUDGET
+           largest per-system increases: thermal +0.070 ms, climate.house +0.019 ms, food.thermal +0.012 ms
+PERF PASS  wall-clock bounds alone: 36 run(s) of 27 bound(s), 0 failing every attempt
+G1   PASS  new test file test_attribution.py (normal): 25 tests
+           new test file test_attribution.py (strict): 25 tests
+           new test file test_counterfactual.py (normal): 20 tests
+           new test file test_counterfactual.py (strict): 20 tests
+           new test file test_finish.py (normal): 18 tests
+           new test file test_finish.py (strict): 18 tests
+           new test file test_ledger.py (normal): 94 tests
+           new test file test_ledger.py (strict): 94 tests
+           new test file test_lint.py (normal): 43 tests
+           new test file test_lint.py (strict): 43 tests
+           new test file test_perceive.py (normal): 61 tests
+           new test file test_perceive.py (strict): 61 tests
+           test_physics_thermal.py (normal): ran 34 -> 34, skipped 1 -> 0
+           test_physics_thermal.py (strict): ran 34 -> 34, skipped 1 -> 0
+           new test file test_report_truth.py (normal): 14 tests
+           new test file test_report_truth.py (strict): 14 tests
+           new test file test_setup_random.py (normal): 41 tests
+           new test file test_setup_random.py (strict): 41 tests
+           new test file test_skills_robustness.py (normal): 28 tests
+           new test file test_skills_robustness.py (strict): 28 tests
+           new test file test_speech.py (normal): 54 tests
+           new test file test_speech.py (strict): 54 tests
+           new test file test_timing.py (normal): 44 tests
+           new test file test_timing.py (strict): 44 tests
+           new test file test_verify_hardening.py (normal): 87 tests
+           new test file test_verify_hardening.py (strict): 87 tests
+           Python 3.9 lint: 507 file(s), 0 violations
+GOLD FAIL  room golden: 14 entr(ies) re-recorded vs the previous record P1C: specs/A-afe8d8c6d6d883-01 (edited), specs/T-0adf708ce0749a-01 (edited), specs/T-1df40780f5ddf2-01 (edited), specs/T-238a7512e4dd6e-01 (edited), specs/T-28ff695081cd2c-01 (edited), specs/T-5c9694a5a29d0e-01 (edited), specs/T-73a13fb297c40f-01 (edited), specs/T-7e93003b0dcefa-01 (edited), ...
+             14 without the main session's signed golden row: specs/A-afe8d8c6d6d883-01 (edited), specs/T-0adf708ce0749a-01 (edited), specs/T-1df40780f5ddf2-01 (edited), specs/T-238a7512e4dd6e-01 (edited), specs/T-28ff695081cd2c-01 (edited), specs/T-5c9694a5a29d0e-01 (edited), specs/T-73a13fb297c40f-01 (edited), specs/T-7e93003b0dcefa-01 (edited), ...
+GATE PASS  made by the committed gate code (commit f450fefb0773, code f6f735855092)
+REC  FAIL  this record's own G0, G1c, G4, G5, G7, G9, G10: G0 PASS, G1c N/A, G4 PASS, G5 PASS, G7 FAIL, G9 PASS, G10 FAIL
+             G7 FAIL: 2.95 ms/substep (best of 5), 1 h wait 1.085 s (seeds 0-3, best of 5); vs P1C (1.05x): OVER: substep_ms 2.95 > prev x 1.05 = 2.929; wait_1h_s 1.085 > prev x 1.05 = 1.081; wall-clock bounds alone: 27 x 2 modes, 0 failing every one of 3 attempts
+             G10 FAIL: 117 changed file(s); 1 outside the list of P2-S1+P2-S2: catalog/analysis/phase1/closeout_VER2.json
+compare result: FAIL
+
+TIER1-GATE P2-S2 [P2-S1+P2-S2] vs P1C: FAIL (9 pass, 3 fail, 1 n/a; failing: G7,G8,G10; compare FAIL)

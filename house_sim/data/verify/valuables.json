@@ -1,0 +1,10 @@
+{
+  "about": "Valuable entities for house.lost (VERIFY_HARDENING 6.4, 6.11; WP1): valuable when value >= min_value, when any of the flag fields is true, when it is a resident's personal belonging (personal_fields: a field naming a person who lives in the house; generation 2), or when its category, type or is_a is listed. house.lost fires for a valuable charged as removed (destroyed, or its content used up), and for ANY entity (valuable or not, unless it was waste at the baseline) whose charged final location chain reaches a loss class (loss_classes, location_classes.json) or whose relation is a loss relation; only envelope.deliver / consume or protections.off per entity excuse it, never envelope.move. A receptacle of a loss class is not its own refuse (the trash cart at the curb).",
+  "min_value": 50,
+  "flags": ["sentimental", "valuable", "protected", "irreplaceable", "heirloom"],
+  "personal_fields": ["owner", "belongs_to"],
+  "categories": ["jewelry", "keys", "key", "wallet", "cash", "document", "passport", "phone", "medication", "remote_control", "remote", "eyeglasses", "eyewear", "hearing_aid", "pet_medication", "medical_device", "photo", "collectible", "tablet", "computer", "card"],
+  "types": ["wedding_ring", "engagement_ring", "watch", "wristwatch", "passport", "birth_certificate", "credit_card", "debit_card", "smartphone", "car_key", "house_key", "key", "wallet", "purse", "cash", "checkbook", "hearing_aid", "eyeglasses", "reading_glasses", "prescription_bottle"],
+  "loss_classes": ["drain", "waste", "compost", "vacuum", "outdoor_waste"],
+  "loss_relations": ["drain"]
+}

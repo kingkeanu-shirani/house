@@ -1,7 +1,9 @@
 __pycache__/
 *.pyc
-build/
-dist/
+# packaging output at the project root only: a build/ or dist/ folder inside house_sim/, tests/ or tools/ is
+# source that git and the gate must see (closeout_REV finding 1)
+/build/
+/dist/
 *.egg-info/
 .venv/
 state.json
@@ -32,3 +34,6 @@ tools/orchestration/green_tests.json
 catalog/analysis/tier1/gate/
 # partial work of interrupted agents (backups for resuming)
 archive/partial_adopt_*.patch
+
+# generated-house and run caches of the verifier (VERIFY_HARDENING 9.7, 10.5, 22.8; regenerate, never commit)
+reports/cache/

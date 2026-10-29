@@ -314,6 +314,65 @@ condition oracle, laundered grants, cross-episode state and existence echoes. St
 correlations and permutations (review R2, R3) and estimate averaging over many episodes (the next phase's ledger,
 VERIFY_HARDENING 9.7), and the type-data tells of look-alike members (the registry lint's class, review L4).
 
+## Evidence for schema-4 verification (VERIFY_HARDENING 15; kernel/realism.py, house_sim/tasks/perceive.py, WP7)
+
+Schema-4 specs are verified and scored in the evaluation mode (realistic perception), and what the robot does, says
+or reports counts only when it rests on evidence it perceived *before* (an earlier step). Realism keeps three hidden
+records (outside world state; never in an observation):
+
+* **Act log** (`Realism.acts`): per action, taken after its handles are resolved and before it runs, completed from
+  the world's action trail: `{"step", "t", "action", "ok", "args" (true ids), "ids", "targets": {eid: {"unresolved",
+  "group", "novel", "level", "ident", "seen", "fields": {field: perceived above glance}, "values": {field: true}}}}`.
+* **Grant log** (`Realism.grants_log`): `{"step", "t", "id", "level", "values"}` per knowledge grant a step applied
+  (prior knowledge at setup is step 0); never-tier fields are not logged.
+* **Timed observations**: `Realism.observed` is an `ObservationLog` (still a list) with `stamps[i] = (time_s, step)`
+  and, per observation, `evidence[i] = {eid: {"levels", "truth"}}`. Recording needs `record_observations`
+  (`perceive.enable(env)`).
+
+**Split knowledge signature.** A move of a known thing by someone else used to reset everything the robot knew about
+it. Now a move the robot watched (it saw the thing in its own lit room at the start and the end of the step, did not
+change rooms, and the thing stayed in that room; with the geometric camera also identified at both places) keeps its
+identity level and its intrinsic fields (`realism.INTRINSIC_FIELDS`: printed text, label, material, mass, size,
+capacity, contents type); every other grant lapses as an unseen move makes it. `Realism.track_moves = False` restores
+the old rule.
+
+**Unfamiliar things are named alike.** An unfamiliar (novel) thing's names in outbound text are those of every type
+it could be (`Realism.unfamiliar_names()`), so a domain's generic wording ("Hold the padlock") reads the same for every
+twin (phase-1 close-out, REV finding 7).
+
+**The gating rules** (`house_sim/tasks/perceive.py`; derivations in `house_sim/data/verify/derivations.json`):
+
+* `perceive.index(env)` builds `(id, field) -> [Obs(t, step, level, shown, truth, source)]` from observations,
+  grants and instrument readings; views, people, rooms, notices and what residents told the robot.
+* Reports (`perceive.report_gaps`): a reported value is supported by an observation at the field's tier before the
+  report, within max(instrument precision, the predicate's tolerance), whose truth moved by at most the tolerance
+  until the report (or at any time with `"as_of": "observed"`); a declared `derive` (count, sum, mean, min, max,
+  argmin, argmax, diff, rate, duration, convert, any, all, none_found) needs every input perceived; a glance's bucket
+  word founds no number; a never-tier fact only by being told.
+* Acts (`perceive.act_gaps`): for an entity or set answer with a group, every successful effect, deposit or report
+  naming a member needs the answer's `evidence` perceived first (for an entity answer: every other member's, by
+  elimination); a branch answer's evidence must precede the first command of the branch diff set.
+* Claims (`perceive.claim_founded`): state and issue claims need their evidence perceived; quantities a measure-tier
+  observation or reading; `none_found` every thing in scope seen; location claims ("the box is in the hall") where the
+  robot last perceived the subject -- an observation listing its location in or on the place, its own placement there
+  (the act log's `placed`), a person or pet seen in that room -- and a negated one a sighting elsewhere or a look into
+  the denied room after the last sighting in it (P2-S2 merge gate); uncertain claims are founded. A person telling the
+  robot the same claim first founds it.
+* Agent labels (`perceive.agent_labels`): `perceive:acted_unresolved:<e>`, `perceive:acted_unperceived:<e>.<field>`,
+  `perceive:branch_unperceived:<branch>`, `perceive:report_unperceived:<n>`, `perceive:claim_unperceived:<n>`; none
+  without realistic perception. For an agent a branch is also decided by any successful command that does what an
+  effectful branch-diff command does (`act_gaps(..., agent=True)`: same effect kind, target and destination, or the
+  thing put where the diff deposit puts it, whatever the verb); the reference keeps the exact diff-set rule.
+* Being told (`Index.told`): only a person's own words found a never-tier fact -- heard messages and the answer
+  fields of a person's reply (`REPLY_KEYS`), scoped to the thing asked about; the robot's own words, a stretch of
+  `ECHO_WORDS` (3) or more of them quoted back, the candidates it offered and who answered (`by`) found nothing.
+* Forks: `Realism.dump()` / `load()` carry the observation log and `track_moves`, so a run forked through
+  `env.save` / `HouseEnv.load` is judged on the evidence perceived before the snapshot.
+
+`tools/perception_audit.py` also flags hidden evaluation records and evaluator labels in any observation or message
+(`record` rule), audits finished runs (`audit_run(env)`, used over battery runs) and runs a wording probe over the
+unfamiliar twins. Schema 2 and 3 specs keep the legacy perceivability checks above.
+
 ## Seeds, variants and printed text (review H5 / I1)
 
 A spec's variant comes from `tasks/spec.py` `variant_index(catalog_id, seed, n)`: blocks of n consecutive seeds, each

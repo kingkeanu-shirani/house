@@ -1,0 +1,100 @@
+[
+ {
+  "kind": "golden",
+  "key": "specs/A-afe8d8c6d6d883-01",
+  "code": "P2",
+  "package": "P2-WP2",
+  "decision": "accepted (WP2): re-recorded by WP2 after attribution: VERIFY_HARDENING section 25 WP2's logs.gone (the final record of every entity destroyed during the episode, with its writer) changes the state digest of an episode whose reference destroys an entity -- the digest change the gate must allow. A/B on frozen trees (the live tree of 2026-10-29 with house_sim/kernel/engine.py and world.py at HEAD 81e7a91 vs the same tree with WP2's two files): tools/golden.py dump --all differs in 14 of 275 files and in one path pattern only, logs.gone (null -> the list); the 8 script runs and the other 229 specs are identical. Recorded on HEAD 81e7a91 plus WP2's two files alone (golden.py record --by WP2 --classes logs.gone): only these 14 entries' final state digests changed; steps, time and evaluation unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-0adf708ce0749a-01",
+  "code": "P2",
+  "package": "P2-WP2",
+  "decision": "accepted (WP2): re-recorded by WP2 after attribution: VERIFY_HARDENING section 25 WP2's logs.gone (the final record of every entity destroyed during the episode, with its writer) changes the state digest of an episode whose reference destroys an entity -- the digest change the gate must allow. A/B on frozen trees (the live tree of 2026-10-29 with house_sim/kernel/engine.py and world.py at HEAD 81e7a91 vs the same tree with WP2's two files): tools/golden.py dump --all differs in 14 of 275 files and in one path pattern only, logs.gone (null -> the list); the 8 script runs and the other 229 specs are identical. Recorded on HEAD 81e7a91 plus WP2's two files alone (golden.py record --by WP2 --classes logs.gone): only these 14 entries' final state digests changed; steps, time and evaluation unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-1df40780f5ddf2-01",
+  "code": "P2",
+  "package": "P2-WP2",
+  "decision": "accepted (WP2): re-recorded by WP2 after attribution: VERIFY_HARDENING section 25 WP2's logs.gone (the final record of every entity destroyed during the episode, with its writer) changes the state digest of an episode whose reference destroys an entity -- the digest change the gate must allow. A/B on frozen trees (the live tree of 2026-10-29 with house_sim/kernel/engine.py and world.py at HEAD 81e7a91 vs the same tree with WP2's two files): tools/golden.py dump --all differs in 14 of 275 files and in one path pattern only, logs.gone (null -> the list); the 8 script runs and the other 229 specs are identical. Recorded on HEAD 81e7a91 plus WP2's two files alone (golden.py record --by WP2 --classes logs.gone): only these 14 entries' final state digests changed; steps, time and evaluation unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-238a7512e4dd6e-01",
+  "code": "P2",
+  "package": "P2-WP2",
+  "decision": "accepted (WP2): re-recorded by WP2 after attribution: VERIFY_HARDENING section 25 WP2's logs.gone (the final record of every entity destroyed during the episode, with its writer) changes the state digest of an episode whose reference destroys an entity -- the digest change the gate must allow. A/B on frozen trees (the live tree of 2026-10-29 with house_sim/kernel/engine.py and world.py at HEAD 81e7a91 vs the same tree with WP2's two files): tools/golden.py dump --all differs in 14 of 275 files and in one path pattern only, logs.gone (null -> the list); the 8 script runs and the other 229 specs are identical. Recorded on HEAD 81e7a91 plus WP2's two files alone (golden.py record --by WP2 --classes logs.gone): only these 14 entries' final state digests changed; steps, time and evaluation unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-28ff695081cd2c-01",
+  "code": "P2",
+  "package": "P2-WP2",
+  "decision": "accepted (WP2): re-recorded by WP2 after attribution: VERIFY_HARDENING section 25 WP2's logs.gone (the final record of every entity destroyed during the episode, with its writer) changes the state digest of an episode whose reference destroys an entity -- the digest change the gate must allow. A/B on frozen trees (the live tree of 2026-10-29 with house_sim/kernel/engine.py and world.py at HEAD 81e7a91 vs the same tree with WP2's two files): tools/golden.py dump --all differs in 14 of 275 files and in one path pattern only, logs.gone (null -> the list); the 8 script runs and the other 229 specs are identical. Recorded on HEAD 81e7a91 plus WP2's two files alone (golden.py record --by WP2 --classes logs.gone): only these 14 entries' final state digests changed; steps, time and evaluation unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-5c9694a5a29d0e-01",
+  "code": "P2",
+  "package": "P2-WP2",
+  "decision": "accepted (WP2): re-recorded by WP2 after attribution: VERIFY_HARDENING section 25 WP2's logs.gone (the final record of every entity destroyed during the episode, with its writer) changes the state digest of an episode whose reference destroys an entity -- the digest change the gate must allow. A/B on frozen trees (the live tree of 2026-10-29 with house_sim/kernel/engine.py and world.py at HEAD 81e7a91 vs the same tree with WP2's two files): tools/golden.py dump --all differs in 14 of 275 files and in one path pattern only, logs.gone (null -> the list); the 8 script runs and the other 229 specs are identical. Recorded on HEAD 81e7a91 plus WP2's two files alone (golden.py record --by WP2 --classes logs.gone): only these 14 entries' final state digests changed; steps, time and evaluation unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-73a13fb297c40f-01",
+  "code": "P2",
+  "package": "P2-WP2",
+  "decision": "accepted (WP2): re-recorded by WP2 after attribution: VERIFY_HARDENING section 25 WP2's logs.gone (the final record of every entity destroyed during the episode, with its writer) changes the state digest of an episode whose reference destroys an entity -- the digest change the gate must allow. A/B on frozen trees (the live tree of 2026-10-29 with house_sim/kernel/engine.py and world.py at HEAD 81e7a91 vs the same tree with WP2's two files): tools/golden.py dump --all differs in 14 of 275 files and in one path pattern only, logs.gone (null -> the list); the 8 script runs and the other 229 specs are identical. Recorded on HEAD 81e7a91 plus WP2's two files alone (golden.py record --by WP2 --classes logs.gone): only these 14 entries' final state digests changed; steps, time and evaluation unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-7e93003b0dcefa-01",
+  "code": "P2",
+  "package": "P2-WP2",
+  "decision": "accepted (WP2): re-recorded by WP2 after attribution: VERIFY_HARDENING section 25 WP2's logs.gone (the final record of every entity destroyed during the episode, with its writer) changes the state digest of an episode whose reference destroys an entity -- the digest change the gate must allow. A/B on frozen trees (the live tree of 2026-10-29 with house_sim/kernel/engine.py and world.py at HEAD 81e7a91 vs the same tree with WP2's two files): tools/golden.py dump --all differs in 14 of 275 files and in one path pattern only, logs.gone (null -> the list); the 8 script runs and the other 229 specs are identical. Recorded on HEAD 81e7a91 plus WP2's two files alone (golden.py record --by WP2 --classes logs.gone): only these 14 entries' final state digests changed; steps, time and evaluation unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-a03bc04a3a311c-01",
+  "code": "P2",
+  "package": "P2-WP2",
+  "decision": "accepted (WP2): re-recorded by WP2 after attribution: VERIFY_HARDENING section 25 WP2's logs.gone (the final record of every entity destroyed during the episode, with its writer) changes the state digest of an episode whose reference destroys an entity -- the digest change the gate must allow. A/B on frozen trees (the live tree of 2026-10-29 with house_sim/kernel/engine.py and world.py at HEAD 81e7a91 vs the same tree with WP2's two files): tools/golden.py dump --all differs in 14 of 275 files and in one path pattern only, logs.gone (null -> the list); the 8 script runs and the other 229 specs are identical. Recorded on HEAD 81e7a91 plus WP2's two files alone (golden.py record --by WP2 --classes logs.gone): only these 14 entries' final state digests changed; steps, time and evaluation unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-cc81e71dc2182e-01",
+  "code": "P2",
+  "package": "P2-WP2",
+  "decision": "accepted (WP2): re-recorded by WP2 after attribution: VERIFY_HARDENING section 25 WP2's logs.gone (the final record of every entity destroyed during the episode, with its writer) changes the state digest of an episode whose reference destroys an entity -- the digest change the gate must allow. A/B on frozen trees (the live tree of 2026-10-29 with house_sim/kernel/engine.py and world.py at HEAD 81e7a91 vs the same tree with WP2's two files): tools/golden.py dump --all differs in 14 of 275 files and in one path pattern only, logs.gone (null -> the list); the 8 script runs and the other 229 specs are identical. Recorded on HEAD 81e7a91 plus WP2's two files alone (golden.py record --by WP2 --classes logs.gone): only these 14 entries' final state digests changed; steps, time and evaluation unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-d182fc681f310d-01",
+  "code": "P2",
+  "package": "P2-WP2",
+  "decision": "accepted (WP2): re-recorded by WP2 after attribution: VERIFY_HARDENING section 25 WP2's logs.gone (the final record of every entity destroyed during the episode, with its writer) changes the state digest of an episode whose reference destroys an entity -- the digest change the gate must allow. A/B on frozen trees (the live tree of 2026-10-29 with house_sim/kernel/engine.py and world.py at HEAD 81e7a91 vs the same tree with WP2's two files): tools/golden.py dump --all differs in 14 of 275 files and in one path pattern only, logs.gone (null -> the list); the 8 script runs and the other 229 specs are identical. Recorded on HEAD 81e7a91 plus WP2's two files alone (golden.py record --by WP2 --classes logs.gone): only these 14 entries' final state digests changed; steps, time and evaluation unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-d389e2979f6aad-01",
+  "code": "P2",
+  "package": "P2-WP2",
+  "decision": "accepted (WP2): re-recorded by WP2 after attribution: VERIFY_HARDENING section 25 WP2's logs.gone (the final record of every entity destroyed during the episode, with its writer) changes the state digest of an episode whose reference destroys an entity -- the digest change the gate must allow. A/B on frozen trees (the live tree of 2026-10-29 with house_sim/kernel/engine.py and world.py at HEAD 81e7a91 vs the same tree with WP2's two files): tools/golden.py dump --all differs in 14 of 275 files and in one path pattern only, logs.gone (null -> the list); the 8 script runs and the other 229 specs are identical. Recorded on HEAD 81e7a91 plus WP2's two files alone (golden.py record --by WP2 --classes logs.gone): only these 14 entries' final state digests changed; steps, time and evaluation unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/X-bc4e8d373e62c5-01",
+  "code": "P2",
+  "package": "P2-WP2",
+  "decision": "accepted (WP2): re-recorded by WP2 after attribution: VERIFY_HARDENING section 25 WP2's logs.gone (the final record of every entity destroyed during the episode, with its writer) changes the state digest of an episode whose reference destroys an entity -- the digest change the gate must allow. A/B on frozen trees (the live tree of 2026-10-29 with house_sim/kernel/engine.py and world.py at HEAD 81e7a91 vs the same tree with WP2's two files): tools/golden.py dump --all differs in 14 of 275 files and in one path pattern only, logs.gone (null -> the list); the 8 script runs and the other 229 specs are identical. Recorded on HEAD 81e7a91 plus WP2's two files alone (golden.py record --by WP2 --classes logs.gone): only these 14 entries' final state digests changed; steps, time and evaluation unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/X-befab43585cde3-01",
+  "code": "P2",
+  "package": "P2-WP2",
+  "decision": "accepted (WP2): re-recorded by WP2 after attribution: VERIFY_HARDENING section 25 WP2's logs.gone (the final record of every entity destroyed during the episode, with its writer) changes the state digest of an episode whose reference destroys an entity -- the digest change the gate must allow. A/B on frozen trees (the live tree of 2026-10-29 with house_sim/kernel/engine.py and world.py at HEAD 81e7a91 vs the same tree with WP2's two files): tools/golden.py dump --all differs in 14 of 275 files and in one path pattern only, logs.gone (null -> the list); the 8 script runs and the other 229 specs are identical. Recorded on HEAD 81e7a91 plus WP2's two files alone (golden.py record --by WP2 --classes logs.gone): only these 14 entries' final state digests changed; steps, time and evaluation unchanged"
+ }
+]

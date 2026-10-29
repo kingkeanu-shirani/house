@@ -1,0 +1,85 @@
+{
+ "id": "WP8",
+ "landed": [
+  "house_sim/tasks/spec.py: schema 4 (SCHEMAS (2, 3, 4), NEW_SPEC_SCHEMA = HARDENED_SCHEMA = 4, TIER1_SCHEMA = 3 for the schema-3 camera rule), HARDENING_KEYS in ALLOWED, timing in TASK_KEYS / LIST_KEYS / PHASE_KEYS, envelope dict-merged like side_effects, +timing / +battery_exempt / +mustpass_exempt appended",
+  "spec.schema_problems (L-SCHEMA in check_structure and lint.run): a catalog entry id outside catalog/review/legacy_ids.json must declare schema 4, so the compiler marks it INVALID",
+  "spec.check_structure calls the WP1 / WP3 / WP4 validators: ledger.validate_envelope, ledger.validate_protections, monitor.validate_timing(items, milestone names, strict=True) per scope, and for schema 4 predicates.validate_predicate (speech.validate_said) and reports.validate_expectation on every success / failure predicate; plus answers, labels, roles, protect map, exemption proposals, reasons, clauses, settle / look-ahead ranges, wrong-plan fields (expect, mistake, mistake_fix, variants, modes, expect_budget), labelled predicates and variant keys",
+  "house_sim/tasks/lint.py: run(spec, analysis_record, dynamic=None) with every lint of 20.2 (L-SCHEMA, L-PROTECT, L-ENVELOPE, L-WATCH via watch_problems, L-LATCH, L-KIND, L-VACUOUS, L-WEAK, L-EXISTS, L-ANSWERS, L-SCENE, L-BRANCH, L-QUESTIONS, L-TIMING, L-SPEECH, L-ROLES, L-REQUEST, L-PRIV, L-EXPECT, L-NAMEDROOM, L-CLAUSES, L-BUDGET, L-COVER, L-ESCAPE), per-variant with collapse, deterministic and sorted, legacy specs get L-SCHEMA only, as_if=True for the R0 audit (0.3-0.5 s for all 243), robust to malformed specs",
+  "lint.dynamic_facts(spec, seeds, gen=None, hardening=None, builds=None): the build-time facts of the dynamic lints (t=0 success and timing acts, bindings and their types, drawn instructions, look-alike group sizes, type counts, people), independent of the declared perception / camera, reusing the verifier's builds when given",
+  "protect classifier: house_sim/data/verify/protect_rules.json (73 rules; every candidate reference resolves), lint.classify_protect_item / draft_protect_map, tools/protect_map.py ID [--json] / --coverage / draft(catalog_id): 5,716 of 6,355 analysis protect items (89.9 %) get a candidate (design prototype 72.9 %)",
+  "tools/show_entries.py prints the draft protect map beside each entry's analysis record (5.4 item 5)",
+  "house_sim/data/verify/escapes.json: the price list of section 18 (34 keys = WP5's escapes.DEFAULT_PRICES; quota 3, max 15, 2 exemptions)",
+  "catalog/review/legacy_ids.json: the 243 authored ids, frozen at 81e7a91",
+  "docs: TASK_SPEC.md (Schema 4 section: keys, failure-pattern and protect-reference grammars, roles, timing defaults, lint table), AUTHORING_GUIDE.md (schema-4 declarations, randomising setup ops), EVALUATION.md (hardened pipeline and labels), KERNEL_API.md (v3.2: WP1/WP2/WP3/WP4/WP7/WP9/WP8 interfaces), PERCEPTION.md (WP7 evidence), EVAL_HARNESS.md (finish, idle, gating; WP5/WP10 pending), KNOWN_LIMITS.md (7a: section 26 and open gaps)",
+  "tests/test_lint.py: 37 tests (schema rules, validators reached, every lint firing and not firing, variant collapse, determinism, dynamic facts on real builds in four perception x camera combinations, the review's gaming cases caught as-if, classifier coverage and reference resolution, price list = section 18 = WP5 keys, tools)"
+ ],
+ "deviations": [
+  {
+   "what": "L-SCHEMA is also in spec.check_structure (schema_problems), not only lint.py",
+   "why": "the verifier's S0 (and lint.run) only runs for schema-4 specs, so a new spec authored as schema 3 would never meet the lint; check_structure makes the compiler mark it INVALID. 'Catalog id' = an id of catalog/entries.jsonl, so test and custom specs are exempt"
+  },
+  {
+   "what": "L-ESCAPE reports a review escape still waiting for its accepted record as a warning; limits (15 points, 2 exemptions) and ineligible signatures are errors",
+   "why": "an error would stop S0 and the verdict could never be PENDING_REVIEW; G9 already decides the review state"
+  },
+  {
+   "what": "new spec key scene_exception (a reason)",
+   "why": "section 18 prices the L-SCENE exception and 20.2 says 'unless an accepted escape says why', but 20.1 names no key; WP5 reads a scene_exception fact"
+  },
+  {
+   "what": "L-ANSWERS compares house-structural bindings (room, find, spawn, person, pet, robot ops) by entity / room type",
+   "why": "ids that differ between houses only by numbering (bookshelf_1 vs bookshelf_2) are no hidden answer; drawn bindings and spawn-count members are compared by value"
+  },
+  {
+   "what": "L-VACUOUS: a seed on which every success predicate already holds is its own error",
+   "why": "the residual rule read with an empty residual would contradict the free_ok warning for a single positive predicate"
+  },
+  {
+   "what": "L-NAMEDROOM takes no reason",
+   "why": "20.2 names no key for it; the fix is to make the room a work room or name it in the instruction"
+  },
+  {
+   "what": "L-KIND treats every stats.* counter in a success predicate as undeclared unless plugins.STAT_CONDITIONS (if a later package adds it) declares it",
+   "why": "no counter-condition registry exists yet"
+  },
+  {
+   "what": "L-LATCH table format and L-CLAUSES clause split are WP8's definitions",
+   "why": "the design names the tables and clauses but not their format: docs/domains 'Latched fields' tables (field in backticks), lint.clauses_of"
+  },
+  {
+   "what": "L-PRIV's privileged wait is wait_until with poll_s",
+   "why": "schema 4 compiles wait_until to the agent-legal wait (runner), so only the schema-2 chunked form is privileged"
+  },
+  {
+   "what": "L-PROTECT rule 6 uses the variants' branch values",
+   "why": "analysis records carry no per-branch protect data: an item covered in some variants must be covered in every variant of the same branch (error); a strict subset of branches is a warning"
+  }
+ ],
+ "not_done": [
+  {
+   "what": "WP3's vacuous-trigger gap (a timing trigger after the run's end) as a lint",
+   "why": "needs the episode's end time against the trigger time: WP5's runs, not a static or build-time fact"
+  },
+  {
+   "what": "phase-1 carry-over rows",
+   "why": "none lies in WP8's files (closeout_breakages: domain rows; closeout_REV / VER2: gate tool, py39_lint, domains, main session; finding 7 was WP7's; closeout_INT3 requests: main session, domains, WP9)"
+  }
+ ],
+ "outcome_changes": [],
+ "tests": {
+  "new_tests": 37,
+  "passed": true,
+  "strict_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 243
+ },
+ "requests": [
+  "WP5: (optional, cost 22.5) pass the S1 builds to lint.dynamic_facts(spec, V, gen=gen, builds={seed: (config, task, oracle)}) instead of rebuilding every seed (about 1.3 CPU-s per seed)",
+  "WP1: (optional) a registry of counter conditions (plugins.STAT_CONDITIONS) so L-KIND can accept state-backed stats counters (8.3)",
+  "WP-D: a 'Latched fields' table (field name in backticks in the first column) in docs/domains/<domain>.md for every latched goal field; L-LATCH reads it",
+  "main session: setup.py package_data for house_sim/data/verify/*.json (escapes.json, protect_rules.json beside WP1's files)"
+ ],
+ "notes": "Legacy outcomes: none change (gate note 'specs stay schema 2/3'): all 243 authored specs give [] from check_structure and lint.run (pinned), 243/243 pass --check in own mode, and the only runner-visible change is that runner.build copies a 'timing' key, which no legacy spec has. Full suite green_tests.py 3: 5,337 tests per mode, 0 failures, normal and strict (shared tree with the other P2-S2 package). S0 now stops a spec on any L-* error (22.6); WP5's tests and verifier already code against lint.run / dynamic_facts (S0 static, S8 with facts). As-if over the 243 legacy specs (R0 preview, 0.3 s): the lints catch the review's static cases (staging bin L-ROLES, NOT FRAGILE L-WEAK, 'Mia (9) says' L-REQUEST, sorted_ok / in_stream L-LATCH, orders len_gte L-WEAK) and with dynamic facts the vacuous ones (heater feel_c, told_count residual). Phase-1 carry-over: no open row lies in WP8's files. Handoff: catalog/analysis/phase2/handoff_WP8.md."
+}

@@ -1,0 +1,59 @@
+{
+ "id": "WP8-fix",
+ "landed": [
+  "A-bugs-7: spec.shape_problems(spec) checks container types (list keys, object keys, variants / phases as objects, +key appends a list, wrong plans with list plans) and check_structure returns them alone; behind them a guard turns any unreadable part or SpecError into a problem, so check_structure never raises and the compiler marks a malformed spec INVALID instead of aborting the catalog; merge raises SpecError for a non-list +key; L-ENVELOPE / L-PROTECT read malformed envelope / protections / protect_map parts as empty instead of 'could not be checked'",
+  "A-gaming-13: lint.invariant_problem / invariant_labels: an inv: expect pattern (L-EXPECT) or protect reference (L-PROTECT) names a whole invariant label (a registered name or a label a registered invariant returns literally, e.g. climate.pipe_freeze); inv:, inv:s, inv:people, inv:people.unwanted, inv:flag:fire are errors, so S0 stops such a spec; L-EXPECT also rejects unbound placeholders in patterns",
+  "A-spec-14: lint.selector_problem over lint.envelope_selectors (every selector and scope of envelope and protections): 6.6 forms per mode (selector / to / room / id), unknown <word>: forms are errors, placeholders bound by the setup (statically, or on every seed of the variant with the dynamic bindings), type: / is_a: registered types, unknown category: / tag: a warning, literal ids existing on every seed (new dynamic fact 'ids' from dynamic_facts via spec_literal_ids); L-PROTECT rule 2 resolves narrowed house: references the same way, checks field names and requires every placeholder of a reference to be bound",
+  "A-spec-12: docs name the landed WP5 and WP11 interfaces (KERNEL_API.md 'Verification core (WP5)' and 'Core skills (WP11)' with live signatures, including WP5-fix's new ones; EVALUATION.md 'Running it' and package status; EVAL_HARNESS.md; AUTHORING_GUIDE.md and TASK_SPEC.md CLI options; TASK_SPEC.md check_structure shape rule, inv: grammar, selector resolution, L-ESCAPE; KNOWN_LIMITS.md selector limits and the inv: label gap); only WP6 and WP10 remain listed as not landed",
+  "WP5-fix request: L-ESCAPE reports an owner acceptance this machine cannot verify (owner_unverified) as a warning and gives escapes.price's review_problem for other ineligible rows",
+  "tests/test_lint.py: class RunAFindingTests (6 tests replaying the four findings' repros; all fail on a scratch tree with the fix undone: 48 failures, 25 errors) plus updated test_l_escape / test_l_roles_and_l_envelope; 43 tests in the file"
+ ],
+ "deviations": [
+  {
+   "what": "inv: also accepts the label names a registered invariant returns literally, not only registered names",
+   "why": "climate.building fires climate.pipe_freeze etc., never a label starting with its own name; the bare rule would accept a never-matching inv:climate.building and reject the label the house reports; every accepted name is still one whole <domain>.<name> word"
+  },
+  {
+   "what": "an unknown category: / tag: selector is a warning, not an error",
+   "why": "domains may set tags at run time that the type registry does not list; unknown forms, unbound placeholders and unknown types are errors"
+  },
+  {
+   "what": "literal ids and a scenario helper's bindings are checked only with dynamic facts (S8)",
+   "why": "they cannot be known before a build; statically a literal id must only have the id form"
+  },
+  {
+   "what": "check_structure returns the shape problems alone when there are any",
+   "why": "the other checks would read a malformed part; fail-safe (INVALID with a named reason)"
+  }
+ ],
+ "not_done": [
+  {
+   "what": "the verifier half of A-gaming-13 (verify.expect_problems accepting inv:, pattern_matches matching inv: by raw prefix)",
+   "why": "house_sim/tasks/verify.py is WP5's file; L-EXPECT (WP8) now stops such a spec at S0, so the verifier's path is closed; request filed"
+  },
+  {
+   "what": "ledger.validate_envelope rejecting unknown <word>: selector forms (A-spec-14's WP1 share)",
+   "why": "house_sim/kernel/ledger.py is WP1's file; L-ENVELOPE (S0) flags them; request filed"
+  },
+  {
+   "what": "inv:<registered name> for invariants whose labels do not start with their name (electrical families report electrical.<kind>:<id>)",
+   "why": "needs the evaluator to record which invariant produced each label (WP1 / WP5) or the domains to prefix their labels; documented in KNOWN_LIMITS 7a, requests filed"
+  }
+ ],
+ "outcome_changes": [],
+ "tests": {
+  "new_tests": 6,
+  "passed": true,
+  "strict_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 243
+ },
+ "requests": [
+  "WP5: verify.expect_problems should reject an inv: pattern that is not a whole invariant label name (lint.invariant_problem); pattern_matches / matched_patterns should match inv: like every 14.2 pattern (L == p or L.startswith(p + ':')), not by raw prefix; escapes.detect raises AttributeError on a malformed envelope.move or protections (L-ESCAPE then reports 'could not be checked')",
+  "WP1: ledger.selector_problem / scope_problem should reject unknown <word>: forms (an id never contains ':'), so runner.build refuses what L-ENVELOPE flags; evaluation._invariant_labels (and the look-ahead's harm labels) should record which registered invariant produced each label so canonical_labels can add inv:<registered name>",
+  "WP-D climate, electrical (and cleaning's _in_water / _released suffixes): invariant labels should start with the registered name and ':' (or rely on WP1's record); until then authors expect the literal label, which L-EXPECT accepts"
+ ],
+ "notes": "All four findings confirmed and fixed at the root; no finding refuted. Regression tests: tests/test_lint.py RunAFindingTests (6 tests: A-bugs-7, A-gaming-13, A-spec-14 x3, A-spec-12), all failing on a scratch tree with the fix undone (48 failures, 25 errors; scratchpad/p2_WP8-fix/make_prefix_tree.py). test_lint.py 43 tests OK normal and HOUSE_SIM_STRICT=1. Full suite green_tests.py 3 after the last edit: 5,403 tests per mode, 0 failures, 156/156 file runs ok. All 243 authored specs own mode: 243 passed. Legacy outcomes: none change (all 243 give [] from check_structure and lint.run; the new checks read only schema-4 keys or malformed containers no authored spec has). Also done: WP5-fix's request (L-ESCAPE warns on owner_unverified, gives escapes.price's review_problem) and its new interfaces documented. Handoff: catalog/analysis/phase2/handoff_WP8-fix.md (pointer section in handoff_WP8.md)."
+}

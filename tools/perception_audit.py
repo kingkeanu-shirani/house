@@ -2,7 +2,7 @@
 
 usage: python tools/perception_audit.py [houses] [steps] [--first N] [--workers N] [--json OUT] [--verbose]
                                         [--camera room|geometric] [--battery PCT] [--faults random|none]
-                                        [--no-probes] [--twin-fields] [--gen 1|2]
+                                        [--no-probes] [--twin-fields] [--gen 1|2] [--read-aloud-first] [--runs N]
 
 --gen 2 walks generation-2 houses (docs/GENERATOR.md: furnishings, belongings, smart-home and charging devices;
 phase 1, electrical's request 5); the default is each configuration's own (generation 1).
@@ -65,6 +65,10 @@ and turns) and checks every observation and action message for leaks:
             label that is the true name of a thing the robot cannot tell apart and was never shown that name; a
             person's id typed in a dark room that comes back as a shape handle; a wait(until) accepted on a thing
             the robot does not see now, on a dark shape's field, or on a person in the dark
+  record    (VERIFY_HARDENING WP7) an observation or message carries a hidden evaluation record or label: a key
+            naming one (speech_log, mess_flows, action_log, writes, acts, grants_log, the evaluation's failures /
+            unmet) or a value that is an evaluator label (house.*, perceive:*, settle:, later:, strict:, timing:) --
+            the act log, the grant log and the ledger's records live outside what the robot perceives
   grant     (K-LEAK, review H7 / I3) a step raised the robot's knowledge of a thing to inspect level or better while
             it could not have looked closely at it from where it is (audit_grant_problem: arm's reach, a large
             fixture or inspect_from_afar; geometric: camera.inspect_check) -- knowledge laundered through an action's
@@ -77,7 +81,10 @@ episode (another episode's handle accepted; handles shared by episodes with diff
 id-shaped words that exist or not, and to the handle of a thing destroyed out of view), target (free text naming every
 member type of an unresolved look-alike, and the listing order of hazards sharing a cell: their handles'
 order), read (every member of every look-alike group, read and read aloud to a resident while unresolved: the same
-outcome form). --twin-fields makes the
+outcome form), wording (unfamiliar things whose true types are named by domains' generic wording -- a padlock, a
+pencil, a luggage scale -- answer latch / mark / weigh_luggage alike: closeout_REV, VERIFY_HARDENING WP7);
+--read-aloud-first adds the read probe's reverse order (read aloud before reading: closeout_breakages, people's
+care._printed_fields; opt-in until that domain row lands). --twin-fields makes the
 look-alike twin probe compare every field (it then also lists the type-data tells of the registry lint's class, owned
 by the domains' type data); unfamiliar things are always compared on every field and on the outcome of operating them.
 --battery PCT and --faults random start the houses with an almost flat pack and random robot faults, as tools/fuzz.py
@@ -85,6 +92,12 @@ does (the same per-seed rules: fuzz.robot_options), so the robot and sensor chec
 faulty robots.
 Violations are attributed to the emitting module (kernel realism, the type's domain, an observer, or an action's
 owner). Exit status 1 if any leak is found.
+
+audit_run(env) audits a finished run's recorded observations and messages after the fact (realism.observed with
+record_observations on, e.g. tasks/perceive.enable(env)): the id, secret, hidden, record and tier rules, the tier rule
+judged with the knowledge levels each observation recorded (ObservationLog.evidence) and each message against the act
+log's command of its step. The gaming battery (VERIFY_HARDENING 10, WP6) runs it over its generated runs;
+--runs N audits the reference and wrong-plan runs of the first N realistic authored specs the same way.
 """
 import copy
 import json
@@ -135,6 +148,14 @@ CAMERA_KEYS = {"pose", "frames", "glare", "light", "coverage", "tracking", "even
 POSE_KEYS = {"cell", "facing_deg", "facing", "pan_deg", "tilt_deg", "height_m"}
 LIDAR_KEYS = {"height_m", "sector_deg", "ranges_m"}
 PRIVATE_OBS_KEYS = ("_view", "camera_log")
+# hidden evaluation records (VERIFY_HARDENING WP1 / WP2 / WP4 / WP7): never a key of anything the robot perceives ...
+HIDDEN_RECORD_KEYS = frozenset(("speech_log", "mess_flows", "action_log", "writes", "acts", "grants_log", "failures",
+                                "unmet", "counterfactual", "ledger"))
+# ... and no value an evaluator label (failure labels of the ledger, perception gating, settle, look-ahead, timing)
+EVAL_LABEL = re.compile(r"^(?:house\.[a-z_]+|perceive:[a-z_]+|settle:|later:|strict:|timing:)")
+# unfamiliar things whose true types domains name in generic wording, and the commands that word them (closeout_REV)
+WORDING_TWINS = ("combination_padlock", "pencil", "luggage_scale", "electric_kettle", "chef_knife")
+WORDING_OPERATE = (("latch", "other", "it"), ("mark", "it", None), ("weigh_luggage", "other", "it"))
 SOUND_KEYS_OBS = ("sounds", "mechanism_sounds")      # perception.SOUND_CHANNELS
 
 
@@ -230,6 +251,22 @@ def _remembered(realism, eid, field, value, need):
     return bool(old) and old[0] >= need and _same(value, old[1])
 
 
+def _tier_finding(realism, eid, field, tier, known, value, shown):
+    """The tier rule: an inspect/read/measure-tier field shown with its exact true value while the robot's knowledge
+    of it is lower -- unless shown by design from memory, or a 5 cm visual size estimate that coincides with a size on
+    the 5 cm grid."""
+    from house_sim.kernel.realism import TIER_NEED
+    need = TIER_NEED[tier] if tier in TIER_NEED else 0
+    informative = value not in (None, False, 0, 0.0, "", [], {}) and not isinstance(value, bool)
+    if field == "size_m" and isinstance(value, list) and all(abs(_r05(v) - float(v)) < 1e-9 for v in value if isinstance(v, (int, float))):
+        return False    # coincidence of the 5 cm visual estimate with a size that is a multiple of 5 cm
+    if tier != "glance" and known < need and informative and _same(shown, value):
+        if _remembered(realism, eid, field, value, need):
+            return False     # remembered from when it was learned (it moved unseen since): shown by design
+        return isinstance(value, float) or tier in ("read", "measure") or isinstance(value, str)
+    return False
+
+
 def check_obs(env, obs, leaks, where, start_ids=None, order=None):
     from house_sim.kernel.realism import TIER_NEED, MEASURE
     state = env.world.s
@@ -289,17 +326,11 @@ def check_obs(env, obs, leaks, where, start_ids=None, order=None):
             if tier == "never":
                 leaks.append(("hidden", owner, "{} {}.{}".format(where, eid, field)))
                 continue
-            need = TIER_NEED[tier]
             known = realism.knowledge.level(eid, true, field)
             value = true[field]
-            informative = value not in (None, False, 0, 0.0, "", [], {}) and not isinstance(value, bool)
-            if field == "size_m" and isinstance(value, list) and all(abs(_r05(v) - float(v)) < 1e-9 for v in value if isinstance(v, (int, float))):
-                continue    # coincidence of the 5 cm visual estimate with a size that is a multiple of 5 cm
-            if tier != "glance" and known < need and informative and _same(shown, value):
-                if _remembered(realism, eid, field, value, need):
-                    continue     # remembered from when it was learned (it moved unseen since): shown by design
-                if isinstance(value, float) or tier in ("read", "measure") or isinstance(value, str):
-                    leaks.append(("tier", owner, "{} {}.{} ({} tier, knowledge {}) = {!r}".format(where, eid, field, tier, known, value)))
+            if _tier_finding(realism, eid, field, tier, known, value, shown):
+                leaks.append(("tier", owner, "{} {}.{} ({} tier, knowledge {}) = {!r}".format(where, eid, field, tier, known, value)))
+    check_hidden_records(obs, leaks, where, observer_keys)
     check_physics_obs(env, obs, leaks, where)
     check_camera_obs(env, obs, leaks, where)
     check_robot_obs(env, obs, leaks, where)
@@ -307,6 +338,30 @@ def check_obs(env, obs, leaks, where, start_ids=None, order=None):
         src = item.get("source")
         if isinstance(src, str) and src.startswith("obj_") and src not in obs.get("visible_entities", {}):
             leaks.append(("hazard", "kernel:hazards", "{} unperceived source {}".format(where, src)))
+
+
+def check_hidden_records(value, leaks, where, observer_keys=None, owner=None):
+    """record: a hidden evaluation record named as a key, or an evaluator label as a value, anywhere in an observation
+    or a message (VERIFY_HARDENING WP7: the act log, the grant log, the speech and mess-flow logs and the ledger's
+    labels live outside what the robot perceives)."""
+    observer_keys = observer_keys or {}
+
+    def walk(v, path):
+        if isinstance(v, dict):
+            for k, item in v.items():
+                if isinstance(k, str) and k in HIDDEN_RECORD_KEYS:
+                    top = path.split(".")[0] if "." in path else str(k)
+                    leaks.append(("record", owner or observer_keys.get(top, "kernel:" + top),
+                                  "{} {}.{}: hidden record key".format(where, path, k)))
+                walk(item, "{}.{}".format(path, k))
+        elif isinstance(v, list):
+            for item in v[:256]:
+                walk(item, path)
+        elif isinstance(v, str) and EVAL_LABEL.match(v.strip()):
+            top = path.split(".")[1] if path.count(".") else path
+            leaks.append(("record", owner or observer_keys.get(top, "kernel:" + top),
+                          "{} {}: evaluator label {!r}".format(where, path, v.strip()[:80])))
+    walk(value, "obs" if owner is None else "message")
 
 
 # ----- camera checks (kernel v3.0 geometric camera, TIER1_CAMERA 15) -------------------------------------------------
@@ -683,6 +738,8 @@ def check_message(env, action, target_eid, message, leaks, start_ids=None, order
         data = None
     if isinstance(data, (dict, list)):
         _report_order(id_order_findings(env.realism, data), "action:" + owner, action + " message JSON", leaks, order)
+    check_hidden_records(data if isinstance(data, (dict, list)) else (message or ""), leaks, action + " message",
+                         owner="action:" + owner)
     if action == "inspect":
         check_physics_inspect(env, action, data, leaks)
     if target_eid and target_eid in entities:
@@ -1487,7 +1544,186 @@ def _probe_target(seed, camera):
     return leaks, errors
 
 
-def probe_jobs(first, camera, fields=False):
+def audit_run(env):
+    """Leaks in a finished run's recorded observations and action messages (realism.observed with record_observations
+    on; tasks/perceive.enable(env) turns it on): the id rule (every id that existed in the episode), secret and hidden
+    fields, the record rule, and the tier rule with the knowledge levels and true values each observation recorded
+    (ObservationLog.evidence); each message against its step's command (the act log). Nothing about the run is
+    re-simulated, so it audits any run after the fact: the gaming battery's generated policies (WP6), a wrong plan, an
+    agent's episode. Returns [(kind, owner, detail)]."""
+    from house_sim.kernel.realism import ObservationLog
+    leaks = []
+    realism = getattr(env, "realism", None)
+    if realism is None:
+        return leaks
+    state = env.world.s
+    log = realism.observed
+    evidence = log.evidence if isinstance(log, ObservationLog) else []
+    stamps = log.stamps if isinstance(log, ObservationLog) else []
+    acts = {a.get("step"): a for a in getattr(realism, "acts", None) or ()}
+    ever = _known_ids(state, (), realism)
+    plain = set(state["rooms"]) | set(state.get("people", {})) | set(state.get("pets", {})) | {"robot"}
+    shapes = {e for e in realism.handles.by_id if e.startswith("shape:")}
+    observer_keys = getattr(env, "_observer_keys", {})
+    for i, item in enumerate(log):
+        step = stamps[i][1] if i < len(stamps) else None
+        where = "run step {}".format(step)
+        if not isinstance(item, dict):
+            continue
+        if isinstance(item.get("message"), str) and len(item) == 1:
+            act = acts.get(step) or {}
+            action = str(act.get("action") or "?")
+            from house_sim.kernel.plugins import OWNERS
+            owner = "action:" + OWNERS.get(("action", action), "?")
+            for t in TOKEN.findall(item["message"]):
+                if t in ever and t not in plain and t not in shapes:
+                    leaks.append(("id", owner, "{} {} message: {}".format(where, action, t)))
+            try:
+                data = json.loads(item["message"])
+            except ValueError:
+                data = None
+            check_hidden_records(data if isinstance(data, (dict, list)) else item["message"], leaks,
+                                 "{} {} message".format(where, action), owner=owner)
+            continue
+
+        def scan(value, path):
+            if isinstance(value, str):
+                for t in TOKEN.findall(value):
+                    if t in ever and t not in plain and not _descriptive_word(path, t):
+                        top = path.split(".")[1] if path.count(".") else path
+                        leaks.append(("id", observer_keys.get(top, "kernel:" + top), "{} {}: {}".format(where, path, t)))
+            elif isinstance(value, dict):
+                for k, v in value.items():
+                    scan(k, path)
+                    scan(v, path + "." + str(k))
+            elif isinstance(value, list):
+                for v in value:
+                    scan(v, path)
+        scan(item, "obs")
+        check_hidden_records(item, leaks, where, observer_keys)
+        snap = evidence[i] if i < len(evidence) and isinstance(evidence[i], dict) else {}
+        for handle, rec in (item.get("visible_entities") or {}).items():
+            eid = realism.handles.resolve(handle)
+            true = state["entities"].get(eid) if eid else None
+            if true is None or not isinstance(rec, dict):
+                continue
+            owner = _owner_of_type(env.registry, true.get("type"))
+            known = snap.get(eid) or {}
+            levels, truth = known.get("levels") or {}, known.get("truth") or {}
+            for field, shown in rec.items():
+                if field.startswith("_") or field in (true.get("secret_fields") or []):
+                    leaks.append(("secret", owner, "{} {}.{}".format(where, eid, field)))
+                    continue
+                if field == "view" or field not in true:
+                    continue
+                tier = realism.tier(true, field)
+                if tier == "never":
+                    leaks.append(("hidden", owner, "{} {}.{}".format(where, eid, field)))
+                    continue
+                value = truth.get(field)
+                if isinstance(value, str) and value.startswith("#"):
+                    continue          # a long or structured value the evidence log keeps by digest
+                if _tier_finding(realism, eid, field, tier, int(levels.get(field, 0)), value, shown):
+                    leaks.append(("tier", owner, "{} {}.{} ({} tier, knowledge {}) = {!r}".format(
+                        where, eid, field, tier, levels.get(field, 0), value)))
+    return leaks
+
+
+def run_spec_runs(job):
+    """--runs: the reference and wrong-plan runs of one authored spec on seed 0 in realistic perception, each audited
+    after the fact by audit_run (the post-run audit the gaming battery uses)."""
+    _, spec, camera = job
+    from house_sim.kernel import plugins
+    from house_sim.tasks import perceive, runner
+    plugins.load_domains()
+    leaks, errors, steps = [], [], 0
+    try:
+        config, task, oracle = runner.build(spec, 0, camera=camera, perception="realistic")
+        plans = [("reference", oracle["reference"], True)] + [
+            ("wrong " + str(item.get("name") or i), item.get("plan") or [], False)
+            for i, item in enumerate(oracle.get("wrong") or [])]
+        for name, plan, strict in plans:
+            env = runner.make_env(config, task, 0, perception="realistic", camera=camera)
+            perceive.enable(env)
+            try:
+                runner.run_plan(env, plan, oracle["bindings"], strict=strict)
+            except Exception:  # noqa: BLE001  (a plan that stops still leaves a run to audit)
+                pass
+            steps += env.world.s.get("steps", 0)
+            leaks.extend((k, o, "{} {}: {}".format(spec.get("catalog_id"), name, d)) for k, o, d in audit_run(env))
+    except Exception as exc:  # noqa: BLE001
+        errors.append("runs {}: {}: {}".format(spec.get("catalog_id"), type(exc).__name__, str(exc)[:200]))
+    return {"seed": "runs:{}".format(spec.get("catalog_id")), "leaks": leaks, "errors": errors, "steps": steps}
+
+
+def _probe_wording(seed, camera, members):
+    """wording (closeout_REV latch / mark; admin_inventory's luggage scale; VERIFY_HARDENING WP7): an unfamiliar thing
+    with the same look whatever it truly is -- a padlock, a pencil, a luggage scale, a kettle, a knife -- beside an
+    identified mug; latch the mug onto it, mark it, weigh the mug with it (the commands whose domains word those types
+    generically). While it is unidentified every twin must get the same (ok, category, message)."""
+    from house_sim.kernel.actions import ACTIONS
+    leaks, errors = [], []
+    operate = [op for op in WORDING_OPERATE if op[0] in ACTIONS]
+    if not operate:
+        return leaks, errors
+    runs = {}
+    for type_name in members:
+        setup = [_first_room(seed),
+                 {"op": "spawn", "var": "x", "type": type_name, "floor": "{lr}", "eid": "probe_twin_1",
+                  "props": {"novel": True, "size_m": [0.2, 0.15, 0.25], "color": "grey", "material": "plastic"}},
+                 {"op": "spawn", "var": "m", "type": "mug", "floor": "{lr}", "eid": "probe_other_1"},
+                 {"op": "robot", "room": "{lr}", "near": "{x}"},
+                 {"op": "lights", "room": "{lr}", "on": True}]
+        if camera == "geometric":
+            setup.append({"op": "camera", "face": "{x}", "tilt": -60})
+        try:
+            env, _ = _probe_env(setup, seed, camera)
+        except Exception as exc:  # noqa: BLE001
+            errors.append("wording probe {}: {}: {}".format(type_name, type(exc).__name__, str(exc)[:160]))
+            continue
+        it, other = env.realism.handles.by_id.get("probe_twin_1"), env.realism.handles.by_id.get("probe_other_1")
+        out = [("listed", bool(it), bool(other))]
+        if it:
+            _agent_step(env, "approach", it)
+            for action, target, destination in operate:
+                names = {"it": it, "other": other or ""}
+                params = ACTIONS[action].params
+                kwargs = {}
+                if destination:
+                    key = "destination" if "destination" in params else "scale" if "scale" in params else None
+                    if key is None:
+                        continue
+                    kwargs[key] = names[destination]
+                if action == "mark":
+                    kwargs["height_m"] = 1.0
+                before = bool(env.realism.unresolved("probe_twin_1"))
+                ok, category, message, _dt = _agent_step(env, action, names[target], **kwargs)
+                out.append((action, (ok, category, _canon(env, message)), before))
+        runs[type_name] = out
+    names = sorted(runs)
+    for other in names[1:]:
+        for left, right in zip(runs[names[0]], runs[other]):
+            if left[0] == "listed":
+                continue
+            if left[1] != right[1] and left[2] and right[2]:
+                leaks.append(("twin", "kernel:realism", "wording novel {} vs {} at {}: {} / {}".format(
+                    names[0], other, left[0], str(left[1])[:200], str(right[1])[:200])))
+    return leaks, errors
+
+
+def _probe_reads_first(seed, camera, group, members):
+    """--read-aloud-first: the read probe in the other order -- read aloud to a resident before any read (closeout
+    breakages: people's care._printed_fields refuses a blank look-alike label that core read answers)."""
+    global READ_OPERATE
+    saved = READ_OPERATE
+    READ_OPERATE = (("read_aloud", {}), ("read", {}))
+    try:
+        return _probe_reads(seed, camera, group, members)
+    finally:
+        READ_OPERATE = saved
+
+
+def probe_jobs(first, camera, fields=False, read_aloud_first=False):
     """The probe jobs of one audit run (camera None or "room": the room camera)."""
     from house_sim.kernel import plugins
     from house_sim.kernel.registry import default_registry
@@ -1507,6 +1743,11 @@ def probe_jobs(first, camera, fields=False):
     for group, types in sorted(reg.lookalike_types().items()):
         if len(types) >= 2:
             jobs.append(("probe", "read", first, camera, (group, sorted(types))))
+            if read_aloud_first:
+                jobs.append(("probe", "read_first", first, camera, (group, sorted(types))))
+    wording = [t for t in WORDING_TWINS if reg.known(t)]
+    if len(wording) >= 2 and reg.known("mug"):
+        jobs.append(("probe", "wording", first, camera, tuple(wording)))
     novel = [t for t in NOVEL_TWINS if reg.known(t)]
     if plugins.enabled_domains() is None and len(novel) != len(NOVEL_TWINS):
         # every domain loaded but a twin type is gone: the probe would silently twin fewer things (phase-1 red team)
@@ -1534,6 +1775,10 @@ def run_probe(job):
             leaks, errors = [], ["probe configuration: " + str(params)]
         elif name == "read":
             leaks, errors = _probe_reads(seed, camera, *params)
+        elif name == "read_first":
+            leaks, errors = _probe_reads_first(seed, camera, *params)
+        elif name == "wording":
+            leaks, errors = _probe_wording(seed, camera, params)
         else:
             kind, members, fields = params
             leaks, errors = _probe_twins(seed, camera, kind, members, fields)
@@ -1543,8 +1788,12 @@ def run_probe(job):
 
 
 def run_job(job):
-    """A house walk or a probe (the process pool's single entry point)."""
-    return run_probe(job) if job and job[0] == "probe" else run_house(job)
+    """A house walk, a probe or a spec's runs (the process pool's single entry point)."""
+    if job and job[0] == "probe":
+        return run_probe(job)
+    if job and job[0] == "runs":
+        return run_spec_runs(job)
+    return run_house(job)
 
 
 def run_house(job):
@@ -1672,6 +1921,16 @@ def run_house(job):
     return {"seed": seed, "leaks": leaks, "errors": errors, "steps": steps, "order": [list(r[:2]) + [list(r[2]), r[3]] for r in order]}
 
 
+def _realistic_specs(n):
+    """The first n authored specs whose own perception is realistic (--runs)."""
+    out = []
+    for path in sorted((ROOT / "tasks" / "authored").glob("*.json")):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        out.extend(s for s in (data.get("specs", []) if isinstance(data, dict) else data)
+                   if isinstance(s, dict) and s.get("perception") == "realistic")
+    return out[:max(0, n)]
+
+
 def enrich(config, seed):
     """Stage-C fix: what the leaks the review found need -- a request whose target the robot was not told (intent with
     candidates, a request subject), prior knowledge of look-alikes seen at a glance (beliefs as tasks/setup.py's
@@ -1752,10 +2011,13 @@ def main(argv):
     jobs = [(first + k, dict(OPTS[k % len(OPTS)], **({"gen": int(gen)} if gen else {})), steps, camera, battery,
              faults) for k in range(houses)]
     if "--no-probes" not in argv:
-        jobs += probe_jobs(first, camera, fields="--twin-fields" in argv)
+        jobs += probe_jobs(first, camera, fields="--twin-fields" in argv,
+                           read_aloud_first="--read-aloud-first" in argv)
+    if "--runs" in argv:
+        jobs += [("runs", spec, camera) for spec in _realistic_specs(int(argv[argv.index("--runs") + 1]))]
     with ProcessPoolExecutor(max_workers=workers) as pool:
         results = list(pool.map(run_job, jobs))
-    probes = sum(1 for r in results if str(r["seed"]).startswith("probe:"))
+    probes = sum(1 for r in results if str(r["seed"]).startswith(("probe:", "runs:")))
     by_kind, by_owner, examples = Counter(), Counter(), defaultdict(list)
     seeds_of = defaultdict(set)
     for r in results:

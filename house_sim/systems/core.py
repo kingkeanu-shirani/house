@@ -26,6 +26,14 @@ legacy target / field / value form, whose store is unchanged; recall reads the r
 well as its stored memories; snapshot and diff keep their scenes in the Mind; the realistic messages of these memory
 actions name every thing whose handle was issued before (kernel/mind.py, realism.memory_output).
 
+Content (docs/design/VERIFY_HARDENING.md 13.3, 13.6, 6.5; WP4): in an episode that scores content (kernel/speech.py
+enabled: schema 4, or a task using `said` / `key_claims`) say() parses each utterance into claims and stores them, with
+their truth and whether they were founded, who heard it and its number, in its facts.speech_log entry (before the
+robot_spoke hooks run, so domains read the claims there); report takes corrects=<n> and the legacy report's event
+carries its value (kernel/reports.py contradiction history). Every other episode's state is unchanged. The core moves
+of an entity that is itself a mess parcel (pick_up, place, hand_over, receive) log a mess flow (world.mess_flow,
+WP2) when the world provides it.
+
 Domain modules refine these with @before/@after hooks rather than replacing them.
 """
 import copy
@@ -33,7 +41,7 @@ import json
 import math
 import re
 
-from ..kernel import body, camera, dialogue, geometry, physics, reports
+from ..kernel import body, camera, dialogue, geometry, physics, reports, speech
 from ..kernel import mind as mind_mod
 from ..kernel.actions import action, owner_asks, require_access
 from ..kernel.phys import contain, impact, lawbook, liquids, support
@@ -348,6 +356,62 @@ def add_soil(w, eid, kind, amount):
         soil = record["soil"] = {"dirt": float(soil or 0)}
     soil[kind] = round(min(1.0, float(soil.get(kind, 0.0)) + float(amount)), 4)
     return soil[kind]
+
+
+def mess_parcel(state, eid):
+    """(kind, amount, origin) of an entity that is itself a mess parcel (VERIFY_HARDENING 6.5): the kernel registry's
+    answer when it has one (plugins.mess_entity), else the record's own mess_kind / mess_amount, else a waste item
+    (waste: true) as one count; None for anything else. origin: the record's origin id, else the entity id."""
+    from ..kernel import plugins
+    fn = getattr(plugins, "mess_entity", None)
+    if callable(fn):
+        found = fn(state, eid)
+        if found is not None:
+            return found
+    record = (state.get("entities") or {}).get(eid)
+    if not isinstance(record, dict):
+        return None
+    origin = record.get("origin") if isinstance(record.get("origin"), str) else eid
+    kind = record.get("mess_kind")
+    if isinstance(kind, str) and kind:
+        amount = record.get("mess_amount")
+        if isinstance(amount, bool) or not isinstance(amount, (int, float)):
+            amount = 1.0
+        return kind, float(amount), origin
+    if record.get("waste") is True:
+        return "waste_item", 1.0, origin
+    return None
+
+
+def mess_location(state, location, relation=None):
+    """The mess location key [class, id] of a place (6.5; world.mess_flow's classes): a room's floor (outdoors:
+    "outside"), a carrier or sink entity, a drain (relation drain), the robot's hands ["entity", "robot"], a person's
+    hands ["entity", pid]."""
+    if location is None:
+        return None
+    rooms = state.get("rooms") or {}
+    if location in rooms:
+        return ["outside" if (rooms[location] or {}).get("outdoor") else "floor", location]
+    if relation == "drain":
+        return ["drain", location]
+    return ["entity", location]
+
+
+def log_mess_move(w, eid, before, after, before_relation=None):
+    """A core move of a mess entity as a mess flow (world.mess_flow, WP2; nothing without it)."""
+    flow = getattr(w, "mess_flow", None)
+    if not callable(flow):
+        return
+    parcel = mess_parcel(w.s, eid)
+    if parcel is None:
+        return
+    kind, amount, origin = parcel
+    record = (w.s.get("entities") or {}).get(eid) or {}
+    src = mess_location(w.s, before, before_relation)
+    dst = mess_location(w.s, after, record.get("relation"))
+    if src is None or dst is None or src == dst:
+        return
+    flow(kind, amount, src, dst, origin=origin)
 
 
 def visible_or_fail(ctx, eid):
@@ -778,21 +842,22 @@ def read(ctx):
 
 
 REPORT_TYPED = ("kind", "subject", "issue", "severity", "quantity", "unit", "state", "of", "scope", "location", "channel",
-                "detail")
+                "detail", "corrects")
 REPORT_DOC = ("Report (kind finding/measurement/status/count/none_found; subject; issue/state/quantity+value+unit; "
               "to+channel). A finding needs subject and issue (severity optional); measurement subject, value, unit "
               "(quantity optional); status subject and state; count of, value, scope; none_found issue or of, and scope. "
               "subject: a handle (or a list), room, person, pet or house. to: a person or household; channel: in_person "
               "(default, they must be here), phone, text, intercom, note (hold a note or stand at a whiteboard) or app. "
               "Words are matched to a vocabulary (synonyms allowed); an unknown word is kept and suggestions are "
-              "listed. Legacy form: target (an inspected entity), field, value, to.")
+              "listed. corrects: the number of an earlier report this one corrects. Legacy form: target (an inspected "
+              "entity), field, value, to.")
 
 
 @action("report", params={"target": "?target", "field": "?str", "value": "?any", "to": "?person",
                           "kind": "?str:" + "|".join(reports.KINDS), "subject": "?any", "issue": "?str",
                           "severity": "?str", "quantity": "?str", "unit": "?str", "state": "?str", "of": "?str",
                           "scope": "?any", "location": "?room", "channel": "?str:" + "|".join(reports.CHANNELS),
-                          "detail": "?text"},
+                          "detail": "?text", "corrects": "?int"},
         duration=2.0, energy=0.0, category="communication", stopped_ok=True, doc=REPORT_DOC)
 def report(ctx):
     if ctx.args.get("kind") is not None:
@@ -812,7 +877,11 @@ def report(ctx):
     reports.setdefault(target, {})[field] = copy.deepcopy(ctx.args["value"])
     if to:
         reports[target].setdefault("_to", {})[field] = to
-    w.emit("report", target=target, field=field, to=to)
+    if speech.enabled(ctx.env):
+        # the store keeps the last value only: the event keeps each value for the contradiction check (13.6)
+        w.emit("report", target=target, field=field, to=to, value=copy.deepcopy(ctx.args["value"]))
+    else:
+        w.emit("report", target=target, field=field, to=to)
     return "Reported {}.{}".format(target, field)
 
 
@@ -842,6 +911,8 @@ def _typed_report(ctx):
         message["channel"] = out["channel"]
     if out["note"] is not None:
         message["written_on"] = out["note"]
+    if rec.get("corrects") is not None:
+        message["corrects"] = rec["corrects"]
     if rec.get("issue_raw") is not None:
         message["unclassified"] = "{!r} is not a known issue word".format(rec["issue_raw"])
     if rec.get("state_raw") is not None:
@@ -1110,6 +1181,7 @@ def pick_up(ctx):
     check_handling(ctx, target)
     m = w.mut(target)
     before = m.get("location")
+    before_relation = m.get("relation")
     for key in ("spos", "pos", "shelf", "revealed"):
         m.pop(key, None)
     m["location"], m["relation"] = "robot", "held"
@@ -1120,6 +1192,7 @@ def pick_up(ctx):
     for hand in hands:
         robot["hands"][hand] = target
     w.log_move(target, before, "robot")
+    log_mess_move(w, target, before, "robot", before_relation)
     from ..kernel.realism import TOUCH_FIELDS
     ctx.grant(target, "touch", TOUCH_FIELDS)
     return "Picked up " + target
@@ -1265,6 +1338,7 @@ def place(ctx):
     dest = place_item(ctx, target, ctx.args.get("destination"), ctx.args.get("relation"), ctx.args.get("spos"),
                       ctx.args.get("cell"), ctx.args.get("shelf"), ctx.args.get("orientation"))
     w.log_move(target, before, dest)
+    log_mess_move(w, target, before, dest, "held")
     if lawbook.active("setdown") and w.ent(target).get("relation", "on") in ("on", "in"):
         # setting it down is a small drop at the robot's effective speed onto what it now rests on (TIER1_PHYSICS 5.5)
         impact.setdown(w, target, None, by="robot")
@@ -1311,6 +1385,7 @@ def hand_over(ctx):
     m.pop("held_hand", None)
     m.pop("held_grip", None)
     w.log_move(target, "robot", pid)
+    log_mess_move(w, target, "robot", pid, "held")
     return "Handed {} to {}".format(target, pid)
 
 
@@ -1352,6 +1427,7 @@ def receive(ctx):
         # domain's own "it turned out heavy" after-hook sees the hand-over as it always did
         ctx.data["second_hand"] = target
     w.log_move(target, pid, "robot")
+    log_mess_move(w, target, pid, "robot", "held")
     return "Received " + target
 
 
@@ -1852,8 +1928,16 @@ def say(ctx, kind, text, to=None, house_wide=False):
     facts = w.sec("facts")
     facts["last_speech"] = {"action": kind, "text": text.strip(), "to": to}
     facts.setdefault("speech_log", []).append({"action": kind, "text": text.strip(), "to": to, "time_s": w.s["time_s"]})
-    del facts["speech_log"][:-100]
+    del facts["speech_log"][:-speech.SPEECH_LOG_CAP]
+    scored = speech.enabled(ctx.env)
+    if scored:
+        # the claims, their truth and foundedness now (VERIFY_HARDENING 13.3); the hooks below may read them
+        log_entry = facts["speech_log"][-1]
+        speech.record_utterance(ctx, log_entry, entry)
+        heard_before = speech.heard_snapshot(w.s)
     run_hooks("robot_spoke", ctx, entry)
+    if scored:
+        speech.finish_utterance(w.s, log_entry, entry, heard_before)
     return entry
 
 

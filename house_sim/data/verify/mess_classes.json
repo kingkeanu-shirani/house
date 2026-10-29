@@ -1,0 +1,32 @@
+{
+  "about": "Mess kinds, liquid classes, strictness order and densities of the house ledger's mess balance (VERIFY_HARDENING 6.5, 6.11; WP1). kinds: the kernel defaults of each registered kind (@mess_kind in kernel/plugins.py; a registration's own unit, sinks, eps or rho win): unit, the accepting sink classes (location_classes.json; 'outside' and 'drain' name the location-key classes), eps (absolute tolerance in the unit), rho (relative slack of the unaccounted balance) and the origin class its parcels carry when the measure names none. A registered kind with no entry here needs all four in its registration. strictness: an origin group is judged by the strictest class among its members (first = strictest). food_contact_rho: rho of a group whose source or destination is food contact. kg_per_unit: the kilogram equivalent of one unit of the kind (liquids by density) for the cross-kind total; total_eps_kg and total_rho: its tolerances.",
+  "kinds": {
+    "debris": {"unit": "g", "sinks": ["waste", "vacuum"], "eps": 5, "rho": 0.05, "class": "waste", "kg_per_unit": 0.001},
+    "liquid:spill": {"unit": "l", "sinks": ["drain", "basin", "toilet", "utility_sink", "floor_drain", "outside"], "eps": 0.05, "rho": 0.05, "class": "water", "kg_per_unit": 1.0},
+    "liquid:mop_water": {"unit": "l", "sinks": ["toilet", "utility_sink", "floor_drain"], "eps": 0.05, "rho": 0.05, "class": "mop_water", "kg_per_unit": 1.0},
+    "liquid:dirty_water": {"unit": "l", "sinks": ["toilet", "utility_sink", "floor_drain"], "eps": 0.05, "rho": 0.05, "class": "dirty_water", "kg_per_unit": 1.0},
+    "liquid:chemical": {"unit": "l", "sinks": ["hazardous_waste"], "eps": 0.01, "rho": 0.0, "class": "chemical", "kg_per_unit": 1.1},
+    "liquid:grease": {"unit": "l", "sinks": ["grease_container", "waste"], "eps": 0.01, "rho": 0.0, "class": "grease", "kg_per_unit": 0.92},
+    "waste_item": {"unit": "count", "sinks": ["waste"], "eps": 0, "rho": 0.0, "class": "waste", "kg_per_unit": 0.05},
+    "yard_debris": {"unit": "g", "sinks": ["compost", "outdoor_waste"], "eps": 50, "rho": 0.05, "class": "waste", "kg_per_unit": 0.001},
+    "pet_waste": {"unit": "g", "sinks": ["waste"], "eps": 1, "rho": 0.0, "class": "pet_waste", "kg_per_unit": 0.001}
+  },
+  "liquid_sinks_by_class": {
+    "water": ["drain", "basin", "toilet", "utility_sink", "floor_drain", "outside", "plant"],
+    "food": ["kitchen_sink", "waste", "compost"],
+    "mop_water": ["toilet", "utility_sink", "floor_drain"],
+    "dirty_water": ["toilet", "utility_sink", "floor_drain"],
+    "chemical": ["hazardous_waste"],
+    "grease": ["grease_container", "waste"],
+    "pet_waste": ["waste"],
+    "waste": ["waste"]
+  },
+  "strictness": ["chemical", "pet_waste", "grease", "mop_water", "dirty_water", "waste", "food", "water"],
+  "zero_rho_classes": ["chemical", "pet_waste", "grease", "food"],
+  "food_contact_rho": 0.0,
+  "wrong_sink_classes": ["food_contact", "pet_bowl", "plant", "bed_textile"],
+  "clean_water_ok_in": ["plant", "pet_bowl", "food_contact"],
+  "evaporates": ["water"],
+  "total_eps_kg": 0.05,
+  "total_rho": 0.05
+}

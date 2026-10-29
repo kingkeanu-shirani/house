@@ -1,0 +1,48 @@
+{
+  "format": "house-derivations-v1",
+  "about": "Perceivability of derived and aggregate answers (docs/design/VERIFY_HARDENING.md 15.2, WP7; read by house_sim/tasks/perceive.py). A scored value computed from perceived inputs is founded when every input was perceived at its tier before the report, is still valid at the report under the drift rule, and the value computed from what was perceived agrees with the reported one within the propagated tolerance. The table is closed: an answer's derive.op outside it is an error (perceive.DerivationError), and a new aggregate kind needs an entry here and its rule in perceive.py. Fields: inputs -- 'over' (a member list with one field) or 'of' (a list of entity.field inputs or nested derive specs; arity = how many); support -- 'field' (every input observed at its tier), 'identified' (every member seen identified, at recognize or better), 'separated' (every candidate observed and the winner apart from the runner-up by more than their noise), 'timed' (two observations at different times), 'timed_or_notices' (that, or a perceived notice pair); tolerance -- how the input precisions combine: 'none' (a count is exact), 'sum' (the sum of the member precisions), 'mean' (their mean), 'one' (the precision of the input chosen), 'pair' (the sum of the two inputs' precisions), 'rate' (the pair's over the time between them), 'digit' (half the last displayed digit of the reported value, for a unit conversion); value -- how the value is computed from the observed inputs.",
+  "derivations": {
+    "count":      {"inputs": "over", "support": "identified", "tolerance": "none", "value": "len"},
+    "sum":        {"inputs": "over", "support": "field", "tolerance": "sum", "value": "sum"},
+    "mean":       {"inputs": "over", "support": "field", "tolerance": "mean", "value": "mean"},
+    "min":        {"inputs": "over", "support": "separated", "tolerance": "one", "value": "min"},
+    "max":        {"inputs": "over", "support": "separated", "tolerance": "one", "value": "max"},
+    "argmin":     {"inputs": "over", "support": "separated", "tolerance": "none", "value": "argmin"},
+    "argmax":     {"inputs": "over", "support": "separated", "tolerance": "none", "value": "argmax"},
+    "diff":       {"inputs": "of", "arity": 2, "support": "field", "tolerance": "pair", "value": "diff"},
+    "rate":       {"inputs": "of", "arity": 2, "support": "timed", "tolerance": "rate", "value": "rate"},
+    "duration":   {"inputs": "of", "arity": 2, "support": "timed_or_notices", "tolerance": "pair", "value": "duration"},
+    "convert":    {"inputs": "of", "arity": 1, "support": "field", "tolerance": "digit", "value": "convert"},
+    "any":        {"inputs": "over", "support": "field", "tolerance": "none", "value": "any"},
+    "all":        {"inputs": "over", "support": "field", "tolerance": "none", "value": "all"},
+    "none_found": {"inputs": "over", "support": "field", "tolerance": "none", "value": "none"}
+  },
+  "tiers": {
+    "about": "evidence tier words of answers.<a>.evidence and branch evidence -> the knowledge level they need (realism: glance 0, inspect 1, touch 2, read 3, measure 4); recognize and identify are glance-tier sightings that also need the thing shown identified",
+    "glance": 0, "see": 0, "look": 0, "recognize": 0, "identify": 0, "inspect": 1, "smell": 1, "listen": 1,
+    "touch": 2, "feel": 2, "read": 3, "measure": 4
+  },
+  "precision": {
+    "about": "instrument precision of a perceived number by field (exact name, then a '*' suffix pattern): an observation supports a reported value within max(precision, the predicate's tolerance); measure-tier readings are rounded to 2 decimals and a thermometer reads with a 0.3 C fixed-draw error",
+    "temperature_c": 1.0, "internal_temp_c": 1.0, "core_temp_c": 1.0, "*_temp_c": 1.0,
+    "moisture": 0.02, "wetness": 0.02, "fill_level": 0.01, "level": 0.01,
+    "default": 0.006
+  },
+  "drift": {
+    "about": "an observation stays valid while the true value has changed by at most max(the predicate's tolerance, this) since; the rule realism's knowledge applies to continuous values (max(0.5, 2 %) of what was learned) is used for evidence gating of acts",
+    "absolute": 0.5, "relative": 0.02
+  },
+  "quantity_fields": {
+    "about": "the entity fields a measurement or a quantity claim of each quantity reads, with the factor from the field's unit to the quantity's canonical unit (reports' vocabulary)",
+    "mass": [["mass_kg", 1.0], ["weight_kg", 1.0], ["mass_g", 0.001], ["net_g", 0.001], ["gross_g", 0.001], ["tare_g", 0.001]],
+    "temperature": [["temperature_c", 1.0], ["internal_temp_c", 1.0], ["core_temp_c", 1.0], ["*_temp_c", 1.0]],
+    "length": [["size_m", 1.0], ["length_m", 1.0], ["width_m", 1.0], ["height_m", 1.0], ["depth_m", 1.0], ["*_m", 1.0]],
+    "volume": [["liquid_l", 1.0], ["volume_l", 1.0], ["capacity_l", 1.0], ["*_l", 1.0], ["*_ml", 0.001]],
+    "humidity": [["humidity_pct", 1.0], ["rh_pct", 1.0], ["humidity", 100.0]],
+    "percent": [["battery_pct", 1.0], ["charge_pct", 1.0], ["*_pct", 1.0]],
+    "pressure": [["pressure_kpa", 1.0], ["pressure_psi", 6.894757293168]],
+    "voltage": [["voltage", 1.0], ["voltage_v", 1.0]],
+    "count": [["count", 1.0]],
+    "duration": [["*_s", 1.0]]
+  }
+}

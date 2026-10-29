@@ -1,0 +1,77 @@
+{
+  "id": "WP5-fix",
+  "package": "P2-WP5 (VERIFY_HARDENING section 25: WP5 VERIFY CORE), run A review fixes",
+  "findings": [
+    "A-bugs-1",
+    "A-bugs-5",
+    "A-bugs-6",
+    "A-spec-5",
+    "A-spec-6",
+    "A-spec-7",
+    "A-spec-8",
+    "A-spec-11",
+    "A-gaming-3",
+    "A-gaming-11"
+  ],
+  "files": [
+    "house_sim/tasks/verify.py",
+    "house_sim/tasks/runner.py",
+    "house_sim/tasks/strength.py",
+    "house_sim/tasks/escapes.py",
+    "house_sim/tasks/runcache.py",
+    "house_sim/cli.py",
+    "tests/test_verify_hardening.py",
+    "catalog/analysis/phase2/WP5-fix.json",
+    "catalog/analysis/phase2/handoff_WP5-fix.md",
+    "catalog/analysis/phase2/handoff_WP5.md"
+  ],
+  "landed": [
+    "A-bugs-1: strength.required_gates / projects_heldout -- a level is judged on the gates it runs: at standard G6 (None, S7 never runs) is not required and the score is projected over the other components, so a clean standard check is PENDING_GATE / PENDING_REVIEW and --check --level standard exits 0; never HARDENED below full; G6 still required at full",
+    "A-bugs-5: runcache.environment() (domain modules / HOUSE_SIM_DOMAINS, registry sizes, HOUSE_SIM_STRICT / SAFE / IDLE_PROBES, Python version) in the mode-job cache key",
+    "A-bugs-6: reference_run records a SpecError as the spec's error (spec_error, no harness_error); survey / search baselines mark non-PlanError/SpecError exceptions as harness errors (G7)",
+    "A-spec-11: reference_run keeps PlanError.category (error_category); _skill_debt(..., category): route -> skill debt charged to tasks/skills.py, argument -> spec failure; a spec_error held-out reference is a spec failure",
+    "A-spec-5 / A-gaming-3: escapes -- owner rows need an HMAC signature under a key derived from the split key (escapes.sign over catalog_id, spec_hash, policy, category, decision; unverifiable without the key: owner_unverified, not counted); agent rows need a session logged in review_sessions.jsonl with its model, prompt and transcript digests, not in the check log, not the proposer, not 'unknown'; 'other' owner-only on either side; blind review: the row's category must equal the proposal's; review_problems reported",
+    "A-gaming-11: wrong_run records refused_categories; judge_wrong marks a mistake step refused for anything but a strict block its expect names as UnrealisedMistake (not evidence)",
+    "A-spec-6: dynamic_facts failing (or missing) is an L-DYNAMIC error (G5) and no dynamic pass runs; dynamic_lints turns an exception from lint.run into an L-DYNAMIC error",
+    "A-spec-7: reference_run records operates_appliances (robot writes to a fridge / freezer / oven / dishwasher, open / close on it, or something put into it); verify_hardened re-runs the core trials with the 6 h look-ahead when only the runs show the trigger; record['lookahead']; draft_hardening suggests it",
+    "A-spec-8: budget_check takes explore steps and seconds separately, compares the budget the run is given (runner.episode_budget: a phased spec's phase sum plus gaps), and applies the formula per phase (reference_run 'phases' figures, rows '<v> phase <id>', episode = phases' formulas plus gaps, gaps out of the share check)",
+    "tests/test_verify_hardening.py ReviewFindingTests: 12 regression tests replaying the findings' repros (all 12 fail on a scratch pre-fix tree: 5 failures, 7 errors); 3 existing tests updated to the fixed rules"
+  ],
+  "deviations": [
+    {
+      "what": "owner acceptances are verified by an HMAC in G9 itself, not only by WP10's acceptance tool",
+      "why": "a row in a plain file cannot show which tool wrote it; without the key the row waits (PENDING_REVIEW, owner_unverified) and the gate verifies it"
+    },
+    {
+      "what": "the run-based look-ahead trigger re-runs the core trials once",
+      "why": "the look-ahead changes every run's finish; the plan-text check still spares the re-run when it already sees the trigger; the first pass's CPU is booked to S1"
+    },
+    {
+      "what": "the projected standard score renormalises over the components that ran",
+      "why": "the conservative projection: it does not assume a perfect held-out component"
+    }
+  ],
+  "not_done": [
+    {
+      "what": "A-gaming-11, the do-nothing part (wait-only wrong plans stay evidence)",
+      "why": "refuted by the verifier (verify_A_gaming.json): such a plan does its named mistake (an omission), fails for that specific reason and is attributed by 14.4; nothing in 14 forbids it; its adversarial value duplicates B1 and the adversarial coverage is G3 / G8's"
+    }
+  ],
+  "outcome_changes": [
+    "schema-4 only (no authored spec is schema 4): a standard record can be PENDING_GATE; a review escape accepted by an unsigned owner row, an unlogged agent session or another category no longer clears G9; a refused mistake step makes the wrong plan unverified (G2); a failing dynamic-facts pass fails G5; a reference that opens a restore-class appliance inside a skill now runs the 6 h look-ahead; phased budgets are checked per phase; a baseline exception is a harness error (G7). Legacy (schema 2/3) verification is unchanged: runner.build's phased budget is the same arithmetic through episode_budget"
+  ],
+  "tests": {
+    "new_tests": 12,
+    "passed": true,
+    "strict_passed": true
+  },
+  "specs": {
+    "total": 243,
+    "passed": 243
+  },
+  "requests": [
+    "WP8: L-ESCAPE (lint_escape) should treat an escape with owner_unverified as a warning (waits for the gate's signature check), not 'reviewer is not eligible', and use esc['review_problem'] as the message otherwise; document escapes.sign / review_sessions / ineligible, record['lookahead'], L-DYNAMIC, the '<v> phase <id>' budget rows, runcache.environment and UnrealisedMistake in KERNEL_API 'Verification core (WP5)'",
+    "WP10: tools/battery_review.py accept must append the reviewer session to catalog/review/review_sessions.jsonl (session_id, model, prompt_digest, transcript_digest) and sign an owner acceptance with escapes.sign(row, key) over the final row (catalog_id, spec_hash, policy, category, decision)"
+  ],
+  "notes": "Full unit suite (green_tests.py 3): 5401 tests, 0 failures, normal and HOUSE_SIM_STRICT=1 (exit 0). Authored specs own mode: 243 passed, 0 failed (python -m house_sim --check all authored specs --workers 3). Pre-fix proof: scratchpad/p2_WP5-fix/make_prefix_tree.py + prefix_run.txt; reviewers' repros re-run on the fixed tree: repros_after.txt."
+}

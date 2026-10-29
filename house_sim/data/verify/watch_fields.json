@@ -1,0 +1,2790 @@
+{
+  "about": "Kernel default field classes of the house ledger (VERIFY_HARDENING 6.3, WP1). Every entity field not starting with '_' is watched by its class. Lookup for a field path f (a dotted path for a sub-key of a dict field, e.g. settings.mode): the domain's house_sim/data/verify/watch/<domain>.json per type, then per field name (WP-D), then this file's 'fields' (exact path, then '<head>.*', then the head field), then the first matching 'patterns' entry (fnmatch on the path, then on the head), else 'defaults' (a field the census saw written: 'written'; else 'unwritten'). worse: the bad direction of a condition field ('true' or 'false': that boolean value is worse; 'up' / 'down': an increase / decrease is worse; 'change': any change). tol: the absolute tolerance of a numeric comparison (default 1e-6). guard: a field judged by a dedicated guard instead of its class's (soiled, wet: a condition field not judged by house.damaged; mess: a content load -- dirt in a dustpan, a mower catcher, a litter box -- the mess balance of 6.5 judges, not the content removal guard).",
+  "classes": {
+    "placement": "where a thing is: moved, misplaced, hidden, held, removed, lost (6.4)",
+    "setting": "a control a person sets: house.changed",
+    "condition": "physical condition with a worse direction: house.damaged (soil and wetness: house.soiled, house.wet)",
+    "identity": "what a thing is (labels, owner, size): house.changed",
+    "content": "what a thing holds (liquid, count, mass, food amounts): a charged decrease is a removal (house.removed:<e>.<f>, house.lost for a valuable) unless envelope.consume / deliver / consume_by covers it; loads the mess balance counts carry guard 'mess'",
+    "process": "quantities a physical process drives (temperatures, moisture, charge, timers): never compared end to end; covered by condition fields, flags, the look-ahead and explicit protect mappings",
+    "bookkeeping": "revealed, seen, counters, timestamps, logs: never charged"
+  },
+  "defaults": {
+    "written": "setting",
+    "unwritten": "identity"
+  },
+  "fields": {
+    "location": {
+      "class": "placement"
+    },
+    "relation": {
+      "class": "placement"
+    },
+    "shelf": {
+      "class": "placement"
+    },
+    "pos": {
+      "class": "placement"
+    },
+    "spos": {
+      "class": "placement"
+    },
+    "facing": {
+      "class": "placement"
+    },
+    "facing_deg": {
+      "class": "placement"
+    },
+    "orientation": {
+      "class": "placement"
+    },
+    "cell": {
+      "class": "placement"
+    },
+    "slot": {
+      "class": "placement"
+    },
+    "held_hand": {
+      "class": "bookkeeping"
+    },
+    "on": {
+      "class": "setting"
+    },
+    "open": {
+      "class": "setting"
+    },
+    "open_frac": {
+      "class": "setting",
+      "tol": 0.05
+    },
+    "locked": {
+      "class": "setting"
+    },
+    "latched": {
+      "class": "setting"
+    },
+    "sealed": {
+      "class": "setting"
+    },
+    "plugged_in": {
+      "class": "setting"
+    },
+    "armed": {
+      "class": "setting"
+    },
+    "muted": {
+      "class": "setting"
+    },
+    "setpoint_c": {
+      "class": "setting",
+      "tol": 0.01
+    },
+    "target_c": {
+      "class": "setting",
+      "tol": 0.01
+    },
+    "mode": {
+      "class": "setting"
+    },
+    "program": {
+      "class": "setting"
+    },
+    "timer_s": {
+      "class": "setting",
+      "tol": 0.5
+    },
+    "clock_offset_s": {
+      "class": "setting",
+      "tol": 0.5
+    },
+    "level": {
+      "class": "setting"
+    },
+    "speed": {
+      "class": "setting"
+    },
+    "volume": {
+      "class": "setting"
+    },
+    "brightness": {
+      "class": "setting",
+      "tol": 0.01
+    },
+    "channel": {
+      "class": "setting"
+    },
+    "schedule": {
+      "class": "setting"
+    },
+    "settings": {
+      "class": "setting"
+    },
+    "settings.*": {
+      "class": "setting"
+    },
+    "outlet": {
+      "class": "setting"
+    },
+    "cover_open": {
+      "class": "setting"
+    },
+    "lid_open": {
+      "class": "setting"
+    },
+    "door_open": {
+      "class": "setting"
+    },
+    "valve_open": {
+      "class": "setting"
+    },
+    "broken": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "cracked": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "torn": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "stained": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "scorched": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "bent": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "dented": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "chipped": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "shattered": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "burnt": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "melted": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "leaking": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "tipped": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "fallen": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "spoiled": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "moldy": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "thawed": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "tangled": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "wrinkled": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "faded": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "upright": {
+      "class": "condition",
+      "worse": "false"
+    },
+    "folded": {
+      "class": "condition",
+      "worse": "false"
+    },
+    "working": {
+      "class": "condition",
+      "worse": "false"
+    },
+    "intact": {
+      "class": "condition",
+      "worse": "false"
+    },
+    "scratches": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.5
+    },
+    "damage": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.01
+    },
+    "wear": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.01
+    },
+    "plant_harm": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.01
+    },
+    "contamination": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "contamination.*": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "integrity": {
+      "class": "condition",
+      "worse": "down",
+      "tol": 0.01
+    },
+    "health": {
+      "class": "condition",
+      "worse": "down",
+      "tol": 0.01
+    },
+    "soil": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001,
+      "guard": "soiled"
+    },
+    "soil.*": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001,
+      "guard": "soiled"
+    },
+    "wetness": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.05,
+      "guard": "wet"
+    },
+    "label": {
+      "class": "identity"
+    },
+    "label_text": {
+      "class": "identity"
+    },
+    "name": {
+      "class": "identity"
+    },
+    "owner": {
+      "class": "identity"
+    },
+    "home": {
+      "class": "identity"
+    },
+    "material": {
+      "class": "identity"
+    },
+    "size_m": {
+      "class": "identity"
+    },
+    "type": {
+      "class": "identity"
+    },
+    "is_a": {
+      "class": "identity"
+    },
+    "category": {
+      "class": "identity"
+    },
+    "color": {
+      "class": "identity"
+    },
+    "tags": {
+      "class": "identity"
+    },
+    "value": {
+      "class": "identity"
+    },
+    "sentimental": {
+      "class": "identity"
+    },
+    "private": {
+      "class": "identity"
+    },
+    "off_limits": {
+      "class": "identity"
+    },
+    "requires_approval": {
+      "class": "identity"
+    },
+    "risk": {
+      "class": "identity"
+    },
+    "fragile": {
+      "class": "identity"
+    },
+    "portable": {
+      "class": "identity"
+    },
+    "openable": {
+      "class": "identity"
+    },
+    "accepts_items": {
+      "class": "identity"
+    },
+    "water_safe": {
+      "class": "identity"
+    },
+    "capacity_l": {
+      "class": "identity"
+    },
+    "volume_l": {
+      "class": "identity"
+    },
+    "affordances": {
+      "class": "identity"
+    },
+    "setting_options": {
+      "class": "identity"
+    },
+    "secret_fields": {
+      "class": "bookkeeping"
+    },
+    "liquid_l": {
+      "class": "content",
+      "tol": 0.001
+    },
+    "liquid": {
+      "class": "content"
+    },
+    "contents": {
+      "class": "content"
+    },
+    "count": {
+      "class": "content"
+    },
+    "level_pct": {
+      "class": "content",
+      "tol": 0.5
+    },
+    "mass_kg": {
+      "class": "content",
+      "tol": 0.001
+    },
+    "portions": {
+      "class": "content"
+    },
+    "servings": {
+      "class": "content"
+    },
+    "uses": {
+      "class": "content"
+    },
+    "remaining": {
+      "class": "content"
+    },
+    "fill_l": {
+      "class": "content",
+      "tol": 0.001
+    },
+    "items": {
+      "class": "content"
+    },
+    "temperature_c": {
+      "class": "process"
+    },
+    "temp_c": {
+      "class": "process"
+    },
+    "core_temp_c": {
+      "class": "process"
+    },
+    "feel_c": {
+      "class": "process"
+    },
+    "moisture": {
+      "class": "process"
+    },
+    "soil_moisture": {
+      "class": "process"
+    },
+    "charge": {
+      "class": "process"
+    },
+    "ripeness": {
+      "class": "process"
+    },
+    "freshness": {
+      "class": "process"
+    },
+    "cook_level": {
+      "class": "process"
+    },
+    "running": {
+      "class": "process"
+    },
+    "power_w": {
+      "class": "process"
+    },
+    "hazards": {
+      "class": "process"
+    },
+    "revealed": {
+      "class": "bookkeeping"
+    },
+    "seen": {
+      "class": "bookkeeping"
+    },
+    "inspected": {
+      "class": "bookkeeping"
+    },
+    "known": {
+      "class": "bookkeeping"
+    },
+    "xy_m": {
+      "class": "placement"
+    },
+    "z_m": {
+      "class": "placement"
+    },
+    "yaw_deg": {
+      "class": "placement"
+    },
+    "pose": {
+      "class": "placement"
+    },
+    "face": {
+      "class": "placement"
+    },
+    "face_up": {
+      "class": "placement"
+    },
+    "inner_spos": {
+      "class": "placement"
+    },
+    "pack_z_m": {
+      "class": "placement"
+    },
+    "pack_seq": {
+      "class": "placement"
+    },
+    "pack_on": {
+      "class": "placement"
+    },
+    "pack_orientation": {
+      "class": "placement"
+    },
+    "stack_pos": {
+      "class": "placement"
+    },
+    "stack_offset_m": {
+      "class": "placement"
+    },
+    "stack_member": {
+      "class": "placement"
+    },
+    "stack_top_m": {
+      "class": "placement"
+    },
+    "hanging_on": {
+      "class": "placement"
+    },
+    "on_hanger": {
+      "class": "placement"
+    },
+    "on_bed": {
+      "class": "placement"
+    },
+    "near_table": {
+      "class": "placement"
+    },
+    "on_sliders": {
+      "class": "placement"
+    },
+    "attached_to": {
+      "class": "placement"
+    },
+    "covered_by": {
+      "class": "placement"
+    },
+    "buried_in_bed": {
+      "class": "placement"
+    },
+    "edge_margin_m": {
+      "class": "placement"
+    },
+    "offset_cm": {
+      "class": "placement"
+    },
+    "rack_side": {
+      "class": "placement"
+    },
+    "trailing": {
+      "class": "placement"
+    },
+    "centered": {
+      "class": "placement"
+    },
+    "overhang": {
+      "class": "placement"
+    },
+    "nested": {
+      "class": "placement"
+    },
+    "anchor": {
+      "class": "placement"
+    },
+    "hang_height_m": {
+      "class": "placement"
+    },
+    "standing_height_m": {
+      "class": "placement"
+    },
+    "table_gap_m": {
+      "class": "placement"
+    },
+    "protrudes": {
+      "class": "placement"
+    },
+    "spread_on": {
+      "class": "placement"
+    },
+    "label_face": {
+      "class": "placement"
+    },
+    "label_faces": {
+      "class": "placement"
+    },
+    "label_facing": {
+      "class": "placement"
+    },
+    "stack_height_m": {
+      "class": "placement"
+    },
+    "applied": {
+      "class": "bookkeeping"
+    },
+    "bio_steps": {
+      "class": "bookkeeping"
+    },
+    "discarded_t": {
+      "class": "bookkeeping"
+    },
+    "displaced": {
+      "class": "bookkeeping"
+    },
+    "emptied_s": {
+      "class": "bookkeeping"
+    },
+    "entries": {
+      "class": "bookkeeping"
+    },
+    "fed_slots": {
+      "class": "bookkeeping"
+    },
+    "fed_slots.*": {
+      "class": "bookkeeping"
+    },
+    "feeds_since_load": {
+      "class": "bookkeeping"
+    },
+    "filled_s": {
+      "class": "bookkeeping"
+    },
+    "handled_with": {
+      "class": "bookkeeping"
+    },
+    "handover_ok": {
+      "class": "bookkeeping"
+    },
+    "handover_pose": {
+      "class": "bookkeeping"
+    },
+    "held_grip": {
+      "class": "bookkeeping"
+    },
+    "in_stream": {
+      "class": "bookkeeping"
+    },
+    "stream_ok": {
+      "class": "bookkeeping"
+    },
+    "stream_errors": {
+      "class": "bookkeeping"
+    },
+    "sorted_ok": {
+      "class": "bookkeeping"
+    },
+    "labeled_by_robot": {
+      "class": "bookkeeping"
+    },
+    "logged": {
+      "class": "bookkeeping"
+    },
+    "observed_abnormal": {
+      "class": "bookkeeping"
+    },
+    "occupied_step": {
+      "class": "bookkeeping"
+    },
+    "opened_s": {
+      "class": "bookkeeping"
+    },
+    "origin": {
+      "class": "bookkeeping"
+    },
+    "presented": {
+      "class": "bookkeeping"
+    },
+    "refilled_s": {
+      "class": "bookkeeping"
+    },
+    "reported": {
+      "class": "bookkeeping"
+    },
+    "reported.*": {
+      "class": "bookkeeping"
+    },
+    "report_matches": {
+      "class": "bookkeeping"
+    },
+    "set_s": {
+      "class": "bookkeeping"
+    },
+    "served_to": {
+      "class": "bookkeeping"
+    },
+    "shade_samples": {
+      "class": "bookkeeping"
+    },
+    "thaw_started_s": {
+      "class": "bookkeeping"
+    },
+    "ui.history": {
+      "class": "bookkeeping"
+    },
+    "ui.last_touch_s": {
+      "class": "bookkeeping"
+    },
+    "uncapped_s": {
+      "class": "bookkeeping"
+    },
+    "washed_t": {
+      "class": "bookkeeping"
+    },
+    "wetted_s": {
+      "class": "bookkeeping"
+    },
+    "used_as_wrap": {
+      "class": "bookkeeping"
+    },
+    "mech.last_dir": {
+      "class": "bookkeeping"
+    },
+    "mech.last_refusal": {
+      "class": "bookkeeping"
+    },
+    "mech.pressed_until": {
+      "class": "bookkeeping"
+    },
+    "mech.light_blink_until": {
+      "class": "bookkeeping"
+    },
+    "mech.reported": {
+      "class": "bookkeeping"
+    },
+    "not_collected_reason": {
+      "class": "bookkeeping"
+    },
+    "power_interruptions": {
+      "class": "bookkeeping"
+    },
+    "restarts": {
+      "class": "bookkeeping"
+    },
+    "starts": {
+      "class": "bookkeeping"
+    },
+    "run_s": {
+      "class": "bookkeeping"
+    },
+    "ran_ok": {
+      "class": "bookkeeping"
+    },
+    "transport_tested": {
+      "class": "bookkeeping"
+    },
+    "double_fed": {
+      "class": "bookkeeping"
+    },
+    "test_until_s": {
+      "class": "bookkeeping"
+    },
+    "hush_until_s": {
+      "class": "bookkeeping"
+    },
+    "chirp_hush_until_s": {
+      "class": "bookkeeping"
+    },
+    "siren_until_s": {
+      "class": "bookkeeping"
+    },
+    "disinfect_until_s": {
+      "class": "bookkeeping"
+    },
+    "flushes": {
+      "class": "bookkeeping"
+    },
+    "spotted": {
+      "class": "bookkeeping"
+    },
+    "floor_contact": {
+      "class": "bookkeeping"
+    },
+    "cl_applied": {
+      "class": "bookkeeping"
+    },
+    "cl_used_zones": {
+      "class": "bookkeeping"
+    },
+    "drying_owner": {
+      "class": "bookkeeping"
+    },
+    "thermal_owner": {
+      "class": "bookkeeping"
+    },
+    "summary": {
+      "class": "bookkeeping"
+    },
+    "summary.*": {
+      "class": "bookkeeping"
+    },
+    "readings": {
+      "class": "bookkeeping"
+    },
+    "readings.*": {
+      "class": "bookkeeping"
+    },
+    "readable_by": {
+      "class": "bookkeeping"
+    },
+    "text": {
+      "class": "bookkeeping"
+    },
+    "coiled_s": {
+      "class": "bookkeeping"
+    },
+    "behind_s": {
+      "class": "bookkeeping"
+    },
+    "bypass_s": {
+      "class": "bookkeeping"
+    },
+    "humming_s": {
+      "class": "bookkeeping"
+    },
+    "age_s": {
+      "class": "bookkeeping"
+    },
+    "opened_before": {
+      "class": "bookkeeping"
+    },
+    "opened_on": {
+      "class": "bookkeeping"
+    },
+    "contents_from": {
+      "class": "bookkeeping"
+    },
+    "food.made_on": {
+      "class": "bookkeeping"
+    },
+    "food.thaw_started_s": {
+      "class": "bookkeeping"
+    },
+    "damage_note": {
+      "class": "bookkeeping"
+    },
+    "damage_notes": {
+      "class": "bookkeeping"
+    },
+    "old_label_text": {
+      "class": "bookkeeping"
+    },
+    "alarms": {
+      "class": "setting"
+    },
+    "alarms.*": {
+      "class": "setting"
+    },
+    "audio_output": {
+      "class": "setting"
+    },
+    "burner.flame": {
+      "class": "setting"
+    },
+    "burner.lit": {
+      "class": "setting"
+    },
+    "child_locked": {
+      "class": "setting"
+    },
+    "clock.offset_s": {
+      "class": "setting"
+    },
+    "delay_until_s": {
+      "class": "setting"
+    },
+    "display_source": {
+      "class": "setting"
+    },
+    "door_locked": {
+      "class": "setting"
+    },
+    "drying_mode": {
+      "class": "setting"
+    },
+    "duvet_style": {
+      "class": "setting"
+    },
+    "handle": {
+      "class": "setting"
+    },
+    "handle_dir": {
+      "class": "setting"
+    },
+    "hang_method": {
+      "class": "setting"
+    },
+    "hanger_kind": {
+      "class": "setting"
+    },
+    "hold_until": {
+      "class": "setting"
+    },
+    "hold_until_s": {
+      "class": "setting"
+    },
+    "hold_ends_at_period": {
+      "class": "setting"
+    },
+    "lever": {
+      "class": "setting"
+    },
+    "loudness_db": {
+      "class": "setting"
+    },
+    "made": {
+      "class": "setting"
+    },
+    "made_style": {
+      "class": "setting"
+    },
+    "mech": {
+      "class": "setting"
+    },
+    "mech.closer_held": {
+      "class": "setting"
+    },
+    "mech.cord_cleated": {
+      "class": "setting"
+    },
+    "mech.hasp": {
+      "class": "setting"
+    },
+    "mech.lift_frac": {
+      "class": "setting"
+    },
+    "mech.open_frac": {
+      "class": "setting"
+    },
+    "mech.tilt_deg": {
+      "class": "setting"
+    },
+    "mech.upper_open_frac": {
+      "class": "setting"
+    },
+    "mech.panels": {
+      "class": "setting"
+    },
+    "mech.pos": {
+      "class": "setting"
+    },
+    "mech.smart": {
+      "class": "setting"
+    },
+    "mech.overridden": {
+      "class": "setting"
+    },
+    "mech.state": {
+      "class": "setting"
+    },
+    "mech.coverage": {
+      "class": "setting"
+    },
+    "mech.gap_cm": {
+      "class": "setting"
+    },
+    "mech.exposed_frac": {
+      "class": "setting"
+    },
+    "mech.overlap_now_cm": {
+      "class": "setting"
+    },
+    "mech.rod": {
+      "class": "setting"
+    },
+    "mech.egress_ready": {
+      "class": "setting"
+    },
+    "mech.clear_opening_m2": {
+      "class": "setting"
+    },
+    "mech.bolt_throw": {
+      "class": "setting"
+    },
+    "mech.cord_low_m": {
+      "class": "setting"
+    },
+    "mech.skew_cm": {
+      "class": "setting"
+    },
+    "mech.test_held": {
+      "class": "setting"
+    },
+    "mech.view_in": {
+      "class": "setting"
+    },
+    "mech.privacy_ok": {
+      "class": "setting"
+    },
+    "pin_in": {
+      "class": "setting"
+    },
+    "plug": {
+      "class": "setting"
+    },
+    "plug_seated": {
+      "class": "setting"
+    },
+    "siren_on": {
+      "class": "setting"
+    },
+    "slots": {
+      "class": "setting"
+    },
+    "slots.*": {
+      "class": "setting"
+    },
+    "timers": {
+      "class": "setting"
+    },
+    "water_running": {
+      "class": "setting"
+    },
+    "coiled": {
+      "class": "setting"
+    },
+    "outlet_cover": {
+      "class": "setting"
+    },
+    "shackle_closed": {
+      "class": "setting"
+    },
+    "strapped": {
+      "class": "setting"
+    },
+    "fastened": {
+      "class": "setting"
+    },
+    "deployed": {
+      "class": "setting"
+    },
+    "covers": {
+      "class": "setting"
+    },
+    "covered": {
+      "class": "setting"
+    },
+    "fit": {
+      "class": "setting"
+    },
+    "secured": {
+      "class": "setting"
+    },
+    "tied": {
+      "class": "setting"
+    },
+    "closure": {
+      "class": "setting"
+    },
+    "seated": {
+      "class": "setting"
+    },
+    "tank_seated": {
+      "class": "setting"
+    },
+    "cells_installed": {
+      "class": "setting"
+    },
+    "ports": {
+      "class": "setting"
+    },
+    "ports.*": {
+      "class": "setting"
+    },
+    "paired_with": {
+      "class": "setting"
+    },
+    "ends": {
+      "class": "setting"
+    },
+    "ends.*": {
+      "class": "setting"
+    },
+    "cord_route": {
+      "class": "setting"
+    },
+    "cord_cells": {
+      "class": "setting"
+    },
+    "cord_secured": {
+      "class": "setting"
+    },
+    "drained": {
+      "class": "setting"
+    },
+    "rolled": {
+      "class": "setting"
+    },
+    "tucked": {
+      "class": "setting"
+    },
+    "gathered": {
+      "class": "setting"
+    },
+    "hospital_corners": {
+      "class": "setting"
+    },
+    "corners_seated": {
+      "class": "setting"
+    },
+    "pressed": {
+      "class": "setting"
+    },
+    "top_button": {
+      "class": "setting"
+    },
+    "buttons": {
+      "class": "setting"
+    },
+    "buttons.*": {
+      "class": "setting"
+    },
+    "threaded": {
+      "class": "setting"
+    },
+    "threaded.*": {
+      "class": "setting"
+    },
+    "wrapped": {
+      "class": "setting"
+    },
+    "shrink_wrapped": {
+      "class": "setting"
+    },
+    "seams": {
+      "class": "setting"
+    },
+    "seams.*": {
+      "class": "setting"
+    },
+    "anchored": {
+      "class": "setting"
+    },
+    "anchor_hole": {
+      "class": "setting"
+    },
+    "anchor_into_stud": {
+      "class": "setting"
+    },
+    "assembly": {
+      "class": "setting"
+    },
+    "assembly.*": {
+      "class": "setting"
+    },
+    "fasteners": {
+      "class": "setting"
+    },
+    "fasteners.*": {
+      "class": "setting"
+    },
+    "mount": {
+      "class": "setting"
+    },
+    "mounted": {
+      "class": "setting"
+    },
+    "order": {
+      "class": "setting"
+    },
+    "appliance.program": {
+      "class": "setting"
+    },
+    "appliance.delay_s": {
+      "class": "setting"
+    },
+    "pump.locked": {
+      "class": "setting"
+    },
+    "ajar": {
+      "class": "setting"
+    },
+    "grid": {
+      "class": "setting"
+    },
+    "grid.*": {
+      "class": "setting"
+    },
+    "deicer.kind": {
+      "class": "setting"
+    },
+    "display_time": {
+      "class": "process"
+    },
+    "ui.screen": {
+      "class": "setting"
+    },
+    "ui.dialog": {
+      "class": "setting"
+    },
+    "ui.staged": {
+      "class": "setting"
+    },
+    "set_stains": {
+      "class": "setting"
+    },
+    "stamp_position": {
+      "class": "setting"
+    },
+    "stamps": {
+      "class": "setting"
+    },
+    "postage_cents": {
+      "class": "setting"
+    },
+    "legs_accessible": {
+      "class": "setting"
+    },
+    "pads": {
+      "class": "setting"
+    },
+    "sliders": {
+      "class": "setting"
+    },
+    "spread": {
+      "class": "setting"
+    },
+    "kinks_set": {
+      "class": "setting"
+    },
+    "ground_layer": {
+      "class": "setting"
+    },
+    "opened": {
+      "class": "setting"
+    },
+    "labels": {
+      "class": "identity"
+    },
+    "label_adhered": {
+      "class": "identity"
+    },
+    "label_adhesion": {
+      "class": "identity"
+    },
+    "label_key": {
+      "class": "identity"
+    },
+    "label_removed": {
+      "class": "identity"
+    },
+    "label_skew_deg": {
+      "class": "identity"
+    },
+    "labels_layered": {
+      "class": "identity"
+    },
+    "price_tag_removed": {
+      "class": "identity"
+    },
+    "price_tag_inside": {
+      "class": "identity"
+    },
+    "food_label": {
+      "class": "identity"
+    },
+    "care_label": {
+      "class": "identity"
+    },
+    "cap.id": {
+      "class": "identity"
+    },
+    "filter_spec": {
+      "class": "identity"
+    },
+    "filter_spec.*": {
+      "class": "identity"
+    },
+    "container": {
+      "class": "identity"
+    },
+    "surface": {
+      "class": "identity"
+    },
+    "surface_height_m": {
+      "class": "identity"
+    },
+    "surface_size_m": {
+      "class": "identity"
+    },
+    "shelf_heights": {
+      "class": "identity"
+    },
+    "inner_size_m": {
+      "class": "identity"
+    },
+    "usable": {
+      "class": "identity"
+    },
+    "open_shelving": {
+      "class": "identity"
+    },
+    "single_size_m": {
+      "class": "identity"
+    },
+    "length_m": {
+      "class": "identity"
+    },
+    "depth_rank": {
+      "class": "placement"
+    },
+    "transparent": {
+      "class": "identity"
+    },
+    "scented": {
+      "class": "identity"
+    },
+    "allergens": {
+      "class": "identity"
+    },
+    "diet_tags": {
+      "class": "identity"
+    },
+    "perishable": {
+      "class": "identity"
+    },
+    "storage": {
+      "class": "identity"
+    },
+    "safe_grips": {
+      "class": "identity"
+    },
+    "food.kind": {
+      "class": "identity"
+    },
+    "food.cat": {
+      "class": "identity"
+    },
+    "food.composition": {
+      "class": "identity"
+    },
+    "food.phase": {
+      "class": "identity"
+    },
+    "food.hydration": {
+      "class": "identity"
+    },
+    "food.density": {
+      "class": "identity"
+    },
+    "food.mix": {
+      "class": "identity"
+    },
+    "food.cut": {
+      "class": "identity"
+    },
+    "food.cut_axis": {
+      "class": "identity"
+    },
+    "food.flat_side": {
+      "class": "identity"
+    },
+    "food.grain_angle_deg": {
+      "class": "identity"
+    },
+    "food.parts": {
+      "class": "identity"
+    },
+    "food.peel_coverage": {
+      "class": "identity"
+    },
+    "food.peel_loss_frac": {
+      "class": "identity"
+    },
+    "food.peeled": {
+      "class": "identity"
+    },
+    "food.piece_cv": {
+      "class": "identity"
+    },
+    "food.piece_mm": {
+      "class": "identity"
+    },
+    "food.pieces": {
+      "class": "identity"
+    },
+    "food.round_pieces": {
+      "class": "identity"
+    },
+    "food.shell_fragments": {
+      "class": "identity"
+    },
+    "food.slice_form": {
+      "class": "identity"
+    },
+    "food.slice_thickness_mm": {
+      "class": "identity"
+    },
+    "food.slivers": {
+      "class": "identity"
+    },
+    "food.texture": {
+      "class": "identity"
+    },
+    "food.thaw_method": {
+      "class": "identity"
+    },
+    "food.trim_loss_frac": {
+      "class": "identity"
+    },
+    "product_label": {
+      "class": "identity"
+    },
+    "seasoned": {
+      "class": "identity"
+    },
+    "shard_size": {
+      "class": "identity"
+    },
+    "slit": {
+      "class": "identity"
+    },
+    "cut": {
+      "class": "identity"
+    },
+    "aerosolized": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "arcing": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "burning": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "burst": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "caught_in_door": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "chem_stained": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "contaminated": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "contaminated_tip": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "crushed": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "curled": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "damaged": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "fabric_torn": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "failed": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "fire": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "fire_damaged": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "flare_up": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "frayed": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "frozen_burst": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "frozen_split": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "heat_damaged": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "insects": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "jammed": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "kinks": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "liner_bunched": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "bunched": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "musty": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "on_fire": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "partially_shredded": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "shredded": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "pole_bent": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "root_rot": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "rot": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "shrunk": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "slipped": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "slipped_off": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "smoking": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "socket_scorched": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "strain_damage": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "strain_relief_damaged": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "plug_damage": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "swollen": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "tipped_over": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "toppled": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "torn_stems": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "water_damage": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "water_marks": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "finish_marks": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "stale_wet": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "dried_out": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "worn": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "fell": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "cct_mismatch": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "product_mismatch": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "chem_conflict": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "label_conflict": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "cord_hazard": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "surprise_spoiled": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "contains_crumbs": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "reversed_cells": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "mixed_cells": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "reversed": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "rim_folded": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "mech.jammed": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "mech.hooks_torn": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "rv.damaged": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "pump.broken": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "cap.loose": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "closure.failed": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "tripped": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "thermal_tripped": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "auto_off_tripped": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "lid_blocked": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "intake_blocked": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "blocked": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "blocks_path": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "blocks_rear_view": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "dripping": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "caught": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "over_rim": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "hem_on_floor": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "loose_fit": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "uneven": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "ice": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "wilted": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "needs_recharge": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "jam_item": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "shifted": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "power_failure": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "leaking_now": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "floor_hazard": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "alive": {
+      "class": "condition",
+      "worse": "false"
+    },
+    "functional": {
+      "class": "condition",
+      "worse": "false"
+    },
+    "readable": {
+      "class": "condition",
+      "worse": "false"
+    },
+    "bond_ok": {
+      "class": "condition",
+      "worse": "false"
+    },
+    "potable": {
+      "class": "condition",
+      "worse": "false"
+    },
+    "cap.matched": {
+      "class": "condition",
+      "worse": "false"
+    },
+    "closure.holds": {
+      "class": "condition",
+      "worse": "false"
+    },
+    "cap.on": {
+      "class": "condition",
+      "worse": "false"
+    },
+    "tamper_seal": {
+      "class": "condition",
+      "worse": "false"
+    },
+    "layer_order_ok": {
+      "class": "condition",
+      "worse": "false"
+    },
+    "resets_after_trip": {
+      "class": "condition",
+      "worse": "false"
+    },
+    "usable_now": {
+      "class": "condition",
+      "worse": "false"
+    },
+    "handover_safe": {
+      "class": "condition",
+      "worse": "false"
+    },
+    "debris": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "pests.severity": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "symptoms": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "leaves.dead": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "leaves.yellowing": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "transport_breakages": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "water.ammonia_ppm": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "detritus": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "duct_dust": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "dirtiness": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "clog": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "brushroll_wrap": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "rv.brush_hair": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "rv.side_brush_hair": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "mineral_ppm": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "residue": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "residue.*": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "holes": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "biofilm": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "pathogen": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "mech.strain": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "strain": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.001
+    },
+    "leaves.healthy": {
+      "class": "condition",
+      "worse": "down",
+      "tol": 0.001
+    },
+    "water.clarity": {
+      "class": "condition",
+      "worse": "down",
+      "tol": 0.001
+    },
+    "water_quality": {
+      "class": "condition",
+      "worse": "down",
+      "tol": 0.001
+    },
+    "appliance.error": {
+      "class": "condition",
+      "worse": "change"
+    },
+    "wheels": {
+      "class": "condition",
+      "worse": "change"
+    },
+    "wheels.*": {
+      "class": "condition",
+      "worse": "change"
+    },
+    "flowers": {
+      "class": "condition",
+      "worse": "change"
+    },
+    "flowers.*": {
+      "class": "condition",
+      "worse": "change"
+    },
+    "condition": {
+      "class": "condition",
+      "worse": "change"
+    },
+    "amount": {
+      "class": "content"
+    },
+    "amount_kg": {
+      "class": "content"
+    },
+    "ash_kg": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "agent_left_kg": {
+      "class": "content"
+    },
+    "catcher_kg": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "clumps": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "debris_kg": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "depth_cm": {
+      "class": "content"
+    },
+    "droppings": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "feces": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "fed_g_total": {
+      "class": "content"
+    },
+    "fill": {
+      "class": "content"
+    },
+    "fill_level": {
+      "class": "content"
+    },
+    "food_waste": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "has_food_waste": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "pet_waste": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "litter_kg": {
+      "class": "content"
+    },
+    "load_kg": {
+      "class": "content"
+    },
+    "liquid_mix": {
+      "class": "content"
+    },
+    "solids_kg": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "sheets": {
+      "class": "content"
+    },
+    "sheets_loaded": {
+      "class": "content"
+    },
+    "sizes_loaded": {
+      "class": "content"
+    },
+    "stock": {
+      "class": "content"
+    },
+    "product": {
+      "class": "content"
+    },
+    "product.*": {
+      "class": "content"
+    },
+    "hardware_counts": {
+      "class": "content"
+    },
+    "hardware_counts.*": {
+      "class": "content"
+    },
+    "ice_cubes": {
+      "class": "content"
+    },
+    "cell_fill": {
+      "class": "content"
+    },
+    "layers": {
+      "class": "content"
+    },
+    "layers.*": {
+      "class": "content"
+    },
+    "water_level": {
+      "class": "content"
+    },
+    "shard_load": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "cl_chem": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "cl_chem.*": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "cl_load": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "cl_load.*": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "cl_strength": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "soil_load": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "rv.bin_fill": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "rv.tank_liquid": {
+      "class": "content"
+    },
+    "food_meta": {
+      "class": "content"
+    },
+    "food_meta.*": {
+      "class": "content"
+    },
+    "area_m2": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "deicer.g_m2": {
+      "class": "content"
+    },
+    "deicer.chloride": {
+      "class": "content"
+    },
+    "deicer.label_g_m2": {
+      "class": "content"
+    },
+    "shredded_sheets": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "active_period": {
+      "class": "process"
+    },
+    "airflow_mps": {
+      "class": "process"
+    },
+    "airflow_ratio": {
+      "class": "process"
+    },
+    "alarm_pattern": {
+      "class": "process"
+    },
+    "appliance.state": {
+      "class": "process"
+    },
+    "appliance.elapsed_s": {
+      "class": "process"
+    },
+    "appliance.remaining_s": {
+      "class": "process"
+    },
+    "appliance.duration_s": {
+      "class": "process"
+    },
+    "blower": {
+      "class": "process"
+    },
+    "blowing": {
+      "class": "process"
+    },
+    "cadr_m3h": {
+      "class": "process"
+    },
+    "call": {
+      "class": "process"
+    },
+    "charging": {
+      "class": "process"
+    },
+    "closed_supply_frac": {
+      "class": "process"
+    },
+    "co_peak_ppm": {
+      "class": "process"
+    },
+    "co_ppm": {
+      "class": "process"
+    },
+    "compost": {
+      "class": "process"
+    },
+    "compost.*": {
+      "class": "process"
+    },
+    "compressor_on": {
+      "class": "process"
+    },
+    "display": {
+      "class": "process"
+    },
+    "door_alarm": {
+      "class": "process"
+    },
+    "drip_lpm": {
+      "class": "process"
+    },
+    "energized": {
+      "class": "process"
+    },
+    "exhaust_m3s": {
+      "class": "process"
+    },
+    "flame_height_m": {
+      "class": "process"
+    },
+    "flow": {
+      "class": "process"
+    },
+    "flow_indicator": {
+      "class": "process"
+    },
+    "flow_lpm": {
+      "class": "process"
+    },
+    "foam_level": {
+      "class": "process"
+    },
+    "full_light": {
+      "class": "process"
+    },
+    "heat_coupling": {
+      "class": "process"
+    },
+    "heat_output_frac": {
+      "class": "process"
+    },
+    "heating_on": {
+      "class": "process"
+    },
+    "hot_light": {
+      "class": "process"
+    },
+    "humidistat_on": {
+      "class": "process"
+    },
+    "initiating": {
+      "class": "process"
+    },
+    "led": {
+      "class": "process"
+    },
+    "light_on": {
+      "class": "process"
+    },
+    "light_s_today": {
+      "class": "process"
+    },
+    "load_a": {
+      "class": "process"
+    },
+    "lean_deg": {
+      "class": "process"
+    },
+    "lean_dir_deg": {
+      "class": "process"
+    },
+    "online": {
+      "class": "process"
+    },
+    "opaque_cover": {
+      "class": "process"
+    },
+    "out_of_range": {
+      "class": "process"
+    },
+    "out_by": {
+      "class": "process"
+    },
+    "preheated": {
+      "class": "process"
+    },
+    "rained_on": {
+      "class": "process"
+    },
+    "ran_filterless_s": {
+      "class": "process"
+    },
+    "ringing": {
+      "class": "process"
+    },
+    "rpm": {
+      "class": "process"
+    },
+    "screen_glare": {
+      "class": "process"
+    },
+    "screen_glare_window": {
+      "class": "process"
+    },
+    "shade_frac": {
+      "class": "process"
+    },
+    "shade_min": {
+      "class": "process"
+    },
+    "skin": {
+      "class": "process"
+    },
+    "spinning": {
+      "class": "process"
+    },
+    "stage": {
+      "class": "process"
+    },
+    "static_pressure": {
+      "class": "process"
+    },
+    "status": {
+      "class": "process"
+    },
+    "status_light": {
+      "class": "process"
+    },
+    "temp_alarm": {
+      "class": "process"
+    },
+    "temp_display": {
+      "class": "process"
+    },
+    "thermal_tau_s": {
+      "class": "process"
+    },
+    "timer_display": {
+      "class": "process"
+    },
+    "vent_issues": {
+      "class": "process"
+    },
+    "wan_ok": {
+      "class": "process"
+    },
+    "zones": {
+      "class": "process"
+    },
+    "zones.*": {
+      "class": "process"
+    },
+    "sweating": {
+      "class": "process"
+    },
+    "frost_mm": {
+      "class": "process"
+    },
+    "snow_cm": {
+      "class": "process"
+    },
+    "used": {
+      "class": "process"
+    },
+    "odor": {
+      "class": "process"
+    },
+    "odor.*": {
+      "class": "process"
+    },
+    "odor_kind": {
+      "class": "process"
+    },
+    "burner.residual_hot": {
+      "class": "process"
+    },
+    "rv.state": {
+      "class": "process"
+    },
+    "rv.charging": {
+      "class": "process"
+    },
+    "rv.docked": {
+      "class": "process"
+    },
+    "rv.error": {
+      "class": "process"
+    },
+    "rv.dock_zone_clear": {
+      "class": "process"
+    },
+    "pump.primed": {
+      "class": "process"
+    },
+    "pressurized": {
+      "class": "process"
+    },
+    "live": {
+      "class": "process"
+    },
+    "powered": {
+      "class": "process"
+    },
+    "frozen_frac": {
+      "class": "process"
+    },
+    "drain_speed": {
+      "class": "process"
+    },
+    "spread_factor": {
+      "class": "process"
+    },
+    "cl_carried": {
+      "class": "process"
+    },
+    "cl_carried.*": {
+      "class": "process"
+    },
+    "cl_film": {
+      "class": "process"
+    },
+    "cl_film.*": {
+      "class": "process"
+    },
+    "cl_suds": {
+      "class": "process"
+    },
+    "soil_faces": {
+      "class": "process"
+    },
+    "soil_faces.*": {
+      "class": "process"
+    },
+    "pretreat": {
+      "class": "process"
+    },
+    "pretreat.*": {
+      "class": "process"
+    },
+    "food.ripeness": {
+      "class": "process"
+    },
+    "food.soggy": {
+      "class": "process"
+    },
+    "food.melted": {
+      "class": "process"
+    },
+    "food.softened": {
+      "class": "process"
+    },
+    "food.ice": {
+      "class": "process"
+    },
+    "smothered": {
+      "class": "process"
+    },
+    "stack_marginal": {
+      "class": "process"
+    },
+    "resolved": {
+      "class": "process"
+    },
+    "disinfect_effective": {
+      "class": "process"
+    },
+    "disinfectant": {
+      "class": "process"
+    },
+    "mech.heat_s": {
+      "class": "process"
+    },
+    "mech.max_force_n": {
+      "class": "process"
+    },
+    "mech.resistance": {
+      "class": "process"
+    },
+    "water": {
+      "class": "process"
+    },
+    "water.*": {
+      "class": "process"
+    },
+    "fill_evenness": {
+      "class": "process"
+    },
+    "loft": {
+      "class": "process"
+    },
+    "fold_quality": {
+      "class": "process"
+    },
+    "kinks_count": {
+      "class": "process"
+    },
+    "oxygen": {
+      "class": "process"
+    },
+    "gauge": {
+      "class": "process"
+    },
+    "aim_dist_m": {
+      "class": "bookkeeping"
+    },
+    "aim_from": {
+      "class": "bookkeeping"
+    },
+    "aim_point": {
+      "class": "bookkeeping"
+    },
+    "appearance": {
+      "class": "process"
+    },
+    "blown_away": {
+      "class": "condition",
+      "worse": "true"
+    },
+    "bypass_gap_mm": {
+      "class": "condition",
+      "worse": "up",
+      "tol": 0.5
+    },
+    "cord_length_used_m": {
+      "class": "placement"
+    },
+    "covers_leg": {
+      "class": "placement"
+    },
+    "debris_grid": {
+      "class": "process"
+    },
+    "docked": {
+      "class": "setting"
+    },
+    "dw": {
+      "class": "bookkeeping"
+    },
+    "fastener": {
+      "class": "setting"
+    },
+    "holding_garment": {
+      "class": "content"
+    },
+    "ingested": {
+      "class": "bookkeeping"
+    },
+    "joined": {
+      "class": "setting"
+    },
+    "lit": {
+      "class": "setting"
+    },
+    "lubricants_used": {
+      "class": "bookkeeping"
+    },
+    "mulch": {
+      "class": "content"
+    },
+    "occupied_by": {
+      "class": "placement"
+    },
+    "pins": {
+      "class": "setting"
+    },
+    "rattles": {
+      "class": "process"
+    },
+    "ring": {
+      "class": "setting"
+    },
+    "terminals_taped": {
+      "class": "setting"
+    },
+    "tilt_deg": {
+      "class": "placement"
+    },
+    "towed": {
+      "class": "placement"
+    },
+    "view": {
+      "class": "bookkeeping"
+    },
+    "mech.kind": {
+      "class": "identity"
+    },
+    "mech.felt_at": {
+      "class": "bookkeeping"
+    },
+    "cl_load_g": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "cl_soil_g": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "soaked_l": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "standing_l": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "medium.standing_l": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "uneaten_g": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "waste_g": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "chem_ml_per_l": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "soap_ml_per_l": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "cabinet_water_l": {
+      "class": "content",
+      "guard": "mess"
+    },
+    "tare_g": {
+      "class": "setting"
+    },
+    "single_volume_l": {
+      "class": "bookkeeping"
+    },
+    "grid.moisture": {
+      "class": "process"
+    },
+    "grid.moisture_top": {
+      "class": "process"
+    }
+  },
+  "patterns": [
+    {
+      "match": "last_*",
+      "class": "bookkeeping"
+    },
+    {
+      "match": "*_log",
+      "class": "bookkeeping"
+    },
+    {
+      "match": "*_history",
+      "class": "bookkeeping"
+    },
+    {
+      "match": "*_at",
+      "class": "bookkeeping"
+    },
+    {
+      "match": "*_at_s",
+      "class": "bookkeeping"
+    },
+    {
+      "match": "*_since_s",
+      "class": "bookkeeping"
+    },
+    {
+      "match": "*_count",
+      "class": "bookkeeping"
+    },
+    {
+      "match": "*_seen",
+      "class": "bookkeeping"
+    },
+    {
+      "match": "seen_*",
+      "class": "bookkeeping"
+    },
+    {
+      "match": "times_*",
+      "class": "bookkeeping"
+    },
+    {
+      "match": "n_*",
+      "class": "bookkeeping"
+    },
+    {
+      "match": "*_c",
+      "class": "process"
+    },
+    {
+      "match": "*_temp*",
+      "class": "process"
+    },
+    {
+      "match": "*_w",
+      "class": "process"
+    },
+    {
+      "match": "*_kw",
+      "class": "process"
+    },
+    {
+      "match": "*_wh",
+      "class": "process"
+    },
+    {
+      "match": "*_kwh",
+      "class": "process"
+    },
+    {
+      "match": "*_h",
+      "class": "process"
+    },
+    {
+      "match": "*_hours",
+      "class": "process"
+    },
+    {
+      "match": "*_remaining_s",
+      "class": "process"
+    },
+    {
+      "match": "*_elapsed_s",
+      "class": "process"
+    },
+    {
+      "match": "elapsed*",
+      "class": "process"
+    },
+    {
+      "match": "remaining_*",
+      "class": "process"
+    },
+    {
+      "match": "*_left_s",
+      "class": "process"
+    },
+    {
+      "match": "*moisture*",
+      "class": "process"
+    },
+    {
+      "match": "charge*",
+      "class": "process"
+    },
+    {
+      "match": "battery*",
+      "class": "process"
+    },
+    {
+      "match": "*_pct",
+      "class": "process"
+    },
+    {
+      "match": "*_rh",
+      "class": "process"
+    },
+    {
+      "match": "humidity*",
+      "class": "process"
+    },
+    {
+      "match": "*_progress",
+      "class": "process"
+    },
+    {
+      "match": "progress*",
+      "class": "process"
+    },
+    {
+      "match": "*_state",
+      "class": "process"
+    },
+    {
+      "match": "*_until",
+      "class": "process"
+    },
+    {
+      "match": "*_s",
+      "class": "process"
+    },
+    {
+      "match": "*_l",
+      "class": "content"
+    },
+    {
+      "match": "*_ml",
+      "class": "content"
+    },
+    {
+      "match": "*_g",
+      "class": "content"
+    }
+  ]
+}

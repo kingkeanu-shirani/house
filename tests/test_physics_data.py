@@ -136,14 +136,15 @@ class DataFilesTests(unittest.TestCase):
                              value, foot)
         self.assertEqual(dict(P.MATERIALS["surface_state_mu"]["values"]), module_table(common, "SURFACE_STATE_MU"))
 
-    def test_setup_py_ships_the_five_tier1_data_globs(self):
+    def test_setup_py_ships_the_five_tier1_data_globs(self):          # and the verify / speech data (phase 2)
         tree = ast.parse((ROOT / "setup.py").read_text(encoding="utf-8"))
         globs = []
         for node in ast.walk(tree):
             if isinstance(node, ast.keyword) and node.arg == "package_data":
                 globs = ast.literal_eval(node.value)["house_sim"]
         for pattern in ("data/physics/*.json", "data/robot/*.json", "data/calendar/*.json", "data/vocab/*.json",
-                        "data/generator/*.json"):
+                        "data/generator/*.json", "data/verify/*.json", "data/verify/watch/*.json",
+                        "data/speech/*.json"):
             self.assertIn(pattern, globs)
 
     def test_data_files_are_read_only_and_load_within_budget(self):

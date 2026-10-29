@@ -1,0 +1,68 @@
+{
+ "id": "WP2-fix",
+ "package": "P2-WP2 (VERIFY_HARDENING section 25: WP2 ATTRIBUTION, FLOWS, FINISH), run A review fixes",
+ "findings": [
+  "A-bugs-2",
+  "A-gaming-5",
+  "A-spec-9"
+ ],
+ "files": [
+  "house_sim/kernel/engine.py",
+  "house_sim/kernel/world.py",
+  "tests/test_attribution.py",
+  "tests/test_finish.py",
+  "catalog/analysis/phase2/handoff_WP2.md",
+  "catalog/analysis/phase2/handoff_WP2-fix.md",
+  "catalog/analysis/phase2/WP2-fix.json"
+ ],
+ "landed": [
+  "A-bugs-2: HouseEnv.finish rounds settle_s / lookahead_s and the end time to the clock's millisecond grid (CLOCK_DIGITS = 3, also used by _substep) and stops when an idle frame does not move the clock; covers settle_s 30.0004 and a clock that starts off the grid with the default 60 s",
+  "A-gaming-5: env.robot_attributable(rid, field=None, t=None, causes=None, ignore=is_bookkeeping, unknown=None) is three-valued: True linked, False ruled out by recorded causes, None (link unknown) for a physical write without a recorded cause (6.2's conservative default); finish's settle rule passes unknown=False (8.1 step 3)",
+  "A-gaming-5 (same function): a cause record reaches the robot when the robot's write of any of its fields stood while the citing write was made (WriterLog.during), not only when the robot is the record's latest writer at the time of the question; a placement field asks about every placement field",
+  "A-gaming-5 end to end: with WP1-fix's concurrent ledger change (keeps the None) the reviewer's repro now fails with house.moved and house.changed on the blown paper",
+  "A-spec-9: env.save records the idle counterfactual's digest and checkpoint count and the score; HouseEnv.load(path, idle=None) attaches the caller's after checking the digest; env.idle is a property that raises IdleMissing on a fork that owes its counterfactual, and assignment is digest-checked",
+  "A-spec-9: fork test on a schema-4 build with its idle counterfactual, perceive.enable in the evaluation modes and finish(60, 600), in own, eval-geom and eval-room: equal digest, writer log, finish result and perceive evidence index",
+  "WriterLog.entry(rid, field, before) and WriterLog.during(rid, field, t0, t)",
+  "handoff_WP2.md corrected (the false claim that physical writes without causes were charged; interfaces)"
+ ],
+ "interfaces": {
+  "engine": [
+   "env.robot_attributable(rid, field=None, t=None, causes=None, ignore=is_bookkeeping, unknown=None) -> True | False | unknown",
+   "env.idle (property; IdleMissing while a loaded fork owes its counterfactual)",
+   "HouseEnv.load(path, idle=None)",
+   "env.save(path): payload keys idle {digest, checkpoints} | null, last_score",
+   "engine.IdleMissing(RuntimeError), engine.idle_record(idle), engine.CLOCK_DIGITS"
+  ],
+  "world": [
+   "WriterLog.entry(rid, field, before=None) -> (class, name, t0, t, causes) | None",
+   "WriterLog.during(rid, field, t0, t) -> [(class, name, t0, t, causes)]"
+  ]
+ },
+ "deviations": [
+  {
+   "what": "The snapshot keeps the idle counterfactual's digest, not its projections; the caller re-attaches it (load(path, idle=) or env.idle =), checked against the digest",
+   "why": "the projections are ~0.21 MB per checkpoint (96+ checkpoints for a 4 h budget: ~20 MB) against 10.5's 0.5-1 MB per snapshot; the digest makes the re-attachment checked, and IdleMissing makes a forgotten one loud"
+  },
+  {
+   "what": "robot_attributable's default for a physical write without causes is None (link unknown), not True",
+   "why": "the ledger (WP1) was designed around a three-valued link (charged_field: None charged); finish's settle rule needs to tell the case apart (8.1 step 3 does not charge it)"
+  }
+ ],
+ "not_done": [],
+ "outcome_changes": [
+  "Hardened (schema-4) tasks only: with WP1-fix's ledger keeping the None, a physical change without a recorded cause on a record the robot did not write is charged when it diverges from idle (6.2's conservative default). No authored spec is schema 4, so no gate outcome changes; the census of the WP5 book spec's reference over 8 houses adds no label on the final tree (display_time now class process)",
+  "finish: settle_s / lookahead_s are rounded to the millisecond; outcomes for on-grid values unchanged",
+  "Snapshot format: env.save adds the keys idle and last_score (older snapshots still load)"
+ ],
+ "requests": [
+  "WP8: document the three-valued env.robot_attributable (unknown=None), HouseEnv.load(path, idle=) with IdleMissing, and finish's clock-grid rounding in KERNEL_API.md / EVAL_HARNESS.md"
+ ],
+ "tests": {
+  "new": 6,
+  "fail_before_fix": "all 6 fail on a scratch tree with the fix's edits reversed (make_prefix.py); the settle test by its frame cap instead of hanging",
+  "own_files": "tests/test_attribution.py 25 + tests/test_finish.py 18: normal 43 OK, HOUSE_SIM_STRICT=1 43 OK, HOUSE_SIM_DOMAINS=core 43 OK (4 domain skips)",
+  "green_tests": "python tools/orchestration/green_tests.py 3: 5,401 tests per mode, 0 failures, normal and strict (156 file runs ok)",
+  "py39_lint": "0 violations on the 4 Python files",
+  "authored_specs": "all 243 authored specs, own mode (combined file, python -m house_sim --check --workers 3 --no-cache): 243 passed, 0 failed"
+ }
+}

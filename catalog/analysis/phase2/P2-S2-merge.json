@@ -1,0 +1,46 @@
+{
+ "id": "P2-S2-merge",
+ "package": "P2-S1+P2-S2",
+ "landed": [
+  "Stub removal (section 25 dependencies landed): speech.founded calls perceive.claim_founded directly (no 'always founded'); perceive._parse_claims calls speech.parse; ledger's content guard calls speech.guards / reports.guards and held_open calls Monitor.open_intervals(robot_only=False) directly; HouseEnv.finish reads ledger.LOOKAHEAD_GUARDS (engine's duplicate removed), evaluation_view(task=), hardened and goal_status directly; monitor's hardened view calls evaluation.derived_view; verify imports tasks/lint.py directly (the 'WP8 not landed' schema warning and the stand-in L-COVER / L-PROTECT guards removed) and calls WP3's monitor directly (a raising timing_verdicts is a harness error, no longer 'nothing vacuous'); escapes.DEFAULT_PRICES removed (price_list reads escapes.json, raises when unusable); landed-package skips removed from tests/test_perceive.py and tests/test_speech.py",
+  "A-gaming-13 verifier half: verify.pattern_matches / matched_patterns apply 14.2's rule to inv: (no raw prefix); verify.expect_problems rejects inv: / later:inv: patterns that are not a whole invariant label name (lint.invariant_problem)",
+  "A-spec-14 ledger half: ledger.selector_problem / scope_problem refuse unknown '<word>:' forms (also inside id lists and JSON-list selectors), so runner.build refuses what L-ENVELOPE flags",
+  "A-gaming-9 completed (WP4-fix's request to WP7): perceive.FACTUAL_KINDS includes location; _location_founded founds a location claim by the subject's last perceived location (observation, the robot's own placement, a person or pet seen in the room) and a negated one by a sighting elsewhere or a look into the denied room; a guessed location no longer satisfies a said assert",
+  "escapes.detect (and _targets / _scopes) read malformed declarations as empty instead of raising AttributeError (WP8-fix's request to WP5)",
+  "Docs for the fix round's undocumented interfaces (WP1-fix, WP2-fix, WP4-fix, WP7-fix) and the merge gate: KERNEL_API.md, PERCEPTION.md, TASK_SPEC.md, EVAL_HARNESS.md, KNOWN_LIMITS.md 7a, EVALUATION.md",
+  "Tests: tests/test_verify_hardening.py MergeGateTests (8), tests/test_perceive.py LocationClaimTests (2); updated ExpectTests.test_the_14_2_grammar (inv:people no longer matches), test_a_vague_expect_is_never_verified, tests/test_lint.py test_the_price_list_is_section_18",
+  "Gate record catalog/analysis/tier1/gate/P2-S2 (record --id P2-S2 --package P2-S1+P2-S2 --prev P1C --reviewed catalog/analysis/phase2/WP2_reviewed.json, in place, quiet machine, 3,236 s): GATE, G0, G1 (5,413 tests per mode, 0 failing; py39_lint 507 files clean), G1b, G2 (243/243, 0 verdict changes), G3 (242/243 = P1C, 0 verdict changes), G4 (0 leaks), G5, G6 (0 defects, 0 nondeterministic, no coverage loss), G9 PASS; G7, G8, G10 FAIL (policy / signature / main-session file: see notes)",
+  "No schema 2/3 outcome changed: all 2,430 trials identical to P1C in verdict fields, wrong-plan reason classes, reference steps and time; 0 observation-digest changes; all 247 state-digest changes attributed to WP2's logs.gone (state_attrib.py: 243 by stripping the logs, 4 by A/B against HEAD: logs.gone plus the people senses' journal cursor _space_jn)",
+  "Sign-off: catalog/analysis/phase2/P2-S2_signoff_verified.json (house-gate-signoff-v1, signed_by P2-S2-merge-verified): the draft's 14 golden rows all verified (golden_attrib.py: each entry reproduced on the merged tree; without logs.gone each has HEAD's digest), 0 rejected; the draft has 0 verdict / edit / coverage / gate-change rows",
+  "Every confirmed run-A finding (32) fixed or justified; reviewers' repros re-run on the merged tree for A-bugs-1, A-bugs-2, A-spec-1, A-spec-2, A-spec-3, A-spec-4, A-spec-5 (with A-gaming-3), A-spec-6, A-spec-10, A-spec-13 and A-spec-14",
+  "Also: the 51 realistic specs with --camera geometric 51/51 on the final tree; green_tests.py 3 before the record: 5,413 tests per mode, 0 failures; evidence in catalog/analysis/phase2/P2-S2_evidence/"
+ ],
+ "deviations": [
+  {"what": "The gate record was made in place, not on an isolated copy", "why": "tests/test_gate_tool.py cannot pass in an isolated copy (no policy source, no git: 11 tests fail), so an isolated record always fails G1; in place, G10 lists the main session's untracked catalog/analysis/phase1/closeout_VER2.json"},
+  {"what": "escapes.price_list raises on a missing or malformed escapes.json instead of falling back to a built-in table", "why": "the built-in copy existed only until WP8's file landed; a silent fallback could price escapes from a stale table"},
+  {"what": "location claims are founded by the subject's last perceived location, judged with today's containment of the recorded place", "why": "a sighting older than a later one elsewhere is no evidence of where it is now; the index records ids, not containment history"},
+  {"what": "speech.founded keeps WP4's 'exception -> None (not judged)' around perceive.claim_founded", "why": "changing it is a semantic decision for the WP4 / WP7 owners (request); no test or trial raises there"}
+ ],
+ "not_done": [
+  {"what": "G7 within budget for the union record", "why": "the union takes P2-S2's strictest 1.05 x against P1C; the +5.7 % substep / +5.4 % wait is P2-S1's attribution overhead (inside P2-S1's and P2-WP2's 1.15 x, 6.2's 15 %); a rules.json decision for the main session"},
+  {"what": "G10 PASS", "why": "catalog/analysis/phase1/closeout_VER2.json (main session's, untracked) is outside every running scope; commit it, then record --only G10"},
+  {"what": "evaluation recording which invariant produced each label (inv:<registered name> for composed labels)", "why": "changes every evaluation result; WP8-fix's optional request, documented in KNOWN_LIMITS 7a"},
+  {"what": "branch-diff command outcomes for perceive's agent rule", "why": "WP7-fix's optional request to WP5; a documented gap (destination-less deposits, liquids by another verb)"}
+ ],
+ "outcome_changes": [],
+ "tests": {"new_tests": 10, "passed": true, "strict_passed": true},
+ "specs": {"total": 243, "passed": 243},
+ "requests": [
+  "main session: commit catalog/analysis/phase1/closeout_VER2.json, then `python tools/orchestration/tier1_gate.py record --id P2-S2 --package P2-S1+P2-S2 --prev P1C --only G10` (G10)",
+  "main session: gate_policy/rules.json -- give the merged P2-S1+P2-S2 record vs P1C a 1.15 x bench budget (P2-S2's 1.05 x is meant against a P2-S1 record; measured +5.7 % substep, +5.4 % wait, +9.4 % day, thermal +0.070 of +0.143 ms systems), or record P2-S1 first; then `--only G7`",
+  "main session: commit catalog/analysis/phase2/P2-S2_signoff_verified.json as tools/orchestration/gate_policy/signoffs/P2-S2.json (14 golden rows), then compare P1C P2-S2 --package P2-S1+P2-S2 --reviewed catalog/analysis/phase2/WP2_reviewed.json",
+  "P2-S4 (WP10, gate tool): tests/test_gate_tool.py fails in an `isolate` copy (no policy source, no git), so a record on an isolated copy can never pass G1",
+  "main session: setup.py package_data for house_sim/data/verify/*.json, data/verify/watch/*.json and data/speech/*.json (escapes.json is now required at run time); regenerate catalog/analysis/seed_features.json when the generator fingerprint is final",
+  "main session: kernel/dialogue.py user-simulator answers inside a robot action as volition (WP2); the pre-existing realistic / geometric replay divergence at step 3 on HEAD (REV-A-bugs, T-1df40780f5ddf2-01 seed 0)",
+  "WP-D: volition tags for the people, pets and safety (evac) systems and cause= from fire spread (link-unknown is charged until then); watch/<domain>.json, truth_<domain>.json, Latched fields tables, hazard_zones hooks, invariant labels prefixed by their registered name; WP11's held-out reference failures (navigation_robot, safety)",
+  "WP4 / WP7 (next run): should an exception in perceive.claim_founded make a claim unfounded (P4) instead of 'not judged' (speech.founded returns None)?",
+  "WP6: handoff_WP5.md call shapes, house_sim/data/verify/actions.json, B12 denial / hedge mutations, M5 number words",
+  "WP10: verify_spec(spec, 'full', cache=False, key=...) and record['verdict'] at the gate; harness idle from verify.idle_rollout; perceive.enable in eval/run.py; battery_review logs review sessions and signs owner rows with escapes.sign; invalidate idle rollouts cached before WP1-fix"
+ ],
+ "notes": "Handoff: catalog/analysis/phase2/handoff_P2-S2-merge.md. Record summary: TIER1-GATE P2-S2 [P2-S1+P2-S2] vs P1C: FAIL (9 pass, 3 fail, 1 n/a; failing: G7, G8, G10) -- G8 clears with the verified sign-off, G10 with the main session's commit of its phase-1 file, G7 with a budget decision; nothing in the merged code fails. All 2,430 trials keep P1C's verdicts. Evidence: catalog/analysis/phase2/P2-S2_evidence/ (verify_signoff_p2s2.py, golden_attrib.py/.json, state_attrib.py/.json, dump_trial.py, diff_trials.py, the signoff draft and report, the gate summary). Nothing committed, staged, stashed or branched; nothing under %USERPROFILE%\\.house_ai; no network or paid calls; all files LF."
+}

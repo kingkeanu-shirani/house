@@ -34,9 +34,37 @@ Each op is a dict with "op". Strings may reference earlier bindings as "{name}".
   approvals   {"op":"approvals","add":["touch:box_1"]}
   lights      {"op":"lights","room":"{k}","on":false}
   choose      {"op":"choose","var":"x","from":[...]}; randint {"op":"randint","var":"n","min":2,"max":5}
+              weighted: {"op":"choose","var":"burner","from":[...],"weights":[3,1,1]}
   uniform     {"op":"uniform","var":"t","min":0.2,"max":0.9,"round":2}; bind {"op":"bind","var":"x","value":...}
   helper      {"op":"helper","name":"domain.helper","args":{...}}  -> registered @scenario_helper, returns bindings
   assert      {"op":"assert","pred":{...}}                          sanity check on the built config
+
+Randomisation (docs/design/VERIFY_HARDENING.md 9.2; every draw from the setup RNG "setup:<catalog_id>:<seed>"):
+
+  shuffle     {"op":"shuffle","var":"order","from":["{a}","{b}","{c}"] | "{group}"}
+                                                                    binds a seeded permutation (and order_1 .. order_n)
+  sample      {"op":"sample","var":"dry","from":"{plants}","k":2 | {"min":1,"max":3},"rest":"wet"}
+                                                                    a random subset of a random size (members in the
+                                                                    order of "from"); "rest" binds the others
+  arrange     {"op":"arrange","items":"{bottles}","on":"{counter}" | ["{c1}","{c2}"],"order":"shuffled" | "given",
+               "gap_m":[0.05,0.25],"var":"row"}                     places existing things left to right in a seeded
+                                                                    order with random gaps, wrapping to the next surface
+                                                                    when full (Placer.arrange); var binds the left-to-right
+                                                                    order
+  time        {"op":"time","var":"onset","min":600,"max":3000,"never_p":0.25,"step_s":30}
+                                                                    a whole-second time (a multiple of step_s above min),
+                                                                    or null with probability never_p; an event op whose
+                                                                    at_s is null is not scheduled
+  "schema": 4 specs (Placer shuffle mode): spawn with count binds var_1 .. var_n to the members in a seeded random
+  order (members are alike, so the rank a role lands at is random); scenario helpers place look-alike members in
+  ctx.placer.order(...) and take role lists through ctx.sample_roles(value, pool) ("random" or a sample binding); a
+  look-alike member, like an unfamiliar thing in every schema, is placed on the floor by its look (Placer.look_ring).
+
+Audit fast path (VERIFY_HARDENING 9.2, 9.7): apply_setup(..., audit=True) builds a house for the 200-build audits.
+Every op that can draw from the setup RNG, bind a name or place a thing runs as in a full build, so the bindings and
+every placement are the full build's (audit_diff checks it); skipped are the physics lint after the ops, the staged
+supports' sag cues, check_physics ops and prior_knowledge ops that draw nothing (no room given by type). Helpers see
+ctx.audit and may skip work that binds and places nothing. The bindings carry "_audit_build": true.
 
 People, questions and memory (kernel v3.1, docs/design/TIER1_SWEEP.md 4.2, 7.4, 11.2, 16.4; docs/DIALOGUE.md):
 
@@ -135,10 +163,21 @@ def _phys_sig(record):
     return tuple(record.get(key) for key in _PHYS_SIG)
 
 
+SCHEMA_RANDOM = 4           # specs from this schema on place look-alike members in a seeded order (9.2)
+
+
+def spec_schema(spec):
+    """The spec's declared schema as an int (2 when absent or not an int)."""
+    value = spec.get("schema", 2) if isinstance(spec, dict) else 2
+    return value if isinstance(value, int) and not isinstance(value, bool) else 2
+
+
 class SetupCtx:
-    def __init__(self, config, registry, rng, seed, spec, camera=None, perception=None):
+    def __init__(self, config, registry, rng, seed, spec, camera=None, perception=None, audit=False):
         self.config, self.reg, self.rng, self.seed, self.spec = config, registry, rng, seed, spec
-        self.placer = Placer(config, registry, rng)
+        self.schema = spec_schema(spec)
+        self.audit = bool(audit)          # the audit fast path (apply_setup(..., audit=True))
+        self.placer = Placer(config, registry, rng, shuffle=self.schema >= SCHEMA_RANDOM)
         self.bindings = {"seed": seed}
         self.phys_base = {eid: _phys_sig(rec) for eid, rec in config.get("entities", {}).items()}
         self.physics_warnings = []
@@ -155,6 +194,65 @@ class SetupCtx:
     def bind(self, name, value):
         self.bindings[name] = value
         return value
+
+    def sample_roles(self, value, pool, k=None, name="roles"):
+        """A role list for a scenario helper (the plant helper's needs_water, the chemical helper's bottles): see
+        sample_roles."""
+        return sample_roles(self, value, pool, k=k, name=name)
+
+
+def _int_value(value, name, what):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value != int(value):
+        raise SpecError("{}: {} must be a whole number".format(name, what))
+    return int(value)
+
+
+def draw_size(ctx, k, n, name="sample"):
+    """The size of a sample from n members: k an int, or {"min": a, "max": b} drawn uniformly (randint)."""
+    if isinstance(k, dict):
+        unknown = sorted(set(k) - {"min", "max"})
+        if unknown:
+            raise SpecError("{}: k takes min and max, not {}".format(name, ", ".join(unknown)))
+        lo = _int_value(k.get("min", 0), name, "k.min")
+        hi = _int_value(k.get("max", n), name, "k.max")
+        if not 0 <= lo <= hi <= n:
+            raise SpecError("{}: k needs 0 <= min <= max <= {} (the members)".format(name, n))
+        return ctx.rng.randint(lo, hi)
+    size = _int_value(k, name, "k")
+    if not 0 <= size <= n:
+        raise SpecError("{}: k must be from 0 to {} (the members)".format(name, n))
+    return size
+
+
+def draw_subset(ctx, pool, k, name="sample"):
+    """A seeded subset of pool of size k (int or {"min", "max"}), its members in the order of pool."""
+    pool = list(pool)
+    size = draw_size(ctx, k, len(pool), name)
+    chosen = set(ctx.placer.permutation(range(len(pool)))[:size])
+    return [pool[i] for i in range(len(pool)) if i in chosen]
+
+
+def sample_roles(ctx, value, pool, k=None, name="roles"):
+    """A role list for a scenario helper (VERIFY_HARDENING 9.2): "random" draws a seeded subset of pool (size k, an
+    int or {"min", "max"}; default 1 .. len(pool) - 1, at least 1), a list (a sample binding or explicit ids) must
+    name distinct members of pool, None gives []. Members come back in the order of pool."""
+    pool = list(pool)
+    if value is None:
+        return []
+    if value == "random":
+        if not pool:
+            raise SpecError("{}: \"random\" needs candidates".format(name))
+        if k is None:
+            k = {"min": 1, "max": max(1, len(pool) - 1)}
+        return draw_subset(ctx, pool, k, name)
+    if isinstance(value, (list, tuple)):
+        stray = [v for v in value if v not in pool]
+        if stray:
+            raise SpecError("{}: {} are not among the candidates".format(name, ", ".join(str(v) for v in stray)))
+        if len(set(map(repr, value))) != len(value):
+            raise SpecError("{}: a role is listed twice".format(name))
+        return [v for v in pool if v in value]
+    raise SpecError("{}: give \"random\" or a list (a sample binding)".format(name))
 
 
 def _room_ids(ctx, room_type):
@@ -252,6 +350,10 @@ def op_spawn(ctx, op):
         created.append(new)
     if "row" in op:
         _place_in_row(ctx, op, created)
+    if count > 1 and ctx.placer.shuffle:
+        # schema 4 (VERIFY_HARDENING 9.2): the members are alike, so binding var_1 .. var_n in a seeded order is placing
+        # them in a seeded order -- the role an author gives var_k lands at a random rank on every ordering
+        created = ctx.placer.permutation(created)
     if "var" in op:
         if count == 1:
             ctx.bind(op["var"], created[0] if created else None)
@@ -313,7 +415,8 @@ def op_move(ctx, op):
     if op["to"] in ctx.config["rooms"]:
         record["relation"] = "on"
         record["pos"] = op.get("cell") or geometry.free_floor_cell(ctx.state(), op["to"], near=op.get("near"), ignore=(op["target"],),
-                                                                  record=record, keep_access=not op.get("obstruct"))
+                                                                  record=record, keep_access=not op.get("obstruct"),
+                                                                  ring=ctx.placer.look_ring(record))
         if not record["pos"]:
             raise SpecError("move: no free floor cell for {} in {}".format(op["target"], op["to"]))
     else:
@@ -629,6 +732,9 @@ def op_robot_fault(ctx, op):
 
 
 def op_event(ctx, op):
+    """An event; "at_s": null (a time op that drew "never") schedules nothing (VERIFY_HARDENING 9.2)."""
+    if "at_s" in op and op["at_s"] is None:
+        return
     event = {k: copy.deepcopy(v) for k, v in op.items() if k != "op"}
     ctx.config.setdefault("events", []).append(event)
 
@@ -950,10 +1056,113 @@ def op_lights(ctx, op):
 
 
 def op_choose(ctx, op):
+    """One option, uniformly (rng.choice, as always), or by "weights" (one non-negative weight per option, a positive
+    sum; VERIFY_HARDENING 9.2: how an author balances a branch drawn by setup)."""
     options = op["from"]
     if not options:
         raise SpecError("choose: empty option list")
-    return ctx.bind(op["var"], copy.deepcopy(ctx.rng.choice(options)))
+    if op.get("weights") is None:
+        return ctx.bind(op["var"], copy.deepcopy(ctx.rng.choice(options)))
+    weights = op["weights"]
+    if not isinstance(weights, list) or len(weights) != len(options):
+        raise SpecError("choose: weights must be a list with one weight per option")
+    if not all(_is_number(w) and w >= 0 for w in weights) or sum(weights) <= 0:
+        raise SpecError("choose: weights must be non-negative numbers with a positive sum")
+    return ctx.bind(op["var"], copy.deepcopy(options[weighted_index(ctx.rng, weights)]))
+
+
+def weighted_index(rng, weights):
+    """The index drawn with probability weights[i] / sum (one rng.random(); an option of weight 0 never comes up)."""
+    total = float(sum(weights))
+    point = rng.random() * total
+    running, last = 0.0, None
+    for index, weight in enumerate(weights):
+        if weight <= 0:
+            continue
+        running += float(weight)
+        last = index
+        if point < running:
+            return index
+    return last
+
+
+def _members(op, key, name):
+    value = op.get(key)
+    if not isinstance(value, list):
+        raise SpecError("{}: {} must be a list (or a binding of one)".format(name, key))
+    return value
+
+
+def op_shuffle(ctx, op):
+    """A seeded permutation of "from", bound to var and to var_1 .. var_n."""
+    order = ctx.placer.permutation(_members(op, "from", "shuffle"))
+    ctx.bind(op["var"], copy.deepcopy(order))
+    for index, value in enumerate(order, 1):
+        ctx.bind("{}_{}".format(op["var"], index), copy.deepcopy(value))
+    return order
+
+
+def op_sample(ctx, op):
+    """A seeded subset of "from" of size k (an int or {"min", "max"}, drawn uniformly; default 1 .. n - 1), members
+    in the order of "from"; "rest" binds the members left out."""
+    pool = _members(op, "from", "sample")
+    if not pool:
+        raise SpecError("sample: from is empty")
+    if len(set(map(repr, pool))) != len(pool):
+        raise SpecError("sample: from lists a member twice")
+    k = op.get("k", {"min": 1, "max": max(1, len(pool) - 1)})
+    chosen = draw_subset(ctx, pool, k, "sample")
+    ctx.bind(op["var"], copy.deepcopy(chosen))
+    if op.get("rest"):
+        ctx.bind(op["rest"], [copy.deepcopy(v) for v in pool if v not in chosen])
+    return chosen
+
+
+ARRANGE_KEYS = ("op", "items", "on", "order", "gap_m", "var")
+
+
+def op_arrange(ctx, op):
+    """Existing things placed left to right on one surface or a list of them, in a seeded order with random gaps
+    (Placer.arrange); var binds the left-to-right order."""
+    unknown = sorted(set(op) - set(ARRANGE_KEYS))
+    if unknown:
+        raise SpecError("arrange: unknown keys {} (allowed: {})".format(", ".join(unknown), ", ".join(ARRANGE_KEYS[1:])))
+    items = _members(op, "items", "arrange")
+    surfaces = op.get("on")
+    surfaces = surfaces if isinstance(surfaces, list) else [surfaces]
+    try:
+        layout = ctx.placer.arrange(items, surfaces, order=op.get("order", "shuffled"), gap_m=op.get("gap_m", (0.02, 0.1)))
+    except ValueError as exc:
+        raise SpecError(str(exc))
+    if layout is None:
+        raise SpecError("arrange: {} do not fit on {}".format(", ".join(map(str, items)), ", ".join(map(str, surfaces))))
+    order = [eid for eid, _ in layout]
+    if op.get("var"):
+        ctx.bind(op["var"], order)
+    return order
+
+
+TIME_KEYS = ("op", "var", "min", "max", "never_p", "step_s")
+
+
+def op_time(ctx, op):
+    """A whole-second time from min to max (a multiple of step_s above min, default 1), or None with probability
+    never_p (default 0): the event that uses it then never happens (op_event)."""
+    unknown = sorted(set(op) - set(TIME_KEYS))
+    if unknown:
+        raise SpecError("time: unknown keys {} (allowed: {})".format(", ".join(unknown), ", ".join(TIME_KEYS[1:])))
+    lo, hi = _int_value(op.get("min"), "time", "min"), _int_value(op.get("max"), "time", "max")
+    step = _int_value(op.get("step_s", 1), "time", "step_s")
+    never = op.get("never_p", 0)
+    if not 0 <= lo <= hi:
+        raise SpecError("time: needs 0 <= min <= max (seconds)")
+    if step < 1:
+        raise SpecError("time: step_s must be at least 1")
+    if not _is_number(never) or not 0 <= never < 1:
+        raise SpecError("time: never_p must be a number from 0 to below 1")
+    if never > 0 and ctx.rng.random() < never:
+        return ctx.bind(op["var"], None)
+    return ctx.bind(op["var"], lo + step * ctx.rng.randint(0, (hi - lo) // step))
 
 
 def op_randint(ctx, op):
@@ -1624,15 +1833,88 @@ OPS = {"room": op_room, "find": op_find, "spawn": op_spawn, "set": op_set, "set_
        "helper": op_helper, "assert": op_assert, "phys": op_phys, "load": op_load, "edge": op_edge,
        "stage": op_stage, "check_physics": op_check_physics, "camera": op_camera, "view": op_view,
        "track_view": op_track_view, "view_watch": op_view_watch, "facts": op_facts,
-       "prior_knowledge": op_prior_knowledge, "calendar": op_calendar}
+       "prior_knowledge": op_prior_knowledge, "calendar": op_calendar,
+       "shuffle": op_shuffle, "sample": op_sample, "arrange": op_arrange, "time": op_time}
 NEW_SPEC_SCHEMA = 3          # specs authored under tier 1: the physics lint is an error for them (TIER1_INTEGRATION 1.13)
 
 
-def apply_setup(config, ops, registry, seed, spec, bindings=None, camera=None, perception=None):
+def _prior_draws(ctx, op):
+    """True when a prior_knowledge op would draw from the setup RNG: a room given by type, not id."""
+    rooms = ctx.config["rooms"]
+    named = []
+    if isinstance(op.get("map"), list):
+        named += op["map"]
+    if isinstance(op.get("seen_rooms"), dict) and isinstance(op["seen_rooms"].get("rooms"), list):
+        named += op["seen_rooms"]["rooms"]
+    for spec in (op.get("snapshots") or {}).values() if isinstance(op.get("snapshots"), dict) else ():
+        if isinstance(spec, dict):
+            named.append(spec.get("room"))
+    return any(not (isinstance(r, str) and r in rooms) for r in named)
+
+
+def audit_skips(ctx, kind, op):
+    """Whether the audit fast path skips this op: it neither draws from the setup RNG, binds a name nor places
+    anything (check_physics; prior_knowledge with every room given by id)."""
+    if kind == "check_physics":
+        return True
+    return kind == "prior_knowledge" and not _prior_draws(ctx, op)
+
+
+# what the audit fast path legitimately leaves out of a build (audit_diff ignores these)
+AUDIT_FREE_SECTIONS = ("prior_knowledge", "memory")      # written by the prior_knowledge ops it skips
+AUDIT_FREE_FIELDS = ("sagging", "_phys_sag")              # the staged supports' sag cues (stage_cues)
+AUDIT_FREE_BINDINGS = ("_physics_warnings", "_audit_build")
+
+
+def _diff(a, b, path, out, limit):
+    if len(out) >= limit:
+        return
+    if type(a) is not type(b):
+        out.append("{}: {!r} != {!r}".format(path or "<root>", a, b))
+    elif isinstance(a, dict):
+        for key in sorted(set(a) | set(b), key=repr):
+            if key not in a or key not in b:
+                out.append("{}.{}: only in the {} build".format(path, key, "full" if key in a else "audit"))
+            else:
+                _diff(a[key], b[key], "{}.{}".format(path, key), out, limit)
+            if len(out) >= limit:
+                return
+    elif isinstance(a, list):
+        if len(a) != len(b):
+            out.append("{}: {} items != {}".format(path, len(a), len(b)))
+            return
+        for index, (x, y) in enumerate(zip(a, b)):
+            _diff(x, y, "{}[{}]".format(path, index), out, limit)
+    elif a != b and not (isinstance(a, float) and a != a and b != b):
+        out.append("{}: {!r} != {!r}".format(path, a, b))
+
+
+def audit_diff(full_config, full_bindings, audit_config, audit_bindings, limit=20):
+    """The audit fast path's correctness audit (VERIFY_HARDENING 22.5: a wrong optimisation is a harness error, not a
+    wrong verdict): the differences between a full build and an audit build of the same spec, seed and house, as
+    "path: full != audit" strings (at most limit; empty when they agree). Compared: every binding and the whole
+    config, except AUDIT_FREE_BINDINGS, AUDIT_FREE_SECTIONS and the sag-cue fields AUDIT_FREE_FIELDS."""
+    out = []
+    _diff({k: v for k, v in (full_bindings or {}).items() if k not in AUDIT_FREE_BINDINGS},
+          {k: v for k, v in (audit_bindings or {}).items() if k not in AUDIT_FREE_BINDINGS}, "bindings", out, limit)
+
+    def strip(config):
+        kept = {k: v for k, v in config.items() if k not in AUDIT_FREE_SECTIONS and k != "entities"}
+        kept["entities"] = {eid: {k: v for k, v in rec.items() if k not in AUDIT_FREE_FIELDS}
+                            for eid, rec in (config.get("entities") or {}).items()}
+        return kept
+    _diff(strip(full_config), strip(audit_config), "config", out, limit)
+    return out[:limit]
+
+
+def apply_setup(config, ops, registry, seed, spec, bindings=None, camera=None, perception=None, audit=False):
     """Apply the setup ops to a generated house config; returns the bindings. camera / perception: the run's modes
-    when the caller forces them (None: the spec's own), which decide whether the geometric camera ops apply."""
+    when the caller forces them (None: the spec's own), which decide whether the geometric camera ops apply.
+    audit=True: the audit fast path of VERIFY_HARDENING 9.2 / 9.7 (module docstring): bindings and placements as a
+    full build's, without the physics lint, the sag cues, check_physics and RNG-free prior_knowledge; the bindings
+    carry "_audit_build": True. Such a config is for the audits only, never for an episode."""
     rng = random.Random("setup:{}:{}".format(spec.get("catalog_id", "custom"), seed))
-    ctx = SetupCtx(config, registry, rng, seed, spec, camera, perception)
+    ctx = SetupCtx(config, registry, rng, seed, spec, camera, perception, audit=audit)
     if bindings:
         ctx.bindings.update(bindings)
     for index, raw in enumerate(ops):
@@ -1640,12 +1922,17 @@ def apply_setup(config, ops, registry, seed, spec, bindings=None, camera=None, p
         kind = op.get("op")
         if kind not in OPS:
             raise SpecError("Unknown setup op {!r} at index {}".format(kind, index))
+        if ctx.audit and audit_skips(ctx, kind, op):
+            continue
         try:
             OPS[kind](ctx, op)
         except SpecError:
             raise
         except (KeyError, TypeError, ValueError) as exc:
             raise SpecError("setup op {} ({}) failed: {}: {}".format(index, kind, type(exc).__name__, exc))
+    if ctx.audit:
+        ctx.bindings["_audit_build"] = True
+        return ctx.bindings
     stage_cues(ctx)
     # the physics lint over what the setup staged: an error for tier-1 specs, warnings for older ones
     problems = physics_problems(ctx)

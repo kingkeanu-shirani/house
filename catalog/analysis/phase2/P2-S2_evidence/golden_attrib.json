@@ -1,0 +1,338 @@
+{
+ "changed": [
+  "A-afe8d8c6d6d883-01",
+  "T-0adf708ce0749a-01",
+  "T-1df40780f5ddf2-01",
+  "T-238a7512e4dd6e-01",
+  "T-28ff695081cd2c-01",
+  "T-5c9694a5a29d0e-01",
+  "T-73a13fb297c40f-01",
+  "T-7e93003b0dcefa-01",
+  "T-a03bc04a3a311c-01",
+  "T-cc81e71dc2182e-01",
+  "T-d182fc681f310d-01",
+  "T-d389e2979f6aad-01",
+  "X-bc4e8d373e62c5-01",
+  "X-befab43585cde3-01"
+ ],
+ "rows": [
+  {
+   "key": "A-afe8d8c6d6d883-01",
+   "current_equals_work": true,
+   "fields_changed": [
+    "state"
+   ],
+   "passes": true,
+   "steps": [
+    8,
+    8,
+    8
+   ],
+   "gone": [
+    "canned_beans_1"
+   ],
+   "mess_flows": 0,
+   "head_digest_after_strip": [
+    "drop gone+flows",
+    "drop gone"
+   ]
+  },
+  {
+   "key": "T-0adf708ce0749a-01",
+   "current_equals_work": true,
+   "fields_changed": [
+    "state"
+   ],
+   "passes": true,
+   "steps": [
+    84,
+    84,
+    84
+   ],
+   "gone": [
+    "dog_waste_1",
+    "dog_waste_2",
+    "dog_waste_3",
+    "dog_waste_4",
+    "apple_1"
+   ],
+   "mess_flows": 0,
+   "head_digest_after_strip": [
+    "drop gone+flows",
+    "drop gone"
+   ]
+  },
+  {
+   "key": "T-1df40780f5ddf2-01",
+   "current_equals_work": true,
+   "fields_changed": [
+    "state"
+   ],
+   "passes": true,
+   "steps": [
+    42,
+    42,
+    42
+   ],
+   "gone": [
+    "hen_egg_9",
+    "hen_egg_10",
+    "hen_egg_11",
+    "hen_egg_12"
+   ],
+   "mess_flows": 0,
+   "head_digest_after_strip": [
+    "drop gone+flows",
+    "drop gone"
+   ]
+  },
+  {
+   "key": "T-238a7512e4dd6e-01",
+   "current_equals_work": true,
+   "fields_changed": [
+    "state"
+   ],
+   "passes": true,
+   "steps": [
+    28,
+    28,
+    28
+   ],
+   "gone": [
+    "chili_2",
+    "cooked_rice_1"
+   ],
+   "mess_flows": 0,
+   "head_digest_after_strip": [
+    "drop gone+flows",
+    "drop gone"
+   ]
+  },
+  {
+   "key": "T-28ff695081cd2c-01",
+   "current_equals_work": true,
+   "fields_changed": [
+    "state"
+   ],
+   "passes": true,
+   "steps": [
+    15,
+    15,
+    15
+   ],
+   "gone": [
+    "detergent_pod_1",
+    "apple_1"
+   ],
+   "mess_flows": 0,
+   "head_digest_after_strip": [
+    "drop gone+flows",
+    "drop gone"
+   ]
+  },
+  {
+   "key": "T-5c9694a5a29d0e-01",
+   "current_equals_work": true,
+   "fields_changed": [
+    "state"
+   ],
+   "passes": true,
+   "steps": [
+    29,
+    29,
+    29
+   ],
+   "gone": [
+    "spill_1"
+   ],
+   "mess_flows": 0,
+   "head_digest_after_strip": [
+    "drop gone+flows",
+    "drop gone"
+   ]
+  },
+  {
+   "key": "T-73a13fb297c40f-01",
+   "current_equals_work": true,
+   "fields_changed": [
+    "state"
+   ],
+   "passes": true,
+   "steps": [
+    14,
+    14,
+    14
+   ],
+   "gone": [
+    "cart_trash_bag_1",
+    "cart_trash_bag_2"
+   ],
+   "mess_flows": 0,
+   "head_digest_after_strip": [
+    "drop gone+flows",
+    "drop gone"
+   ]
+  },
+  {
+   "key": "T-7e93003b0dcefa-01",
+   "current_equals_work": true,
+   "fields_changed": [
+    "state"
+   ],
+   "passes": true,
+   "steps": [
+    46,
+    46,
+    46
+   ],
+   "gone": [
+    "debris_pile_1",
+    "debris_pile_1"
+   ],
+   "mess_flows": 0,
+   "head_digest_after_strip": [
+    "drop gone+flows",
+    "drop gone"
+   ]
+  },
+  {
+   "key": "T-a03bc04a3a311c-01",
+   "current_equals_work": true,
+   "fields_changed": [
+    "state"
+   ],
+   "passes": true,
+   "steps": [
+    38,
+    38,
+    38
+   ],
+   "gone": [
+    "hen_egg_9",
+    "hen_egg_10",
+    "hen_egg_11",
+    "hen_egg_12"
+   ],
+   "mess_flows": 0,
+   "head_digest_after_strip": [
+    "drop gone+flows",
+    "drop gone"
+   ]
+  },
+  {
+   "key": "T-cc81e71dc2182e-01",
+   "current_equals_work": true,
+   "fields_changed": [
+    "state"
+   ],
+   "passes": true,
+   "steps": [
+    25,
+    25,
+    25
+   ],
+   "gone": [
+    "detergent_pod_1"
+   ],
+   "mess_flows": 0,
+   "head_digest_after_strip": [
+    "drop gone+flows",
+    "drop gone"
+   ]
+  },
+  {
+   "key": "T-d182fc681f310d-01",
+   "current_equals_work": true,
+   "fields_changed": [
+    "state"
+   ],
+   "passes": true,
+   "steps": [
+    9,
+    9,
+    9
+   ],
+   "gone": [
+    "garden_plant_10",
+    "garden_plant_11"
+   ],
+   "mess_flows": 0,
+   "head_digest_after_strip": [
+    "drop gone+flows",
+    "drop gone"
+   ]
+  },
+  {
+   "key": "T-d389e2979f6aad-01",
+   "current_equals_work": true,
+   "fields_changed": [
+    "state"
+   ],
+   "passes": true,
+   "steps": [
+    35,
+    35,
+    35
+   ],
+   "gone": [
+    "debris_pile_1",
+    "debris_pile_1"
+   ],
+   "mess_flows": 0,
+   "head_digest_after_strip": [
+    "drop gone+flows",
+    "drop gone"
+   ]
+  },
+  {
+   "key": "X-bc4e8d373e62c5-01",
+   "current_equals_work": true,
+   "fields_changed": [
+    "state"
+   ],
+   "passes": true,
+   "steps": [
+    89,
+    89,
+    89
+   ],
+   "gone": [
+    "generic_item_1",
+    "glass_shard_1",
+    "glass_shard_10",
+    "glass_shard_11",
+    "glass_shard_12",
+    "glass_shard_13",
+    "glass_shard_14",
+    "glass_shard_15"
+   ],
+   "mess_flows": 0,
+   "head_digest_after_strip": [
+    "drop gone+flows",
+    "drop gone"
+   ]
+  },
+  {
+   "key": "X-befab43585cde3-01",
+   "current_equals_work": true,
+   "fields_changed": [
+    "state"
+   ],
+   "passes": true,
+   "steps": [
+    37,
+    37,
+    37
+   ],
+   "gone": [
+    "apple_1"
+   ],
+   "mess_flows": 0,
+   "head_digest_after_strip": [
+    "drop gone+flows",
+    "drop gone"
+   ]
+  }
+ ],
+ "all_attributed": true
+}

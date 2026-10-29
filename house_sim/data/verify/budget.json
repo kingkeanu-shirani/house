@@ -1,0 +1,76 @@
+{
+  "format": "house_ai.verify.budget/1",
+  "about": "VERIFY_HARDENING 17 (budget formula), 22.2 (horizon tiers, reduced run plans, caps), 22.4 (planning figures), 22.6 (calibration). Catalog constants: change only by the owner's decision (22.6), never by silently raising a cap. Read by house_sim/tasks/verify.py and strength.py; the battery (WP6) reads the run plans of its tier.",
+  "formula": {
+    "step_factor": 3,
+    "step_slack": 15,
+    "active_factor": 3,
+    "wait_factor": 1.25,
+    "time_slack_s": 180,
+    "reference_share": 0.8,
+    "resource_factor": 2.0,
+    "round_steps": 10,
+    "round_time_s": 60,
+    "budget_reason_min_chars": 30
+  },
+  "trim": {
+    "wait_halvings": 3,
+    "min_wait_s": 1
+  },
+  "idle": {
+    "sample_min_s": 60,
+    "samples_per_budget": 48
+  },
+  "lookahead": {
+    "default_s": 21600,
+    "min_s": 3600,
+    "max_s": 86400,
+    "trigger": "thaw|spoil|mou?ld|mildew|rot|freez|dry out|wilt|overheat|scorch|battery|flood|leak|drip|frost|stale",
+    "appliances": ["fridge", "refrigerator", "freezer", "chest_freezer", "oven", "dishwasher"]
+  },
+  "tiers": [
+    {"id": "H0", "max_s": 3600, "trims": 12, "trims_waits_only": false, "trim_confirm": "V",
+     "battery_seeds": 3, "b5a_pairs": 2, "b7_dawdle": 4, "b7_early": 5, "b12_seeds": 2,
+     "waits": "fine", "mustpass_seeds": 3, "mustpass_m5_seeds": 2,
+     "heldout_core": 10, "heldout_feature": 2, "heldout_rate_seeds": 4, "heldout_rate_cap": 60,
+     "private_cap": 30, "cpu_cap_s": {"quick": 600, "standard": 600, "full": 900},
+     "sim_hours_factor": 80, "sim_hours_min": 40, "sim_hours_max": null},
+    {"id": "H1", "max_s": 14400, "trims": 12, "trims_waits_only": false, "trim_confirm": "V",
+     "battery_seeds": 3, "b5a_pairs": 2, "b7_dawdle": 4, "b7_early": 5, "b12_seeds": 2,
+     "waits": "fast_forward", "mustpass_seeds": 3, "mustpass_m5_seeds": 2,
+     "heldout_core": 10, "heldout_feature": 2, "heldout_rate_seeds": 4, "heldout_rate_cap": 60,
+     "private_cap": 30, "cpu_cap_s": {"quick": 1200, "standard": 1200, "full": 1800},
+     "sim_hours_factor": 80, "sim_hours_min": null, "sim_hours_max": null},
+    {"id": "H2", "max_s": 86400, "trims": 6, "trims_waits_only": false, "trim_confirm": "V",
+     "battery_seeds": 2, "b5a_pairs": 1, "b7_dawdle": 2, "b7_early": 2, "b12_seeds": 1,
+     "waits": "fast_forward", "mustpass_seeds": 2, "mustpass_m5_seeds": 1,
+     "heldout_core": 10, "heldout_feature": 2, "heldout_rate_seeds": 2, "heldout_rate_cap": 30,
+     "private_cap": 15, "cpu_cap_s": {"quick": 2400, "standard": 2400, "full": 3600},
+     "sim_hours_factor": 80, "sim_hours_min": null, "sim_hours_max": null},
+    {"id": "H3", "max_s": null, "trims": 4, "trims_waits_only": true, "trim_confirm": "one_per_variant",
+     "battery_seeds": 1, "b5a_pairs": 1, "b7_dawdle": 1, "b7_early": 1, "b12_seeds": 1,
+     "waits": "fast_forward", "mustpass_seeds": 1, "mustpass_m5_seeds": 1,
+     "heldout_core": 6, "heldout_core_4_variants": 8, "heldout_feature": 1, "heldout_rate_seeds": 2,
+     "heldout_rate_cap": 20, "private_cap": 10, "cpu_cap_s": {"quick": 4800, "standard": 4800, "full": 7200},
+     "sim_hours_factor": 80, "sim_hours_min": null, "sim_hours_max": 3000}
+  ],
+  "planning": {
+    "about": "22.1-22.4 planning figures (CPU-s) the calibration of 22.6 compares the check log with (tools/harden_audit.py --cost); before / after D3",
+    "core_run_h0": 0.7,
+    "idle_run_h0": 0.65,
+    "idle_per_sim_hour": {"H0": 1.1, "H1": 1.1, "H2": 0.7, "H3": 0.6},
+    "policy_run_h0": 1.0,
+    "forked_run_h0": 0.6,
+    "lookahead_6h": 3.0,
+    "build_uncached": 1.5,
+    "build_cached": 0.15,
+    "audit_builds_200": 12,
+    "per_spec": {
+      "H0": {"quick": [121, 99], "standard": [214, 192], "full": [320, 298]},
+      "H1": {"quick": [258, 208], "standard": [379, 329], "full": [577, 527]},
+      "H2": {"quick": [476, 378], "standard": [629, 531], "full": [976, 878]},
+      "H3": {"quick": [1872, 1460], "standard": [2330, 1918], "full": [3139, 2727]}
+    },
+    "calibration_alarm": 0.25
+  }
+}

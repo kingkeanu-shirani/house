@@ -1,0 +1,108 @@
+{
+ "about": "Second signatures of gate record P2-S2 (tools/orchestration/tier1_gate.py). Drafted by `signoff`: the main session reviews every row, deletes the rows it does not accept and commits this file; only the committed version counts.",
+ "date": "2026-10-29",
+ "format": "house-gate-signoff-v1",
+ "gate": "P2-S2",
+ "prev": "P1C",
+ "rows": [
+  {
+   "change": "edited",
+   "digest": "062f39077b3ecd76",
+   "key": "specs/A-afe8d8c6d6d883-01",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "326768f98dc1bc23",
+   "key": "specs/T-0adf708ce0749a-01",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "54630f66201ec417",
+   "key": "specs/T-1df40780f5ddf2-01",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "2fb72871f320f4ef",
+   "key": "specs/T-238a7512e4dd6e-01",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "a278acb8475d75d6",
+   "key": "specs/T-28ff695081cd2c-01",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "96effa1344e9a614",
+   "key": "specs/T-5c9694a5a29d0e-01",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "f8bb0c4c20271410",
+   "key": "specs/T-73a13fb297c40f-01",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "52dd44538d0d8502",
+   "key": "specs/T-7e93003b0dcefa-01",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "db08b338ac1364af",
+   "key": "specs/T-a03bc04a3a311c-01",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "655b59d7c7451f01",
+   "key": "specs/T-cc81e71dc2182e-01",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "af866b5cb1888ae4",
+   "key": "specs/T-d182fc681f310d-01",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "3e851db72ac7ab6b",
+   "key": "specs/T-d389e2979f6aad-01",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "5734f3604189bd23",
+   "key": "specs/X-bc4e8d373e62c5-01",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "39b11fd0591e0cdd",
+   "key": "specs/X-befab43585cde3-01",
+   "kind": "golden",
+   "reviewed_by_package": true
+  }
+ ],
+ "signed_by": "P2-S2-merge"
+}

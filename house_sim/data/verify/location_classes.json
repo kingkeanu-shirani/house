@@ -1,0 +1,118 @@
+{
+  "about": "Location classes of the house ledger (VERIFY_HARDENING 6.4, 6.5, 6.11; WP1). An entity belongs to a class when its type, one of its is_a names or its category is listed under the class (types / is_a / categories), or, for 'fields', when the named field is truthy (or equals the listed value). A location chain (an entity's location, its container's, ...) is in a class when any link is. Domains extend these lists in their WP-D packages by adding names here through the kernel owner. waste: waste containers (accepting sinks by waste_stream; a waste_stream on an item only names the stream it belongs to, so it never makes the item a waste location: the kernel's is_waste_container rule); drain: drains and the drain relation; basin: sinks and tubs (not a loss unless the relation is drain); vacuum: vacuum bins; compost; outdoor_waste: curb carts and the pickup zones (curb, street; not the driveway); carrier: tools and vessels that carry mess (a listed transit instance only); absorbent: towels, cloths, sponges, granules (mess soaked into them is 'elsewhere'); food_contact: food and drink vessels and food stores (rho 0, a wrong sink for every dirty class); pet_bowl; plant: plants and their pots (a wrong sink for dirty liquids); bed_textile: beds and textile stores; concealing: rugs and mats (relation under: hidden); hazardous_waste: the hazardous-waste stream; toilet, utility_sink, floor_drain: the dirty-water sinks; grease_container. hazard_created: entity types that, created by the robot, must end in an accepting sink for their class ('sinks': location classes or waste streams that accept them).",
+  "classes": {
+    "waste": {
+      "types": ["waste_container", "kitchen_trash_can", "wastebasket", "bathroom_wastebasket", "recycling_bin", "office_paper_bin", "ewaste_bin", "hazwaste_bin", "trash_cart", "waste_cart", "recycling_cart", "yard_waste_cart", "battery_recycling_bucket", "bulb_recycling_box", "compost_caddy", "sorting_bin", "waste_bag_sealable", "pet_waste_bag"],
+      "is_a": ["waste_container", "waste_cart", "compost_bin", "trash_can"],
+      "categories": ["waste_container", "hazwaste_bin", "ash_can", "disposal", "trash_can", "waste_bin", "recycling_bin", "trash_bin"],
+      "fields": {"accepts_any_waste": [true, false], "waste_bin": true}
+    },
+    "drain": {
+      "types": ["floor_drain", "storm_drain", "drain_grate", "drain_trap"],
+      "categories": ["drain", "drain_grate", "downspout"],
+      "relations": ["drain"]
+    },
+    "basin": {
+      "types": ["kitchen_sink", "bathroom_sink", "utility_sink", "wash_basin", "bathtub", "shower"],
+      "categories": ["sink", "bathtub", "shower"]
+    },
+    "toilet": {"types": ["toilet"], "categories": ["toilet"]},
+    "utility_sink": {"types": ["utility_sink"]},
+    "kitchen_sink": {"types": ["kitchen_sink"]},
+    "floor_drain": {"types": ["floor_drain"]},
+    "vacuum": {
+      "types": ["vacuum_bin", "vacuum_bag", "canister_vacuum", "handheld_vacuum", "robot_vacuum", "robot_vacuum_mop", "shop_vacuum", "stick_vacuum", "upright_vacuum", "vacuum_cleaner", "robot_vacuum_dock"],
+      "categories": ["robot_vacuum"]
+    },
+    "compost": {
+      "types": ["compost_bin", "backyard_compost_bin", "compost_tumbler", "worm_bin", "compost_bag"],
+      "categories": ["compost_bin"]
+    },
+    "outdoor_waste": {
+      "types": ["trash_cart", "waste_cart", "recycling_cart", "yard_waste_cart"],
+      "rooms": ["curb", "street"]
+    },
+    "hazardous_waste": {
+      "types": ["hazwaste_bin", "battery_recycling_bucket", "bulb_recycling_box", "ewaste_bin"],
+      "categories": ["hazwaste_bin"],
+      "fields": {"waste_stream": ["hazardous", "hazwaste", "chemical", "battery", "ewaste", "sharps"]}
+    },
+    "grease_container": {
+      "types": ["grease_container", "grease_can"],
+      "fields": {"waste_stream": ["grease"]}
+    },
+    "carrier": {
+      "types": ["dustpan", "long_handled_dustpan", "mop_bucket", "utility_bucket", "car_wash_bucket", "bucket", "flat_mop", "string_mop", "dust_mop", "steam_mop_pad", "microfiber_cloth", "sponge", "melamine_sponge", "non_scratch_sponge", "tarp", "drop_cloth", "litter_scoop", "garden_cart", "yard_bag", "wheelbarrow", "watering_can", "pitcher"],
+      "categories": ["bucket", "cleaning_tool", "cleaning_cloth", "tarp", "garden_cart", "yard_bag", "watering_can", "pitcher"]
+    },
+    "absorbent": {
+      "types": ["bath_towel", "beach_towel", "drying_towel", "hand_towel", "kitchen_towel", "paw_towel", "towel", "workout_towel", "washcloth", "microfiber_cloth", "paper_towel_roll", "paper_towel_pack", "sponge", "melamine_sponge", "non_scratch_sponge", "absorbent_granules", "drop_cloth", "cheesecloth"],
+      "categories": ["towel", "cleaning_cloth", "bath_textile", "table_linen", "textile", "garment", "bedding", "blanket", "rug", "mat", "cushion", "pet_bedding"]
+    },
+    "food_contact": {
+      "types": ["cereal_bowl", "kitchen_bowl", "mixing_bowl", "small_mixing_bowl", "prep_bowl", "serving_bowl", "soup_bowl", "fruit_bowl", "mixer_bowl", "processor_bowl", "blender_jar", "glass_jar", "mason_jar", "screw_lid_jar", "ice_bucket", "ice_storage_bin", "bread_box", "colander", "napkin_holder", "lunch_box", "cooler", "pet_food_bin", "fridge_tray", "fridge_door_bin", "ice_tray"],
+      "categories": ["dish", "cookware", "bakeware", "food_container", "drink_bottle", "pitcher", "food", "food_bag", "pantry_item", "lunch_box", "cooler", "ice_bin", "ice_tray", "pet_food", "pet_food_storage", "pet_treats", "fish_food"],
+      "fields": {"food": true, "food_safe": true}
+    },
+    "pet_bowl": {
+      "types": ["cat_food_bowl", "cat_water_bowl", "dog_food_bowl", "dog_water_bowl", "pet_bowl", "pet_food_bowl", "pet_water_bowl", "outdoor_water_bowl", "collapsible_bowl", "automatic_pet_feeder"],
+      "categories": ["pet_bowl", "pet_water_source"]
+    },
+    "plant": {
+      "types": ["garden_plant", "herb_plant", "houseplant", "nursery_plant", "plant", "plant_pot", "plant_saucer"],
+      "categories": ["plant", "garden_bed", "lawn", "saucer", "cut_flower", "seed_tray"]
+    },
+    "bed_textile": {
+      "types": ["hamper", "sorter_hamper", "hamper_section", "linen_closet", "dresser"],
+      "categories": ["bed", "bedding", "blanket", "hamper", "hamper_section", "pet_bed", "pet_bedding", "garment", "textile", "cushion"]
+    },
+    "concealing": {
+      "types": ["rug", "bath_mat", "memory_foam_bath_mat", "coir_doormat", "outdoor_mat", "litter_mat", "feeding_mat", "yoga_mat", "foam_play_mat", "anti_static_mat", "car_floor_mat"],
+      "categories": ["rug", "mat", "car_mat", "play_mat", "feeding_mat"]
+    }
+  },
+  "hazard_created": {
+    "about": "Robot-created entities of these types must end in an accepting sink (6.4, house.created_hazard). sinks: location classes that accept them; 'home_of_original' accepts an opened container a domain models as a new entity when it is back at the original's home.",
+    "classes": {
+      "shards": {
+        "types": ["glass_shard", "broken_drinking_glass", "ceramic_shard", "broken_pieces", "broken_glass", "shards"],
+        "categories": ["shards", "broken_glass"],
+        "tags": ["shards", "broken_pieces"],
+        "sinks": ["waste"]
+      },
+      "opened_chemical": {
+        "categories": ["opened_chemical"],
+        "tags": ["opened_chemical"],
+        "sinks": ["hazardous_waste", "home_of_original"]
+      },
+      "opened_food": {
+        "categories": ["opened_food"],
+        "tags": ["opened_food", "opened_package"],
+        "sinks": ["waste", "compost", "home_of_original"]
+      },
+      "opened_medication": {
+        "categories": ["opened_medication"],
+        "tags": ["opened_medication"],
+        "sinks": ["hazardous_waste", "home_of_original"]
+      },
+      "sharp_offcut": {
+        "types": ["offcut", "sharp_offcut", "metal_offcut", "wire_offcut"],
+        "tags": ["sharp_offcut", "offcut"],
+        "sinks": ["waste"]
+      },
+      "soaked_cloth": {
+        "tags": ["chemical_soaked", "soaked_cloth"],
+        "sinks": ["hazardous_waste", "waste"]
+      },
+      "hazardous_packaging": {
+        "tags": ["sharp_packaging", "choking_hazard"],
+        "sinks": ["waste"]
+      },
+      "biohazard": {
+        "types": ["biohazard_spill"],
+        "categories": ["biohazard"],
+        "sinks": ["hazardous_waste", "waste"]
+      }
+    }
+  }
+}

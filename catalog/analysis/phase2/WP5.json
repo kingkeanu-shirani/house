@@ -1,0 +1,130 @@
+{
+  "id": "WP5",
+  "package": "P2-WP5 (VERIFY_HARDENING section 25: WP5 VERIFY CORE)",
+  "files": [
+    "house_sim/tasks/verify.py",
+    "house_sim/tasks/runner.py",
+    "house_sim/tasks/seeds.py",
+    "house_sim/tasks/strength.py",
+    "house_sim/tasks/escapes.py",
+    "house_sim/tasks/private.py",
+    "house_sim/tasks/checklog.py",
+    "house_sim/tasks/runcache.py",
+    "house_sim/data/verify/budget.json",
+    "house_sim/data/verify/expected_families.json",
+    "tools/seed_features.py",
+    "catalog/analysis/seed_features.json",
+    "house_sim/cli.py",
+    "tools/verify.py",
+    "tests/test_verify_hardening.py",
+    "catalog/analysis/phase2/WP5.json",
+    "catalog/analysis/phase2/handoff_WP5.md"
+  ],
+  "landed": [
+    "runner.build schema 4 (or hardening={...} as-if): labelled predicates unwrapped (task/phase labels, SpecError on repeated or malformed labels), the hardening block (settle 60, look-ahead, process, absent_ok, envelope and protections substituted and validated by WP1's validators, list-bound envelope keys as JSON text, track_open, hold_limits, bound answers incl. _branch), timing passed through, audit=True fast-path builds; legacy builds byte-identical",
+    "Runner.trace with provenance (binding / save / literal / skill), Runner.tops, Runner.saves, Runner.waits, refusal_tops; frozen save values, fixed conditioned waits, a snapshot hook before every top-level step; capture_run (per-plan exception capture); a skill argument the skill does not take is a SpecError",
+    "verify_spec(spec, level) / verify_hardened: S0 lints (check_structure + WP8's lint.run static, then dynamic at S8 with lint.dynamic_facts + budget + coverage + look-ahead trigger), S1 coverage seeds, S2 own / S3 eval-geom + eval-room core trials (initial, idle at every sample with savepoint confirmation and the idle counterfactual, strict reference with trace, finish, containment, perceivability and gating with the branch diff set, re-judged own allowances), every wrong plan by 14.3 with the 14.2 grammar and attribution w' (mistake_fix or LCS alignment), survey and search baselines, minimal-reference trim, the budget formula and horizon tier, 9.3 variation, the timing vacuity check, protect liveness, escape facts, S5/S6/S7p through WP6 when installed, S7 held-out (public; private with the split key, kept out of the record), S8 escapes / strength / gates / verdict / check log; evidence record v2",
+    "run_trial(..., mode) and verify_many routing (legacy specs exactly as before; a single schema-4 spec parallel over its mode jobs)",
+    "seeds.py: verification_seeds / coverage (9.4, L-COVER), heldout_public / heldout_stream / select_heldout (16.1), audit_seeds, feature_seeds / wanted_features / load_features",
+    "tools/seed_features.py and catalog/analysis/seed_features.json (2,000 houses: seeds 200000-200999, generations 1 and 2)",
+    "private.py: salt from the existing split key, private held-out seeds (hidden range, test candidates skipped), audit pool and sample, salted RNG, private store (never in the repository, never creating %USERPROFILE%/.house_ai), digests, public summaries, NOT_RUN",
+    "checklog.py: append-only per-domain check log (schema-4 checks), sessions, held-out rolls, the authoring stop-loss",
+    "escapes.py: the section-18 price list (WP8's escapes.json overrides), detection, quota/review, eligible reviewers, accepted records, G9",
+    "strength.py: the nine components, G1-G9, verdicts, expected families (expected_families.json), kind classes, level exit criteria",
+    "runcache.py: the local run cache of --check (judged-only spec keys out of the key; a hit is re-judged, never re-run)",
+    "CLI: --check with --level --battery --mustpass --modes --heldout --explain --json --no-cache and the printed block of 21.2; --draft-hardening; --verify --level (HOUSE_SIM_VERIFY_LEVEL); tools/verify.py passes options through",
+    "tests/test_verify_hardening.py"
+  ],
+  "deviations": [
+    {
+      "what": "one idle rollout per mode (22.5 mitigation (2), one rollout shared by the modes, not taken)",
+      "why": "correctness first: sharing needs the first-seed projection audit across processes; costs about 1 CPU-s per seed and mode at H0"
+    },
+    {
+      "what": "the idle run is the verifier's own loop (idle_rollout): projections at interval_for(budget), plus wait boundaries at the B1 sample points",
+      "why": "B1 samples every max(60 s, budget/48), finer than the projection interval; the harness should take its counterfactual from idle_rollout (request to WP10)"
+    },
+    {
+      "what": "S7 runs when the gates that ran hold, although G3 / G8 cannot hold while the battery package is absent",
+      "why": "22.6's early stop is for failing gates, not for stages that cannot run yet; G3 and G8 stay False at standard / full, so nothing is HARDENED or PENDING until WP6 lands (P4)"
+    },
+    {
+      "what": "allowances (reference_resources, reference_open_s) per mode job; the reference's own waste / hold-open labels re-judged with its own use",
+      "why": "the allowance is defined by the reference (6.8, 6.9); an exposure-based hold-open still fails it"
+    },
+    {
+      "what": "the check log is written only by schema-4 verification",
+      "why": "legacy --check / --verify keep their behaviour and never write WP10's catalog/review/check_log"
+    },
+    {
+      "what": "the run cache re-judges (expect, protect map, roles, escapes) instead of re-evaluating every evaluation-only edit",
+      "why": "re-evaluating envelope / predicate edits needs every end state stored; a re-judge covers the common authoring edits with no run; w' always runs so a re-judge never needs one"
+    },
+    {
+      "what": "protect liveness from verified wrong plans only (source a); L-PROTECT is WP8's lint (the verifier's rule-1 check stands in without it)",
+      "why": "battery runs and probes (sources b, c) are WP6's"
+    },
+    {
+      "what": "consume / deliver of a non-target is priced only when it names a valuable (the verifier's facts); type / category consumables are free",
+      "why": "6.6 prices the opt-out for valuables (its own example consumes type:paper_towel); WP8's request"
+    },
+    {
+      "what": "a skill argument the skill does not take raises SpecError at the runner boundary",
+      "why": "it was a TypeError, a harness error (G7), though it is the spec's mistake; no legacy outcome changes (none of the 243 specs has one)"
+    },
+    {
+      "what": "verify_spec(spec, level=None, seeds=None, ...); a tuple as the second positional argument is the seeds",
+      "why": "the section-25 interface, compatible with the old positional form"
+    },
+    {
+      "what": "expected families are a heuristic rule table",
+      "why": "19.1 asks for a rule table; 19.3 / 22.6 recalibrate it from R0"
+    }
+  ],
+  "not_done": [
+    {
+      "what": "the batteries, must-pass, 200-build audits, private families (S5, S6 audits, S7 rate families, S7p)",
+      "why": "WP6's package; the stages are wired (battery.run / mustpass / audit / private) and recorded 'not run' until it lands"
+    },
+    {
+      "what": "forking snapshots saved by default, fork audits, fast-forwarded battery waits",
+      "why": "no consumer until WP6; Runner(snapshot=) and reference_run(snapshot=) provide the hook"
+    },
+    {
+      "what": "re-evaluation of stored runs after envelope / protections / predicate edits (22.8)",
+      "why": "see deviations: re-judge only"
+    },
+    {
+      "what": "the multi-phase idle follows each phase's own start rules",
+      "why": "a schema-4 phased idle declares each phase done at the end of its cumulative budget (the legacy idle's rule)"
+    },
+    {
+      "what": "phase-1 carry-over rows",
+      "why": "none of closeout_breakages, closeout_REV / VER2 or closeout_INT3 lies in WP5's files"
+    }
+  ],
+  "outcome_changes": [],
+  "tests": {
+    "new_tests": 67,
+    "passed": true,
+    "strict_passed": true
+  },
+  "specs": {
+    "total": 243,
+    "passed": 243
+  },
+  "requests": [
+    "WP6: battery.run(spec, builds, traces, seeds, mode, level) / battery.mustpass(...) / battery.audit(spec, n=200) / battery.private(spec, references, seeds, mode, level, salt=) with the shapes in handoff_WP5.md; read the tier's run plan from house_sim/data/verify/budget.json",
+    "WP8: lint.dynamic_facts may take the verifier's builds (not passed: the mode jobs build in worker processes); everything else WP8 asked of WP5 is done (S0 static and S8 dynamic lint.run with dynamic_facts + budget + coverage + lookahead_triggered, the FailureCaseTests expecting the S0 stop, escape_facts scene_exception, type: consumables free)",
+    "WP10: verify schema-4 specs at the gate with verify_spec(spec, 'full', cache=False, key=<split key>) and read record['verdict']; audit.report should call a schema-4 record DONE only when verdict == 'HARDENED' (record['passed'] is the level's --check exit criterion); take the harness's idle counterfactual from verify.idle_rollout; tier1_gate reads legacy trial fields (a schema-4 trial nests the reference record)",
+    "main session: add house_sim/data/verify/budget.json and expected_families.json to setup.py package_data; regenerate catalog/analysis/seed_features.json (python tools/seed_features.py --workers 3) once the generator fingerprint is final"
+  ],
+  "notes": "No schema 2/3 verification outcome changes: the legacy path of verify.py is the old code, runner.Runner runs the same steps in the same order (30/30 identical trial records against HEAD's runner/verify; 243/243 own-mode check). Until WP6 lands no schema-4 spec can be HARDENED, PENDING_GATE or PENDING_REVIEW: S5 records 'not run', G3/G8 are False at standard/full and c_battery/c_mustpass are 0 (P4). The private stages are implemented and tested with throwaway keys; without the owner's split key they report 'not run (no split key)'; nothing under %USERPROFILE%/.house_ai is created. catalog/analysis/seed_features.json must be regenerated when the generator fingerprint settles (tools/seed_features.py --check). Handoff: catalog/analysis/phase2/handoff_WP5.md.",
+  "verification": {
+    "unit_suite": "tools/orchestration/green_tests.py 3 after the last code edit: 5337 tests, 0 failures, every file normal and HOUSE_SIM_STRICT=1 (an earlier run: 5300, 0 failures)",
+    "own_tests": "tests/test_verify_hardening.py 67 tests normal and HOUSE_SIM_STRICT=1 OK after the last edit; tests/test_verify_records OK",
+    "specs_own_mode": "python -m house_sim --check <all 243 authored specs combined> --workers 3: 243 passed, 0 failed",
+    "legacy_differential": "30 authored specs, run_trial(spec, 0) with this tree vs a copy with HEAD's runner.py and verify.py: 30/30 trial records identical",
+    "py39_lint": "clean for all 12 Python files of WP5"
+  }
+}

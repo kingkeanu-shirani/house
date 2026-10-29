@@ -1,0 +1,117 @@
+{
+ "id": "WP2",
+ "package": "P2-WP2 (VERIFY_HARDENING section 25: WP2 ATTRIBUTION, FLOWS, FINISH)",
+ "files": [
+  "house_sim/kernel/world.py",
+  "house_sim/kernel/engine.py",
+  "tests/test_attribution.py",
+  "tests/test_finish.py",
+  "tests/data/room_golden.json",
+  "catalog/analysis/phase2/WP2.json",
+  "catalog/analysis/phase2/handoff_WP2.md",
+  "catalog/analysis/phase2/WP2_reviewed.json"
+ ],
+ "landed": [
+  "env.writes (world.WriterLog): per-field last-writer log (robot / physical / volition / setup) with history, causes, created_by, robot_wrote, last(before=); outside state, saved by env.save, rebuilt by replay",
+  "env.robot_placement(e): P_R(e) after the robot's last placement change",
+  "writer-class tagging API: World.writing(cls, name, cause), cause= on mut/create/destroy/set_quiet, World.cause(rid, *ids); systems by plugins.SYSTEM_WRITERS (WP1), events volition, auto orders robot, substep settle consequences robot when the kernel physics attributes them to the robot",
+  "env.robot_attributable(rid, field, t, causes): causal link through <= 5 physical writes",
+  "logs.gone {t, entity, type, location, by, name, last} and World.gone_record(eid) (phase-1 people request)",
+  "World.mess_flow / World.mess_transform -> logs.mess_flows with the writer, merging identical flows",
+  "HouseEnv.finish(settle_s, lookahead_s, process) -> evaluation: goal at D, settle:<label> on robot-attributable regressions, consumed, budget at D, later:<label> from the look-ahead; replayed",
+  "HouseEnv.fast_forward(seconds, tick=300): coarse ticks with fine fallbacks; replayed; equivalence measured",
+  "save/load determinism for forking (writer log and substep index saved), env.idle attribute",
+  "tests/data/room_golden.json re-recorded (14 spec entries, class logs.gone) with reviewed rows"
+ ],
+ "interfaces": {
+  "world": [
+   "World.track(log)",
+   "World.writing(cls, name=None, cause=None)",
+   "World.cause(rid, *ids)",
+   "World.mut(eid, cause=None)",
+   "World.create(eid, record, cause=None)",
+   "World.destroy(eid, cause=None)",
+   "World.set_quiet(eid, field, value, cause=None)",
+   "World.mess_flow(kind, amount, src, dst, origin=None, cause=None)",
+   "World.mess_transform(origins, new_kind, amount, at=None, cause=None)",
+   "World.gone_record(eid)",
+   "WriterLog[(rid, field)] -> (class, name, t)",
+   "WriterLog.history / fields / last / causes / wrote / robot_wrote / robot_placement / created_by / dump / load"
+  ],
+  "engine": [
+   "env.writes",
+   "env.idle",
+   "env.robot_placement(eid)",
+   "env.robot_attributable(rid, field=None, t=None, causes=None, ignore=is_bookkeeping)",
+   "env.finish(settle_s=None, lookahead_s=None, process=None) -> evaluation",
+   "env.fast_forward(seconds, tick=300) -> step result; env.last_fast_forward",
+   "engine.goal_items(task, phase=None)",
+   "engine.predicate_fields(rule)",
+   "engine.system_writer(name)"
+  ]
+ },
+ "deviations": [
+  {
+   "what": "per-record writer segments (a clone only on a change of writer) diffed at commit, instead of cursor ranges per system call plus one step-end diff per entity",
+   "why": "every field gets its own writer even when two writers touch one record in one substep; cost stays proportional to the records written"
+  },
+  {
+   "what": "set_quiet writes logged at the write as physical and left out of that frame's record diffs",
+   "why": "6.2 makes quiet writes physical; the kernel thermal model writes hundreds per frame (kept in a lazily merged tail for the 15 % budget)"
+  },
+  {
+   "what": "substep settle robot attribution from the kernel physics' consequence records (by robot)",
+   "why": "the same rule impact.robot_caused already applies (the robot arranged the item or its support)"
+  },
+  {
+   "what": "finish keeps the failures at D and drops F's clock-only labels (budget, deadline:*)",
+   "why": "the budget is judged at D (8.1); a failure holding when the robot declared done stays a failure"
+  },
+  {
+   "what": "fast_forward is a step; 'activity in the robot's room' = an agent's position, posture, activity, awake or state changing there; no watched zone",
+   "why": "it replaces a WAIT plan step; mere presence of a sleeping resident forced fine ticks in most houses; the per-spec equivalence check decides"
+  },
+  {
+   "what": "extra keys: logs.gone 'name'; mess flows 'op', 't0', 'n', 'name', 'cause', src class created:, dst class loss:",
+   "why": "6.5's created:<step> origins and loss:<cause> sinks need classes; names help review"
+  }
+ ],
+ "not_done": [
+  {
+   "what": "people and pets systems tagged volition",
+   "why": "plugins.SYSTEM_WRITERS (WP1) defaults to physical; the tags are WP-D people / pets' (requested)"
+  },
+  {
+   "what": "user-simulator answers inside a robot action as volition",
+   "why": "kernel/dialogue.py belongs to no section-25 package; requested from the main session"
+  },
+  {
+   "what": "phase-1 optional request: touch log across begin() (appliances_cooking, finish_INT2 not_fixed)",
+   "why": "optional performance (~0.03 ms/substep) with semantics risk on the journal and touch-log contracts"
+  }
+ ],
+ "outcome_changes": [],
+ "digest_changes": "state digests of episodes that destroy an entity (logs.gone) or log a mess flow (logs.mess_flows); room golden: 14 spec entries, class logs.gone, re-recorded",
+ "carry_over_closed": [
+  "finish_INT2 / closeout_INT3 deferred: people's bookkeeping record of destroyed entities (world.gone_record) -- GoneAndFlowTests.test_a_destroyed_entity_keeps_its_final_record_with_its_writer"
+ ],
+ "overhead": {
+  "wait_1h_ab": "+4.5 % / +4.9 % (tracking on vs off, seeds 0-3, best of 3)",
+  "one_substep_frames_ab": "+7.2 % (120 x wait 30 s)",
+  "limit": "15 % (6.2)"
+ },
+ "fast_forward": {
+  "equivalence": "28/28 trials (14 long-wait specs x seeds 0, 1; reference and idle) identical success and failure labels",
+  "substeps": "1,022 coarse + 312 fine where fine ticks take about 10,500",
+  "quiet_day": "6 h: 74-85 substeps vs 720; 3.1-4.2 s vs 4.4-6.3 s fine on the loaded machine"
+ },
+ "tests": {
+  "new": 37,
+  "files": [
+   "tests/test_attribution.py (20)",
+   "tests/test_finish.py (17)"
+  ],
+  "full_suite": "green_tests.py 3: 5190 tests per mode, 75 files, normal + HOUSE_SIM_STRICT=1, 0 failures (test_attribution ran 19 there; its 20th test, added after, passes normal, strict and core-only)",
+  "specs": "243/243 authored specs, own mode, combined file, --check --workers 3; golden.py check --all: equal"
+ }
+}

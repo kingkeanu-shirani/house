@@ -1539,3 +1539,244 @@ removed/skipped-test rule, tree fingerprints (STALE records), an honest standalo
 the project's commits only (module docstring). `tools/orchestration/run_check.py --allowlist` (CI's spec sample).
 Wall-clock bounds of the unit tests are skipped with `HOUSE_SIM_PERF_TESTS=0` (CI's parallel step; CI runs them alone,
 non-blocking).
+
+## v3.2 verification hardening (phase 2; docs/design/VERIFY_HARDENING.md, catalog/analysis/phase2/handoff_*.md)
+
+Everything here is switched on per task by a `hardening` block (runner.build gives one to every `"schema": 4` spec);
+a task without it evaluates, samples, records and replays exactly as before (pinned by each package's tests). Field
+classes, restore classes, valuables, ambient allowances, agents' zones, mess classes and resource meters are data in
+`house_sim/data/verify/*.json` (domains add `house_sim/data/verify/watch/<domain>.json` and
+`house_sim/data/speech/truth_<domain>.json`).
+
+**Registries (kernel/plugins.py, WP1).** `@system(name, ..., writer="physical" | "volition")` (`SYSTEM_WRITERS`;
+people and pets systems are volition: their changes are never the robot's); `@mess_kind(name, unit=None,
+measure=None, sinks=None, eps=None, rho=None)` (`MESS_KINDS`); `@derived_field(name, recompute=None, types=None)`
+(`DERIVED_FIELDS`: a formerly latched goal field recomputed from the current state wherever a hardened task's
+predicates read it, 8.2); `@settings_skill(field, fn=None, types=None)` and `settings_steps(state, eid, field)`;
+`load_domains()` imports only the committed `DOMAINS` list.
+
+**Attribution (kernel/world.py, kernel/engine.py, WP2).** `env.writes` (a `world.WriterLog`): `writes[(rid, field)]
+-> (class, name, t)` for every write after the baseline, class `robot` (the step's action window, standing orders,
+`phase_done`, physics the robot arranged), `physical` (physical systems, the settle pass, perception updates),
+`volition` (volition systems, scheduled events, phase starts, reactions to the robot's sounds) or `setup`;
+`history`, `last`, `causes`, `wrote`, `robot_wrote`, `robot_placement(eid)`, `created_by`. `w.writing(cls, name=None,
+cause=None)` (context manager), `cause=` on `mut / create / destroy / set_quiet`, `w.cause(rid, *ids)`;
+`env.robot_attributable(rid, field=None, t=None, causes=None)` follows a physical write's causes back to the robot.
+`logs.gone` keeps a destroyed entity's last record (`w.gone_record(eid)`). Mess flows: `w.mess_flow(kind, amount,
+src, dst, origin=None, cause=None)` and `w.mess_transform(origins, new_kind, amount, at=None, cause=None)` append to
+`logs.mess_flows` (keys `floor:<room>`, `entity:<id>`, `drain:<id>`, `outside:<zone>`, `created:<source>`,
+`loss:evaporation`, `loss:consumed:<id>`). `env.finish(settle_s=None, lookahead_s=None, process=None) -> evaluation`
+(the declared-done goal, the settle window, the look-ahead; `consumed`, `settle`, `lookahead` in the result);
+`env.fast_forward(seconds, tick=300)`; `env.idle` (the idle counterfactual the ledger reads). Save, load and replay
+carry the writer log, `finish` and `fast_forward`.
+
+**The ledger and the counterfactual (kernel/ledger.py, kernel/counterfactual.py, WP1).**
+`ledger.failures(task, state, baseline, world=None, idle=None) -> [label]` (the `house.*` guards of
+docs/EVALUATION.md "Verification hardening"; [] without a hardening block), `ledger.findings(...)`,
+`ledger.lookahead_failures(...)`, `ledger.footprint(task, state, baseline, world=None, idle=None, bindings=None,
+work_rooms=None) -> {"envelope": draft, "deltas": [...]}` (--draft-hardening), `ledger.validate_envelope(env)` and
+`ledger.validate_protections(p) -> [problem]` (spec.check_structure calls both), `field_spec(type, path)`,
+`field_class(type, path)`, `GUARDS`, `NAMED_OFF_ONLY`, `LOOKAHEAD_GUARDS`, `CONTENT_GUARDS`, `ENVELOPE_KEYS`,
+`PROTECTION_KEYS`. `counterfactual.project(state)`, `Projections`, `diverges((key, actual), idle, t, tol=None)`,
+`value_at(idle, key, t)`, `interval_for(budget_s)`, `rollout(env, horizon_s, interval_s=None, on_sample=None)`.
+`tools/field_census.py` lists every written field and its class (L-WATCH: `--check`, `--unclassified`).
+
+**Evaluation (kernel/evaluation.py, WP1).** For a hardened task: `result["unmet"]` (unmet success labels),
+`fail:<label>`, `strict:safety|privacy|authority`, the derived-field overlay (`derived_view(state, task)`,
+`evaluation_view(state, temporal=None, mind=None, task=None)`), the existence guard (`<label>:absent`, `absent_ok`),
+failure predicates reading `logs.gone`, the ledger's labels against `idle`. `goal_status(task, state, baseline=None,
+temporal=None, mind=None, view=None) -> [(label, held)]`, `hardened(task)`, `unwrap(item)`, `labelled(items,
+names=(), prefix="success_")`, `recorded_labels(task, key)`.
+
+**Timing (kernel/monitor.py, WP3).** The `timing` key of a task, a variant and a phase:
+`monitor.validate_timing(items, names=(), strict=True) -> [problem]` (strict: the authoring rules, the window at
+least 120 s and `not_before_s` a multiple of 30; spec.check_structure runs it), `normalize_timing(raw, prefix="",
+ref=None, phase=None)`, `timing_outcome(item, trigger, act, t0=0.0, now=None, init=False)` (the pure verdict: fixed-timer
+exposure is arithmetic), `Monitor.intervals(label, which="act")`, `Monitor.timing_verdicts(state, phase=None)`;
+open intervals of restore-class items (`Monitor.open_intervals(eid=None, robot_only=True)`, `open_items()`,
+`longest_open(eid, now=None, robot_only=True)`, `unattended_s` for child / pet / pool gates); field-level
+footprints `Footprint.fields`, `Footprint.meets(eid, field, record=None)`.
+
+**Content (kernel/speech.py, kernel/reports.py, kernel/predicates.py, systems/core.py, WP4).**
+`speech.parse(text, state=None, env=None, to=None, room=None) -> [claim]` (lexical; hedges and questions are
+`uncertain`), `speech.negate`, `speech.paraphrase(text, k=1, ...)`, `speech.convert_units(text, system="other")`,
+`speech.match(state, spec, times=None)` (the `said` predicate), `speech.match_detail`, `speech.guards(task, state,
+baseline=None, world=None, answers=None)`, `speech.truth(state, claim, answers=None, env=None)`,
+`speech.validate_said(body)`, `speech.validate_pattern(p)`, `speech.enabled(env)`; `reports.guards(task, state,
+baseline=None, world=None)`, `report(..., corrects=<n>)`, `reports.validate_expectation(exp)` (with `as_of`). Core
+`say` stores the utterance's claims with their truth in `facts.speech_log` only for content-scoring tasks; core moves
+of a mess entity log flows.
+
+**Perception evidence (kernel/realism.py, house_sim/tasks/perceive.py, WP7).** `Realism.acts`, `Realism.grants_log`,
+`Realism.observed` (an `ObservationLog` with `stamps` and `evidence`), `Realism.settle_moves()`,
+`Realism.track_moves`, `Realism.unfamiliar_names(every=False)`, `Knowledge.levels`, `Knowledge.retain`,
+`realism.INTRINSIC_FIELDS`; `perceive.enable(env)`, `perceive.index(env)`, `perceive.report_gaps(env, task,
+answers=None, index=None, bindings=None)`, `perceive.act_gaps(env, task, answers, index=None, branch_diff=None,
+bindings=None)`, `perceive.claim_founded(env, claim, index=None, step=None)`, `perceive.agent_labels(env, task,
+answers, ...)` (docs/PERCEPTION.md "Evidence for schema-4 verification").
+
+**Setup (house_sim/tasks/setup.py, generator/place.py, generator/disk_cache.py, WP9).** The ops `shuffle`, `sample`,
+`arrange`, `time` and a weighted `choose` (docs/AUTHORING_GUIDE.md "Randomising setup ops"); `apply_setup(config, ops,
+registry, seed, spec, bindings=None, camera=None, perception=None, audit=False)` and `setup.audit_diff(...)` (the
+audit fast path and its correctness audit); `Placer(config, registry, rng, shuffle=False)` with `.permutation`,
+`.order`, `.arrange`, `.look_ring`; `disk_cache.house(seed, kwargs=None, root=None, verify="once")` (a generated-house
+cache under `reports/cache/houses/`, checked against a fresh build on the first hit).
+
+**Specs and lints (house_sim/tasks/spec.py, house_sim/tasks/lint.py, WP8).** `spec.SCHEMAS = (2, 3, 4)`,
+`spec.NEW_SPEC_SCHEMA = 4`, `spec.HARDENED_SCHEMA`, `spec.TIER1_SCHEMA = 3`, `spec.HARDENING_KEYS`,
+`spec.legacy_ids()`, `spec.schema_problems(spec)`, `spec.check_structure(spec)` (also `timing_problems`,
+`hardening_problems`, `answers_problems`, `wrong_problems`, `label_problems`, `predicate_problems`,
+`variant_key_problems`); `lint.run(spec, analysis_record=None, dynamic=None, entry=None, record=None, as_if=False)
+-> [{"id", "severity", "message"}]`, `lint.dynamic_facts(spec, seeds, gen=None, hardening=None, builds=None)`,
+`lint.draft_protect_map(catalog_id=None, record=None)`, `lint.classify_protect_item(text)`,
+`lint.protect_ref_problem(ref, scope, lookahead_on=True, dynamic=None, index=None)`, `lint.clauses_of(text)`,
+`lint.watch_problems(census=None, domains=None)` (docs/TASK_SPEC.md "Schema 4"). Name resolution (run-A fixes):
+`spec.shape_problems(spec)` (the container types; `check_structure` returns only those when there are any and never
+raises on a malformed spec), `lint.invariant_labels(reload=False)` (the registered invariant names plus the label
+names a registered invariant returns literally, such as `climate.pipe_freeze`), `lint.invariant_problem(name)` (an
+`inv:` pattern or reference names a whole one), `lint.selector_problem(selector, scope, mode="selector", dynamic=None,
+index=None) -> (message, severity) | None` (modes `selector`, `to`, `room`, `id`), `lint.envelope_selectors(scope)`,
+`lint.bound_names(scope)`, `lint.unbound_names(value, scope, dynamic=None, index=None)`, `lint.spec_literal_ids(scope)`
+(the `ids` facts of `dynamic_facts`), `lint.type_vocabulary()`.
+
+**Verification core (house_sim/tasks/verify.py, runner.py, seeds.py, private.py, strength.py, escapes.py,
+checklog.py, runcache.py, cli.py; WP5).** The pipeline of docs/EVALUATION.md "The verdict":
+`verify.verify_spec(spec, level=None, seeds=None, perception=None, camera=None, gen=None, **options)` sends a
+schema-4 spec to `verify.verify_hardened(spec, level="standard", seeds=None, modes=None, heldout=None,
+battery="all", mustpass="all", workers=None, gen=None, key=None, check_log=True, log_root=None, progress=None,
+cache=False, explain=None)` (evidence record v2, `"format": "house_ai.verification/2"`, `passed` = the level's
+gates, `verdict`) and a legacy spec to the unchanged legacy record; `verify.LEVELS = ("quick", "standard", "full")`.
+Parts: `run_trial(spec, seed, perception=None, camera=None, gen=None, capture=None, mode=None)` (modes `own`,
+`eval`, `eval-geom`, `eval-room`), `mode_trials(spec, seeds, mode, ...)`, `idle_rollout(env, task, horizon_s=None)`
+(the idle counterfactual and B1 samples), `judge_wrong(rec, item, said=())` (14.3), `canonical_labels(failures,
+unmet=(), said=())`, `pattern_matches(pattern, canon)`, `expect_problems(item)`, `matched_patterns(item, failures,
+unmet, said=())`, `formula_budget(references, explores)`, `budget_check(spec, mode_out, heldout_trials=())`,
+`rejudge(spec, out)`, `draft_hardening(spec, seeds=None, gen=None, mode="eval-geom")` (`--draft-hardening`),
+`operated_appliances(env, runner) -> [id]` (the look-ahead trigger from what the reference did:
+`record["lookahead"] = {"s", "triggered", "operated"}`), `dynamic_facts(...) -> (facts | None, rows)` (a dynamic
+pass that cannot run is an `L-DYNAMIC` error, `DYNAMIC_LINT_ID`). A reference record carries `spec_error`,
+`error_category` (WP11's `PlanError.category`), `operates_appliances` and `phases` (per-phase figures; `budget_check`
+adds rows `"<variant> phase <id>"`); a wrong-plan record `refused_categories`, and `judge_wrong` marks a refused
+mistake step `UnrealisedMistake`.
+`runner.build(spec, seed=0, registry=None, camera=None, perception=None, gen=None, hardening=None, audit=False)`
+gives a schema-4 task its hardening block (settle, look-ahead, envelope, protections, labels, bound answers) and
+the run's budget (`runner.episode_budget(chosen, phases=None) -> {"steps", "time_s"}`: a phased spec without its own
+budget runs with its phases' budgets plus the gaps);
+`runner.Runner(env, bindings, strict=True, frozen=None, fixed_waits=None, record=True, snapshot=None)` records
+`Runner.trace` (one record per env.step a plan issued: skill, action, true ids, argument provenance, ok, category,
+times, room, waits), `Runner.tops`, `Runner.saves`, `Runner.waits`, `Runner.refusal_tops`; `frozen` replaces save
+results and `fixed_waits` conditioned waits (B5, B7, B13); `capture_run(env, plan, bindings, strict=False,
+runner=None, **kwargs)`, `branch_value(chosen, variant)`, `bind_answers(raw, bindings, chosen=None, variant=None)`;
+`runner.PlanError` (a refused or impossible plan step). Seeds (`tasks/seeds.py`): `verification_seeds(spec,
+values=None)` and `coverage(spec, values=None, limit=12)` (9.4, L-COVER), `heldout_public(spec, spec_hash=None,
+skip=())`, `heldout_stream(spec, spec_hash=None)`, `select_heldout(stream, catalog_id, n_variants, n=10, cap=16,
+skip=())` (16.1), `audit_seeds(n=200)`, `feature_seeds(spec, features, exclude=(), index=None, limit=2)`. Private
+stages (`tasks/private.py`, only with the split key, never created here): `private.salt(key=None)`,
+`private.available(key=None)`, `private.heldout(spec, key=None, spec_hash=None, n=10, cap=16, skip=())`,
+`private.pool(key=None, n=2000)`, `private.write_details(catalog_id, rows, root=None)` (outside the repository),
+`private.public_summary(results)`, `private.NOT_RUN`. Strength (`tasks/strength.py`): `strength.score(record,
+spec=None, escapes=None)` (19.1), `strength.gates(record)` (G1-G9), `strength.required_gates(record, gate_map)` (G6 only at
+the full level), `strength.projects_heldout(record)` (below the full level the score is projected without the held-out
+component, `scored["projected"]`), `strength.verdict(record, scored=None, gate_map=None)` (HARDENED, PENDING_REVIEW,
+PENDING_GATE, PROVISIONAL, FAIL), `strength.expected_families(analysis,
+entry_text=None, entry_kind=None)`, `strength.level_passes(record, level)`. Escapes (`tasks/escapes.py`, the price
+list `house_sim/data/verify/escapes.json`): `escapes.price(spec, record=None, exemptions=None, sessions=None,
+exemptions_path=None, reviews=None, reviews_path=None, key=None)` (quota, review state, G9), `escapes.detect(spec,
+record=None)`, `escapes.price_list(reload=False)`, `escapes.accepted_records(catalog_id, spec_hash, path=None)`
+(`catalog/review/exemptions.jsonl`), `escapes.eligible(row, sessions, category=None, reviews=None, key=None)` /
+`escapes.ineligible(...)` (an owner signature under the split key, or a logged agent session of
+`catalog/review/review_sessions.jsonl` that never checked the spec; blind review: the row's category is the
+proposal's; `other` only from the owner; `escapes.review_sessions(path=None)`, `escapes.sign(row, key=None)`,
+`escapes.signed_text(row)`); `price` lists each row that does not count in `review_problems` and on the escape
+(`review_problem`, `owner_unverified` for an owner row this machine cannot verify: L-ESCAPE warns, the gate
+checks). The check log (`tasks/checklog.py`, 12.4: one line per schema-4 check in
+`catalog/review/check_log/<domain>.jsonl`, `HOUSE_AI_CHECK_LOG_DIR` redirects): `checklog.append(record, root=None,
+domain=None, level=None, cpu_s=None)`, `checklog.entries(catalog_id=None, root=None, domain=None)`,
+`checklog.sessions(catalog_id, root=None)`, `checklog.heldout_rolls(catalog_id, root=None)`,
+`checklog.stop_loss(catalog_id, root=None, allowance=0)`. The run cache (`tasks/runcache.py`, 22.8,
+`reports/cache/runs/`, 2 GB LRU; a hit is re-judged, never re-run): `runcache.key(kind, payload)`, `runcache.get(k,
+root=None)`, `runcache.put(k, value, root=None, max_bytes=...)`, `runcache.prune(...)`, `runcache.sim_spec(spec)`,
+`runcache.enabled()`, `runcache.environment()` (the loaded domains, systems, actions, skills, switches and Python
+version: part of every key, so a run made with other domains is never reused). CLI (21.1): `python -m house_sim --check FILE [--ids ID ...] [--level quick|standard|full]
+[--battery all|none|B2,B3,...] [--mustpass all|none] [--modes own,eval] [--seeds S ...] [--heldout N] [--explain DIR]
+[--json OUT] [--workers N] [--no-cache]` (the schema-4 block of 21.2; exit status by the level's gates; `--seeds`,
+`--battery`, `--mustpass` other than `all` and `--modes own` are debugging runs that can never be HARDENED),
+`--draft-hardening FILE --ids ID [--out DRAFT.json]` (nothing written into the spec), `--verify [--level]` (schema 4
+defaults to `full`; `HOUSE_SIM_VERIFY_LEVEL`).
+
+**Core skills (house_sim/tasks/skills.py, WP11).** Every core skill checks the parameters that name a thing, room,
+person or pet before it reads them: an unbound value (None, empty, not a string) or one that names nothing raises
+`PlanError("<skill>: <param> is unbound ...")` instead of a TypeError / KeyError (14.5). `PlanError.category`
+(set only on PlanErrors skills.py raises itself): `"argument"` (a binding that names nothing: a spec failure, 16.3)
+or `"route"` (a walk with no way through: a navigation failure); a refused step's PlanError carries none (its category
+is `runner.refusals[-1][1]`). `put(r, obj, dest, relation=None, spos=None, shelf=None, cell=None, orientation=None,
+grip=None, avoid=None, close=False)` opens (and unlocks with a held key) a closed destination and the closed
+containers around it, sets a two-handed load down when it needs a free hand, and with `close=True` closes and relocks
+what it opened once the thing is placed (leave as found). `survey(r, rooms=None, places=None, rows=1, strict=False)
+-> {"rooms", "places", "skipped"}` (17): the canonical survey of `rooms` (default every indoor room: go_room and
+look around in each, nearest first) or, with `places`, the search baseline (reveal, approach, open and inspect each
+candidate place, nearest first); `strict=False` records an unreachable room or place in `skipped` and goes on. go_room
+says "No route in R at all" when furniture, walls or closed things cut the way off, and descends winder stairs
+carefully also when the rail it inspected is loose.
+
+**Run-A fix round (WP1-fix, WP2-fix, WP4-fix, WP7-fix; catalog/analysis/phase2/handoff_*-fix.md).**
+* Ledger (WP1-fix): the content class of 6.3 is guarded -- a charged decrease of a content field is
+  `house.removed:<e>.<f>` (`house.lost:<e>.<f>` for a valuable; `house.removed:<e>` stays the destruction label),
+  allowed by `envelope.consume` / `deliver` / `consume_by`; physical losses below 5 % of the amount at B
+  (`CONTENT_PHYSICAL_SHARE`) are no removal, `mass_kg` counts only when no other content field fell, loss-class
+  receptacles, basins and toilets (`CONTENT_EXEMPT_CLASSES`) are the mess balance's. `ledger.content_decreased(before,
+  after, tol=DEFAULT_TOL)`, `ledger.open_field(record, restore=None)`, `Ledger.contents()`,
+  `Ledger.loss_location(before, final)`; `house.lost`'s loss-location rule applies to every entity (refuse that was
+  waste at B exempt). `restore.json`'s `exterior_door` class excludes windows and skylights (they are ordinary
+  settings); `ambient.json`'s light allowance covers `on`, `lit`, `brightness`, `dim_level`, `settings.level`, and its
+  `light_switches` entry makes a wall switch's `on` ambient when every load it controls at B is a light (revoked with
+  `category:light`). `house.left_open` charges physical openings linked to the robot; `house.held_open` re-attributes
+  sampled intervals through `WriterLog.writer_at(eid, fields, t, resolution=30.0)`.
+  `WriterLog.attributable(eid, field, t=None) -> True | False | None` keeps WP2's "link unknown" (None), which 6.2's
+  conservative default charges when the field diverges from idle. `counterfactual.PROJECTED_CLASSES = ("setting",
+  "condition", "content")`; `counterfactual.diverges` charges a number only outside the bracketing checkpoints' range;
+  `counterfactual.rollout` waits whole seconds; `evaluate()["temporal"]` exists for a task whose only temporal key
+  is `timing`.
+* Engine (WP2-fix): `env.robot_attributable(rid, field=None, t=None, causes=None, ignore=is_bookkeeping,
+  unknown=None) -> True | False | unknown` is three-valued (True linked, False ruled out by recorded causes, `unknown`
+  for a physical write without a recorded cause; finish's settle rule passes `unknown=False`); a cause record reaches
+  the robot when its write of any of the record's fields stood while the citing write was made
+  (`world.WriterLog.during(rid, field, t0, t)`, `WriterLog.entry(rid, field, before=None)`). `env.save(path)` stores
+  the idle counterfactual's digest and checkpoint count and the last score; `HouseEnv.load(path, idle=None)` checks a
+  re-attached counterfactual against that digest, and `env.idle` raises `IdleMissing` on a fork that owes one.
+  `env.finish` rounds `settle_s`, `lookahead_s` and the end time to the clock's millisecond grid (`CLOCK_DIGITS = 3`).
+* Content (WP4-fix): claim kind `location` (`speech.KINDS`, `speech.FACTUAL`: "the box is in the hall", value the
+  place id or ids, `place_kind` room | entity, `relation` in | on; truth from the location chain), placement commits
+  with `place` / `place_kind` (true only for the robot's own placement there), denial frames ("it is not true that
+  X": `denied`), void frames and retractions (`why` void / retracted / denial / permission;
+  `speech.opens_with_retraction(entry_or_text)` takes back the previous utterance to the same people), number words
+  with scales ("two hundred and fifty", "1,250", "two dozen") and spoken unit spellings, `after_safe` invitations
+  that wait for the hazard to clear (no `house.warning_inverted`), and past first-person commitments judged by the
+  robot's own act (`truth.json` acts `agency: strict | lenient`; feed on the pet's serving record).
+  `speech.PATTERN_KEYS` adds `place`, `relation`, `place_kind` (said asserts / forbids, key_claims).
+* Perception evidence (WP7-fix): `Realism.dump()` / `load()` carry the observation log (`"observed"`) and
+  `"track_moves": False`, so a forked run judges reports, acts and claims on the evidence perceived before the
+  snapshot; the act log's `"placed": {id: location}`; `Index.told(value, before_step, subject=None)` reads only a
+  person's own words (`Index.person_statements`: heard messages and the `REPLY_KEYS` answer fields of a reply naming
+  who answered, never the robot's words echoed, `ECHO_WORDS = 3`, nor offered candidates); `perceive.act_gaps(...,
+  agent=False)` (the reference rule) and the agent rule `agent=True` (`agent_labels`): a branch is also decided by any
+  successful command that does what an effectful branch-diff command does (same effect kind, target and destination,
+  or the thing put at the diff deposit's destination).
+
+**Merge gate P2-S2 (catalog/analysis/phase2/handoff_P2-S2-merge.md).** The section-25 stubs whose dependency landed
+are gone: `speech.founded` calls `perceive.claim_founded` (no "always founded"), `perceive._parse_claims` calls
+`speech.parse`, the ledger's content guard calls `speech.guards` / `reports.guards`, `HouseEnv.finish` reads
+`ledger.LOOKAHEAD_GUARDS`, `evaluation_view(..., task=)` and `goal_status` directly, the verifier imports
+`tasks/lint.py` directly (its stand-in L-COVER / L-PROTECT checks and the "WP8 not landed" schema warning are
+removed), and `escapes.price_list()` reads only `escapes.json` (a missing or malformed price file raises; the built-in
+table is gone). `perceive.FACTUAL_KINDS` includes `location`: a location claim is founded by where the robot last
+perceived the subject (an observation listing its location in or on the place, its own placement there, a person or
+pet seen in the room) and a negated one by a sighting elsewhere or a look into the denied room after the last
+sighting in it. 14.2's matching rule holds for `inv:` too (`L == p` or `L` starts with `p + ":"`, never a raw prefix)
+and `verify.expect_problems` rejects an `inv:` pattern that is not a whole invariant label name
+(`lint.invariant_problem`). `ledger.selector_problem` rejects an unknown `<word>:` form (an id never contains ':'),
+so `runner.build` refuses what L-ENVELOPE flags. `escapes.detect` reads a malformed declaration as empty instead of
+raising (the structural check reports it).
+
+Still in progress: the batteries and audits (WP6; S5, S6 audits, S7p are recorded "not run"), the review and gate
+tools (WP10).

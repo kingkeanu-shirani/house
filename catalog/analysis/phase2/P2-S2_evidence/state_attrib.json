@@ -1,0 +1,176 @@
+{
+ "summary": {
+  "own": {
+   "trials": 1215,
+   "state_changed": 123,
+   "obs_changed": 0,
+   "obs_changed_keys": [],
+   "fields": {
+    "reference_state_hash": 70,
+    "idle_state_hash": 66,
+    "wrong.state_hash": 79
+   }
+  },
+  "realistic": {
+   "trials": 1215,
+   "state_changed": 124,
+   "obs_changed": 0,
+   "obs_changed_keys": [],
+   "fields": {
+    "reference_state_hash": 71,
+    "idle_state_hash": 66,
+    "wrong.state_hash": 77
+   }
+  }
+ },
+ "rerun": 247,
+ "attributed": 243,
+ "not_attributed": [
+  {
+   "key": "T-7fe081a3de29f8-01",
+   "seed": 0,
+   "mode": "own",
+   "problems": [
+    "idle state differs beyond logs.gone / mess_flows",
+    "wrong plan 'puts both bowls side by side on the floor' state differs beyond logs.gone / mess_flows",
+    "wrong plan \"serves the cat's wet food on the dog's mat and walks away\" state differs beyond logs.gone / mess_flows"
+   ],
+   "reference_logs": {
+    "gone": 0,
+    "mess_flows": 0
+   }
+  },
+  {
+   "key": "T-7fe081a3de29f8-01",
+   "seed": 2,
+   "mode": "own",
+   "problems": [
+    "idle state differs beyond logs.gone / mess_flows",
+    "wrong plan \"serves the cat's wet food on the dog's mat and walks away\" state differs beyond logs.gone / mess_flows"
+   ],
+   "reference_logs": {
+    "gone": 0,
+    "mess_flows": 0
+   }
+  },
+  {
+   "key": "T-7fe081a3de29f8-01",
+   "seed": 0,
+   "mode": "realistic",
+   "problems": [
+    "idle state differs beyond logs.gone / mess_flows",
+    "wrong plan 'puts both bowls side by side on the floor' state differs beyond logs.gone / mess_flows",
+    "wrong plan \"serves the cat's wet food on the dog's mat and walks away\" state differs beyond logs.gone / mess_flows"
+   ],
+   "reference_logs": {
+    "gone": 0,
+    "mess_flows": 0
+   }
+  },
+  {
+   "key": "T-7fe081a3de29f8-01",
+   "seed": 2,
+   "mode": "realistic",
+   "problems": [
+    "idle state differs beyond logs.gone / mess_flows",
+    "wrong plan \"serves the cat's wet food on the dog's mat and walks away\" state differs beyond logs.gone / mess_flows"
+   ],
+   "reference_logs": {
+    "gone": 0,
+    "mess_flows": 0
+   }
+  }
+ ],
+ "not_attributed_resolved_by_ab": [
+  {
+   "trial": "T-7fe081a3de29f8-01:0:own",
+   "paths": {
+    "reference": [],
+    "idle": [
+     ".logs.gone",
+     ".people.resident_1._space_jn[1]"
+    ],
+    "wrong[0]": [
+     ".logs.gone",
+     ".people.resident_1._space_jn[1]"
+    ],
+    "wrong[1]": [],
+    "wrong[2]": [
+     ".logs.gone",
+     ".people.resident_1._space_jn[1]"
+    ]
+   },
+   "only_wp2_logs_and_journal_cursor": true,
+   "passed": [
+    true,
+    true
+   ]
+  },
+  {
+   "trial": "T-7fe081a3de29f8-01:2:own",
+   "paths": {
+    "reference": [],
+    "idle": [
+     ".logs.gone",
+     ".people.resident_1._space_jn[1]"
+    ],
+    "wrong[0]": [],
+    "wrong[1]": [],
+    "wrong[2]": [
+     ".logs.gone",
+     ".people.resident_1._space_jn[1]"
+    ]
+   },
+   "only_wp2_logs_and_journal_cursor": true,
+   "passed": [
+    true,
+    true
+   ]
+  },
+  {
+   "trial": "T-7fe081a3de29f8-01:0:realistic",
+   "paths": {
+    "reference": [],
+    "idle": [
+     ".logs.gone",
+     ".people.resident_1._space_jn[1]"
+    ],
+    "wrong[0]": [
+     ".logs.gone",
+     ".people.resident_1._space_jn[1]"
+    ],
+    "wrong[1]": [],
+    "wrong[2]": [
+     ".logs.gone",
+     ".people.resident_1._space_jn[1]"
+    ]
+   },
+   "only_wp2_logs_and_journal_cursor": true,
+   "passed": [
+    true,
+    true
+   ]
+  },
+  {
+   "trial": "T-7fe081a3de29f8-01:2:realistic",
+   "paths": {
+    "reference": [],
+    "idle": [
+     ".logs.gone",
+     ".people.resident_1._space_jn[1]"
+    ],
+    "wrong[0]": [],
+    "wrong[1]": [],
+    "wrong[2]": [
+     ".logs.gone",
+     ".people.resident_1._space_jn[1]"
+    ]
+   },
+   "only_wp2_logs_and_journal_cursor": true,
+   "passed": [
+    true,
+    true
+   ]
+  }
+ ]
+}

@@ -1,0 +1,39 @@
+{
+  "id": "WP1-fix",
+  "package": "P2-WP1 LEDGER (VERIFY_HARDENING section 25): fixes of independent review A",
+  "landed": [
+    "A-spec-1 (high): 6.3's content class is guarded -- Ledger.contents(): a charged decrease of a content field is house.removed:<e>.<f> (house.lost:<e>.<f> for a valuable), allowed by envelope.consume / deliver / consume_by; F below B and below idle at both bracketing checkpoints; physical consequences beyond 5 % of B (CONTENT_PHYSICAL_SHARE); content loads the mess balance judges carry 'guard': 'mess' in watch_fields.json; receptacles of a loss class, basins and toilets, and containers a baseline child left are not judged; mass_kg only when nothing else fell; a text that changes kind is no removal; counterfactual.project keeps content fields; footprint drafts consume; failures() keeps content labels beside placement labels",
+    "A-spec-3: house.lost's loss-location rule applies to every entity (refuse waste at B exempt, an entity's own loss classes removed: Ledger.loss_location); location_classes.json: the waste class no longer selects items that merely carry a waste_stream (the kernel's is_waste_container rule), outdoor_waste rooms are curb and street",
+    "A-spec-13: evaluation._has_temporal counts timing, so a timing-only task's evaluate() carries result['temporal']",
+    "A-bugs-3: restore.json exterior_door excludes category window (windows and skylights are ordinary settings again: no left_open, no held_open, no hold_open escape)",
+    "A-bugs-4: ambient.json light allowance covers on, lit, brightness, dim_level, settings.level (dotted paths allowed); new light_switches entry: a wall switch's on is ambient when every load it controls at B is a light; same revocation key category:light",
+    "A-gaming-6: house.left_open uses charged_field on the opening field (physical consequences linked to the robot charged); house.held_open reads open_intervals(robot_only=False) and re-attributes substep-sample intervals through WriterLog.writer_at, the idle open state and env.robot_attributable(t=start)",
+    "WP2-fix requests in WP1 files: WriterLog.attributable keeps WP2's None (link unknown, charged by 6.2's conservative default; WP2's fan end-to-end test now runs and passes); display_time and the lawn's grid.moisture / grid.moisture_top are process; counterfactual.diverges treats a number between the bracketing checkpoints as not diverging; counterfactual.rollout waits whole seconds (floats were refused, one refused step per second)",
+    "field classes tare_g -> setting, single_volume_l -> bookkeeping; field_census.json refreshed (--reclassify)",
+    "tests: 23 new in tests/test_ledger.py (ContentRemovalTests, LossLocationTests, RestoreClassTests, LightAllowanceTests, LightEpisodeTests, OpenAttributionTests, GateEpisodeTests, TimingTemporalBlockTests), 2 new in tests/test_counterfactual.py; 20 of the 25 fail on a copy of the tree with the old behaviour"
+  ],
+  "deviations": [
+    {"what": "Content removals are labelled with the field (house.removed:<e>.<f>, house.lost:<e>.<f>) and stand beside the entity's placement label", "why": "house.removed:<e> stays the destruction label; a field label says what was used up, and a moved and emptied carton keeps both facts"},
+    {"what": "Physical content losses below 5 % of the amount at B are not removals; mass_kg is reported only when no other content field fell; a text content field counts only when cleared", "why": "as-if references showed heating the soup (0.7 % moisture), a cleaning bottle's mass falling with its millilitres and a tank refilled with distilled water as removals; 6.5's rho is the model for the slack"},
+    {"what": "The content guard skips receptacles of a loss class, basins and toilets, and a container a baseline child left", "why": "refuse and dirty water are the mess balance's; a container's derived fill / load follows its children, whose placements are judged (narrow hole noted in known gaps)"},
+    {"what": "house.lost exempts refuse that was waste at B and the entity's own loss classes", "why": "house.removed's waste rule; the trash cart at the curb and the vacuum on its dock are receptacles, not refuse"},
+    {"what": "Gates keep the restore class exterior_door (their first match), not garden_gate", "why": "the same 300 s hold either way; WP3's test_the_restore_class_follows_the_data pins this order and is not a WP1 file"},
+    {"what": "counterfactual.diverges for numbers: outside the bracketing checkpoints' range (widened by tol) instead of 'differs from both'", "why": "with the unknown link charged, every process-driven number (plant health, grass, drying) differs from both checkpoints between them; the range is the same rule at a checkpoint; robot writes are charged without the idle comparison"}
+  ],
+  "not_done": [
+    {"what": "WP8-fix's requests: selector_problem / scope_problem rejecting unknown '<word>:' forms; evaluation._invariant_labels recording each label's registered invariant", "why": "outside the six assigned findings; listed as requests in handoff_WP1.md"},
+    {"what": "A full field census with the link-unknown default charged", "why": "WP2-fix asked for one; done instead as a 64-spec as-if probe (own mode, seed 0) plus the census JSON's idle-written fields: two WP-D false-alarm classes found (pets.agents eating, safety.evac / safety.fire), reported as requests; display_time and lawn moisture reclassified"}
+  ],
+  "outcome_changes": [],
+  "tests": {"new_tests": 25, "passed": true, "strict_passed": true},
+  "specs": {"total": 243, "passed": 243},
+  "requests": [
+    "WP-D pets / people / safety: tag pets.agents, the people systems and safety.evac writer='volition'; safety.fire passes cause= ids (with the unknown link charged their divergent acts are charged to the robot until then)",
+    "WP-D (all): classify container-derived content fields per type in watch/<domain>.json (fill_l, load_kg, items, layers.*, holding_garment) and mark further mess loads guard 'mess'",
+    "WP3 (optional): to report gates as garden_gate, reorder restore.json together with the pin in tests/test_timing.py test_the_restore_class_follows_the_data",
+    "WP10: invalidate idle rollouts cached before this change (content projected, whole-second waits); include the ledger data files in the cache key",
+    "WP8: document content removals (house.removed:<e>.<f>), house.lost for every entity, the wall-switch light allowance and the window exclusion",
+    "WP12 / authors: references that use something up need envelope.consume, disposals consume, windows the reference opens or closes envelope.change (--draft-hardening proposes them)"
+  ],
+  "notes": "Full unit suite (green_tests.py 3): 156 runs (78 files x 2 modes), 5,403 tests per mode, 0 failures. All 243 authored specs own mode (combined file, --check --workers 3 --no-cache): 243 passed. py39_lint clean on the WP1 files; field_census --check clean. As-if probe (64 legacy specs built as schema 4, own mode, seed 0) against a copy with the old behaviour: 52 unchanged, 12 changed: the light false alarm and a clock's display_time label gone, new labels are content used up by references, windows closed (house.changed), binned filters (house.lost), and two WP-D volition/cause gaps. Handoff: catalog/analysis/phase2/handoff_WP1.md (WP1-fix section first)."
+}

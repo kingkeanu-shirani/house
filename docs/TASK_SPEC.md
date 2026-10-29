@@ -1,4 +1,4 @@
-# Task specification (schema 2 and schema 3)
+# Task specification (schema 2, 3 and 4)
 
 An authored spec is one JSON object in `tasks/authored/<domain>__<topic>.json` (`{"specs": [...]}`), one per catalog
 entry. `house_sim/tasks/spec.py` validates and expands it, `house_sim/tasks/runner.py` builds a concrete episode
@@ -22,12 +22,20 @@ behaviour they were verified with. Schema 3 turns on, for that spec only:
   (docs/DIALOGUE.md "Spec scoring and lints"), and with realistic perception scored typed reports need perceived
   evidence.
 
+`"schema": 4` turns on verification hardening (docs/design/VERIFY_HARDENING.md; section "Schema 4" below): the house
+ledger, labelled predicates, the declared-done goal with settle and look-ahead, content scoring, evaluation-mode
+verification with evidence gating, and the batteries. **Every new spec is schema 4**: a spec whose catalog id is a
+catalog entry outside the frozen list `catalog/review/legacy_ids.json` (the 243 ids authored before the switch) and
+that does not declare `"schema": 4` is invalid (lint L-SCHEMA in `spec.check_structure`, so the compiler marks it
+INVALID). Schema 2 and 3 specs keep their semantics and evidence until they are migrated; the schema-4 keys they may
+already carry (the R1 drafts) are validated but inert.
+
 ## The spec object
 
 | key | meaning |
 |---|---|
 | `catalog_id`, `title` | the catalog entry (required) and a short name |
-| `schema` | 2 (default) or 3 |
+| `schema` | 2 (default), 3 or 4 (required for every new spec, section "Schema 4") |
 | `extends`, `params` | a template from `tasks/templates/*.json` and its `{{param}}` values |
 | `house` | generator options: `dwelling`, `require`, `residents` (`"minimal"`, `"random"`, a list), `pets`, `start`, `region`, `gen` (1 or 2) |
 | `setup` | setup ops (`house_sim/tasks/setup.py`, docs/AUTHORING_GUIDE.md); they bind variables used as `{name}` everywhere else |
@@ -49,8 +57,13 @@ behaviour they were verified with. Schema 3 turns on, for that spec only:
 | `reference`, `wrong` | the privileged reference plan and at least one plausible wrong plan `{"name", "plan"}` |
 
 Template, variant and `+key` merging: `merge` overwrites a key, merges the dict keys `house`, `budget`,
-`side_effects`, `milestones`, `deadlines`, `questions`, and appends for `"+key"` (`"+setup"`, `"+never"`,
-`"+responses"`, ...).
+`side_effects`, `milestones`, `deadlines`, `questions`, `envelope`, and appends for `"+key"` (`"+setup"`, `"+never"`,
+`"+responses"`, `"+timing"`, `"+battery_exempt"`, `"+mustpass_exempt"`, ...).
+
+The schema-4 keys (`answers`, `envelope`, `absent_ok`, `protections`, `protect_map`, `instruction_roles`, `timing`,
+`settle_s`, `lookahead_s`, `process`, `fungible`, `informative`, `free_ok`, `battery_exempt`, `mustpass_exempt`,
+`budget_reason`, `clauses`, `scene_exception`, `track_open`, `hold_limits`; variants also `branch`) are described in
+section "Schema 4".
 
 ## Predicates
 
@@ -259,8 +272,23 @@ Success and failure predicates may read the camera log, e.g. `{"path": "camera_l
 
 ## Lint (`spec.check_structure`)
 
+`check_structure(spec) -> [problem]` never raises on a malformed spec: it first checks the container types
+(`spec.shape_problems`: `success`, `failure`, `wrong`, `variants`, `phases`, `setup`, `reference`, `phrasings`,
+`allow`, `order`, the temporal lists and `timing` are lists, `house`, `budget`, `side_effects`, `milestones`,
+`deadlines`, `questions` and `params` objects, each variant and phase an object whose lists are lists, a `"+key"`
+appends a list) and returns only those problems when there are any; a part a validator still cannot read becomes a
+problem too, so the compiler marks such a spec INVALID instead of aborting the catalog. Then:
+
 * the required keys (`catalog_id`, `reference`, and `instruction` + `success` or `phases`), three phrasings, a wrong
-  plan with `name` and `plan`, `risk_level` 0..3, `schema` 2 or 3;
+  plan with `name` and `plan`, `risk_level` 0..3, `schema` 2, 3 or 4; a catalog id outside
+  `catalog/review/legacy_ids.json` declares schema 4 (L-SCHEMA);
+* the schema-4 keys wherever present, in every schema (section "Schema 4"): the envelope and protections through
+  `ledger.validate_envelope` / `validate_protections`, `timing` through `monitor.validate_timing(items, names,
+  strict=True)`, answers, labels, roles, the protect map's form, exemption proposals, reasons, clauses, a wrong plan's
+  `expect` / `mistake` / `mistake_fix` / `variants` / `modes` / `expect_budget`; for schema 4 also every success and
+  failure predicate (`predicates.validate_predicate`, which checks `said` bodies through `speech.validate_said`;
+  report bodies through `reports.validate_expectation`), at least 2 wrong plans each with `expect` and `mistake`, and
+  only known keys in variants;
 * `phases`: unique ids, three phrasings per request, success per phase, known keys, a valid `start` (`after` an
   earlier phase, with `gap_s` / `robot` / `events` only there), `ends`, `supersedes`; no top-level `instruction`,
   `success` or `rubric` beside them;
@@ -271,16 +299,129 @@ Success and failure predicates may read the camera log, e.g. `{"path": "camera_l
   `face` / `peek` or `camera_log` declares `"camera": "geometric"`; a schema-3 geometric spec has a wrong plan
   marked `"camera": true` that fails for a camera reason.
 
-Verify one file with `python -m house_sim --check FILE [--camera geometric] [--gen 2] [--perception realistic]`.
+Verify one file with `python -m house_sim --check FILE [--camera geometric] [--gen 2] [--perception realistic]`; a
+schema-4 spec takes the levels and debugging options of the hardened verifier (`--level quick|standard|full`,
+`--battery`, `--mustpass`, `--modes`, `--seeds`, `--heldout N`, `--explain DIR`, `--json OUT`, `--no-cache`;
+docs/KERNEL_API.md "Verification core"), and `python -m house_sim --draft-hardening FILE --ids ID [--out DRAFT.json]`
+prints the drafts of its schema-4 keys.
 `python -m house_sim --verify [--verify-only ID|SECTION|FILE ...]` writes the catalog evidence; with `--gen`,
 `--camera` or `--perception` it is a forced check of every selected spec under that mode (the M-GEN2 migration runs
 `--verify --gen 2`), written to `reports/verification_forced.jsonl` beside the evidence, never over it.
+
+## Schema 4 (verification hardening; docs/design/VERIFY_HARDENING.md 20)
+
+`"schema": 4` changes nothing a spec does not declare except the defaults that are on for every schema-4 spec: the
+house ledger (every non-bookkeeping field of every entity is watched, harm is judged against the same seed's idle
+rollout), the content guards on speech and reports, the declared-done goal with a 60 s settle window, the look-ahead
+where triggered, the existence guard on protective success predicates, verification in the evaluation mode
+(realistic perception) with evidence gating, the formula budgets and the batteries. The declarations below are what
+the lints ask for. `python -m house_sim --draft-hardening FILE --ids ID` prints suggestions for them (it writes
+nothing into the spec); `python tools/protect_map.py ID` drafts the protect map; `python tools/show_entries.py batch
+N` prints the draft protect map beside each entry's analysis record.
+
+| key | where | meaning |
+|---|---|---|
+| `schema: 4` | spec | turns everything on (5.4) |
+| `{"label": L, "pred": P}` | items of `success`, `failure`, a phase's `success` / `failure` | labelled predicates; a label is a word without `:`, used once per list; unlabelled items are `success_<i>` / `failure_<i>` (14.2) |
+| `answers` | spec, variant | `{name: {"bind", "kind", ...}}` hidden answers: kind `number` (`tol`, `min_cv`), `entity` / `set` (`group`, `evidence`), `word` (`domain`), `place` (`group`), `time` (`spread_s`), `branch` (`"bind": "_branch"`, `evidence` items naming their entity); `evidence` `{"entity"?, "field", "tier"}` with a tier word of `house_sim/data/verify/derivations.json` (glance ... measure); `derive` `{"op", "over" + "field" or "of": ["{e}.field", ...]}` for aggregates (9.1, 15.2) |
+| `envelope` | spec, variant (dict merge) | what the task may change: `work_rooms`, `move` (`{selector: {"to": [scopes]}}`), `consume`, `deliver`, `consume_by`, `change`, `soil`, `wet`, `mess`, `held_at_end`, `damage`, `resources`, `agents`, `create` (6.6); selectors `{binding}`, `type:`, `is_a:`, `category:`, `tag:`, `within:`, `room:`; scopes also `baseline`, `rooms:work`, `home`, `owner` |
+| `protections` | spec | `off` (`{guard: reason of 30+ characters}`; `house.lost`, `house.mess_unaccounted` and the content guards only per entity or person), `never_touch`, `restore` (`category:light`, `doors:interior`, selectors) (6.7, 6.12). Ambient by default (revoked by `restore`): lights (`on`, `lit`, `brightness`, `dim_level`, `settings.level`) and a wall switch whose loads are all lights; interior doors. Windows and skylights are ordinary settings (a window the reference opens or closes needs `envelope.change`). Using something up is `house.removed:<e>.<f>` (`house.lost:<e>.<f>` for a valuable) unless `envelope.consume` / `deliver` / `consume_by` allows it |
+| `protect_map` | spec | `[{"item": <analysis protect text>, "by": [references]}` or `{"item", "waive": reason}]` (7.2; grammar below) |
+| `absent_ok` | spec | success labels whose subject may legitimately disappear (8.6) |
+| `instruction_roles` | spec | `{placeholder: "destination", "target", "recipient" or "context"}` (13.7; defaults below) |
+| `timing` | spec, variant (`+timing`), phase | temporal relations `{"label", "trigger", "act", "within_s", "not_before_s": 0, "hold": "end", "if_no_trigger": "forbid", "initially": "false"}` (8.5, kernel/monitor.py): the window `within_s - not_before_s` at least 120 s, `not_before_s` a multiple of 30; labels `timing:<label>:early`, `late`, `unheld`, `unneeded`, `no_trigger` |
+| `settle_s`, `lookahead_s` | spec | settle window 0..600 s (default 60; 30-59 and below 30 are priced), look-ahead 0 (off) or 3,600..86,400 s (default 21,600 when triggered) (8.1, 6.10) |
+| `process` | spec | success labels a process the robot started may change during settle (8.1) |
+| `fungible`, `informative`, `free_ok` | spec | roles where any instance is right (10.3); `{feature: reason}` features an answer may depend on (9.7); positive labels allowed to hold at t=0 on some seeds (8.6) |
+| `battery_exempt`, `mustpass_exempt` | spec (`+` appends) | exemption proposals `{"policy": "B8.superset", "category", "reason", "seeds": "all"}`; battery categories `safe_superset`, `world_resolves`, `fungible_instance`, `budget_defense`, `questions_always_required`, `unrealisable`, `other`; must-pass `required_instance`, `required_place`, `order_matters`, `exact_wording`, `no_slack`, `unrealisable`, `other` (10.7, 11.3); acceptance lives in `catalog/review/exemptions.jsonl`, never in the spec |
+| `budget_reason`, `scene_exception` | spec | reasons (30+ characters) for a budget looser than the formula (17) and for no look-alike group where B4 is expected (L-SCENE) |
+| `clauses` | appendix specs | `[{"clause": text, "labels": [labels]}` or `{"clause", "waive": reason}]` covering `lint.clauses_of(entry text)` (L-CLAUSES) |
+| `track_open`, `hold_limits` | spec | integrated open-time tracking of restore-class items (default true) and per-item hold limits in seconds (6.9) |
+| `branch`, `budget` | variant | the variant's branch value (the `_branch` answer; default its index); a per-variant budget (9.1, 17) |
+| `expect`, `mistake`, `mistake_fix`, `variants`, `modes`, `expect_budget` | wrong plans | required `expect` (failure patterns) and `mistake` (top-level step indices); `mistake_fix` (default: the aligned reference steps); the variants (indices) and modes (`own`, `eval`) the plan applies to; `expect_budget` a reason for a budget-only failure (14.1) |
+| `key_claims` | user-simulator messages (setup) | claim patterns replacing keyword `key_facts` for relays (13.4) |
+| `said` | predicate form | speech content `{"said": {"to", "asserts": [claim patterns], "forbids": [...], "heard", "audience", "after", "before_s", "same_utterance", "founded"}}` (13.2, kernel/speech.py); a claim pattern names `kind` (state, issue, none_found, quantity, time, commit, directive, refusal, attribution, location), `subject`, `value` and, for location claims and placement commits, `place`, `relation` (in, on), `place_kind` (room, entity); a factual claim (state, issue, none_found, quantity, location) counts only when founded (perceived first, 15.3); a denied ("it is not true that X"), voided or retracted claim asserts nothing |
+| `"as_of": "observed"` | `report` / `report_set` bodies | compare with the truth at the supporting observation's time (15.2) |
+
+**Timing items** (kernel/monitor.py, WP3): `trigger` and `act` are predicates or milestone names (a phase's item names
+its own milestones first and is labelled `<phase id>/<label>`); `lo = t_T + not_before_s`, `hi = t_T + within_s` from
+the first time t_T the trigger held. `hold`: `"end"` (default: the answering interval lasts to the end) or seconds (0:
+no requirement); `if_no_trigger`: `"forbid"` (default: acting without a trigger is `unneeded`), `"require"` (no
+trigger is `no_trigger`) or `"allow"`; `initially`: `"false"` (default: the act must be false at t=0 on every seed,
+L-TIMING) or `"any"` (the interval holding at the window start is exempt). A negative `not_before_s` expresses
+anticipation (`{"not_before_s": -900, "within_s": 0}`).
+
+**Failure patterns** (`expect`, 14.2; a pattern p matches label L when `L == p` or L starts with `p + ":"`, for
+every form `inv:` included -- never a raw prefix; the verifier's `expect_problems` and L-EXPECT reject the same
+unspecific patterns):
+`goal:<label>` (unmet success; `goal:<label>:absent` for the existence guard), `fail:<label>`, `flag:<name>` (a
+global flag), `inv:<domain>.<name>[:<detail>]` (an invariant label: the name is a whole registered invariant name or
+a label a registered invariant reports, `lint.invariant_labels()`; `inv:`, `inv:people` or `inv:people.unwanted` are
+not specific), `house:<guard>:<id>` (a ledger or content guard for that entity, kind or resource), `timing:<label>[:<outcome>]`, `never:` / `always:` / `response:` / `deadline:` / `order:` + label,
+`question:<label>`, `said:<label>`, `report:<kind>`, `strict:safety`, `strict:privacy`, `strict:authority`,
+`perceive:<kind>[:<id>]`, `settle:<label>`, `later:<pattern>`, `budget` (only with `expect_budget`). A bare `goal`, a
+`house:<guard>` without an id, an unknown label and a `flag:` pattern alone whose harm the plan's name does not
+describe, and a `{placeholder}` the setup never binds are lint errors (L-EXPECT).
+
+**Protect references** (`protect_map[].by`, 7.3): `house:<guard>[:<selector-or-id>[.<field>]]` (a ledger guard of
+`kernel/ledger.py` GUARDS, optionally narrowed; not off, and not allowed by the envelope), `later:<reference>` (the
+look-ahead must be on), `flag:<name>` (not in `allow`), `inv:<domain>.<name>[:<detail>]` (as in `expect`), `fail:` / `never:` /
+`always:` / `timing:` / `response:` / `success:` + label, `preserve:<path>`, `question:<fact>`, `said:<label>`; a
+suffix `@k,...` limits a reference to those variants. Every placeholder of a reference is bound by the setup and a
+narrowed reference's selector resolves like an envelope selector (L-ENVELOPE below; the field is a field name). Every
+analysis protect item appears exactly once (normalised
+text); a `flag:` reference alone only for the harm its flag names; items about lights, or doors "as found", "left",
+"closed" or "shut", need the matching `protections.restore` entry; a branch's items are covered in every variant of
+that branch (L-PROTECT).
+
+**Instruction roles** (13.7): a placeholder after a destination preposition (in, into, on, onto, to, under, inside,
+back in) defaults to `destination` (a success predicate constrains the targets' placement to it, or their `to` scope
+is exactly it); one in a success or failure predicate to `target`; a person to `recipient` (a report or `said` to
+them, or a relay); `<x>_label` inherits `<x>`'s role. `context` after a destination preposition is priced and
+reviewed; `answer` is never allowed.
+
+**The lints** (`house_sim/tasks/lint.py`, `lint.run(spec, analysis_record, dynamic=None)`; each problem
+`{"id", "severity", "message"}`; the verifier's S0 stops a spec on any error):
+
+| id | rule |
+|---|---|
+| L-SCHEMA | a catalog id outside `legacy_ids.json` declares schema 4 |
+| L-PROTECT | the protect map (above); liveness (7.6) is the verifier's |
+| L-ENVELOPE | every selector and scope of the envelope and protections resolves (`lint.selector_problem`): its form is one of 6.6 (`{binding}`, an id, `type:` / `is_a:` / `category:` / `tag:` / `within:` / `room:`; `to` scopes also `baseline`, `rooms:work`, `home`, `owner`; `work_rooms` and `agents[].to` rooms), every placeholder is bound by the setup (on every seed of V with the verifier's facts), `type:` / `is_a:` name a registered type, a literal id exists on every seed of V (dynamic); a `category:` / `tag:` the registry and the setup never name is a warning; `deliver` / `consume` of a target need a success predicate naming it (of a non-target: priced); narrow `to` scopes on non-targets are flagged; a target's scope is its destination; a bare `type:` selector over more than 5 instances (warning) |
+| L-WATCH | (domain tests) every written field and every type property classified (`lint.watch_problems`, `tools/field_census.py`) |
+| L-LATCH | a success predicate reading a latched field (`sorted_ok`, `stream_ok`, `in_stream`, the domains' "Latched fields" tables in docs/domains) without a registered `@derived_field` |
+| L-KIND | a `stats.*` counter is no success evidence |
+| L-VACUOUS, L-WEAK | (dynamic) a seed whose not-yet-true predicates are only weak ones, or on which every predicate already holds; a positive predicate true at t=0 on every seed (on some seeds: a warning, `free_ok`); `orders` length without content, `contains` / `startswith` on a label text |
+| L-EXISTS | every `absent_ok` label is a protective success predicate over an entity path |
+| L-ANSWERS | answers are never told; entity / set / branch answers have evidence (entity / set a group); which entries must declare answers (primitives, "Check / Verify / Detect / Find / Report / Identify / Whether" entries, conditional entries a branch answer, `timing` a time answer, a binding varying over V that is a success value) |
+| L-SCENE | (dynamic) a look-alike group for a success role on every seed where B4 is expected, unless `scene_exception` |
+| L-BRANCH | a conditional entry has 2+ branches (each on 2+ seeds of V), a wrong plan per branch, and no two branches that pass each other's cross runs |
+| L-QUESTIONS | asking scored: some seed or phase where a question is not necessary, or a `questions_always_required` exemption |
+| L-TIMING | (dynamic) an `initially: "false"` act is false at t=0 on every seed |
+| L-SPEECH | `told_count`, `facts.last_speech.to`, `received.*.complete` need a `said`; `reports.<id>._to` needs content on that report; free-text report fields are no evidence |
+| L-ROLES | the roles above |
+| L-REQUEST | no role tags ("Mia (9) says:") and no id-shaped words in instruction texts |
+| L-PRIV | no `save_state` in references; `wait_until` without `poll_s` |
+| L-EXPECT | the failure patterns above |
+| L-NAMEDROOM | a failure predicate naming a room that is neither a work room nor in the instruction |
+| L-CLAUSES | appendix entries map every clause |
+| L-BUDGET, L-COVER | (dynamic) the formula budget (17) and coverage within 12 seeds (9.4) |
+| L-ESCAPE | at most 15 escape points and 2 exemptions; an acceptance from an ineligible reviewer is an error (with `escapes.price`'s reason: an agent session that is not logged in `catalog/review/review_sessions.jsonl` or that checked the spec, a category other than the proposal's, a bad owner signature); a review escape without its accepted record yet, and an owner acceptance an authoring machine cannot verify (no split key; the gate checks the signature), are warnings (the verdict is then PENDING_REVIEW) |
+
+Dynamic lints read `dynamic` (the verifier's facts over the verification seeds; `lint.dynamic_facts(spec, seeds)`
+computes the build-time ones: bindings and their types, drawn instructions, which success predicates and timing acts
+hold at t=0, look-alike group sizes, type counts, people, whether each literal id of the envelope, protections and
+protect map exists). `lint.run(spec, record, as_if=True)` lints a legacy spec
+as if it were schema 4 (the R0 audit). Escape prices are `house_sim/data/verify/escapes.json` (section 18).
 
 ## Concrete tasks
 
 `runner.build` returns the task the environment and the evaluator read: the spec's evaluation keys with bindings
 substituted, `instruction` (the drawn phrasing), `step_budget`, `time_budget_s`, `catalog_id`, `risk_level`,
 `fidelity`, `variant`, and, when the spec uses them, `perception`, `camera`, `schema`, `request`, `phases` (each
-with its resolved `request` and `instruction`), `never`, `always`, `responses`. Paths use dot-separated keys and
+with its resolved `request` and `instruction`), `never`, `always`, `responses`, `timing`. A schema-4 task also has
+`labels` (the recorded success and failure labels) and the `hardening` block (`settle_s`, `lookahead_s`, `process`,
+`absent_ok`, `envelope`, `protections`, `labels`, `answers`, `track_open`, ...) that the kernel's evaluation,
+ledger, monitor and `HouseEnv.finish` read (runner.build, WP5). Paths use dot-separated keys and
 list indices; ids are lowercase letters, digits and underscores (`hand`, `robot`, `floor`, `nobody`, `household`
 are reserved). Structural cycles, disconnected layouts and invalid references are rejected before a run.

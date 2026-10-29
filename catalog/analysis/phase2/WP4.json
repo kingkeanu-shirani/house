@@ -1,0 +1,45 @@
+{
+  "id": "WP4",
+  "landed": [
+    "house_sim/kernel/speech.py (new): the lexical claim parser speech.parse (hedges / conditionals / questions as uncertain claims, negators inside hedge markers never negate, polite requests keep their directive, negation within 4 tokens with opposites, subjects by name / room / person / pet / id / role / pronoun, plural and quantified subjects, ambiguous singulars, states, issues with shotgun lists, quantities in both unit systems, times, commitments incl. acknowledgements of the current request, third-person futures, directives, refusals, attribution, none_found), negate, paraphrase, convert_units, truth / answer-group truth, the said predicate (match / match_detail), the content guards (house.false_claim / broken_promise / contradiction / warning_inverted), validators, recording helpers, hazard_zones hook",
+    "house_sim/data/speech/lexicon.json, truth.json, paraphrases.json (new): word tables, truth mappings (states, issues, quantities, acts), paraphrase groups",
+    "house_sim/kernel/predicates.py: the said predicate form (validated, delegated to speech.match) and as_of on report forms",
+    "house_sim/kernel/reports.py: truth at report time (when content is scored), corrects, reports.guards (house.false_report, report:contradiction), as_of in report expectations, validate_expectation",
+    "house_sim/systems/core.py: say records claims with truth / founded / heard / n in facts.speech_log for content-scoring tasks (before the robot_spoke hooks); report corrects=<n>; legacy report events carry their value when scored; core moves of mess entities log mess flows (world.mess_flow)",
+    "tests/test_speech.py (48 tests), tests/test_report_truth.py (14 tests): normal, HOUSE_SIM_STRICT=1 and HOUSE_SIM_DOMAINS=core green; both perception modes and both camera modes covered",
+    "catalog/analysis/phase2/handoff_WP4.md"
+  ],
+  "deviations": [
+    {"what": "Claims and report truth are recorded only for content-scoring tasks (schema >= 4, a hardening block, a said predicate or key_claims)", "why": "section 25: WP4 may not change legacy verification records or digests; recording every say would change every speaking spec's state"},
+    {"what": "said asserts may be met by different utterances; same_utterance: true restores the one-utterance reading", "why": "a message split over two utterances is legitimate (P3); keeps must-pass variants passing"},
+    {"what": "report gains a corrects parameter, so actions_fingerprint changes (G0)", "why": "13.6 and section 25 name corrects=<n>; P2-WP4's committed allow lacks fingerprint (request filed)"},
+    {"what": "false_claim / broken_promise ids are <utterance n>.<claim i>", "why": "13.3 requires the shotgun utterance to fire false_claim twice"},
+    {"what": "time claims: value = minutes after the midnight of the day meant, day = offset from the utterance's day; bare hours 1-6 read as pm", "why": "13.4's key_claims example {kind time, value 930} for 'tomorrow at 3:30'"},
+    {"what": "third-person futures ('the plumber is coming') are commit claims with agent = subject; 'I won't X' is a refusal", "why": "13.4's key_claims example; 13.1 lists I won't among refusals"},
+    {"what": "oracle perception: claims founded; realistic without recorded evidence: founded None (never fails said)", "why": "matches perceive.agent_labels (WP7) and avoids failing references whose run did not enable evidence recording"},
+    {"what": "ambiguous singular references are quant some + ambiguous and never scored for truth", "why": "a truthful warning about something the parser cannot pin down must not become a false claim"},
+    {"what": "measurement false reports also allow the quantity's absolute floor besides max(3 x tol, 25 %)", "why": "a near-zero true value would otherwise make every report false"},
+    {"what": "opt-outs apply per addressee (everyone who heard it when addressed to nobody)", "why": "13.3 per-person opt-outs; an overhearing bystander should not void the opt-out"}
+  ],
+  "not_done": [
+    {"what": "domain truth mappings (fed, clean, full, hot, cooked ...) and count report truth", "why": "domain-owned (WP-D truth_<domain>.json); 13.6 scores status, finding, none_found and measurement only"},
+    {"what": "relay key_claims in people/comms.py and content-gated warnings in safety", "why": "WP-D files (people, safety); the claims they need are recorded before the robot_spoke hooks"},
+    {"what": "monitor footprints for said inside temporal items", "why": "monitor.py is WP3's file (request filed)"},
+    {"what": "phase-1 carry-over rows", "why": "none of closeout_breakages, closeout_REV / VER2 or closeout_INT3 lies in WP4's files"}
+  ],
+  "outcome_changes": [],
+  "tests": {"new_tests": 62, "passed": true, "strict_passed": true},
+  "specs": {"total": 243, "passed": 243},
+  "requests": [
+    "main session: add fingerprint to P2-WP4's allow in gate_policy/rules.json (report gains corrects, VERIFY_HARDENING 13.6)",
+    "WP3: monitor.footprint() should treat {\"said\": ...} like report (fp.always = True)",
+    "WP5: put bound answers in task[\"hardening\"][\"answers\"] (speech.normalize_answers format) and call perceive.enable(env) in eval-mode runs",
+    "WP8: spec.check_structure calls speech.validate_said (via predicates.validate_predicate) and reports.validate_expectation (as_of); L-SPEECH; document the claim model",
+    "WP6: B12 negate / hedge / shotgun via speech.negate and said group patterns; M5 via speech.paraphrase(text, k) and convert_units",
+    "WP-D people: key_claims from facts.speech_log[-1].claims in the robot_spoke hook, matched with speech.normalize_pattern / pattern_matches / contradicts",
+    "WP-D safety: register @hook(\"hazard_zones\") and move warn.py onto speech.parse",
+    "WP-D pets: truth_pets.json acts/states for feed / fed",
+    "WP1: entity:robot is the robot's hands for a held mess entity (transit while held)"
+  ],
+  "notes": "Full unit suite (green_tests.py 3, normal + strict): 5190 tests, 0 failures. All 243 authored specs pass in their own mode (--check --workers 3 on a combined file). py39_lint clean for all WP4 files. Parse costs about 9 ms per utterance in a 730-entity house; guards 0.1 ms; said match 0.02 ms per evaluation. Parse output identical under different PYTHONHASHSEED values. Core mess flows changed no golden digest (probed); only manipulation's unwrapped packaging (waste: true) triggers them today."
+}

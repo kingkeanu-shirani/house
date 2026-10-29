@@ -1,0 +1,833 @@
+{
+ "id": "VER2",
+ "role": "independent verifier, phase-1 close-out: (a) gate attacks (b) breakage repros and read probe (c) REV's findings re-run",
+ "verified_tree": "committed close-out tree 81e7a91 (1dbc6db + df21279 + 81e7a91), scratch clone; gate attacks also at 1dbc6db",
+ "findings": [
+  {
+   "owner": "gate tool (house_sim/kernel/plugins.py load_domains with tier1_gate.py changed_files / tree_fingerprint); phase-2 P2-S4 carry-over",
+   "severity": "high",
+   "title": "CONFIRMED (closeout_REV 1, unchanged by INT3 and by 81e7a91): a package in a git-ignored folder under house_sim/systems (build/) is imported as a domain while G10, TREE and git see nothing",
+   "repro": "<scratch>/p1c_VER2/rev/ignored_domain_attack.py (REV's script, gate = the scratch clone proj/ at 81e7a91) on the isolated copy iso/rev_dom and on the clone itself (a git work tree): `scope --package P1C:pets` 'G10 PASS 0 changed file(s)' before and after, changed_files [], TREE fingerprint equal, `git status` empty; the dog bolts through the 10 % test crack ('... | Pet 1 bolted out through the front door', escaped True) and tests.test_pets.Phase1CloseoutTests FAILED (failures=5). Outputs rev/ignored_domain_iso.json, rev/ignored_domain_clone.json. The live working tree carries an UNCOMMITTED phase-2 edit of house_sim/kernel/plugins.py (load_domains imports only plugins.DOMAINS) aimed at this; not committed, not verified here, and it would not cover G10 / TREE blindness for other ignored paths."
+  },
+  {
+   "owner": "gate tool (tier1_gate.py isolated_changes, tree_fingerprint: _ignore_rules(root) of the copy)",
+   "severity": "high",
+   "title": "CONFIRMED (closeout_REV 2): an isolated copy's own .gitignore hides edits of protected paths, the kernel and other owners' tests from G10 and TREE",
+   "repro": "<scratch>/p1c_VER2/rev/gitignore_attack.py on iso/rev_ign (pristine copy of 81e7a91): control (gen1_digests.json edited) 'G10 FAIL ... protected file(s) outside the package'; with '.gitignore', 'tests/data/gen1_digests.json', 'tools/orchestration/tier1_gate.py', 'house_sim/systems/core.py', 'tests/test_people.py' appended to the copy's .gitignore and those files edited: 'G10 PASS 0 changed file(s)' (plain and --shared-tree), TREE fingerprint unchanged (rev/gitignore_attack.json)."
+  },
+  {
+   "owner": "gate tool (child_env / workers, green_tests.py: __pycache__ skipped by G10, TREE and running_gate)",
+   "severity": "medium",
+   "title": "CONFIRMED (closeout_REV 3): a planted unchecked-hash .pyc replaces the code the checks run while the .py files, G10 and TREE are unchanged",
+   "repro": "<scratch>/p1c_VER2/rev/pyc_attack.py on iso/rev_pyc: door_gap 0.25 -> 0.05, the pets regression test still 'OK', 'G10 PASS 0 changed file(s)', changed_files [] before/after, TREE equal, the dog bolts through the test crack (rev/pyc_attack.json)."
+  },
+  {
+   "owner": "gate tool (cmd_isolate --base, foreign_tree, tree_check, record / compare)",
+   "severity": "medium",
+   "title": "CONFIRMED (closeout_REV 4): a record may describe an isolated copy based on a stale commit; nothing ties the copy's base to the commit the record is judged against",
+   "repro": "Clone at HEAD 81e7a91: `tier1_gate.py isolate --base 1dbc6db --out iso/stale` -> `--root iso/stale scope --package P2-WP1` 'G10 PASS 0 changed file(s)'; foreign_tree None; tree_check PASS; head 81e7a91 vs copy base 1dbc6db; the copy lacks tests.test_kernel_redteam.UnfamiliarCloseOutTests and tests.test_dialogue.KnownRecordTests (INT3's regression tests, present at HEAD), so a record there runs none of them and G1b judges only ids of the previous record."
+  },
+  {
+   "owner": "cleaning (state.tool_kind; absorb, mop) with navigation_robot (robot_vacuum group)",
+   "severity": "medium",
+   "title": "CONFIRMED (closeout_REV 5): a held unresolved robot vacuum-mop is a hand mop for absorb (label word 'mop'), a plain robot vacuum is not -- the group's members are told apart before resolution",
+   "repro": "<scratch>/p1c_VER2/rev/lookalike_tells.py (REV's, REV_TREE = the clone at 81e7a91), room and geometric identical: both members held with label 'round robot vacuum' and candidates; absorb target=<mug> tool=<it>: robot_vacuum (False, capability, 'Hold an absorbent towel, paper towels, sponge, mop or absorbent granules') vs robot_vacuum_mop (True, '', 'Blotted <mug> ...'); mop tool=<it>: 'Hold a mop' (capability) vs 'That is not visible here' (perception). rev/lookalike_tells_room.json, _geo.json."
+  },
+  {
+   "owner": "cleaning (apply_cleaner, disinfect, descale), safety (discharge), people (read_aloud)",
+   "severity": "medium",
+   "title": "CONFIRMED (closeout_REV 6): spray_bottle look-alikes are told apart before any read by read_aloud, apply_cleaner, disinfect, descale and discharge (plain bottles vs product sprays)",
+   "repro": "Same probe: held 'spray bottle of liquid' (unresolved) -- read_aloud: spray_bottle / trigger_bottle (False, perception, 'There is nothing legible to read on it') vs all_purpose_cleaner / glass_cleaner / mildew_remover (True, '{read, seconds 10}'); apply_cleaner (capability 'Hold the cleaner bottle ...' vs argument 'Choose what to apply it to'); disinfect (capability vs True 'Applied what is in ...'); descale (capability 'Hold the descaler' vs argument); discharge (True 'Discharged ... wasted' vs argument 'Nothing to discharge from that'); room = geometric. The read probe's own read / read_aloud order is clean (rows 7-9 below), so G4 does not see these verbs."
+  },
+  {
+   "owner": "mechanisms (latch), navigation_robot (mark); root cause kernel label substitution",
+   "severity": "medium",
+   "title": "CONFIRMED (closeout_REV 7): latch's 'Hold the padlock' and mark's 'Hold a pencil' are rewritten to 'unfamiliar medium object' for an unfamiliar padlock / pencil alone",
+   "repro": "<scratch>/p1c_VER2/rev/novel_wording.py (REV's, the clone at 81e7a91), room and geometric identical: latch destination=<it>: generic_item / chef_knife / pencil / combination_padlock 'Hold the padlock', unfamiliar padlock 'Hold the unfamiliar medium object'; mark target=<it>: 'Hold a pencil' for every kind but the unfamiliar pencil 'Hold a unfamiliar medium object'. INT3's keep_print / Ctx.refuse_unfamiliar did not reach these two verbs (INT3 not_fixed: label substitution, left to the owners)."
+  },
+  {
+   "owner": "gate tool (wallclock.perf_marks, test_regressions, green_tests.py)",
+   "severity": "medium",
+   "title": "CONFIRMED (closeout_REV 8): a new failing test whose timing switch is read at module level or in a helper is no perf mark, skips in the correctness run and runs nowhere",
+   "repro": "<scratch>/p1c_VER2/perf_attacks_ver2.py A2 in iso/perf (81e7a91): tests/test_ver2_disguise.py (TIMING read at module level + a helper timing_on(), both tests assert 1 + 1 == 3): CI's command `HOUSE_SIM_PERF_TESTS=0 green_tests.py 1 test_ver2_disguise.py` exit 0 ('ok ... ran= 2' normal and strict); `green_tests.py --perf` 'no wall-clock bounds in the matching test files' exit 0; bound scan: 27 marks = 27 registered, nothing unregistered. The original form (finish_VER 4, A1) is caught (below)."
+  },
+  {
+   "owner": "tools/py39_lint.py (gate code: GATE_CODE_EXTRA), tests/test_py39_lint.py",
+   "severity": "medium",
+   "title": "CONFIRMED (closeout_REV 9) and extended: py39_lint misses 32 of REV's 46 3.10+ snippets, at 1dbc6db and still at 81e7a91; a violation in a tests/ helper gets through when it uses one of those forms",
+   "repro": "<scratch>/p1c_VER2/lint_ver2.py: REV's battery against the lint as committed at 1dbc6db and at 81e7a91: 32 missed at both (star in a subscript, walrus in an index / set, PEP 649 forward references, user-class unions, aliased imports itertools/math/dataclasses, assertNoLogs, enterContext, Counter.total, Path.walk, copy.replace, re atomic groups, fromisoformat 'Z', ...). NEW, a helper (tests/_ver2_helper.py, not a test_*.py; the lint does scan it) in iso/perf with `it.pairwise` (import itertools as it), `a[x := 0]`, `Path.write_text(..., newline=)` and a `zip(strict=True)` control: 1dbc6db reports only the zip control (1 violation), 81e7a91 the zip and write_text (2) -- the alias and the walrus pass both. The close-out's '480 files, 0 violations' did not mean Python 3.9: the first real 3.9 CI run (commit 81e7a91's message) found Path.write_text(newline=) in house_sim/eval/viewer.py, tools/vocab.py and tools/perception_audit.py, which the committed lint passed."
+  },
+  {
+   "owner": "gate policy (tools/orchestration/gate_policy/perf_tests.json registry) with wallclock.py",
+   "severity": "low",
+   "title": "NEW: a registered wall-clock bound can be edited to return early when relaxed; its functional assertions then run in no correctness run and nothing records a skip (registry entries are not source-pinned, only skip exceptions are)",
+   "repro": "<scratch>/p1c_VER2/perf_attacks_ver2.py A4 in iso/perf (81e7a91): tests.test_mind.BudgetTests.test_update_budget_on_a_generated_house gets `if os.environ.get(\"HOUSE_SIM_PERF_TESTS\") == \"relaxed\": return` after its guard: CI's correctness command exit 0 (26 ran, 0 failing), bound scan 27 = 27 registered, tests/test_gate_tool.py's registry test OK. K-GATE3's claim 'the bounds run their bodies in the correctness suite' rests on review of the test's edit only. Pin each registered bound's source (as the skip exceptions are) or flag a mark whose body returns under the relaxed value."
+  },
+  {
+   "owner": "main session (gate records P1C / the phase-2 base)",
+   "severity": "low",
+   "title": "NEW: the countersigned hand-over record P1C now compares FAIL under the committed policy of 81e7a91 (the thermal bound's dated skip exception it relied on was removed)",
+   "repro": "Clone at 81e7a91, real records copied to <scratch>/p1c_VER2/gates_real: `tier1_gate.py --gates-root gates_real compare P1F P1C --any-tree` -> 'G1 FAIL 3 test(s) removed, skipped ... tests.test_physics_thermal.ThermalStepTests.test_faster_than_the_kernel_thermal_system_on_a_settled_house (G1 normal / strict / G1b core): a perf-marked test that skipped its body in a correctness run'; every other section PASS (GOLD 8 re-records signed, GATE PASS, the 4 test-removal rows signed). Expected after 81e7a91 (records are re-judged with the current registry), but P1C is P2-S1's default base: re-record the base on 81e7a91 if a base that still compares PASS is wanted (comparisons of phase-2 records against P1C are not affected: only the current record's perf outcomes are judged)."
+  },
+  {
+   "owner": "main session (gate_policy/rules.json P2-WPD:<domain>; VERIFY_HARDENING section 25)",
+   "severity": "low",
+   "title": "CONFIRMED (closeout_REV 10): committed rules at 81e7a91 still give every P2-WPD:<domain> its tasks/authored/<domain>__*.json, tasks/specs.jsonl, tasks/id_to_family.jsonl and vocab, which section 25 assigns to WP12",
+   "repro": "rules.json at 81e7a91: packages['P2-WPD:pets']['files'] includes 'tasks/authored/pets__*.json', 'tasks/specs.jsonl', 'tasks/id_to_family.jsonl', 'house_sim/data/vocab/pets.json'; VERIFY_HARDENING.md line 2895: WP12 MIGRATION owns tasks/authored/<domain>__examples.json and __perception.json. Not decided in 81e7a91 (which edited rules.json for running_substages and P2-S4 only)."
+  },
+  {
+   "owner": "gate tool (compare's bound scan) -- defence in depth",
+   "severity": "low",
+   "title": "NEW (caught, but only indirectly): removing a registered bound's perf mark is invisible to compare and to the gate's bound scan; only tests/test_gate_tool.py's registry-equality test (run in G1) fails",
+   "repro": "Record level (gate_attacks_ver2.py V10, families H and X): a registered mark dropped from tests.json bounds -> compare PASS (H) / INCOMPLETE (X). Tree level (perf_attacks_ver2.py A3): the guard and both timing assertions of tests.test_mind.BudgetTests.test_update_budget_on_a_generated_house removed -> CI's correctness command exit 0, scan 'registered_without_mark' lists it but nothing acts on it, and tests.test_gate_tool.CloseOutGateTests.test_the_registry_lists_every_bound_of_the_project FAILS (so a real G1 fails). A wall-clock bound deleted together with an edit of that test would pass; have G1 / compare fail on registered bounds without a mark."
+  }
+ ],
+ "closed": [
+  "finish_VER 1 (gate rules in the unprotected script): CLOSED. budget_attack_ver2.py: the committed gate on a +20 % record 'G7 FAIL substep_ms 2.79 -> 3.348 (limit 2.929 = prev x 1.05) OVER BUDGET' with rules.json raised to 1.5 in the working tree (B1), with rules.json deleted (B2) and unedited (B4); the copy's own edited script + rules (B3): 'no gate rules ... an isolated copy is never a policy source' (fail closed); G10 FAIL for rules.json / tier1_gate.py edits for every package (scope_attacks_ver2.py P1, P1b, P4, P6); records claiming other gate code: GATE FAIL (V1, V2, V4, V5, V6). Same at 1dbc6db and 81e7a91.",
+  "finish_VER 2 (G10 --shared-tree attribution): CLOSED. scope_attacks_ver2.py on pristine isolated copies of 1dbc6db and 81e7a91: gate script, rules, allowlist, CI workflow, room golden, gen-1 digests -> 'G10 FAIL ... never attributed to a peer' for P1C:pets and ADOPT:cleaning, with and without --shared-tree; another owner's test (tests/test_perception.py) -> FAIL for P1C:pets, attributed to K-CAM 'not running (not a hand-over)' for ADOPT:cleaning; tests/test_cleaning.py for P1C:pets is attributed to P1C:mechanisms (its scope; listed; historical since 81e7a91 made P2-S1/P2-S2 the running sub-stages).",
+  "finish_VER 3 (hand-edited golden): CLOSED. golden_attacks_ver2.py in a copy of 81e7a91 (INT3's re-recorded golden): G0 control OK; G1 digest changed FAIL; G2 digest changed + {known_failing, passes false} FAIL (was OK); G3 entry deleted FAIL; G3b non-fixed spec marked, GOLDEN_ALL FAIL (was OK); G4 script step FAIL; G5 golden.py record --known-failing refused. Record level: V13 (entry re-recorded, unsigned) GOLD FAIL, V14 no golden entries GOLD SKIP -> FAIL, V15 entry removed FAIL. Same at 1dbc6db.",
+  "finish_VER 4 (failing test disguised as a bound) in its original form: CLOSED. perf_attacks_ver2.py A1: CI's correctness command exit 1 ('AssertionError: 2 != 3'), perf job exit 1, the scan lists it as an unregistered mark; record level N3 / N4 / N5 FAIL (N5 passed by design at P1F; K-GATE3 counts it as a skip now). The module-level variant stays open (finding, closeout_REV 8).",
+  "Every other record-level attack of finish_VER re-tried on copies of INT3's record P1C with the committed gate (gate_attacks_ver2.py; clone at 1dbc6db, then at 81e7a91 -- records modelled on the clone's tree, the thermal bound's perf outcome removed for 81e7a91 where it runs its body): family H 57 attacks, 55 as expected, family X 55 / 53: E0-E6, S1-S18, N1-N7, T1, T2, L1, L2 all FAIL or INCOMPLETE as before (baselines: H PASS, X INCOMPLETE); the two not-as-expected are V9 (premise gone at 81e7a91: no skip exception left; FAIL at 1dbc6db) and V10 (finding above).",
+  "finish_VER record_attacks (real `record --only G10`, record_attacks_ver2.py, clone at 1dbc6db): R1 stale tree -> STALE (G2,G3,G6); R2 other prev -> STALE; R3 consistent partial re-run -> PASS (control); R4 --prev none -> STALE + 'base P1F exists'; R5 own earlier record -> STALE + not the base; R6 --stage A0 refused.",
+  "finish_VER / red team policy forge (forge/policy_forge_ver2.py): a copy whose manifest vouches for forged allowlist / signoff files is never a policy source; its scope fails ('base commit ... is not a commit of the project'); compare --root refused (exit 2).",
+  "NEW attack, committed-policy file edited in the working tree: CAUGHT. rules.json raised to 1.5 / deleted in the work tree -> `policy` says 'committed at HEAD (working-tree edits ignored ...)', compare uses the committed limit (G7 FAIL), TREE goes STALE; any package editing a policy file fails G10.",
+  "NEW attack, gate-change record without its signoff row: CAUGHT. gate_change_ver2.py (second scratch clone): one comment edit of tier1_gate.py, `record --only G0,G10`: P2-WP10 'GATE FAIL ... needs the main session's signoff row {kind: gate-change, digest: 6836d3c8992b...}', P1C:pets 'GATE FAIL ... not a hand-over'; positive control with the row committed in the scratch clone: 'GATE PASS ... gate code 6836d3c8992b signed'. Record level V1 / V2 FAIL, V3 (no gate digest) INCOMPLETE by design.",
+  "NEW attacks on record content: V7 no bound scan, V8 unregistered mark, V11 py39 violation, V12 no py39 result -> all FAIL.",
+  "finish_breakages row 0 (manipulation tear of a perforated colander): FIXED. brk/brk_repros_ver2.py row0 (the row's Kit('electric_coil') repro, along none / perforation / notch): 'It does not tear by hand; use a cutting tool', open False, torn_open None.",
+  "finish_breakages row 1 (pets and the 10 % test crack): FIXED. pull_handle / push_handle test=True x dog / cat (door_dash 0.95, escape_risk 0.9): open_frac 0.1, no escape at once nor after 60 s; control: a full pull 'Pet 1 bolted out through the front door'.",
+  "finish_breakages row 2 (manipulation 'packing' inspector and shake on unfamiliar things): FIXED. 7 unfamiliar kinds (knife, closed flour, bowl with an apple, kitchen scale, pot of chili, cucumber, kettle): identical inspect key sets (none / closely / inside), no 'packing'; shake (held) one identify-first refusal, 0 spills.",
+  "finish_breakages row 3 (admin_inventory count of an unfamiliar pot): FIXED. count of the same 7 kinds: one identify-first refusal (precondition) for all.",
+  "finish_breakages row 4 (ask about a thing destroyed out of view): FIXED. people's probe_gone.py on the clone: 0 differences (8 aspects x 2 askers x owners none / ana / ben x realistic / oracle), also with hidden truth _keep, _recipient, _in_use, _fragile (0 each); INT3's RememberedSubjectTests (keep / intended / how / status) OK.",
+  "finish_breakages row 5 (electrical drip ingress): FIXED. 5 ml portions on a plugged lamp in a GFCI outlet: gathered 5 / 10 / 15 ml, no trip; at 20 ml GFCI tripped, water_ingress, gathering spent; the row's dripping pot on an electronic box: water_damaged after 60 s.",
+  "finish_breakages row 6 (docs/domains/electrical.md section 13): FIXED (doc): heater_active, plumbing common.wet, cleaning bulb_hot and safety battery_indicator marked done.",
+  "finish_breakages rows 7-9 (read probe: felt_marker, robot_vacuum, spray_bottle) and the perception auditor's read probe over EVERY look-alike group: FIXED. read_probe.py on the clone: 78 groups, 0 leaks, 0 errors, room (74.8 s) and geometric (80.6 s); the three rows' groups also checked alone in both cameras (0 / 0). Same result for rows 0-9 on the live working tree (brk/live_run.log).",
+  "Owners' close-out regression tests (mechanisms Phase1CloseTests, navigation_robot TestPhase1Closeout, admin_inventory StabiliseTests, manipulation PhaseOneCloseTests, pets Phase1CloseoutTests + Phase1CloseoutUnfamiliarTests, electrical PhaseOneCloseoutTests, kernel_redteam UnfamiliarCloseOutTests + RememberedSubjectTests, dialogue KnownRecordTests, room_golden KnownFailingGuardTests): 56 tests OK normal and HOUSE_SIM_STRICT=1 on the clone.",
+  "finish_VER findings 6 (read-probe leaks) and 7 (count / shake tells of unfamiliar things): CLOSED by rows 2, 3, 7-9."
+ ],
+ "notes": "VER2 = independent verifier of the phase-1 close-out. Read STATUS.md, closeout_INT3.json, closeout_K-GATE3.json, closeout_REV.json, finish_VER.json, red_defects.json, finish_breakages.json and the six domain close-out files. THE TREE MOVED DURING THIS RUN: the main session committed df21279 (INT3's integration, signoffs/P1C.json) and 81e7a91 (CI on real 3.9, thermal bound converted and its skip exception removed, running_substages P2-S1/P2-S2, P2-S4 owns golden.py / green_tests.py / wallclock.py / py39_lint.py), and phase-2 agents are editing the live working tree (house_sim/kernel/plugins.py, engine.py, realism.py, world.py, monitor.py, tasks/skills.py, new house_sim/data/verify/, data/speech/, kernel/ledger.py, counterfactual.py). So every gate attack and every repro ran on scratch clones of the committed tree (<scratch>/p1c_VER2/proj: first at 1dbc6db, then at 81e7a91 -- the results reported are 81e7a91's unless a line says otherwise; the 1dbc6db runs are in <scratch>/p1c_VER2/old_1dbc6db and agreed), core.autocrlf input, so the gate script that ran was the committed one (code 59fabe996412 at 1dbc6db, f6f735855092 at 81e7a91; SELF never differed) and policy_root() was the clone. Records: copies of INT3's real P1C record (made by the committed gate code), cleaned and pointed at the clone's tree (family H: the clean copy named P1F is P1C's hand-over base; family X: PREVX + --any-tree). Tree-level attacks ran in isolated copies made by the clone's `isolate`, each restored after use. Breakage rows: brk/brk_repros_ver2.py, every check built from the row's repro text; also re-run on the live working tree (read only, PYTHONDONTWRITEBYTECODE=1): all FIXED there too. REV's findings: all ten re-run against the committed tree after INT3's changes (and 81e7a91); none was fixed by INT3 (INT3 deferred them to the main session / phase 2) -- all ten confirmed; three new low findings (a registered bound can return early when relaxed; P1C compares FAIL under 81e7a91's registry; a removed perf mark is caught only by a unit test). Nothing in the project was edited, committed, staged, stashed or reset; the only project file written is this one. One slip, disclosed: forge/policy_forge_ver2.py kept the project path for ROOT (the sed did not match), so it ran the PROJECT's gate script for read-only commands (`policy`, `--root <fake copy> scope`, `compare --root` refused with exit 2); nothing was written to the project (no bytecode either: tools/orchestration/__pycache__ unchanged). Scratch git clones (proj, proj_gc) carry a scratch-only commit in proj_gc (the gate-change positive control); nothing was pushed anywhere. Nothing under %USERPROFILE%/.house_ai (HOME / USERPROFILE pointed at <scratch>/p1c_VER2/home for every run); no network; no paid calls; files LF. VERIFY_HARDENING not implemented or contradicted. Scratch: <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1c_VER2 (gate_attacks_ver2.py + gate_attacks_ver2_HX.json, scope_attacks_ver2.py, budget_attack_ver2.py, golden_attacks_ver2.py, perf_attacks_ver2.py, record_attacks_ver2.py, gate_change_ver2.py, lint_ver2.py, forge/, rev/ (REV's scripts re-pointed at the clone), brk/ (breakage repros, read probes), old_1dbc6db/, gates_*, iso/).",
+ "gate_attacks": {
+  "record_level": {
+   "H": {
+    "A00_baseline": {
+     "verdict": "PASS",
+     "expected": "PASS",
+     "as_expected": true,
+     "note": "unchanged copy"
+    },
+    "E1_new_failing_spec": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "new spec failing every seed"
+    },
+    "E2_regression_self_reviewed": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "PASS->FAIL with the package's own reviewed.json"
+    },
+    "E4_spec_edit_same_verdict": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "spec edited (hash changed), verdicts unchanged"
+    },
+    "E5_spec_removed": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "a spec's own-mode trials missing"
+    },
+    "E5b_G10_skip": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "record's own G10 SKIP"
+    },
+    "E6_fuzz_defect": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "3 coverage-fuzz defects"
+    },
+    "S1_skips_by_count": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "2 more skips by count, ids untouched"
+    },
+    "S1b_skips_by_id": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "2 LiftMonotonicity tests skipped (ids+outcomes)"
+    },
+    "S2_test_file_deleted": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "a whole test file gone (both modes)"
+    },
+    "S3_tests_fewer_by_count": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "20 tests fewer by count"
+    },
+    "S3b_tests_deleted_by_id": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "20 tests deleted, ids consistent"
+    },
+    "S12_module_level_skip": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "module-level unittest.SkipTest (rc 0, 1 skip)"
+    },
+    "S4_G1b_G8_not_run": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "isolated/core and golden rows absent"
+    },
+    "S5_G1b_SKIP_G8_FAIL_in_meta": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "record says G1b SKIP and G8 FAIL, rows absent"
+    },
+    "S6_G7_bench_missing": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "no G7 results, record says SKIP"
+    },
+    "S7_G0_missing": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "no action fingerprint, record says G0 SKIP"
+    },
+    "S8_G5_gen1_and_layout_dropped": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "55 of 60 gen-1 digests and the layout counts absent"
+    },
+    "S9_coverage_variant_missing": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "coverage fuzz variant absent"
+    },
+    "S9b_geometric_audit_missing": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "G4 geometric variant absent"
+    },
+    "S9c_coverage_lost_unsigned": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "an action no longer driven to success, unsigned"
+    },
+    "S10_realistic_trials_missing": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "a spec's realistic trials missing"
+    },
+    "S11_compare_narrowed": {
+     "verdict": "INCOMPLETE",
+     "expected": "INCOMPLETE",
+     "as_expected": true,
+     "note": "new failing spec, compare --spec-files narrows it away"
+    },
+    "S13_G3_nondeterministic": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "G2/G3 records of a realistic spec differ"
+    },
+    "S14_worker_crash": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "a spec worker crash in the record"
+    },
+    "S15_wrong_reasons_changed": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "a wrong plan's reason classes changed, unreviewed"
+    },
+    "S16_seeds_narrowed": {
+     "verdict": "INCOMPLETE",
+     "expected": "INCOMPLETE",
+     "as_expected": true,
+     "note": "meta seeds [0]"
+    },
+    "S17_extras_narrowed": {
+     "verdict": "INCOMPLETE",
+     "expected": "INCOMPLETE",
+     "as_expected": true,
+     "note": "meta extras []"
+    },
+    "S18_perf_bound_fails": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "a wall-clock bound fails every perf attempt"
+    },
+    "N1_test_file_renamed": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "test_physics_forces.py renamed (ids follow)"
+    },
+    "N2_test_method_renamed": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "one test method renamed, count unchanged"
+    },
+    "N3_test_disguised_as_perf_unrun": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "correctness test skipped as a perf bound, perf job never ran it"
+    },
+    "N4_test_disguised_as_perf_failing": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "... perf job ran it, fails every attempt"
+    },
+    "N5_test_disguised_as_perf_passing": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "... perf job ran it, passes 1 of 3 alone (K-GATE3: now a skip)"
+    },
+    "N6_bench_regressed_20pct": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "G7 substep and 1 h wait +20 % (record's own G7 PASS)"
+    },
+    "N7_state_change_K-GATE3": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "state digest changed in a record for K-GATE3 (allows nothing)"
+    },
+    "N7c_K-GATE3_control": {
+     "verdict": "PASS",
+     "expected": "PASS",
+     "as_expected": true,
+     "note": "control: unchanged record made for K-GATE3"
+    },
+    "V1_gate_code_edited": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: record's gate code differs from the commit (tier1_gate.py blob)"
+    },
+    "V2_gate_code_edited_gate_tool_unsigned": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: same for the gate-tool package K-GATE3, no gate-change signature"
+    },
+    "V3_gate_meta_dropped": {
+     "verdict": "INCOMPLETE",
+     "expected": "INCOMPLETE",
+     "as_expected": true,
+     "note": "NEW: no gate-code digest in the record"
+    },
+    "V4_gate_changed_during_run": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: gate code changed while the record ran"
+    },
+    "V5_gate_commit_unknown": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: gate commit not in the project"
+    },
+    "V6_gate_extra_helper": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: an extra gate .py file the commit does not have"
+    },
+    "V7_bounds_scan_dropped": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: no wall-clock bound scan"
+    },
+    "V8_unregistered_bound": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: a perf mark the registry does not list"
+    },
+    "V9_thermal_source_changed": {
+     "verdict": "PASS",
+     "expected": "FAIL",
+     "as_expected": false,
+     "note": "NEW: the thermal bound's source changed (its skip exception must lapse; it skipped its body)"
+    },
+    "V10_bound_mark_removed": {
+     "verdict": "PASS",
+     "expected": "?",
+     "as_expected": false,
+     "note": "NEW: a registered bound is no mark any more (scan); its test ran normally"
+    },
+    "V11_py39_violation": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: a py39 violation in the record"
+    },
+    "V12_py39_missing": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: no py39 lint result"
+    },
+    "V13_golden_entry_changed": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: a golden entry re-recorded, unsigned"
+    },
+    "V14_golden_entries_dropped": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: no golden entries in the record"
+    },
+    "V15_golden_entry_removed": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: a golden spec entry removed"
+    },
+    "T1_stale_tree": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "checks G2/G3/G6 carry an earlier tree's fingerprint (merged partial run)"
+    },
+    "T2_stale_prev": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "checks G2/G3 judged against another previous record"
+    },
+    "L1_own_earlier_record_prev": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "regression compared with the agent's own earlier record carrying it"
+    },
+    "L2_vs_narrowed_prev": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "new failing spec vs a narrowed previous record"
+    },
+    "E0_carried_failure": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "a spec failing in both records"
+    }
+   },
+   "X": {
+    "A00_baseline": {
+     "verdict": "INCOMPLETE",
+     "expected": "INCOMPLETE",
+     "as_expected": true,
+     "note": "unchanged copy"
+    },
+    "E1_new_failing_spec": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "new spec failing every seed"
+    },
+    "E2_regression_self_reviewed": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "PASS->FAIL with the package's own reviewed.json"
+    },
+    "E4_spec_edit_same_verdict": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "spec edited (hash changed), verdicts unchanged"
+    },
+    "E5_spec_removed": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "a spec's own-mode trials missing"
+    },
+    "E5b_G10_skip": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "record's own G10 SKIP"
+    },
+    "E6_fuzz_defect": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "3 coverage-fuzz defects"
+    },
+    "S1_skips_by_count": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "2 more skips by count, ids untouched"
+    },
+    "S1b_skips_by_id": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "2 LiftMonotonicity tests skipped (ids+outcomes)"
+    },
+    "S2_test_file_deleted": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "a whole test file gone (both modes)"
+    },
+    "S3_tests_fewer_by_count": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "20 tests fewer by count"
+    },
+    "S3b_tests_deleted_by_id": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "20 tests deleted, ids consistent"
+    },
+    "S12_module_level_skip": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "module-level unittest.SkipTest (rc 0, 1 skip)"
+    },
+    "S4_G1b_G8_not_run": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "isolated/core and golden rows absent"
+    },
+    "S5_G1b_SKIP_G8_FAIL_in_meta": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "record says G1b SKIP and G8 FAIL, rows absent"
+    },
+    "S6_G7_bench_missing": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "no G7 results, record says SKIP"
+    },
+    "S7_G0_missing": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "no action fingerprint, record says G0 SKIP"
+    },
+    "S8_G5_gen1_and_layout_dropped": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "55 of 60 gen-1 digests and the layout counts absent"
+    },
+    "S9_coverage_variant_missing": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "coverage fuzz variant absent"
+    },
+    "S9b_geometric_audit_missing": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "G4 geometric variant absent"
+    },
+    "S9c_coverage_lost_unsigned": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "an action no longer driven to success, unsigned"
+    },
+    "S10_realistic_trials_missing": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "a spec's realistic trials missing"
+    },
+    "S11_compare_narrowed": {
+     "verdict": "INCOMPLETE",
+     "expected": "INCOMPLETE",
+     "as_expected": true,
+     "note": "new failing spec, compare --spec-files narrows it away"
+    },
+    "S13_G3_nondeterministic": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "G2/G3 records of a realistic spec differ"
+    },
+    "S14_worker_crash": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "a spec worker crash in the record"
+    },
+    "S15_wrong_reasons_changed": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "a wrong plan's reason classes changed, unreviewed"
+    },
+    "S16_seeds_narrowed": {
+     "verdict": "INCOMPLETE",
+     "expected": "INCOMPLETE",
+     "as_expected": true,
+     "note": "meta seeds [0]"
+    },
+    "S17_extras_narrowed": {
+     "verdict": "INCOMPLETE",
+     "expected": "INCOMPLETE",
+     "as_expected": true,
+     "note": "meta extras []"
+    },
+    "S18_perf_bound_fails": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "a wall-clock bound fails every perf attempt"
+    },
+    "N1_test_file_renamed": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "test_physics_forces.py renamed (ids follow)"
+    },
+    "N2_test_method_renamed": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "one test method renamed, count unchanged"
+    },
+    "N3_test_disguised_as_perf_unrun": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "correctness test skipped as a perf bound, perf job never ran it"
+    },
+    "N4_test_disguised_as_perf_failing": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "... perf job ran it, fails every attempt"
+    },
+    "N5_test_disguised_as_perf_passing": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "... perf job ran it, passes 1 of 3 alone (K-GATE3: now a skip)"
+    },
+    "N6_bench_regressed_20pct": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "G7 substep and 1 h wait +20 % (record's own G7 PASS)"
+    },
+    "N7_state_change_K-GATE3": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "state digest changed in a record for K-GATE3 (allows nothing)"
+    },
+    "N7c_K-GATE3_control": {
+     "verdict": "INCOMPLETE",
+     "expected": "INCOMPLETE",
+     "as_expected": true,
+     "note": "control: unchanged record made for K-GATE3"
+    },
+    "V1_gate_code_edited": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: record's gate code differs from the commit (tier1_gate.py blob)"
+    },
+    "V2_gate_code_edited_gate_tool_unsigned": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: same for the gate-tool package K-GATE3, no gate-change signature"
+    },
+    "V3_gate_meta_dropped": {
+     "verdict": "INCOMPLETE",
+     "expected": "INCOMPLETE",
+     "as_expected": true,
+     "note": "NEW: no gate-code digest in the record"
+    },
+    "V4_gate_changed_during_run": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: gate code changed while the record ran"
+    },
+    "V5_gate_commit_unknown": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: gate commit not in the project"
+    },
+    "V6_gate_extra_helper": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: an extra gate .py file the commit does not have"
+    },
+    "V7_bounds_scan_dropped": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: no wall-clock bound scan"
+    },
+    "V8_unregistered_bound": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: a perf mark the registry does not list"
+    },
+    "V9_thermal_source_changed": {
+     "verdict": "INCOMPLETE",
+     "expected": "FAIL",
+     "as_expected": false,
+     "note": "NEW: the thermal bound's source changed (its skip exception must lapse; it skipped its body)"
+    },
+    "V10_bound_mark_removed": {
+     "verdict": "INCOMPLETE",
+     "expected": "?",
+     "as_expected": false,
+     "note": "NEW: a registered bound is no mark any more (scan); its test ran normally"
+    },
+    "V11_py39_violation": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: a py39 violation in the record"
+    },
+    "V12_py39_missing": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: no py39 lint result"
+    },
+    "V13_golden_entry_changed": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: a golden entry re-recorded, unsigned"
+    },
+    "V14_golden_entries_dropped": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: no golden entries in the record"
+    },
+    "V15_golden_entry_removed": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "NEW: a golden spec entry removed"
+    },
+    "L1_own_earlier_record_prev": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "regression compared with the agent's own earlier record carrying it"
+    },
+    "L2_vs_narrowed_prev": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "new failing spec vs a narrowed previous record"
+    },
+    "E0_carried_failure": {
+     "verdict": "FAIL",
+     "expected": "FAIL",
+     "as_expected": true,
+     "note": "a spec failing in both records"
+    }
+   }
+  },
+  "scope": "scope_attacks_ver2.json",
+  "budget": "budget_attack_ver2.json",
+  "golden": "golden_attacks_ver2.json",
+  "perf": "perf_attacks_ver2.json",
+  "gate_change": "gate_change_ver2.json (proj_gc)",
+  "record_only_G10": "old_1dbc6db/record_attacks_ver2.json",
+  "lint": "lint_ver2.json",
+  "got_through": [
+   "REV 1 ignored folder (house_sim/systems/build/)",
+   "REV 2 copy's .gitignore",
+   "REV 3 unchecked-hash .pyc",
+   "REV 4 stale isolate base",
+   "REV 8 module-level / helper timing switch (A2)",
+   "py39 violation in a tests/ helper using an aliased import or a walrus in an index",
+   "registered bound returning early when relaxed (A4)",
+   "removed perf mark at record level (V10; a real G1 catches it through test_gate_tool)"
+  ]
+ },
+ "breakage_rows": {
+  "0": "FIXED",
+  "1": "FIXED",
+  "2": "FIXED",
+  "3": "FIXED",
+  "4": "FIXED",
+  "5": "FIXED",
+  "6": "FIXED",
+  "7": "FIXED",
+  "8": "FIXED",
+  "9": "FIXED"
+ },
+ "read_probe": {
+  "groups": 78,
+  "room": {
+   "leaks": 0,
+   "errors": 0
+  },
+  "geometric": {
+   "leaks": 0,
+   "errors": 0
+  }
+ },
+ "rev_findings": {
+  "confirmed": 10,
+  "fixed_by_INT3": 0,
+  "refuted": 0
+ }
+}

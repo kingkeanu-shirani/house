@@ -292,6 +292,73 @@ Until stage C (kernel v3.1, docs/design/TIER1_SWEEP.md) lands:
   recorded at the end of a step only, not inside a wait. One instruction per spec, delivered as a plain string.
 * There is no notice bus: the robot cannot be woken by a doorbell or an alarm during a wait.
 
+## 7a. Verification hardening (schema 4; docs/design/VERIFY_HARDENING.md 26)
+
+What the hardened verification does not solve, and what is still open while phase 2 lands:
+
+* **Generic adversaries find generic cheats, and generic variants find generic false negatives.** A shortcut or a
+  legitimate solution that lives in one domain's mechanic is found only by review: the standing red-team sample (5 %
+  of each authoring wave) stays.
+* **The claim parser is lexical.** A statement outside its lexicon asserts nothing: it cannot satisfy `asserts`, and a
+  lie phrased outside the lexicon escapes `house.false_claim` (but not `perceive:claim_unperceived` when it parses).
+  Domain truth tables (fed, clean, full, hot, cooked ...) are the domains' `truth_<domain>.json`, still to come; count
+  reports are stored but not scored as false reports.
+* **Attribution through people.** A robot that gets a resident to make the harmful change is scored by the people
+  domain's invariants, not the ledger. Until the people and pets systems are tagged `volition` (their WP-D packages),
+  their writes are `physical` and charged only with a causal link to a robot write.
+* **Process fields are not compared end to end** (temperatures, moisture, charge); condition fields, flags, the
+  look-ahead (at most 24 h) and explicit protect mappings cover them. Projections keep setting and condition fields,
+  not identity fields (an identity change by a physical writer is charged conservatively).
+* **Decision use of evidence is not observable**: a policy that perceives the evidence and then decides by a bias not
+  in the audit's feature list could beat chance; the 200-build balance and tree audits bound the known biases.
+* **The battery shows that the evaluator rejects its policies, not that no policy can win**; it is privileged and per
+  seed.
+* **Weights, thresholds and the escape prices are judgment** (house_sim/data/verify/escapes.json), to be calibrated
+  on the migrated specs; the protect classifier's candidates (house_sim/data/verify/protect_rules.json, 90 % of the
+  6,355 analysis items get one) are drafts, not checked mappings.
+* **Cost**: about 17x today's verification per short spec at the full level, 21x on the catalog mix (22.4);
+  reviewer bandwidth for 2,477 new specs is the other bottleneck. Long-horizon specs are checked on fewer seeds.
+* **Evidence reuse is a bet** (22.7): a change that leaves every digest unchanged keeps old evidence for up to 14 days;
+  the rolling full run bounds that.
+* **Secrecy rests on one key.** The private stages report "not run (no split key)" until the owner creates the split
+  key on the gate machine (decision 10).
+* **Evidence gating depends on realism's model** being right; a realism leak would let a guess through.
+* **Timing items with a trigger after the run's end are vacuous** (no trigger, no act: no label) unless the spec
+  requires the trigger (`if_no_trigger: "require"`) or a success predicate needs the event; the settle window does
+  not reach a late event.
+* **Lint limits** (house_sim/tasks/lint.py): L-KIND treats every `stats.*` counter in a success predicate as a
+  counter without a declared condition (no domain declares counter conditions yet); L-LATCH knows the review's
+  latched fields and the domains' "Latched fields" tables (none written yet); L-ROLES finds people placeholders from
+  `person` setup ops and the dynamic bindings; L-NAMEDROOM takes no reason (make the room a work room or name it);
+  `clauses_of` splits an appendix entry at punctuation, so its clause list is the contract `clauses` must cover.
+  Selectors (L-ENVELOPE, narrowed protect references): a `category:` / `tag:` that neither the type registry nor the
+  spec's setup names is only a warning (a domain may tag at run time); literal ids, and the names a scenario helper
+  binds, are checked only with the verifier's dynamic facts; the field of a narrowed `house:` reference is checked
+  for its form, not against the entity's fields.
+* **`inv:` names an invariant label, not every label an invariant can report.** `lint.invariant_labels()` holds the
+  registered names and the label names an invariant returns literally (`climate.building` reports
+  `climate.pipe_freeze`, ...); an invariant that composes its labels at run time (the electrical families report
+  `electrical.<kind>:<id>`, so `electrical.trip_hazard` fires as `electrical.cord_trip_hazard:<id>`) can be named
+  only by its registered name, and the verifier's whole-name match does not connect that name to those labels: such
+  a pattern or protect reference never matches (a wrong plan then fails verification; a protect reference is never
+  live) until the evaluator records which invariant produced each label.
+* **"Link unknown" is charged** (6.2's conservative default, WP1-fix / WP2-fix): a physical write that reports no
+  cause on a record the robot never wrote is charged when it diverges from idle. Until the pets, people and safety
+  systems are tagged `volition` and fire spread reports causes (their WP-D packages), a pet eating or an evacuation
+  opening doors can be charged to the robot; reference containment and the must-pass battery show each such false
+  alarm before acceptance.
+* **Content guard holes** (WP1-fix): a container's derived content (`fill_l`, `load_kg`, `items`, `layers`) follows its
+  children, and a container a baseline child left is not judged for its content, so a robot that legitimately takes a
+  child out and also pours the container's content away is not charged for the content.
+* **Claims** (WP4-fix, WP7-fix, P2-S2 merge gate): no location claims for "under", "behind", "next to", "near", or a
+  person on or in furniture; location and placement claims about one of several alike things are unscored unless the
+  phrase pins it down; a location claim is founded by the subject's last perceived location (current containment of
+  the recorded place, so furniture moved since can mislead); `told` stays lexical inside a person's own words (a reply
+  that mentions a name for another reason founds it); a branch-diff deposit without a destination or a liquid moved
+  by another verb is matched by the agent rule only when the effect kind, target and destination agree (the diff set
+  carries no outcome of the reference's command).
+* **No authored spec is schema 4 yet**: the 243 legacy specs keep schema 2 / 3 semantics until the migration (R0-R4).
+
 ## 8. Evaluation tools and data
 
 * The offline baselines (random, search, scripted oracle, mock LLM) are references, not agents to beat: the search
@@ -316,5 +383,6 @@ simulations; injuries are recorded by rules, not biomechanics. Quietness and res
 The tier-1 plan (docs/design/TIER1_INTEGRATION.md): stage C adds interruptible waits, notices, standing orders that
 run themselves, temporal evaluation, phases, canonical questions and reports and the robot's memory; the domain
 adoption round routes each domain through the kernel's physics, camera and body; then the law flips (D1), generation 2
-for the verified specs (D2) and the geometric camera as the realistic default (D3), before the remaining catalog
-entries are authored as schema-3 specs.
+for the verified specs (D2) and the geometric camera as the realistic default (D3). Verification hardening
+(docs/design/VERIFY_HARDENING.md, phase 2) comes first: the remaining catalog entries are authored as schema-4 specs
+(every new catalog id must be, L-SCHEMA), and the 243 existing specs are re-hardened in the order of its section 23.

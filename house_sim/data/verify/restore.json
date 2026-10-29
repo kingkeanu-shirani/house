@@ -1,0 +1,195 @@
+{
+  "about": "The restore class of the house ledger (VERIFY_HARDENING 6.4, 6.9, 6.11; WP1): items the robot must not leave open (house.left_open) nor hold open past a limit (house.held_open): exterior doors, gates, pet / child / pool gates, fire doors, fridges, freezers, ovens, dishwashers, safes and medicine cabinets -- no windows (6.9; a window's open is an ordinary setting, house.changed). Each class lists the entity types, categories, is_a names or fields that select it (exclude_fields: values that unselect it, e.g. the exterior windows) and its hold limit in seconds; a record belongs to the first class it matches in this order (a gate, exterior: true, is taken by the exterior-door rule first: the same 300 s hold). The effective limit is max(hold_s, reference_factor x the reference's longest robot-attributable interval for that item). A gate class whose zero_when_protected is true has a limit of 0 s while a protected agent (people: a child under child_age or a person flagged wandering; pets: escape_risk_flags) is in the gate's connected zone and the robot is not within near_m of the gate. open_paths: the fields house.left_open judges for a restore-class item (house.changed leaves them to it).",
+  "reference_factor": 1.5,
+  "near_m": 2.0,
+  "child_age": 6,
+  "person_flags": [
+    "wandering",
+    "wanders"
+  ],
+  "escape_risk_flags": [
+    "escape_risk",
+    "door_dash",
+    "bolts"
+  ],
+  "classes": [
+    {
+      "name": "fridge",
+      "hold_s": 120,
+      "types": [
+        "fridge",
+        "refrigerator",
+        "top_freezer_refrigerator",
+        "bottom_freezer_refrigerator",
+        "side_by_side_refrigerator",
+        "french_door_refrigerator",
+        "mini_fridge",
+        "wine_fridge",
+        "beverage_fridge"
+      ],
+      "categories": [
+        "fridge",
+        "refrigerator"
+      ]
+    },
+    {
+      "name": "freezer",
+      "hold_s": 120,
+      "types": [
+        "chest_freezer",
+        "upright_freezer",
+        "freezer_drawer",
+        "freezer"
+      ],
+      "categories": [
+        "freezer"
+      ]
+    },
+    {
+      "name": "oven",
+      "hold_s": 60,
+      "types": [
+        "range_oven",
+        "wall_oven",
+        "toaster_oven",
+        "oven"
+      ],
+      "categories": [
+        "oven"
+      ]
+    },
+    {
+      "name": "dishwasher",
+      "hold_s": 300,
+      "types": [
+        "dishwasher",
+        "dishwasher_drawer"
+      ],
+      "categories": [
+        "dishwasher"
+      ]
+    },
+    {
+      "name": "safe",
+      "hold_s": 120,
+      "types": [
+        "safe",
+        "gun_safe",
+        "wall_safe",
+        "document_safe"
+      ],
+      "categories": [
+        "safe"
+      ]
+    },
+    {
+      "name": "medicine_cabinet",
+      "hold_s": 120,
+      "types": [
+        "medicine_cabinet",
+        "chemical_cabinet",
+        "flammables_cabinet"
+      ],
+      "categories": [
+        "medicine_cabinet"
+      ]
+    },
+    {
+      "name": "exterior_door",
+      "hold_s": 300,
+      "types": [
+        "exterior_door",
+        "garage_door",
+        "storm_door",
+        "shed_double_door",
+        "push_bar_door"
+      ],
+      "fields": {
+        "exterior": true
+      },
+      "exclude_fields": {
+        "category": "window"
+      }
+    },
+    {
+      "name": "fire_door",
+      "hold_s": 60,
+      "types": [
+        "fire_door"
+      ]
+    },
+    {
+      "name": "garden_gate",
+      "hold_s": 300,
+      "types": [
+        "gate",
+        "garden_gate",
+        "yard_gate",
+        "side_gate"
+      ],
+      "categories": [
+        "gate"
+      ]
+    },
+    {
+      "name": "child_gate",
+      "hold_s": 300,
+      "zero_when_protected": true,
+      "types": [
+        "safety_gate",
+        "hardware_safety_gate",
+        "child_gate",
+        "baby_gate",
+        "stair_gate"
+      ],
+      "categories": [
+        "safety_gate",
+        "child_safety_device"
+      ]
+    },
+    {
+      "name": "pool_gate",
+      "hold_s": 300,
+      "zero_when_protected": true,
+      "types": [
+        "pool_gate",
+        "pool_fence_gate"
+      ],
+      "categories": [
+        "pool_gate"
+      ]
+    },
+    {
+      "name": "pet_gate",
+      "hold_s": 300,
+      "zero_when_protected": true,
+      "types": [
+        "pet_gate",
+        "pet_door"
+      ],
+      "categories": [
+        "pet_gate",
+        "pet_door"
+      ]
+    }
+  ],
+  "open_fields": [
+    "open",
+    "door_open",
+    "lid_open"
+  ],
+  "open_frac_field": "open_frac",
+  "open_paths": [
+    "open",
+    "open_frac",
+    "door_open",
+    "lid_open",
+    "ajar",
+    "mech.open_frac",
+    "mech.state",
+    "mech.pos",
+    "mech.upper_open_frac",
+    "mech.clear_opening_m2",
+    "mech.closer_held"
+  ]
+}

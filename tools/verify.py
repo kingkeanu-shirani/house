@@ -1,6 +1,8 @@
 """Verify every authored spec, or list the schema-2 plans that wait on hidden state.
 
-usage: python tools/verify.py                         python -m house_sim --verify (writes the verification evidence)
+usage: python tools/verify.py [OPTIONS]               python -m house_sim --verify [OPTIONS] (writes the verification
+              evidence; OPTIONS pass through: --level quick|standard|full for schema-4 specs (default full, VERIFY_
+              HARDENING 5.3), --verify-only ID|SECTION|FILE ..., --workers N, --perception / --camera / --gen)
        python tools/verify.py --privileged-waits [--json]
               the migration debt of TIER1_SWEEP 6.6 / 19.3 (M-WAITS): every schema-2 spec whose reference or wrong
               plans use wait_until (it polls the true state, which no robot can see), with its owning domain, the
@@ -86,7 +88,7 @@ def main(argv):
                 ", ".join(row["paths"][:4]) + (" ..." if len(row["paths"]) > 4 else "")))
         return 0
     from house_sim.cli import main as cli_main
-    return cli_main(["--verify"])
+    return cli_main(["--verify"] + [a for a in argv if a != "--verify"])
 
 
 if __name__ == "__main__":

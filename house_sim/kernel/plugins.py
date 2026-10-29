@@ -16,6 +16,27 @@ Decorators:
     @answerer(topic_prefix)                           fn(env, w, person_id, topic, ctx) -> answer dict
     @validator(name)                                  fn(config) raises ValueError for bad layouts
     @hook(event_name)                                 generic named hooks (e.g. "cycle_complete:washer")
+
+Verification hardening (VERIFY_HARDENING 6.2, 6.5, 8.2, 10.3; WP1):
+    @system(name, ..., writer="physical")             the writer class of the system's writes for the house ledger's
+                                                      attribution (6.2): "physical" (the default: physics, climate,
+                                                      plumbing, appliance programs, growth ...) or "volition" (people
+                                                      and pets deciding for themselves); SYSTEM_WRITERS[name]
+    @mess_kind(name, unit=, sinks=, eps=, rho=)       a registered mess kind (6.5); decorates measure(state) ->
+                                                      [(location_key, origin, amount)], a location key being
+                                                      (class, id) with class floor | entity | drain | outside
+    @derived_field(name, types=None)                  a goal field an action hook latches (8.2); decorates
+                                                      recompute(state, eid) -> value (predicates.MISSING: the field
+                                                      does not apply); schema-4 evaluation overlays the recomputed
+                                                      value wherever a predicate reads the field
+    @settings_skill(field, types=None)                how the battery sets field f of an entity to another valid value
+                                                      (10.3 B14 probes, inverses): decorates fn(state, eid) ->
+                                                      [(value, plan step)]; settings_steps(state, eid, field) looks it
+                                                      up (kernel defaults for on, open and the settings dict)
+
+Domains: load_domains() imports exactly the committed domain packages of DOMAINS (closeout_REV: a module in a
+git-ignored folder under house_sim/systems -- build/, dist/, results/ -- was imported as a domain while git and the
+gate could not see it). A new domain is added to DOMAINS in the same change that commits its package.
 """
 import os
 from collections import defaultdict
@@ -39,6 +60,18 @@ ANSWERERS = {}
 VALIDATORS = []
 HOOKS = defaultdict(list)
 OWNERS = {}
+SYSTEM_WRITERS = {}     # system name -> writer class ("physical" | "volition"), VERIFY_HARDENING 6.2
+WRITER_CLASSES = ("robot", "physical", "volition", "setup")
+SYSTEM_WRITER_CLASSES = ("physical", "volition")
+MESS_KINDS = {}         # kind -> MessKind (6.5)
+DERIVED_FIELDS = {}     # field name -> DerivedField (8.2)
+SETTINGS_SKILLS = {}    # field name -> [(types or None, fn)] in registration order (10.3)
+
+# The committed domain packages under house_sim/systems (the gate's rules "domains" list). load_domains imports only
+# these, never whatever else a folder listing finds there.
+DOMAINS = ("admin_inventory", "appliances_cooking", "cleaning", "climate", "electrical", "food", "manipulation",
+           "mechanisms", "navigation_robot", "outdoor_plants", "people", "pets", "plumbing_liquids", "safety",
+           "textiles_laundry", "tools_vehicles")
 
 
 def _owner(fn):
@@ -92,8 +125,11 @@ def _takes_tick(fn):
     return len([p for p in params if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]) >= 2
 
 
-def system(name, order=100, max_dt=60.0, period=None, idle=None):
-    """period: run at most once per `period` simulated seconds with dt = the time accumulated since
+def system(name, order=100, max_dt=60.0, period=None, idle=None, writer="physical"):
+    """writer (VERIFY_HARDENING 6.2): the class of every write the system makes, for the house ledger's attribution:
+    "physical" (default) or "volition" (the people and pets systems' own decisions); SYSTEM_WRITERS[name].
+
+    period: run at most once per `period` simulated seconds with dt = the time accumulated since
     the last run (the system must be correct for large dt, e.g. closed-form decay). Without a period
     the system runs every substep, split into chunks of at most max_dt.
 
@@ -105,10 +141,13 @@ def system(name, order=100, max_dt=60.0, period=None, idle=None):
     substep of a step, every N substeps) can have an exact probe (navigation_robot's adoption request 5)."""
     if idle is not None and not callable(idle):
         raise TypeError("System {}: idle must be a callable fn(w) -> bool".format(name))
+    if writer not in SYSTEM_WRITER_CLASSES:
+        raise ValueError("System {}: writer must be one of {}".format(name, ", ".join(SYSTEM_WRITER_CLASSES)))
 
     def deco(fn):
         if any(s[1] == name for s in SYSTEMS):
             raise ValueError("System registered twice: " + name)
+        SYSTEM_WRITERS[name] = writer
         if period:
             SYSTEM_PERIODS[name] = float(period)
         if idle is not None:
@@ -197,6 +236,146 @@ def run_hooks(event_name, *args, **kwargs):
     return results
 
 
+# ----------------------------------------------------------------------
+# verification hardening registries (VERIFY_HARDENING 6.5, 8.2, 10.3; WP1)
+
+class MessKind(object):
+    """A registered mess kind (6.5). measure(state) -> [(location_key, origin, amount)]: the parcels of the kind in a
+    state, a location key being a pair (class, id) with class "floor" (a room id), "entity" (the carrier),
+    "drain" (the sink or drain the amount left through) or "outside" (a yard or street zone); origin is the parcel's
+    origin id (None: the kind's own). unit, sinks, eps and rho left None take the kernel defaults of
+    house_sim/data/verify/mess_classes.json (ledger.mess_kind_spec)."""
+    __slots__ = ("name", "unit", "measure", "sinks", "eps", "rho", "owner")
+
+    def __init__(self, name, measure, unit=None, sinks=None, eps=None, rho=None, owner="?"):
+        self.name, self.measure, self.unit, self.sinks = name, measure, unit, sinks
+        self.eps, self.rho, self.owner = eps, rho, owner
+
+    def __repr__(self):
+        return "MessKind({!r}, unit={!r}, owner={!r})".format(self.name, self.unit, self.owner)
+
+
+def mess_kind(name, unit=None, measure=None, sinks=None, eps=None, rho=None):
+    """Register a mess kind (VERIFY_HARDENING 6.5). Either @mess_kind(name, unit=..., sinks=[...], eps=..., rho=...)
+    on measure(state), or mess_kind(name, unit, measure, sinks, eps, rho) with the function given. sinks: location
+    class names of house_sim/data/verify/location_classes.json that accept the kind (None: the kernel default of the
+    kind), or a callable fn(state, location_key) -> bool. eps is an absolute tolerance in the kind's unit; rho the
+    relative slack of the unaccounted balance."""
+    if not isinstance(name, str) or not name:
+        raise ValueError("mess_kind needs a name")
+    for label, value in (("eps", eps), ("rho", rho)):
+        if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0):
+            raise ValueError("mess_kind {}: {} must be a nonnegative number".format(name, label))
+    if sinks is not None and not callable(sinks) and not (isinstance(sinks, (list, tuple)) and
+                                                          all(isinstance(s, str) for s in sinks)):
+        raise ValueError("mess_kind {}: sinks is a list of location classes or a callable".format(name))
+
+    def deco(fn):
+        if not callable(fn):
+            raise TypeError("mess_kind {}: measure must be callable".format(name))
+        _check_arity(fn, 1, "mess_kind")
+        kind = MessKind(name, fn, unit, list(sinks) if isinstance(sinks, (list, tuple)) else sinks, eps, rho,
+                        _owner(fn))
+        if name in MESS_KINDS and MESS_KINDS[name].measure is not fn:
+            raise ValueError("mess_kind {!r} registered twice ({} and {})".format(name, MESS_KINDS[name].owner,
+                                                                                  _owner(fn)))
+        MESS_KINDS[name] = kind
+        OWNERS[("mess_kind", name)] = _owner(fn)
+        return fn
+    return deco(measure) if measure is not None else deco
+
+
+class DerivedField(object):
+    """A registered derived field (8.2): recompute(state, eid) -> the field's value derived from the current state
+    (predicates.MISSING when it does not apply to eid). types: entity types (type or is_a) it applies to, or None
+    (every entity that carries the field)."""
+    __slots__ = ("name", "recompute", "types", "owner")
+
+    def __init__(self, name, recompute, types=None, owner="?"):
+        self.name, self.recompute, self.types, self.owner = name, recompute, types, owner
+
+    def applies(self, record):
+        if self.types is None:
+            return True
+        return record.get("type") in self.types or any(t in self.types for t in record.get("is_a") or ())
+
+
+def derived_field(name, recompute=None, types=None):
+    """Register a derived (formerly latched) goal field (VERIFY_HARDENING 8.2): @derived_field(name) on
+    recompute(state, eid), or derived_field(name, recompute). Schema-4 evaluation (evaluation.evaluation_view with a
+    hardened task) overlays recompute's value on every entity that carries the field, and on every entity a predicate
+    names explicitly with that field, wherever a success, failure or temporal predicate reads it."""
+    if not isinstance(name, str) or not name or "." in name:
+        raise ValueError("derived_field needs a plain field name")
+    kinds = tuple(types) if isinstance(types, (list, tuple, set, frozenset)) else ((types,) if types else None)
+
+    def deco(fn):
+        if not callable(fn):
+            raise TypeError("derived_field {}: recompute must be callable".format(name))
+        _check_arity(fn, 2, "derived_field")
+        if name in DERIVED_FIELDS and DERIVED_FIELDS[name].recompute is not fn:
+            raise ValueError("derived_field {!r} registered twice ({} and {})".format(
+                name, DERIVED_FIELDS[name].owner, _owner(fn)))
+        DERIVED_FIELDS[name] = DerivedField(name, fn, kinds, _owner(fn))
+        OWNERS[("derived_field", name)] = _owner(fn)
+        return fn
+    return deco(recompute) if recompute is not None else deco
+
+
+def settings_skill(field, fn=None, types=None):
+    """Register how a battery policy sets field f of an entity to another valid value (VERIFY_HARDENING 10.3: B14's
+    changed:<e>.<f> probe and the inverses of setting changes): @settings_skill(field, types=[...]) on
+    fn(state, eid) -> [(value, plan step)], the plan step a reference-skill step ({"skill": "set", "target": eid,
+    "setting": ..., "value": ...}) that sets the field to value. A type-specific registration wins over a generic one
+    (types None) for the same field, both over the kernel defaults of settings_steps."""
+    if not isinstance(field, str) or not field:
+        raise ValueError("settings_skill needs a field name")
+    kinds = tuple(types) if isinstance(types, (list, tuple, set, frozenset)) else ((types,) if types else None)
+
+    def deco(f):
+        if not callable(f):
+            raise TypeError("settings_skill {}: fn must be callable".format(field))
+        _check_arity(f, 2, "settings_skill")
+        entries = SETTINGS_SKILLS.setdefault(field, [])
+        if any(existing is f for _, existing in entries):
+            return f
+        entries.append((kinds, f))
+        entries.sort(key=lambda entry: entry[0] is None)        # type-specific first (stable)
+        return f
+    return deco(fn) if fn is not None else deco
+
+
+def _is_kind(record, kinds):
+    return record.get("type") in kinds or any(t in kinds for t in record.get("is_a") or ())
+
+
+def settings_steps(state, eid, field):
+    """[(value, plan step)] that set field of eid to another valid value: the first registered settings skill whose
+    types match, else the kernel defaults -- on (switchable things: the switch skill), open (openable things: the
+    open / close skills), settings.<name> (a value of the entity's setting_options other than the current one: the set
+    skill). [] when nothing is known."""
+    record = (state.get("entities") or {}).get(eid)
+    if record is None:
+        return []
+    for kinds, fn in SETTINGS_SKILLS.get(field, ()):
+        if kinds is None or _is_kind(record, kinds):
+            return list(fn(state, eid) or [])
+    if field == "on" and record.get("switchable"):
+        value = not bool(record.get("on"))
+        return [(value, {"skill": "switch", "target": eid, "on": value})]
+    if field == "open" and record.get("openable"):
+        value = not bool(record.get("open"))
+        return [(value, {"skill": "open" if value else "close", "target": eid})]
+    if field.startswith("settings."):
+        name = field.split(".", 1)[1]
+        options = (record.get("setting_options") or {}).get(name)
+        current = (record.get("settings") or {}).get(name)
+        if isinstance(options, list):
+            return [(value, {"skill": "set", "target": eid, "setting": name, "value": value})
+                    for value in options if value != current]
+    return []
+
+
 _LOADED = False
 
 
@@ -209,20 +388,23 @@ def enabled_domains():
     return {"core"} | {name.strip() for name in raw.split(",") if name.strip()}
 
 
+def domain_modules():
+    """The modules load_domains imports, in order: core first (other domains extend its actions), then the committed
+    domains of DOMAINS (restricted by HOUSE_SIM_DOMAINS when set). Never a folder listing: a package that is not in
+    DOMAINS -- a git-ignored build/, dist/ or results/ folder, a stray checkout -- is never imported."""
+    only = enabled_domains()
+    names = [name for name in DOMAINS if only is None or name in only]
+    return ["core"] + names
+
+
 def load_domains():
-    """Import every module in house_sim.systems exactly once (registration side effects)."""
+    """Import core and every committed domain package of house_sim.systems exactly once (registration side
+    effects)."""
     global _LOADED
     if _LOADED:
         return
     import importlib
-    import os
-    import pkgutil
     from .. import systems as package
-    names = sorted(m.name for m in pkgutil.iter_modules(package.__path__))
-    only = enabled_domains()
-    if only is not None:
-        names = [n for n in names if n in only]
-    # core first: other domains extend its actions.
-    for name in ["core"] + [n for n in names if n != "core"]:
+    for name in domain_modules():
         importlib.import_module(package.__name__ + "." + name)
     _LOADED = True

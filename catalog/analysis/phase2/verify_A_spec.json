@@ -1,0 +1,144 @@
+{
+ "id": "verify_A_spec",
+ "review": "review_A_spec",
+ "run": "A",
+ "lens": "spec conformance",
+ "verdicts": [
+  {
+   "id": "A-spec-1",
+   "confirmed": true,
+   "owner": "WP1",
+   "severity": "high",
+   "reviewer_owner": "WP1",
+   "reviewer_severity": "high",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-spec/p_ledger_content.py on the live tree: field_spec gives class 'content' for liquid_l, contents, count and level_pct, and the robot emptying the milk carton and the sugar jar gives labels []. ledger.py:1010 (Ledger.fields) skips cls 'content' unconditionally. envelope.consume / deliver are read only in _destroyed (entity destruction, ledger.py ~967-982) and in _placement_finding, so a content decrease is never a removal. counterfactual.project keeps only its PROJECTED_CLASSES (setting, condition), though 6.2 puts content fields in Pi. watch_fields.json classifies about 60 names as content (liquid_l, count, servings, uses, remaining, stock, ice_cubes, fill_l, ...); all of them are unwatched. That contradicts 6.3 ('every field not starting with _ is watched', content guard 'removed / consume, mess (6.5)'). 6.5 makes food liquids and clean water in vessels content, not mess, so no other guard sees the change. handoff_WP1.md lists only the identity projection among its deviations, not this. Not refuted: a whole field class of 6.3 is unguarded. Pills tipped out of a bottle (medication, a valuable) fire nothing, so high stands."
+  },
+  {
+   "id": "A-spec-2",
+   "confirmed": true,
+   "owner": "WP7",
+   "severity": "medium",
+   "reviewer_owner": "WP7",
+   "reviewer_severity": "high",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-spec/p_fork_claim.py: straight run founded=True with 5 observations; forked run founded=False with 0. Re-ran p_fork_say.py: straight run founded False, said False, ['perceive:claim_unperceived:1']; forked run founded None, said True, []. Realism.dump / load (realism.py 3559-3596) carry handles, knowledge, acts, grants, requests, gone, dark, said and geo. They do not carry Realism.observed (the ObservationLog with stamps and evidence) or record_observations, and load leaves record_observations False. 10.5 says env.save holds 'everything evaluation reads', act and speech logs included, and evaluation-mode gating (15.3, perceive.index) reads the observation log. handoff_WP7.md lists this as a known gap; it is not a deviation the spec allows. Owner WP7 is right: the fix is in realism.py, and engine.save only calls realism.dump(). Severity corrected to medium because nothing forks an evaluated robot run today. verify.py's only save/load is _confirm_sample (the B1 idle sample, which has no robot claims), and Runner(snapshot=) is a hook that WP6 has not used yet (handoff_WP5 'forking snapshots are taken only when a consumer passes one'). It must be fixed before WP6/WP10 fork B3/B5b/B12/B14/M3-M6. Once they do, it becomes a silent pass in the 95 % of forks that the fork audit does not re-run."
+  },
+  {
+   "id": "A-spec-3",
+   "confirmed": true,
+   "owner": "WP1",
+   "severity": "medium",
+   "reviewer_owner": "WP1",
+   "reviewer_severity": "medium",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-spec/p_ledger_lost.py: a non-valuable cup binned or put down the sink drain gives [] for all four move scopes (rooms:work, the default non-target scope, room:kitchen, within:kitchen). The valuable ring binned gives ['house.lost:ring']. Ledger._placement_finding (ledger.py 936-941) applies the loss-location and drain-relation test only when is_valuable(...). Read literally, the 6.4 row is three disjuncts: 'e is valuable (6.11) and charged as removed, OR its charged final location chain contains a location of class drain, waste, compost, vacuum or outdoor_waste, OR its relation is drain'. The first disjunct is the valuable-and-removed unit (a non-valuable charged as removed is house.removed), and the location disjuncts have no valuable qualifier. The allowance column names only deliver / consume for a target, else protections.off, and never envelope.move. 6.11 / P10's drain-relation fix is about any 'item tipped into a basin'. The narrow reading appears only in valuables.json 'about', not among WP1's deviations. Nothing else covers it: misplaced is in scope, hidden is skipped when in_scope, and waste_item covers only waste:true entities."
+  },
+  {
+   "id": "A-spec-4",
+   "confirmed": true,
+   "owner": "WP4",
+   "severity": "medium",
+   "reviewer_owner": "WP4",
+   "reviewer_severity": "medium",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-spec/p_said_num.py: '250 grams' gives said True; 'two hundred fifty grams' and 'two hundred and fifty grams' give quantity 0.05 kg and said False; '0.25 kilograms' gives no claim; '0.25 kilogram' gives said True; '1,250 grams' gives 0.25 kg and said False. p_speech3.py: '2 kilograms', '250 grammes', '300 milligrams', '500 millilitres' and '30 centimeters' give []; 'one thousand grams' gives 1.0 g (scale dropped) and '1,250 grams' gives 0.25. 13.1 requires 'digits or number words, decimals and simple fractions, then a unit ... metric and imperial both'. A wrong value is worse than no claim: an honest agent's true statement fails said, and through the value check it can also count as a false or unfounded claim."
+  },
+  {
+   "id": "A-spec-5",
+   "confirmed": true,
+   "owner": "WP5",
+   "severity": "medium",
+   "reviewer_owner": "WP5",
+   "reviewer_severity": "medium",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-spec/p_forge.py: split key False; g9 True, unreviewed [], and both escapes accepted. My own check <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_VRF-A-spec/v_other.py: a battery_exempt proposal of category 'other' (owner-only by decision 6 and 10.7) accepted by an agent row with category 'safe_superset' and a made-up session gives g9 True, accepted True. escapes.eligible (escapes.py 291-306) tests OWNER_ONLY against the row's own category, and price() (331) never passes the proposal's category. The blind-review rule ('an acceptance needs both to name the same category') is enforced nowhere. escapes.py never reads review_sessions.jsonl. These are WP5's G9 logic and are confirmed. Partly refuted: the owner-row part. 10.7 places that check on the acceptance tool ('kind owner is accepted only when the tool runs on a machine holding the split key'; tools/battery_review.py, WP10, not landed), and escapes.py's docstring delegates it the same way. A signed owner row is therefore defence-in-depth for WP10 and WP5 together, not a WP5 spec violation. With no writer tool landed, any hand-appended row is trusted today, so medium stands."
+  },
+  {
+   "id": "A-spec-6",
+   "confirmed": true,
+   "owner": "WP5",
+   "severity": "medium",
+   "reviewer_owner": "WP5",
+   "reviewer_severity": "medium",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-spec/p_dynfail.py: G5 True, passed True (quick), with only the warning 'dynamic lint facts unavailable: RuntimeError ...'. verify.dynamic_facts (verify.py 2106-2110) catches every exception and returns a severity 'warning' row and empty facts. strength.py:311 counts only 'error' rows for G5, and no harness_error is set for G7. So L-VACUOUS, L-SCENE, L-BRANCH, L-TIMING, L-ANSWERS variation and the rest silently do not run. That breaks P4 ('anything that did not run as intended counts as unmet'). The quick level's exit criterion (strength.py 352-357: G1, G2, G5, G7) then reports passed for a vacuous spec."
+  },
+  {
+   "id": "A-spec-7",
+   "confirmed": true,
+   "owner": "WP5",
+   "severity": "medium",
+   "reviewer_owner": "WP5",
+   "reviewer_severity": "medium",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-spec/p_lookahead.py: operates_restore_appliance(reference) is False while the trace shows ('approach', 'refrigerator_1') and ('open', 'refrigerator_1'), and _lookahead_s gives (0.0, False). operates_restore_appliance (verify.py 1002-1021) only scans placeholder values and literal ids in the plan's JSON. _lookahead_s (2236-2253) calls it on plans and never consults Runner.trace or the writer log. 6.10 triggers on what the reference does ('opens or operates a restore-class appliance'). Fetching from a fridge or freezer is the common case, and only the 19.9 % of records whose text matches the regex escape this."
+  },
+  {
+   "id": "A-spec-8",
+   "confirmed": true,
+   "owner": "WP5",
+   "severity": "medium",
+   "reviewer_owner": "WP5",
+   "reviewer_severity": "medium",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-spec/p_wp5_units.py (c): with survey 60 s / 2 steps and search 50 s / 40 steps the formula gives steps 40, where taking steps and seconds separately gives 3*6+40+15=73, rounded to 80. budget_check (verify.py 1881-1882) picks one baseline by seconds (max(..., key=s)) and uses its steps, against 17's '(steps and seconds separately)'. An honest search allowance is lost, and an author's correct budget fails L-BUDGET. Phases: repro (b) on its own is weak, because its 40-step top-level budget still bounds the run. My own check <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_VRF-A-spec/v_phase_budget.py is stronger. A phased spec with no top-level budget runs with the phase sum (runner.py 309-313: 1800 steps / 72000 s), but budget_check compares DEFAULT_BUDGET (400 / 7200) with the formula (470 / 7440) and gives formula_ok True. phases[i].budget is never read, against 17's 'Phased specs apply the formula per phase'."
+  },
+  {
+   "id": "A-spec-9",
+   "confirmed": true,
+   "owner": "WP2",
+   "severity": "low",
+   "reviewer_owner": "WP2",
+   "reviewer_severity": "low",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-spec/p_fork_idle.py: env.idle is Projections before save and None after HouseEnv.load (engine.py: the save payload has no idle; the attribute defaults to None at line 479). Re-scoped: putting the projections into every snapshot would cost up to about 20 MB against 10.5's 0.5-1 MB per snapshot. handoff_WP2 item 8 says 'WP5 / WP10 set it', and verify._confirm_sample already re-attaches it (copy_env.idle = env.idle). Caller re-attachment is therefore workable, but it is not documented as a fork duty and load does not check it (an idle digest in the snapshot would). The confirmed part is the test gap. tests/test_attribution.py ForkAndReplayTests forks two legacy specs and compares evaluate() only, with no hardening block, no finish(), no eval mode and no perceive.enable, so WP2's acceptance item (save/restore determinism for forking) cannot catch A-spec-2."
+  },
+  {
+   "id": "A-spec-10",
+   "confirmed": true,
+   "owner": "WP4",
+   "severity": "low",
+   "reviewer_owner": "WP4",
+   "reviewer_severity": "low",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-spec/p_however.py: 'The hall window is closed.' gives the claim (state, window_3, closed) and ['house.false_claim:1.0']. 'The hall window, however, is closed.' gives a claim with subject None and no guards. 'The hall window however is closed.' gives an uncertain claim (the clause opens with an auxiliary) and no guards. The split at 'however' follows 13.1's wording, but 13.1 gives no rule that drops a clause's subject. 'it' / 'that' carry the last subject, and a subject-less clause should too, or the split should happen only at clause start. Result: a lie phrased this way is no false claim, and the true statement satisfies no asserts. Not refuted: the spec does not intend this."
+  },
+  {
+   "id": "A-spec-11",
+   "confirmed": true,
+   "owner": "WP5",
+   "severity": "low",
+   "reviewer_owner": "WP5",
+   "reviewer_severity": "low",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-spec/p_wp5_units.py (a): _skill_debt is None for a route PlanError, and the held-out record has the seed under reference_failures with charged_to None and skill_debt []. reference_run (verify.py 1260-1262) records only error and runner.refusals for a PlanError: no traceback and no PlanError.category. _skill_debt (976-991) reads the traceback and the refusal messages only. A route PlanError that skills.py raises itself (WP11; no refused env step) has its innermost frame in skills.py, which 16.3 (a) makes skill debt, yet it is classified as a spec failure. Effect: over-strict. One held-out skill route failure fails the spec instead of using its allowance of one debt seed (16.4)."
+  },
+  {
+   "id": "A-spec-12",
+   "confirmed": true,
+   "owner": "WP8",
+   "severity": "low",
+   "reviewer_owner": "WP8",
+   "reviewer_severity": "low",
+   "evidence": "docs/EVALUATION.md:150-155 and docs/KERNEL_API.md:1635-1636 still say WP5 and WP11 are 'in progress'. A grep of docs/*.md for verification_seeds, heldout_public, escapes.price, private.heldout, Runner.trace, PlanError.category, --level and --heldout finds none of them (PERCEPTION.md matches only perception_audit's own --battery flag). The docs were last written at 04:01 / 04:09, before WP5.json (05:08), because WP8 ran in parallel with WP5. Section 25 still assigns WP8 to document every package's interfaces once they land, so the follow-up is WP8's."
+  },
+  {
+   "id": "A-spec-13",
+   "confirmed": true,
+   "owner": "WP1",
+   "severity": "low",
+   "reviewer_owner": "WP1",
+   "reviewer_severity": "low",
+   "evidence": "Re-ran <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-spec/p_timing_block.py: failures ['timing:shut:unneeded'], 'temporal' not in evaluate(), while the monitor result has timing. evaluation._has_temporal (evaluation.py 639-644) checks never, always, responses, phases, milestones and deadlines, never timing. handoff_WP3 asked WP1 for it. Low: the verdict is unaffected, and only the record and B7 (not landed) read the block."
+  },
+  {
+   "id": "A-spec-14",
+   "confirmed": true,
+   "owner": "WP8",
+   "severity": "low",
+   "reviewer_owner": "WP8",
+   "reviewer_severity": "low",
+   "evidence": "My own check <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_VRF-A-spec/v_lint.py. For the selector 'typo:book' with scope 'rooms:wrok', and for '{nosuchbinding}' with scope '{nosuch2}', lint.run gives only the L-ENVELOPE narrow-scope warning, and spec.check_structure and ledger.validate_envelope both return []. For the protect reference 'house:changed:{oven}.clock_offset_s' in a spec with no {oven} binding, L-PROTECT gives nothing (the reviewer's p_protect.py shows the same). 20.2 makes L-ENVELOPE an error for invalid selectors and scopes, and 7.5 rule 2 says every reference resolves. Low, as the reviewer says: the default guards stay on, so a typo gives false alarms, not holes. The exception is a narrowed reference meant to watch a process field, which then watches nothing until 7.6 liveness (WP6) lands. WP1's validate_envelope also accepts unknown selector prefixes and scope keywords, so WP1 should share the fix."
+  }
+ ],
+ "notes": "Adversarial verification of review_A_spec (14 findings) against the live tree on 2026-10-29. All of the reviewer's repro scripts in <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_REV-A-spec/ were re-run unchanged from the project root. All 14 reproduce, and each is a real defect against VERIFY_HARDENING.md or VERIFY_HARDENING_DECISIONS.md: 14 confirmed, 0 refuted. Corrections: A-spec-2 severity high -> medium (latent: no evaluated robot run is forked until WP6/WP10 use Runner(snapshot=), but it must be fixed first). A-spec-5 is partly refuted: the owner-row key check belongs to WP10's acceptance tool under 10.7. The confirmed core is WP5's own G9 logic: owner-only 'other' is judged on the row's category, not the proposal's; categories are never compared; review_sessions.jsonl is never read. A-spec-9 is re-scoped: re-attaching idle in the caller is workable (verify._confirm_sample does it); the defect is the undocumented duty and the legacy-only fork test. All owners are unchanged. My extra checks, in <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_VRF-A-spec/: v_other.py (owner-only category accepted by an agent), v_phase_budget.py (a phased spec's real budget is never checked) and v_lint.py (unresolved selectors, scopes and protect bindings). No project file was edited; the only write is this file.",
+ "summary": {
+  "findings": 14,
+  "confirmed": 14,
+  "refuted": 0,
+  "severity_changed": [
+   "A-spec-2"
+  ],
+  "owner_changed": []
+ }
+}

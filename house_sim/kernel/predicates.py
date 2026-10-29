@@ -23,7 +23,12 @@ Kernel v3.1 forms (TIER1_SWEEP 5.4, 8.1, 8.4; TIME-EVAL):
     {"milestone_count": name, "op": OP, "value": N}   rising edges of a counted milestone (1 / 0 for a plain one)
     {"report": {...}}, {"report_set": {...}}          typed reports (kernel/reports.py match / match_set); "after"
         (a milestone name, "phase:<id>" or seconds) and "before_s" (seconds after it, or absolute without it) bound
-        the record times; report_set holds when precision >= min_precision and recall >= min_recall (default 1.0)
+        the record times; report_set holds when precision >= min_precision and recall >= min_recall (default 1.0);
+        "as_of": "report" | "observed" (VERIFY_HARDENING 15.2, WP4) compares a report's value with the truth reports.py
+        stored at report time, or at the time of the observation that supports it, instead of a literal "value"
+    {"said": {"to", "asserts", "forbids", "heard", "audience", "after", "before_s", ...}}
+                                                      what the robot said, by its claims (kernel/speech.py match;
+        VERIFY_HARDENING 13.2): the window as for report
     paths "mind.<...>"                                the robot's memory (read-only view), evaluation only
 The temporal and memory forms read the evaluation overlay of a state (kernel/evaluation.py evaluation_view: the "mind"
 view and the "$temporal" record of milestones and phase starts); on a plain state they see nothing (counts 0, mind
@@ -41,7 +46,8 @@ _QUANT = ("forall", "exists", "count")
 AGG_FNS = ("sum", "min", "max", "avg", "count")
 TEMPORAL_KEY = "$temporal"      # evaluation overlay: {"milestones": {...}, "phases": {id: started_s}}
 MIND_KEY = "mind"               # evaluation overlay: the robot's memory view (read-only)
-_FORMS = ("milestone_count", "report", "report_set", "agg")
+_FORMS = ("milestone_count", "report", "report_set", "said", "agg")
+AS_OF = ("report", "observed")
 
 
 def get_path(state, path, default=MISSING):
@@ -123,7 +129,20 @@ def validate_predicate(rule, relative=False):
         if key in rule:
             if set(rule) != {key} or not isinstance(rule[key], dict):
                 raise ValueError("{} takes one object of expectations".format(key))
+            if "as_of" in rule[key]:
+                if rule[key]["as_of"] not in AS_OF:
+                    raise ValueError("as_of must be report or observed")
+                if "value" in rule[key]:
+                    raise ValueError("as_of compares with the stored truth: give tol, not value")
             return
+    if "said" in rule:
+        if set(rule) != {"said"}:
+            raise ValueError("said takes one object")
+        from . import speech
+        problems = speech.validate_said(rule["said"])
+        if problems:
+            raise ValueError("said: " + "; ".join(problems))
+        return
     keys = set(rule)
     if keys == {"path", "op"} and rule.get("op") in ("is_true", "is_false"):
         keys = {"path", "op", "value"}          # is_true / is_false need no value (kernel v3.1)
@@ -420,6 +439,10 @@ def _check_form(state, rule, full_state):
         reached = ((world.get(TEMPORAL_KEY) or {}).get("milestones") or {}).get(rule["milestone_count"])
         count = 0 if reached is None else int(reached.get("count", 1))
         return compare(count, rule["op"], rule["value"])
+    if "said" in rule:
+        from . import speech
+        spec = report_bounds(world, rule["said"])
+        return spec is not None and speech.match(world, spec)
     if "report" not in rule and "report_set" not in rule:
         raise ValueError("Unknown or malformed predicate: " + json.dumps(rule, default=str)[:200])
     from . import reports

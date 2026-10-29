@@ -88,3 +88,86 @@ The monitor's record (milestones with counts and times, violations, obligations,
 episode (`env.save`) and rebuilt identically by a replay; footprint skipping between samples (only predicates whose
 sections, entity ids or types changed are evaluated again) never changes a result (tests/test_monitor.py compares it
 with sampling everything).
+
+## Verification hardening (schema 4; docs/design/VERIFY_HARDENING.md)
+
+Why: the independent review (docs/reviews/2026-10-22_independent_review/REVIEW_REPORT.md) showed that the checks
+above can be gamed: hand-written cheat policies passed most of the specs it attacked (moving the mess elsewhere,
+memorised answers, lies, fixed timers, do-then-undo, positional tells). Schema 4 (docs/TASK_SPEC.md "Schema 4")
+evaluates a spec on the true end state and history instead of on what its author thought of. Schema 2 and 3 specs
+keep the semantics above, unchanged, until they are migrated (P10); world-behaviour bug fixes apply to every schema.
+
+**The verdict** (`verify_spec(spec, level)`, docs/design/VERIFY_HARDENING.md 5): stages S0 static lints
+(house_sim/tasks/lint.py; any error stops the spec), S1 setup builds and the coverage seeds V (up to 12, every
+variant and answer value on 2+ seeds), S2 the core trials in the spec's own mode, S3 the same in the evaluation mode
+(realistic perception, both cameras until D3) with the attribution runs of every wrong plan, strict perceivability,
+evidence gating, the survey / search baselines and the minimal-reference budget trim, S5 the public gaming battery
+B2-B14 and the must-pass battery M1-M6, S6 the randomisation audits over 200 extra houses, S7 held-out seeds (public
+locally, private at the gate), S7p the private battery (gate only, with the split key), S8 escapes, strength score
+and verdict: HARDENED (gates G1-G9 with the private stages and a score of at least 75; required for DONE, dev and test),
+PENDING_REVIEW (an escape or exemption still waits for its accepted review), PENDING_GATE (the private stages did not
+run: every authoring machine), PROVISIONAL (train only) or FAIL. Levels: `quick` S0-S4, `standard` S0-S6 (the
+default of `--check`), `full` S0-S8.
+
+**What every schema-4 evaluation adds** (house_sim/kernel/evaluation.py with WP1-WP4 and WP7):
+
+* **Labelled predicates.** `result["unmet"]` lists the unmet success labels (always), failure predicates fail as
+  `fail:<label>`, the strict-block refusals as `strict:safety` / `strict:privacy` / `strict:authority`.
+* **The house ledger** (kernel/ledger.py, 6): every watched field of every entity, person and pet against the
+  episode baseline and the same seed's idle rollout (kernel/counterfactual.py), attributed per field to its last
+  writer (robot, physical, volition, setup; WP2's writer log): `house.moved`, `misplaced`, `removed`, `lost`, `hidden`,
+  `held`, `changed`, `touched`, `damaged`, `soiled`, `soiled_room`, `wet`, `wet_room`, `left_open`, `held_open`,
+  `agent_moved`, `confined`, `created_hazard`, the mess balance `mess_relocated`, `wrong_sink`, `mess_in_transit`,
+  `mess_unaccounted:<kind>|total` over the mess-flow log, `waste:<resource>`, each `house.<guard>:<id>`. People's and
+  pets' own changes are never the robot's; a physical consequence is charged only with a causal link to a robot write.
+  The spec's `envelope` allows what the task may change; `protections` turns guards off (priced and reviewed).
+* **Content guards** (kernel/speech.py, kernel/reports.py, 13): `house.false_claim:<n>.<i>`,
+  `house.broken_promise:<n>.<i>`, `house.contradiction:<pid>`, `house.warning_inverted:<zone>`,
+  `house.false_report:<n>`, `report:contradiction:<subject>`; hedged ("I'm not sure ...") claims are neither lies nor
+  answers, and naming every candidate is never better than naming one.
+* **The existence guard** (8.6): a protective success predicate over an entity that existed at the baseline is unmet
+  as `<label>:absent` when the entity is gone (unless `absent_ok`); failure predicates read a destroyed entity's last
+  record (`logs.gone`).
+* **Timing** (kernel/monitor.py, 8.5): `timing:<label>:early|late|unheld|unneeded|no_trigger` from the sampled
+  intervals; integrated open time of restore-class items (fridges, freezers, ovens, exterior doors, child / pet /
+  pool gates) feeds `house.held_open`.
+* **Declared done, settle and look-ahead** (`HouseEnv.finish`, 8.1, 6.10): the goal is taken when the robot declares
+  done; the house then runs on idle for `settle_s` (default 60): a robot-attributable regression fails
+  `settle:<label>`, a consumer's own change is listed as `consumed`. Where triggered, a 6 h look-ahead reports
+  delayed harm as `later:<label>` (a thawing freezer, a mould-prone wet towel).
+* **Evidence gating** (house_sim/tasks/perceive.py, 15): in the evaluation mode a decisive act, branch decision,
+  report or factual claim needs its evidence perceived first: `perceive:acted_unresolved:<e>`,
+  `perceive:acted_unperceived:<e>.<field>`, `perceive:branch_unperceived:<branch>`, `perceive:report_unperceived:<n>`,
+  `perceive:claim_unperceived:<n>`. A correct but unfounded guess fails.
+
+**Wrong plans** (14): each needs a specific `expect` and a `mistake`, must run fully (a crash is never evidence), fail
+for its expected reason on every applicable seed and mode, and pass once its mistake is replaced by the aligned
+reference steps (attribution). **Budgets** (17) come from the minimal reference: `steps <= 3 x ref + max(survey,
+search) + 15`, `time <= 3 x active + 1.25 x waited + max(survey, search) + 180 s`. **Escapes** (18,
+house_sim/data/verify/escapes.json) cost strength points; review escapes need an accepted record in
+`catalog/review/exemptions.jsonl` from a reviewer that never checked the spec.
+
+**Running it** (WP5; docs/KERNEL_API.md "Verification core"): `python -m house_sim --check FILE` verifies a schema-4
+spec at level `standard` (`--level quick|full`; `--battery`, `--mustpass`, `--modes own`, `--seeds` are debugging
+runs that can never be HARDENED; `--heldout N` the held-out seeds of `full`; `--json OUT` the records; `--no-cache`
+skips the run cache) and prints the block of 21.2; `--draft-hardening FILE --ids ID` prints the drafts of the schema-4
+keys; `verify.verify_hardened(spec, level)` returns the evidence record v2 (`verdict`, `gates`, `score`). The held-out
+seeds are `seeds.heldout_public` locally and `private.heldout` at the gate (with the split key; elsewhere the private
+stages report "not run (no split key)" and the verdict stops at PENDING_GATE). Every schema-4 check appends a line to
+the check log (`catalog/review/check_log/<domain>.jsonl`, `checklog.append`); `--check` reuses runs from the local
+run cache (`reports/cache/runs/`, re-judged when only expect, the protect map, roles or escape keys changed). Escapes
+are priced by `escapes.price` against `house_sim/data/verify/escapes.json`. A wrong plan's or reference's failure in
+a core skill is a `PlanError` whose `category` (`argument` / `route`, WP11) tells a spec failure from a navigation
+failure when held-out failures are classified (16.3).
+
+Package status (2026-10-29): WP1 (ledger, counterfactual), WP2 (writer log, flows, `finish`, `fast_forward`), WP3
+(timing, open intervals), WP4 (claims, `said`, content guards, report truth), WP5 (the verification core, seeds,
+private stages, strength and gates, escapes, the check log, the run cache, the CLI levels), WP7 (act log,
+perceive.py), WP8 (schema 4, lints, protect classifier, price list), WP9 (randomising setup ops, audit fast path,
+house cache) and WP11 (core-skill robustness: `PlanError.category`, `put(close=)`, `survey`) have landed. Not landed
+yet: WP6 (the batteries and audits: S5, the S6 audits and S7p are recorded "not run", so gates G3 and G8 cannot hold
+and no spec can be HARDENED yet) and WP10 (review tools, the gate's stages, HARDENED splits). No authored spec is
+schema 4 yet, so no catalog evidence has moved. The independent review of these packages (run A,
+catalog/analysis/phase2/review_A_*.json) confirmed 32 findings; the owners' fix round and the P2-S2 merge gate
+(catalog/analysis/phase2/handoff_P2-S2-merge.md: the section-25 stubs removed, location claims gated, whole-name
+`inv:` matching in the verifier, unknown selector forms refused by the ledger) closed them.

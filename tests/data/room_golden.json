@@ -163,6 +163,13 @@
     "attributed by A/B: HEAD with navigation_robot.json reverted to P1F dumps identical to P1F (275 files); every step's action ok and seconds unchanged"
    ],
    "date": "2026-10-28"
+  },
+  {
+   "by": "WP2",
+   "classes": [
+    "logs.gone"
+   ],
+   "date": "2026-10-29"
   }
  ],
  "modes": [
@@ -1288,7 +1295,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "969bc70f0665b6f82d053b5bee5e567933d74547152804604736cee788b8f790",
+   "state": "78b21a6c56d6e5a0fc54630cefc3a48920bf5cdcfc4b222de5f5e265376bf610",
    "steps": 8,
    "time_s": 3624.011
   },
@@ -1498,7 +1505,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "dde172fa6c9f724650055f333108a793bf562d7e922fe47f17e66ff61dc9e632",
+   "state": "f9b7d04ac60c87f0d0caea7d88766165594ad1c3f662fd2c92c6e097990c61a3",
    "steps": 84,
    "time_s": 357.503
   },
@@ -1730,7 +1737,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "7c35f1e268b94d8a260b87c979b688fb8283b3bc15e9e2fc142c62f97d863407",
+   "state": "e4962c680aa047c99ed2dc42b22890cad37d42fba09fe86bebb0e78c172e2d41",
    "steps": 42,
    "time_s": 124.659
   },
@@ -1761,7 +1768,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "f52a3ba51ae9e34c97964042cfabc67a0ab3892c1ac55b98ee711eec94803300",
+   "state": "ada9c87b7ad963c5d9b49c652a5dd04cbe7427b1254c54f773db342155d657c3",
    "steps": 28,
    "time_s": 151.509
   },
@@ -1781,7 +1788,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "87500e8ad234fe260240db5f2fdb61226b17c8110a09960897daf71125a9e308",
+   "state": "699a8a2052e3d9c7335afeacd1b756c9e596fabbf2493f3605b32579eea568ed",
    "steps": 15,
    "time_s": 4237.193
   },
@@ -2046,7 +2053,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "b5fb95773bb7d40cad5a33c8fa9f4eee7efe7f79a5cb07de21c7a4ab06d6ba15",
+   "state": "639a24c0a1d61fd8eb5ef658a95f43f16093305641b824cd6a07ea93106fe0c0",
    "steps": 29,
    "time_s": 99.742
   },
@@ -2276,7 +2283,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "bd92a15790bde01ca717fd56b78378a1fbe19e27f4fa181a2fcbbd90529bf198",
+   "state": "44e45e81ab3f9d97841c9415b58eeec4ffa8a1b1149bc0bc520acb9a36fd9bd3",
    "steps": 14,
    "time_s": 3601.439
   },
@@ -2366,7 +2373,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "fafe1e344eb44521f3e4950b1063e04bf6ca76395ee00a33dbacd986f794d356",
+   "state": "be4800098445a7573b28e3bc9969471e35431cd600fc2ef5c9774f1114716aa8",
    "steps": 46,
    "time_s": 466.543
   },
@@ -2658,7 +2665,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "8d7d374c0aa6c4e135f618cc050e90f2097059e84fdad66a49130821881cd280",
+   "state": "1d64e88c89374f3ea484f8089c4427e42f7b179fac5015efe388baabcfed044d",
    "steps": 38,
    "time_s": 147.434
   },
@@ -2904,7 +2911,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "692720800d43cb758bcd380819de08d4400290629ba4316b54642a4e8b3c7610",
+   "state": "3ba47d6bff674aa5e9a3800cddabd7c587f51e1aa9834ac110b53a7440daae33",
    "steps": 25,
    "time_s": 4763.193
   },
@@ -2954,7 +2961,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "2e6f3eb56f635e3ea397ddb1cb17a4d582d1a90d6ad67b59c4645009e9328b98",
+   "state": "3db9d065d2475ca68d39b61dc3cdb1b6ca159614760068c49890a4ad823dcd0a",
    "steps": 9,
    "time_s": 402.525
   },
@@ -2984,7 +2991,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "818f0818b6e237ff22a03cec6946d3fee116cef9ed4d8d6672aa08aba92344af",
+   "state": "f792282a2cb224e27ec3b4bb75459fbaf4523b997daf37c431274fbfcf241d68",
    "steps": 35,
    "time_s": 176.575
   },
@@ -3511,7 +3518,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "f7b2eb269e28a5f2f4c316bbcebe8e9652c7a9ed027a764c7ef4c6fafff01ce7",
+   "state": "683a22f21ffbb76dfa698d7ff5100af5f8f37cd1d44621557e99ae117531a175",
    "steps": 89,
    "time_s": 474.935
   },
@@ -3521,7 +3528,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "23c4e0932d2d1ca0e7f59323a865ba752239e94fd72c768341a0e03e861e1884",
+   "state": "50f1997485ecdde4850114bc4d177257e058a68b884303bffd6186a0379b9fbf",
    "steps": 37,
    "time_s": 2653.336
   },

@@ -1,0 +1,20 @@
+{
+  "about": "Zones and passability of people and pets for house.agent_moved and house.confined (VERIFY_HARDENING 6.4, critique hole 20; WP1). zone(p): p's baseline room plus, for a pet, the rooms holding its food, water, litter and bed (entities whose category or type is listed under pet_needs, owned by p or by nobody), and, for a person, their bedroom (home_room), a bathroom (the nearest room of a bathroom type) and an exterior exit (a room reached through an exterior door or an outdoor room) unless the person is a child under exit_min_age or carries a wandering flag. reach(p, S): rooms reachable from p's room over connections passable to p: a connection without a door; an open door (open, or open_frac >= open_min); a pet door for a pet (pet_door_types); stairs unless p is flagged unable (stairs_unable_flags or abilities.mobility in stairs_unable_mobility); a locked door only for a keyholder (a person with authority >= keyholder_authority who is not a child). A pet inside a crate or carrier (crated true, or its location an entity) reaches nothing.",
+  "pet_needs": {
+    "food": {"categories": ["pet_bowl", "pet_food"], "types": ["dog_food_bowl", "cat_food_bowl", "pet_food_bowl", "pet_bowl", "automatic_pet_feeder"]},
+    "water": {"categories": ["pet_water_source"], "types": ["dog_water_bowl", "cat_water_bowl", "pet_water_bowl", "outdoor_water_bowl", "pet_fountain"]},
+    "litter": {"categories": ["litter_box"], "types": ["litter_box"]},
+    "bed": {"categories": ["pet_bed"], "types": ["pet_bed", "dog_bed", "cat_bed", "cat_tree"]}
+  },
+  "species_needs": {"cat": ["food", "water", "litter", "bed"], "dog": ["food", "water", "bed"], "default": ["food", "water"]},
+  "bathroom_room_types": ["bathroom", "half_bath", "powder_room", "ensuite", "master_bath"],
+  "exit_min_age": 6,
+  "wandering_flags": ["wandering", "wanders", "dementia"],
+  "open_min": 0.3,
+  "pet_door_types": ["pet_door"],
+  "stairs_kinds": ["stairs", "staircase", "stair"],
+  "stairs_unable_flags": ["no_stairs", "stairs_unable"],
+  "stairs_unable_mobility": ["wheelchair", "bedbound", "none"],
+  "keyholder_authority": 2,
+  "carrier_fields": {"crated": true, "in_carrier": true, "carried": true}
+}

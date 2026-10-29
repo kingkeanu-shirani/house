@@ -8,8 +8,8 @@ NOT get these; they compose primitives themselves (or use their own planners).
   approach(target, avoid=None)    go to the target's room and within arm's reach
   reveal(obj)                     open closed containers around obj / inspect under-behind
   fetch(obj, hand=None, grip=None, auto_grip=True)
-  put(obj, dest, relation=None, spos=None, shelf=None, cell=None, orientation=None, grip=None)
-  give(obj, person)               fetch, find the person, hand over
+  put(obj, dest, relation=None, spos=None, shelf=None, cell=None, orientation=None, grip=None, close=False)
+  give(obj, person)              fetch, find the person, hand over
   ask(person, topic)              returns the answer value; the canonical form ask(person, about=..., aspect=...,
                                   detail=..., act=..., options=..., channel=..., language=...) too
   tell(person, kind=..., ...)     a typed report to a person: walks to them for an in-person report (or uses the
@@ -18,6 +18,22 @@ NOT get these; they compose primitives themselves (or use their own planners).
   use(action, target, tool=None, approach_target=True, **params)
   drop_all(dest=None)             set everything held down (floor of current room by default)
   wait(seconds)
+  survey(rooms=None, places=None, rows=1, strict=False)
+                                  look around every room (nearest first), and at each candidate place (open, inspect)
+
+Robustness (VERIFY_HARDENING 25, WP11; review H10 and F11, 14.5): a parameter that names a thing, room, person or pet
+and arrives unbound (None, empty, not a string: "fetch {blocker}" on a seed whose setup placed no blocker) or names
+nothing in the house stops the plan with PlanError, never a TypeError or KeyError (an exception that is no PlanError
+or ActionError is a harness error charged to this file); such a PlanError carries category "argument", and a walk
+with no way through category "route" (PlanError.category, for 16.3's skill-debt classification). put opens a closed destination: it unlocks it first (with
+the key the robot holds, as reveal does for the containers around it), sets down what it holds when opening needs a
+free hand and picks it up again, and with close=True closes and relocks what it opened. go_room descends winder
+stairs carefully unless a hand on a usable rail (one the robot does not know to be loose) and lit treads guide it.
+
+Survey (VERIFY_HARDENING 17): the canonical survey of the budget formula's explore allowance -- from where the robot
+is, go_room to each room (nearest first by route, ties by room id) and look around in it -- and, with places, the
+search baseline's walk: every candidate place that exists, nearest first, approached, opened when closed and
+inspected, without stopping at the item. Returns {"rooms", "places", "skipped"}.
 
 Geometric camera (kernel v3.0, TIER1_CAMERA 15; the room camera keeps the plans above unchanged): approach first
 walks to a viewpoint (sight.best_viewpoints) when the target is not in sight; reveal looks under or behind a support
@@ -45,7 +61,8 @@ def safe_avoid(state, room, start, goals, requested=None, ignore_sources=(), str
     (privileged check), relaxing step by step down to never stepping on sharp or fragile things, sleeping animals or
     people on the floor. Hazards coming from ignore_sources (the approach target and what it rests on) never block.
     When even the least cautious list has no route: strict (core go_room/approach) raises PlanError, since a careful
-    robot does not trample through; otherwise None."""
+    robot does not trample through (its message says so only when trampling would have found a way: otherwise nothing
+    reaches the goal at all, which is no caution, WP11); otherwise None."""
     candidates = [list(requested)] if requested else [list(SAFE_AVOID)] + RELAXED_AVOID
     for kinds in candidates:
         if geometry.find_path(state, room, start, goals, avoid_kinds=tuple(kinds), ignore_sources=ignore_sources) is not None:
@@ -54,12 +71,44 @@ def safe_avoid(state, room, start, goals, requested=None, ignore_sources=(), str
         return list(requested)
     if not strict:
         return None
-    raise _plan_error("No route in {} that avoids stepping on sharp or fragile things, sleeping animals or people".format(room))
+    if geometry.find_path(state, room, start, goals, avoid_kinds=(), ignore_sources=ignore_sources) is None:
+        # nothing to trample: furniture, walls or a closed thing cut the way off (a setup or layout defect, not caution;
+        # held-out seed 502 of T-9615ae9f7570b4-01 spawns the tape where no free cell reaches it)
+        raise _plan_error("No route in {} at all: furniture, walls or closed things cut the way off".format(room),
+                          "route")
+    raise _plan_error("No route in {} that avoids stepping on sharp or fragile things, sleeping animals or people"
+                      .format(room), "route")
 
 
-def _plan_error(message):
+def _plan_error(message, category=None):
+    """PlanError(message); category (WP11), when given, is kept as the error's `category` attribute for the
+    verifier's classification (VERIFY_HARDENING 16.3, 10.1): "argument" for a binding that names nothing (a spec
+    failure), "route" for a walk with no way through (a navigation failure)."""
     from .runner import PlanError
-    return PlanError(message)
+    error = PlanError(message)
+    if category:
+        error.category = category
+    return error
+
+
+ROOM, THING, PERSON, PET = "room", "thing", "person", "pet"
+ANYWHERE = (THING, PERSON, PET, ROOM)
+_GROUPS = {ROOM: "rooms", THING: "entities", PERSON: "people", PET: "pets"}
+
+
+def _named(r, skill_name, param, value, kinds):
+    """The id a skill parameter names, checked before the skill reads it (VERIFY_HARDENING 14.5 and 25; review H10 and
+    F11). A binding the setup left unset (None, an empty or a non-string value) or an id that names no thing, room,
+    person or pet of `kinds` in the house now raises PlanError, as a refused step does: the plan cannot be carried out
+    on this seed. It used to raise TypeError ("No such entity " + None in fetch, T-5ad61b6881821b-01 seed 502) or
+    KeyError (put into an unknown room), which aborted the trial."""
+    if not isinstance(value, str) or not value:
+        raise _plan_error("{}: {} is unbound ({!r}): the binding names nothing".format(skill_name, param, value),
+                          "argument")
+    state = r.state
+    if any(value in (state.get(_GROUPS[kind]) or {}) for kind in kinds):
+        return value
+    raise _plan_error("{}: no {} {!r} in the house".format(skill_name, " or ".join(kinds), value), "argument")
 
 
 POWERED_DOWN = "robot powered down"
@@ -127,10 +176,11 @@ def _entity_room(state, eid):
 
 @skill("go_room")
 def go_room(r, room, avoid=None, speed=None):
+    _named(r, "go_room", "room", room, (ROOM,))
     state = r.state
     route = room_route(state, state["robot"]["room"], room)
     if route is None:
-        raise _plan_error("No route to " + room)
+        raise _plan_error("No route to " + room, "route")
     for nxt, cid in route:
         _powered(r)
         state = r.state
@@ -178,19 +228,24 @@ def _unguided_winders(r, cid, here, nxt):
     """go_room's pace down a flight with winder treads (navigation_robot's stairs rule, review H10): at a walking pace
     a hand on the rail and lit treads keep the robot on the walk line; without a free working hand, a usable rail or
     light in both rooms (or a light it carries), a heel lands on a narrow inner end. The reference then descends
-    carefully (phase 1, navigation_robot's kernel request; plumbing_liquids' and safety's skills already do)."""
+    carefully (phase 1, navigation_robot's kernel request; plumbing_liquids' and safety's skills already do). A rail
+    the robot inspected and knows to be loose guides nothing: it only lets its hand slide along it (stairs.plan's
+    light touch), so that flight is descended carefully too (WP11). Going up, and straight flights, are unchanged."""
     state = r.state
     conn = state["connections"][cid]
     if not int(conn.get("winders", 0) or 0) or body.stairs_direction(state, conn, here, nxt) != "down":
         return False
     hands = state["robot"].get("hands") or {}
     hand_free = any(not hands.get(h) and body.arm_health(state, h) > 0 for h in body.HANDS)
-    rails = [rec for rec in state["entities"].values()
+    rails = [(eid, rec) for eid, rec in sorted(state["entities"].items())
              if rec.get("on_stairs") == cid and rec.get("category") == "handrail"]
-    rail = conn.get("handrail", True) is not False and not any(rec.get("broken") for rec in rails)
+    checked = (state.get("nav") or {}).get("rails_checked") or {}
+    rail = conn.get("handrail", True) is not False and \
+        not any(rec.get("broken") or (rec.get("_loose") and eid in checked) for eid, rec in rails)
     carried_light = any((state["entities"].get(eid) or {}).get("category") == "flashlight" and
                         (state["entities"].get(eid) or {}).get("on") for eid in hands.values() if eid)
-    lit = carried_light or state["robot"].get("headlamp_on") or         (r.env.perception.lit(state, here) and r.env.perception.lit(state, nxt))
+    lit = carried_light or state["robot"].get("headlamp_on") or \
+        (r.env.perception.lit(state, here) and r.env.perception.lit(state, nxt))
     return not (hand_free and rail and lit)
 
 
@@ -268,6 +323,7 @@ def _to_viewpoint(r, target, avoid=None):
 
 @skill("approach")
 def approach(r, target, avoid=None, speed=None):
+    _named(r, "approach", "target", target, ANYWHERE)
     state = r.state
     room = locate(state, target)
     if room is None:
@@ -303,6 +359,14 @@ def reveal(r, obj):
     """Open the closed containers around obj; for a thing under or behind a support, look there (room camera: inspect
     the support where=under/behind; geometric camera: approach the support and peek with the wrist camera, kneeling
     for under unless the support is light enough to lift). Returns True when it left the robot kneeling."""
+    _named(r, "reveal", "obj", obj, (THING,))
+    return _reveal(r, obj)[0]
+
+
+def _reveal(r, obj, opened=None, free_hand=False):
+    """reveal's work: (kneeling, opened). opened lists what it opened, outermost first, as (id, unlocked) pairs (put's
+    close=True shuts them again); free_hand: put's rule for a robot with no free hand (_open_for_access)."""
+    opened = [] if opened is None else opened
     state = r.state
     chain, location = [], state["entities"][obj].get("location")
     while location in state["entities"]:
@@ -312,16 +376,42 @@ def reveal(r, obj):
         record = r.state["entities"][parent]
         if record.get("openable") and not record.get("open"):
             approach(r, parent)
-            if record.get("locked"):
-                r.do("unlock", target=parent)
-            r.do("open", target=parent)
+            _open_for_access(r, parent, opened, free_hand)
     record = r.state["entities"][obj]
     if _geometric(r):
-        return _peek_reveal(r, obj, record)
+        return _peek_reveal(r, obj, record), opened
     if record.get("relation") in ("under", "behind") and not record.get("revealed"):
         approach(r, record["location"])
         r.do("inspect", target=record["location"], where=record["relation"])
-    return False
+    return False, opened
+
+
+def _free_hands(r):
+    """Empty hands, by the rule core open and close apply (core.hands_free_count)."""
+    return sum(1 for held in (r.state["robot"].get("hands") or {}).values() if held is None)
+
+
+def _open_for_access(r, eid, opened, free_hand=False):
+    """Open a closed thing the robot stands at, to reach what is in it: unlock it first when it is locked (with the key
+    the robot holds, a thumb turn on this side...; the env refuses otherwise), as reveal always did. free_hand (put):
+    when opening needs a free hand and none is free (a two-handed load), set what the robot holds down beside it,
+    open, and pick each thing up again with the hand and grip it had. Appends (eid, unlocked) to opened."""
+    record = r.state["entities"][eid]
+    unlocked = bool(record.get("locked"))
+    if unlocked:
+        r.do("unlock", target=eid)
+    set_down = []
+    if free_hand and _free_hands(r) == 0 and not record.get("hands_free_operable") and not record.get("push_operable"):
+        for item in list(dict.fromkeys(v for v in r.state["robot"]["hands"].values() if v)):
+            rec = r.state["entities"][item]
+            set_down.append((item, rec.get("held_hand"), rec.get("held_grip")))
+            r.do("place", target=item)
+    r.do("open", target=eid)
+    opened.append((eid, unlocked))
+    for item, hand, grip in set_down:
+        fetch(r, item, hand=hand if hand in ("left", "right", "both") else None, grip=grip, auto_grip=grip is None)
+    if set_down:
+        approach(r, eid)
 
 
 def _peek_reveal(r, obj, record):
@@ -357,12 +447,11 @@ def _stand(r):
 
 @skill("fetch")
 def fetch(r, obj, hand=None, grip=None, auto_grip=True, avoid=None):
+    _named(r, "fetch", "obj", obj, (THING,))
     state = r.state
     if obj in [v for v in state["robot"]["hands"].values() if v]:
         return obj
-    entity = state["entities"].get(obj)
-    if entity is None:
-        raise _plan_error("No such entity " + obj)
+    entity = state["entities"][obj]
     if entity.get("location") in state.get("people", {}):
         raise _plan_error("{} is held by a person; use receive".format(obj))
     lowered = reveal(r, obj)
@@ -382,7 +471,16 @@ def fetch(r, obj, hand=None, grip=None, auto_grip=True, avoid=None):
 
 
 @skill("put")
-def put(r, obj, dest, relation=None, spos=None, shelf=None, cell=None, orientation=None, grip=None, avoid=None):
+def put(r, obj, dest, relation=None, spos=None, shelf=None, cell=None, orientation=None, grip=None, avoid=None,
+        close=False):
+    """Fetch obj and set it at dest: on or in a thing (relation, spos, shelf, orientation), on a room's floor (cell) or
+    in a person's hands (give). A closed destination is opened first, the closed containers around it too (reveal):
+    unlocked when locked, and with what the robot holds set down and picked up again when opening needs a free hand
+    (_open_for_access; WP11). close=True closes, and relocks, what put opened once the thing is placed, leaving them as
+    found (a battery or must-pass variant that puts a thing away in a cupboard); by default they stay open, as
+    before."""
+    _named(r, "put", "obj", obj, (THING,))
+    _named(r, "put", "dest", dest, (THING, ROOM, PERSON))
     fetch(r, obj, grip=grip, avoid=avoid)
     state = r.state
     if dest in state.get("people", {}):
@@ -396,26 +494,41 @@ def put(r, obj, dest, relation=None, spos=None, shelf=None, cell=None, orientati
         args["destination"] = dest
         r.do("place", **args)
         return dest
-    record = state["entities"][dest]
-    reveal(r, dest)
+    lowered, opened = _reveal(r, dest, free_hand=True)
     approach(r, dest, avoid=avoid)
     record = r.state["entities"][dest]
     wants_in = relation == "in" or (relation is None and record.get("container"))
     if wants_in and record.get("openable") and not record.get("open"):
-        r.do("open", target=dest)
+        _open_for_access(r, dest, opened, free_hand=True)
     crouched = _crouch_if_low(r, dest)
     args["destination"] = dest
     for key, value in (("relation", relation), ("spos", spos), ("shelf", shelf), ("orientation", orientation)):
         if value is not None:
             args[key] = value
     r.do("place", **args)
-    if crouched:
+    if crouched or lowered:
         _stand(r)
+    if close:
+        _shut(r, opened)
     return dest
+
+
+def _shut(r, opened):
+    """put's close=True: close what it opened, innermost first, and lock again what it unlocked."""
+    for eid, unlocked in reversed(opened):
+        if eid not in r.state["entities"]:
+            continue
+        approach(r, eid)
+        if r.state["entities"][eid].get("open"):
+            r.do("close", target=eid)
+        if unlocked and not r.state["entities"][eid].get("locked"):
+            r.do("lock", target=eid)
 
 
 @skill("give")
 def give(r, obj, person):
+    _named(r, "give", "obj", obj, (THING,))
+    _named(r, "give", "person", person, (PERSON,))
     fetch(r, obj)
     approach(r, person)
     r.do("hand_over", target=obj, destination=person)
@@ -427,6 +540,7 @@ def ask(r, person, topic=None, **question):
     language; kernel/dialogue.py). Walks to the person's room unless they can be reached by phone (or a phone / text
     channel is named) or are away from home (location None: only a phone or text reaches them); a written question
     walks right up to them. Returns the answer value (a permission's grant)."""
+    _named(r, "ask", "person", person, (PERSON,))
     state = r.state
     person_rec = state["people"][person]
     room = person_rec.get("location")
@@ -452,6 +566,10 @@ def tell(r, person=None, channel=None, **report):
     state = r.state
     args = {k: v for k, v in report.items() if v is not None}
     if person:
+        if person != "household" and channel in (None, "in_person"):
+            _named(r, "tell", "person", person, (PERSON,))   # walked to: a resident (a remote contact needs a channel)
+        elif not isinstance(person, str):
+            raise _plan_error("tell: person is not an id ({!r})".format(person), "argument")
         args["to"] = person
         if person != "household" and channel in (None, "in_person"):
             room = state["people"][person].get("location")
@@ -464,6 +582,7 @@ def tell(r, person=None, channel=None, **report):
 
 @skill("open")
 def open_skill(r, target):
+    _named(r, "open", "target", target, (THING,))
     approach(r, target)
     if not r.state["entities"][target].get("open"):
         r.do("open", target=target)
@@ -471,6 +590,7 @@ def open_skill(r, target):
 
 @skill("close")
 def close_skill(r, target):
+    _named(r, "close", "target", target, (THING,))
     approach(r, target)
     if r.state["entities"][target].get("open"):
         r.do("close", target=target)
@@ -478,6 +598,7 @@ def close_skill(r, target):
 
 @skill("switch")
 def switch_skill(r, target, on=True):
+    _named(r, "switch", "target", target, (THING,))
     approach(r, target)
     if bool(r.state["entities"][target].get("on")) != bool(on):
         r.do("switch_on" if on else "switch_off", target=target)
@@ -485,20 +606,27 @@ def switch_skill(r, target, on=True):
 
 @skill("set")
 def set_skill(r, target, setting, value):
+    _named(r, "set", "target", target, (THING,))
     approach(r, target)
     r.do("set", target=target, setting=setting, value=value)
 
 
 @skill("use")
 def use(r, action, target, tool=None, approach_target=True, crouch=False, **params):
+    """Any action: fetch the tool first, walk to the target (reveal it when it is hidden) unless approach_target is
+    false, crouch for a low target when asked. A target the action takes that is not a thing (a speed, a cell) goes
+    with approach_target=False."""
+    if not isinstance(action, str) or not action:
+        raise _plan_error("use: action is unbound ({!r})".format(action), "argument")
     if tool:
         fetch(r, tool)
         params["tool"] = tool
     if approach_target and target:
+        _named(r, "use", "target", target, ANYWHERE)
         if target in r.state["entities"]:
             reveal(r, target)
         approach(r, target)
-    if crouch:
+    if crouch and isinstance(target, str):
         _crouch_if_low(r, target)
     args = dict(params)
     if target:
@@ -520,7 +648,10 @@ def drop_all(r, dest=None):
 
 @skill("wait")
 def wait_skill(r, seconds):
-    remaining = int(seconds)
+    try:
+        remaining = int(seconds)
+    except (TypeError, ValueError):
+        raise _plan_error("wait: seconds is unbound or not a number ({!r})".format(seconds), "argument")
     while remaining > 0:
         chunk = min(remaining, 3600)
         r.do("wait", seconds=chunk)
@@ -529,6 +660,155 @@ def wait_skill(r, seconds):
 
 @skill("goto")
 def goto(r, target, avoid=None):
+    _named(r, "goto", "target", target, ANYWHERE)
     if target in r.state["rooms"]:
         return go_room(r, target, avoid=avoid)
     return approach(r, target, avoid=avoid)
+
+
+# ----------------------------------------------------------------------
+# survey (VERIFY_HARDENING 17: the explore allowance of the budget formula, the search baseline)
+
+def _hops(state, start, goal):
+    """Rooms walked from start to goal on the route go_room takes (0 when there; None without a route)."""
+    route = room_route(state, start, goal)
+    return None if route is None else len(route)
+
+
+def _nearest(state, here, pos, candidates):
+    """The next stop of a survey tour: fewest room hops from here, then (in this room) the fewest cells from pos, then
+    the id. candidates: [(stop, room)]. Returns (stop, room) or None when no candidate has a route."""
+    best = None
+    for stop, room in candidates:
+        hops = _hops(state, here, room)
+        if hops is None:
+            continue
+        cells = 0
+        if hops == 0 and stop != room:
+            anchor_room, footprint = geometry.anchor(state, stop)
+            if footprint and anchor_room == here:
+                cells = min(geometry.chebyshev(pos, c) for c in footprint)
+        key = (hops, cells, stop)
+        if best is None or key < best[0]:
+            best = (key, (stop, room))
+    return None if best is None else best[1]
+
+
+def _halted(r):
+    """Why the robot can do no more (powered down, fallen), else None."""
+    if not body.is_on(r.state):
+        return POWERED_DOWN
+    if r.state["robot"].get("fallen"):
+        return "robot fell"
+    return None
+
+
+@skill("survey")
+def survey(r, rooms=None, places=None, rows=1, strict=False):
+    """The canonical survey (VERIFY_HARDENING 17, the budget's explore allowance; S3 runs it on each seed from the
+    start pose): go_room to each room of `rooms` (default: every indoor room of the house) and look around in it
+    (look around: six head frames in the geometric camera, rows=2 adds the low row; one look in the room camera). The
+    tour is canonical, whatever the order given: nearest room first by go_room's route from where the robot is, ties
+    by room id; the room it stands in first.
+
+    places: the search baseline (17, critique H19): every candidate place of a `place` answer that exists in the house
+    (absent ones are skipped silently), visited nearest first (room hops, then cells, then id) -- go_room, look
+    around on entering a room, approach the place, open it when it is closed (a locked one is skipped), and inspect
+    it (inside, for a container) -- without stopping at the item. A place may be a room (looked around in).
+
+    strict=False (the baselines): a room or place the robot cannot reach, open or look at is skipped and recorded,
+    and the tour goes on from where the robot is; strict=True raises the first PlanError. Either way it stops when
+    the robot powered down or fell. Returns {"rooms": rooms looked around in, in order, "places": places inspected, in
+    order, "skipped": {id: why}}."""
+    state = r.state
+    if rooms is None:
+        rooms = [] if places is not None else [rid for rid, rec in sorted(state["rooms"].items())
+                                               if not rec.get("outdoor")]
+    if isinstance(rooms, str) or not isinstance(rooms, (list, tuple)):
+        raise _plan_error("survey: rooms must list room ids ({!r})".format(rooms), "argument")
+    if places is not None and (isinstance(places, str) or not isinstance(places, (list, tuple))):
+        raise _plan_error("survey: places must list ids ({!r})".format(places), "argument")
+    for rid in rooms:
+        _named(r, "survey", "rooms", rid, (ROOM,))
+    try:
+        rows = int(rows)
+    except (TypeError, ValueError):
+        raise _plan_error("survey: rows is not a number ({!r})".format(rows), "argument")
+    out = {"rooms": [], "places": [], "skipped": {}}
+    pending = []
+    for rid in rooms:
+        if (rid, rid) not in pending:
+            pending.append((rid, rid))
+    for pid in places or ():
+        if not isinstance(pid, str) or not pid:
+            raise _plan_error("survey: places lists an unbound id ({!r})".format(pid), "argument")
+        room = pid if pid in state["rooms"] else locate(state, pid) if pid in state["entities"] else None
+        if room is not None and (pid, room) not in pending:
+            pending.append((pid, room))
+
+    from .runner import PlanError
+
+    def attempt(stop, work):
+        try:
+            work()
+        except PlanError as exc:
+            if strict:
+                raise
+            out["skipped"].setdefault(stop, str(exc)[:200])
+            return False
+        return True
+
+    def look_here():
+        room = r.state["robot"]["room"]
+        args = {"target": "around"}
+        if rows != 1:
+            args["rows"] = rows
+        r.do("look", **args)
+        out["rooms"].append(room)
+
+    while pending:
+        why = _halted(r)
+        if why:
+            if strict:
+                raise _plan_error("survey: " + why)
+            for stop, _ in pending:
+                out["skipped"].setdefault(stop, why)
+            break
+        state = r.state
+        nxt = _nearest(state, state["robot"]["room"], tuple(state["robot"].get("pos") or (0, 0)), pending)
+        if nxt is None:
+            if strict:
+                raise _plan_error("survey: no route to " + ", ".join(stop for stop, _ in pending), "route")
+            for stop, _ in pending:
+                out["skipped"].setdefault(stop, "no route")
+            break
+        pending.remove(nxt)
+        stop, room = nxt
+        if not attempt(stop, lambda: go_room(r, room)):
+            continue
+        if room not in out["rooms"]:
+            attempt(room, look_here)
+        if stop != room:
+            attempt(stop, lambda: _search_place(r, stop, out))
+    return out
+
+
+def _search_place(r, place, out):
+    """One stop of the search baseline: open the closed containers around the place (reveal), approach it, open it
+    when it is closed (a locked place is reported, not forced), inspect it -- inside, for a container -- and record
+    it. A robot reveal left kneeling stands up again."""
+    lowered = _reveal(r, place)[0]
+    approach(r, place)
+    record = r.state["entities"][place]
+    if record.get("openable") and not record.get("open"):
+        if record.get("locked"):
+            raise _plan_error("survey: {} is locked".format(place))
+        r.do("open", target=place)
+    record = r.state["entities"][place]
+    if record.get("container") or (record.get("openable") and record.get("accepts_items")):
+        r.do("inspect", target=place, where="inside")
+    else:
+        r.do("inspect", target=place)
+    if lowered:
+        _stand(r)
+    out["places"].append(place)

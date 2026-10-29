@@ -1,0 +1,49 @@
+{
+ "id": "WP11",
+ "package": "WP11 CORE SKILLS (docs/design/VERIFY_HARDENING.md section 25; sections 10.1, 14.5, 16, 17)",
+ "files": ["house_sim/tasks/skills.py", "tests/test_skills_robustness.py", "catalog/analysis/phase2/WP11.json",
+           "catalog/analysis/phase2/handoff_WP11.md"],
+ "landed": [
+  "PlanError instead of TypeError/KeyError on a missing binding: every core skill checks the parameters that name a thing, room, person or pet (_named); None / empty / non-string values and ids that name nothing in the house raise PlanError('<skill>: <param> is unbound ...' / '... no <kinds> <id> in the house'); optional None defaults kept (tell.person, use.target/tool, drop_all.dest); a remote tell may name a non-resident contact",
+  "PlanError.category attribute on PlanErrors raised by skills.py: 'argument' (binding names nothing) and 'route' (no way through), for 16.3's skill-debt classification",
+  "Honest no-route message in safe_avoid(strict): 'No route in R at all: furniture, walls or closed things cut the way off' when no path exists even without hazard avoidance (held-out T-9615ae9f7570b4-01 seed 502)",
+  "put opens a closed destination whatever keeps it closed: unlocks it (held key / thumb turn) like reveal does for the containers around a thing, sets held things down and picks them up again when opening needs a free hand, stands up after a geometric kneel; new optional close=True closes (innermost first) and relocks what put opened",
+  "careful speed on winder stairs completed: a rail the robot inspected and knows to be loose guides nothing (stairs.plan's light touch), so go_room descends that winder flight carefully; phase 1's rule (free hand, usable rail, light) unchanged",
+  "survey skill (interface of section 25): survey(r, rooms=None, places=None, rows=1, strict=False) -> {rooms, places, skipped}; canonical nearest-first tour (room hops, cells, id), look around in each room; places = the search baseline walk (reveal, approach, open when closed, inspect, no stop at the item); best-effort unless strict; stops when the robot powered down or fell; 0.75-1.8 CPU-s per generated house",
+  "tests/test_skills_robustness.py: 28 tests (BINDING, PUT, WINDERS, SURVEY) in both perception modes and both camera modes; every BINDING, PUT unlock/free-hand/close, WINDERS loose-rail and SURVEY test fails on HEAD's skills.py (isolated copy: 18 failures, 82 errors)"
+ ],
+ "interfaces": {
+  "survey": "@skill('survey') survey(r, rooms=None, places=None, rows=1, strict=False) -> {'rooms': [looked-around rooms in order], 'places': [inspected places in order], 'skipped': {id: why}}",
+  "put": "@skill('put') put(r, obj, dest, relation=None, spos=None, shelf=None, cell=None, orientation=None, grip=None, avoid=None, close=False) -> dest",
+  "PlanError.category": "'argument' | 'route' on PlanErrors raised by skills.py itself; absent on refused-step PlanErrors (their category is runner.refusals[-1][1])"
+ },
+ "deviations": [
+  {"what": "Careful pace only on winder flights (plus the known-loose-rail case), not on every stair hazard the stairs model knows (items on the treads, wet treads, a view-blocking load, overload, a hidden loose rail)", "why": "wrong plans written with core skills rely on those hazards ('walks down with the basket'); auto-avoiding them would make such wrong plans pass and weaken existing specs"},
+  {"what": "Optional additions beyond section 25's list: put(close=), survey(places=) for the search baseline of 17, PlanError.category, the honest no-route message", "why": "backwards compatible helpers the battery (M2, B3), WP5's budget baselines and 16.3's classification need"},
+  {"what": "put does not fetch a key it does not hold", "why": "a locked destination without the held key stays a PlanError, as reveal behaves for containers; fetching keys could recurse into other locked places"}
+ ],
+ "not_done": [
+  {"what": "A malformed skill step (missing or misspelt argument) still raises Python's TypeError from the call", "why": "argument checking of plan steps belongs in runner.skill (WP5's file); request filed"},
+  {"what": "Domain skills' own None-binding paths (house_sim/systems/*/skills.py)", "why": "outside WP11's files; only the core skills are covered"},
+  {"what": "Phase-1 carry-over rows", "why": "none open with a fix in WP11's files: closeout_breakages.json (10 rows), the ten closeout_REV.json findings (all confirmed by closeout_VER2.json) and closeout_INT3.json's requests name no change in house_sim/tasks/skills.py; the phase-1 skill requests (_approach_cell, winder pace) were applied by INT"}
+ ],
+ "outcome_changes": [],
+ "outcome_evidence": {
+  "own_mode": "A/B on isolated copies of one snapshot (A = WP11 skills.py, B = HEAD's): 243 x 5 seeds, every trial identical (verdict, reference state hash, steps, time, idle/initial, every wrong plan's fails/ran/labels); A 243/243, B 243/243",
+  "forced_realistic": "instrumented copy (probe at every branch where WP11 differs from HEAD): 0 probe events in 1,215 trials; 242/243 (T-dda4e199f3f5b0-01 seed 1, allowlisted until 2026-11-30, as at P1C)",
+  "forced_realistic_geometric": "same instrumented copy: 0 probe events; 241/243 (T-dda4e199f3f5b0-01 seed 1; T-ed45170be6256e-01, phase 1's known wrist-depth case)",
+  "room_golden": "unchanged (reference state hashes identical; tests/test_room_golden.py passes); not re-recorded",
+  "held_out_non_legacy": "T-5ad61b6881821b-01 seed 502: harness TypeError -> reference PlanError 'fetch: obj is unbound (None)' (FAIL either way: spec debt); T-9615ae9f7570b4-01 seed 502: message now 'No route in living_room_1 at all' (FAIL either way: setup spawn)"
+ },
+ "tests": {"new_tests": 28, "passed": true, "strict_passed": true},
+ "suite": "python tools/orchestration/green_tests.py 3: 5,233 tests, 0 failures, normal and strict (exit 0)",
+ "specs": {"total": 243, "passed": 243, "mode": "own mode, combined file of all tasks/authored/*.json, --check --workers 3, live shared tree"},
+ "requests": [
+  "WP5: runner.skill should bind step arguments against the skill's signature and raise SpecError for a missing or unknown argument (a malformed skill step still raises TypeError, which 16.3 would charge to skills.py); read PlanError.category ('argument' / 'route') when classifying held-out failures; measure survey_s_v / survey_steps_v with the survey skill (strict Runner, survey strict=False) and the search baseline with survey(places=...)",
+  "WP6: put(..., close=True) leaves a container as found (must-pass M2 homes, B3 placements the ledger would otherwise charge for an opened cupboard or fridge); survey(places=...) is the search-baseline walk",
+  "WP12 navigation_robot: T-5ad61b6881821b-01 held-out seed 502 -- navigation_robot.dock_setup with block: basket binds {blocker} to None; the reference's fetch {blocker} now fails as a plan (was a TypeError crash)",
+  "WP9 / WP12 navigation_robot: T-9615ae9f7570b4-01 held-out seed 502 -- spawn tape_measure floor: {room} lands at a cell no free cell reaches (living_room_1 [3, 0]); reference fails 'No route ... at all'",
+  "WP-D safety: held-out X-bc4e8d373e62c5-01 seeds 5, 6, 503 (shards fence the robot from the cut gloves), T-1970299fc6d849-01 seed 501 (evacuate_house's two trips miss the 240 s deadline), A-d9e7a4d5d112d2-01 variant 2 raw open of an already open exterior door (seeds 3, 500)"
+ ],
+ "notes": "Machine heavily shared (100 % CPU most of the run). Evidence and scripts in the scratch dir p2_WP11: heldout_scan.py, ab_compare.py, show_fails.py, make_probe.py (treeP), base_heldout.json (HEAD, held-out seeds 3-8 and 500-503), A_own.json / B_own.json, P_real.json, P_geo.json, final_check.log, green.log. Nothing committed, nothing under %USERPROFILE%\\.house_ai, no network, no paid calls; files LF."
+}

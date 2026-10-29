@@ -1,0 +1,9 @@
+{
+  "about": "Resource meters of the house ledger (VERIFY_HARDENING 6.8, 6.11; WP1). For resource r the robot-attributable use is U_r = meter_r(F) - meter_r(idle at the same time) (without an idle rollout: meter_r(F) - meter_r(B)); the allowance A_r = max(floor_r, factor x the reference's largest U_r over the verification seeds (hardening.reference_resources), envelope.resources[r]); house.waste:<r> fires when U_r > A_r. path: the meter's state path (a dotted path; a missing meter reads 0).",
+  "factor": 2.0,
+  "meters": {
+    "energy": {"path": "climate.energy.kwh", "unit": "kWh", "floor": 0.2},
+    "gas": {"path": "climate.energy.gas_kwh", "unit": "kWh", "floor": 0.2},
+    "water": {"path": "plumbing.meter.l", "unit": "l", "floor": 10.0}
+  }
+}

@@ -1,0 +1,71 @@
+{
+ "id": "WP9",
+ "landed": [
+  "house_sim/tasks/setup.py: ops shuffle (var + var_1..var_n), sample (k int or {min,max}, rest), arrange (Placer.arrange), time (whole seconds, step_s, never_p -> null), weighted choose (weights; unweighted unchanged rng.choice); an event op with at_s null is not scheduled",
+  "house_sim/tasks/setup.py: schema 4 (SCHEMA_RANDOM) -> Placer shuffle mode: spawn count binds var_1..var_n to the members in a seeded order (uniform ranks on surfaces, in containers, on floors); ctx.sample_roles(value, pool, k) and ctx.placer.order(...) for scenario helpers; ctx.schema, ctx.audit",
+  "house_sim/tasks/setup.py: apply_setup(..., audit=True) audit fast path (every op that draws, binds or places runs; physics lint, sag cues, check_physics and RNG-free prior_knowledge skipped; bindings['_audit_build']); audit_diff(full_config, full_bindings, audit_config, audit_bindings, limit) correctness audit: 0 differences over 243 specs x 5 seeds",
+  "house_sim/generator/place.py: Placer(config, registry, rng, shuffle=False); permutation(items), order(items), arrange(items, surfaces, order, gap_m) (left to right, seeded order of the sorted ids, random gaps, wrap to the next surface, narrower-gap retries, unchanged on failure), look_ring(record) / lookalike_member(record): floor ring by look for unfamiliar things (every schema) and look-alike members (schema 4)",
+  "house_sim/generator/disk_cache.py: house(seed, kwargs, root=None, verify='once') exact round trip (types and key order) of generate_house, gzip JSON under <root>/<fingerprint[:16]>/, atomic writes, once-per-process check against a fresh build (CacheError), check(), fingerprint() over house_sim sources + data + domains + Python version, prune(), HOUSE_SIM_HOUSE_CACHE (off), STATS",
+  ".gitignore: reports/cache/ ignored; build/ and dist/ anchored to the project root (closeout_REV finding 1 defence)",
+  "tests/test_setup_random.py: 41 tests (ops, shares over 150-1000 seeds, validation, spawn order schema 3 vs 4 on surface / container / floor, arrange, placement by look incl. the INT3 repro, audit fast path in both camera and perception modes, disk cache incl. env digests in oracle/realistic x room/geometric, planted/corrupt files, fingerprint inputs, prune, .gitignore)",
+  "closeout_INT3 request to WP9 (placement by a never-tier prop) closed with regression tests (seed 1 twins differ on HEAD, alike now)"
+ ],
+ "deviations": [
+  {
+   "what": "spawn count in schema 4 permutes the role bindings (var_1..var_n) after placement instead of the positions",
+   "why": "members are alike, so it is the same distribution; it also randomises ranks inside containers (sight packs by an id hash) and on floors, where swapping positions would not"
+  },
+  {
+   "what": "the audit fast path runs every op that can draw, bind or place instead of a dependency-pruned subset",
+   "why": "skipping a drawing op shifts every later draw, so the audit would measure other houses; equality with the full build holds by construction (0 differences in 1,215 builds); measured saving 15 % of setup (helpers dominate; they may use ctx.audit)"
+  },
+  {
+   "what": "disk cache stores gzip'd JSON (about 117 KB, 7 ms per read) instead of pickles; house() takes optional root and verify",
+   "why": "a planted cache file can then change a house (caught by the once-per-process check) but never run code; key order is preserved and verified"
+  },
+  {
+   "what": "extra op keys: shuffle binds var_i, sample has rest and a default k, time has step_s, arrange has order given, var, default gap_m [0.02, 0.1], depth fallbacks and narrower-gap retries",
+   "why": "authoring convenience and robustness; the spec's forms work as written"
+  },
+  {
+   "what": "closeout_INT3's placement request decided as placement by look (look_ring), in every schema for unfamiliar things and in schema 4 for look-alike members",
+   "why": "a seeded order alone does not stop a fragile twin's keep-out ring from moving it; no legacy spec, setup or generated house holds an unfamiliar thing, so nothing legacy changes"
+  }
+ ],
+ "not_done": [
+  {
+   "what": "scenario helpers adopting ctx.placer.order and ctx.sample_roles ('random' / sample bindings for role lists)",
+   "why": "the helpers are domain files (WP-D); the hooks are in place and requested"
+  },
+  {
+   "what": "arrange into the shelves of a container",
+   "why": "not in 9.2's form; inside containers ranks follow sight's id-hash packing, which order() and spawn count randomise"
+  },
+  {
+   "what": "closeout_REV finding 1, gate part (G10/TREE fail on ignored files in the source trees), and finding 2 (an isolated copy's own .gitignore)",
+   "why": "tools/orchestration/tier1_gate.py is the gate tool's; WP9 only removed build/ and dist/ from the ignored names inside the source trees"
+  },
+  {
+   "what": "hazard rings of placed fragile things still shape later placements (geometry.placement_hazards)",
+   "why": "kernel file outside WP9; no registry look-alike group mixes fragile and sturdy types today"
+  }
+ ],
+ "outcome_changes": [],
+ "tests": {
+  "new_tests": 41,
+  "passed": true,
+  "strict_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 243
+ },
+ "requests": [
+  "WP-D: scenario helpers place look-alike members in ctx.placer.order(members) order, take role lists (needs_water, bottle lists) through ctx.sample_roles(value, pool, k) so 'random' or a sample binding works, and may skip non-binding work when ctx.audit",
+  "WP6: audit builds = disk_cache.house(100000 + i, house_kwargs) + apply_setup(config, ops, registry, seed, spec, camera=, perception=, audit=True); run setup.audit_diff against a full build on one seed per spec (harness error on a difference); the house cache checks itself once per process (verify='once') or via disk_cache.check",
+  "WP5: optionally build verification seeds from disk_cache.house (runner.build)",
+  "WP8: document shuffle / sample / arrange / time / weighted choose and the schema-4 spawn order in docs/TASK_SPEC.md and AUTHORING_GUIDE.md; --draft-hardening lists bindings these ops draw",
+  "WP10 (gate tool): closeout_REV findings 1 (gate part) and 2"
+ ],
+ "notes": "Legacy invariance: two snapshot trees of the shared working tree differing only in WP9's files built all 243 authored specs on seeds 0 1 2 41 97, own and forced realistic: 0 of 2,430 configs, bindings or tasks differ; generation unchanged by construction (gen-1 digests and room golden green). Unit suite green_tests.py 3: 5233 tests per mode, 0 failures normal and strict. Specs (combined file, --check --workers 3): 243/243 passed. Cost: cache hit 7 ms vs 0.5-2.6 s per generation; audit setup 20 ms mean vs 23.5 ms full; about 5-6 CPU-s per 200 audit builds. The cache defaults to reports/cache/houses/ (OneDrive-synced folder on this machine); HOUSE_SIM_HOUSE_CACHE moves it; nothing was written there. Nothing committed, staged or stashed; nothing under %USERPROFILE%/.house_ai; no network or paid calls; files LF. Handoff: catalog/analysis/phase2/handoff_WP9.md."
+}

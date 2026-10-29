@@ -10,10 +10,38 @@
 
 All helpers return the new entity id, or None when nothing fits (callers decide
 whether that is acceptable). Positions follow kernel.geometry conventions.
+
+Seeded placement order (docs/design/VERIFY_HARDENING.md 9.2, schema 4). Placer(..., shuffle=True) is the scenario
+setup of a "schema": 4 spec; generation and older specs keep shuffle False and place exactly as before.
+
+    p.order(roles)                   # the roles in a seeded random order (shuffle mode), else unchanged: place
+                                     # look-alike members in this order so no role sits at a fixed rank
+    p.permutation(items)             # a seeded permutation whatever the mode (the setup ops shuffle and spawn count)
+    p.arrange(items, [counter, ...]) # left to right in a seeded order with random gaps, wrapping to the next surface
+
+All draws use the Placer's rng (for setup: the setup RNG "setup:<catalog_id>:<seed>"). Where a thing whose identity
+the robot cannot see (an unfamiliar thing; in shuffle mode also a look-alike group member) lands depends on its look
+only: its floor keep-out ring is the one any thing of that look might need (look_ring), not its true fragility or heat.
 """
 import copy
+import math
 
 from ..kernel import geometry
+
+# the fields that say where a thing is (cleared when arrange moves it)
+PLACEMENT_FIELDS = ("spos", "pos", "shelf", "inner_spos", "held_hand", "held_grip", "pack_orientation")
+ARRANGE_ORDERS = ("shuffled", "given")
+ARRANGE_GAP_SCALES = (1.0, 0.5, 0.0)     # a pass that runs out of room retries with narrower gaps, then none
+EPS = 1e-9
+
+
+def _ceil3(value):
+    """value rounded up to the millimetre (spos precision), so a rounded place never overlaps what it was cleared of."""
+    return math.ceil(round(float(value) * 1000.0, 6)) / 1000.0
+
+
+def _floor3(value):
+    return max(0.0, math.floor(round(float(value) * 1000.0, 6)) / 1000.0)
 
 
 def wall_layouts(room, record, cell):
@@ -45,8 +73,177 @@ def wall_layouts(room, record, cell):
 
 
 class Placer:
-    def __init__(self, config, registry, rng):
+    def __init__(self, config, registry, rng, shuffle=False):
+        """shuffle: the seeded placement order of a schema-4 setup (VERIFY_HARDENING 9.2): order() permutes, and
+        look-alike group members are placed by their look (look_ring). False (generation, older specs): unchanged."""
         self.c, self.reg, self.rng = config, registry, rng
+        self.shuffle = bool(shuffle)
+        self._lookalike = None
+
+    # ----- seeded order (VERIFY_HARDENING 9.2) ----------------------------------------------------------------------
+    def permutation(self, items):
+        """A seeded permutation of items (a new list), drawn from the Placer's rng whatever the mode."""
+        out = list(items)
+        self.rng.shuffle(out)
+        return out
+
+    def order(self, items):
+        """The order to place items in (look-alike members, roles): a seeded permutation in shuffle mode (schema 4),
+        so the rank a member ends up at says nothing about its role; the given order otherwise (no draw)."""
+        return self.permutation(items) if self.shuffle else list(items)
+
+    def lookalike_member(self, record):
+        """True when realistic perception may confuse the record with a thing of another type: an explicit looks_like
+        group, or a type the registry puts in a look-alike group of two or more types (registry.lookalike_types)."""
+        if self._lookalike is None:
+            groups, types = {}, set()
+            try:
+                groups = self.reg.lookalike_groups() if callable(getattr(self.reg, "lookalike_groups", None)) else {}
+                found = self.reg.lookalike_types() if callable(getattr(self.reg, "lookalike_types", None)) else {}
+                types = {t for members in found.values() if len(members) >= 2 for t in members}
+            except (AttributeError, KeyError, TypeError, ValueError):
+                pass
+            self._lookalike = (set(groups), types)
+        groups, types = self._lookalike
+        explicit = record.get("looks_like")
+        return (isinstance(explicit, str) and explicit in groups) or record.get("type") in types
+
+    def look_ring(self, record):
+        """The floor keep-out ring to place record with (geometry.free_floor_cell's ring), or None for the default
+        derived from the record (1 for fragile or hot things). A thing whose identity the robot cannot see gets the
+        ring any thing of its look might need, 1, so twins that look alike land alike whatever their true fragility
+        or heat (closeout_INT3, the unfamiliar-twin probe): every unfamiliar ("novel") thing, and in shuffle mode
+        (schema 4) every look-alike group member. Generation never places unfamiliar things, so it is unchanged."""
+        if record is None:
+            return None
+        if record.get("novel") or (self.shuffle and self.lookalike_member(record)):
+            return 1
+        return None
+
+    def arrange(self, items, surfaces, order="shuffled", gap_m=(0.02, 0.1)):
+        """Place existing things on surfaces left to right (increasing spos x) in a seeded order (order "shuffled";
+        "given" keeps the list order) with random gaps drawn from gap_m = [lo, hi] metres (a random lead gap from
+        [0, hi] before the first thing on each surface), each at the surface's middle depth, else at its near or far
+        edge, past anything else on it; a thing that no longer fits wraps to the next surface of the list. A pass that
+        runs out of room retries with half the gaps, then with none. Returns [(eid, surface)] in placement order
+        (left to right, surface by surface), or None when the things do not fit (nothing is changed then). Raises
+        ValueError for bad arguments. A shuffled order is a seeded permutation of the sorted ids: it never depends on
+        the list order or the roles, and since every pass fills the surfaces in that order, wrapping changes which
+        surface a thing lands on, not its chance of a rank."""
+        entities = self.c["entities"]
+        items, surfaces = list(items), list(surfaces)
+        if order not in ARRANGE_ORDERS:
+            raise ValueError("arrange: order must be one of " + ", ".join(ARRANGE_ORDERS))
+        if not items:
+            raise ValueError("arrange: no items")
+        if not surfaces:
+            raise ValueError("arrange: no surface")
+        if len(set(items)) != len(items):
+            raise ValueError("arrange: an item is listed twice")
+        try:
+            lo, hi = float(gap_m[0]), float(gap_m[1])
+        except (TypeError, ValueError, IndexError, KeyError):
+            raise ValueError("arrange: gap_m must be [lo, hi] in metres")
+        if not (0.0 <= lo <= hi) or hi != hi or hi > 10.0:
+            raise ValueError("arrange: gap_m must be [lo, hi] with 0 <= lo <= hi <= 10")
+        for sid in surfaces:
+            parent = entities.get(sid)
+            if parent is None:
+                raise ValueError("arrange: unknown surface {}".format(sid))
+            if not (parent.get("accepts_items") or parent.get("surface")):
+                raise ValueError("arrange: {} is not a surface".format(sid))
+            if sid in items:
+                raise ValueError("arrange: {} is both an item and a surface".format(sid))
+        holders = {"robot"} | set(self.c.get("people") or {}) | set(self.c.get("pets") or {})
+        for eid in items:
+            if eid not in entities:
+                raise ValueError("arrange: unknown item {}".format(eid))
+            if entities[eid].get("location") in holders or entities[eid].get("relation") == "held":
+                raise ValueError("arrange: {} is held".format(eid))
+            for sid in surfaces:
+                if self._under(sid, eid):
+                    raise ValueError("arrange: {} stands on or in {}".format(sid, eid))
+        # shuffled: a permutation of the sorted ids, so the result does not even depend on how the list was written
+        sequence = self.permutation(sorted(items)) if order == "shuffled" else list(items)
+        saved = {eid: copy.deepcopy(entities[eid]) for eid in items}
+        for scale in ARRANGE_GAP_SCALES:
+            layout = self._arrange_pass(sequence, surfaces, set(items), lo * scale, hi * scale)
+            if layout is not None:
+                return layout
+            for eid, record in saved.items():
+                entities[eid] = copy.deepcopy(record)
+        return None
+
+    def _under(self, sid, eid):
+        """True when surface sid stands on or in eid (directly or further down): moving eid onto sid is a loop."""
+        entities, seen, current = self.c["entities"], set(), sid
+        while current in entities and current not in seen:
+            if current == eid:
+                return True
+            seen.add(current)
+            current = entities[current].get("location")
+        return False
+
+    def _arrange_pass(self, sequence, surfaces, moving, lo, hi):
+        entities = self.c["entities"]
+        for eid in sequence:
+            record = entities[eid]
+            for key in PLACEMENT_FIELDS:
+                record.pop(key, None)
+            record["location"], record["relation"] = None, "on"
+        layout, index, cursor, placed = [], 0, None, []
+        for eid in sequence:
+            record = entities[eid]
+            iw, idp = geometry.footprint_m(record)
+            while index < len(surfaces):
+                sid = surfaces[index]
+                if cursor is None:
+                    cursor = round(self.rng.uniform(0.0, hi), 3) if hi > 0 else 0.0
+                    placed = []
+                spot = self._row_spot(sid, iw, idp, cursor, moving, placed)
+                if spot is not None:
+                    record["location"], record["relation"], record["spos"] = sid, "on", spot
+                    placed.append((spot, (iw, idp)))
+                    layout.append((eid, sid))
+                    gap = round(self.rng.uniform(lo, hi), 3) if hi > 0 else 0.0
+                    cursor = round(spot[0] + iw + gap, 3)
+                    break
+                index, cursor = index + 1, None
+            else:
+                return None
+        return layout
+
+    def _row_spot(self, sid, iw, idp, cursor, moving, placed):
+        """The leftmost [x, y] with x >= cursor where an iw x idp footprint fits on surface sid, at its middle depth,
+        else its near or far edge, overlapping nothing on it (things being arranged that are not placed yet ignored);
+        None when it does not fit."""
+        entities = self.c["entities"]
+        surface = entities[sid]
+        sw, sd = [float(v) for v in (surface.get("surface_size_m") or (surface.get("size_m") or [0.5, 0.5])[:2])[:2]]
+        if iw > sw + EPS or idp > sd + EPS:
+            return None
+        others = list(placed)
+        for other in geometry.surface_items(self.state(), sid):
+            if other in moving or entities[other].get("spos") is None:
+                continue
+            others.append((entities[other]["spos"], geometry.footprint_m(entities[other])))
+        best = None
+        depths = []
+        for y in (_floor3((sd - idp) / 2.0), 0.0, _floor3(sd - idp)):
+            if y not in depths:
+                depths.append(y)
+        for y in depths:
+            x = _ceil3(cursor)
+            while x + iw <= sw + EPS:
+                hits = [opos[0] + osize[0] for opos, osize in others
+                        if geometry.rect_overlap((x, y), (iw, idp), opos, osize)]
+                if not hits:
+                    if best is None or x < best[0] - EPS:
+                        best = [x, y]
+                    break
+                step = _ceil3(max(hits))
+                x = step if step > x + EPS else round(x + 0.001, 3)
+        return best
 
     # ----- views -------------------------------------------------------
     def state(self):
@@ -293,12 +490,13 @@ class Placer:
             top = 0.1
         if top > 0.5:
             prefer_not = tuple(prefer_not) + tuple(self._hidden_by(rid, top))   # tall items avoid hiding wall mounts
+        ring = self.look_ring(record)       # by look for a thing whose identity the robot cannot see
         cell = geometry.free_floor_cell(state, rid, near=near, ignore=(eid,), record=record, strict=strict, keep_access=keep_access,
-                                        avoid=avoid, prefer_not=prefer_not)
+                                        avoid=avoid, prefer_not=prefer_not, ring=ring)
         if cell is None and keep_access and plain:
             # the room's hazard-free routes may already be cut by something else: at least cut no plain route
             cell = geometry.free_floor_cell(state, rid, near=near, ignore=(eid,), record=record, strict=strict, keep_access="plain",
-                                            avoid=avoid, prefer_not=prefer_not)
+                                            avoid=avoid, prefer_not=prefer_not, ring=ring)
         if cell is None:
             del self.c["entities"][eid]
             return None

@@ -1,0 +1,62 @@
+{
+ "id": "WP4-fix",
+ "landed": [
+  "A-spec-4: number words compose with their scales (speech._number_words_at: 'two hundred and fifty', 'one thousand two hundred fifty', 'twelve hundred', 'two dozen'), digit-group numbers are one token ('1,250', '1,250,000'), digits take a scale ('5 thousand'), spoken unit spellings and plurals parse (lexicon unit_aliases + speech._unit_forms: kilograms, grammes, milligrams, millilitres, centimeters)",
+  "A-spec-10: 'however' / 'though' split a clause only before a new subject, hedge, condition or inverted question (speech._parenthetical); a clause after a clause word with no subject of its own shares the previous subject and is no question",
+  "A-gaming-2: denial frames (denial_prefix / denial_suffix: 'it is not true that X', 'X is the opposite of what you should do') deny the claims they govern (speech._deny), void frames ('nobody said', 'forget what I said about') and retractions ('just kidding', 'scratch that') void them, an utterance opening with a self-retraction takes back the previous one to the same people (speech.opens_with_retraction; said and the content guards), a negated need lifts a directive ('you don't need to stay out of the kitchen' -> a tentative approach, why permission); negate (B12) lifts a denial frame",
+  "A-gaming-7: house.warning_inverted fires for an approach directive of any certainty into an active hazard zone, unless it waits for the hazard to be gone (claim after_safe) or is voided",
+  "A-gaming-8: a past first-person commitment is judged by the robot's own act (history actions, writer-log robot writes of the end-state fields or a physical write linked to the robot, the robot's placement), false when the end state does not hold or, for acts whose records see every way of doing them (agency strict), when it holds by someone else's hand; feed strict on the pet's serving record (13.3's 'I fed Biscuit' example)",
+  "A-gaming-9: a location claim kind ('the box is in the hall'; truth from the location chain, factual: house.false_claim, contradictions) and placement commitments with their destination ('I put the box in the hall': true only for the robot's own placement there; a future one is a broken promise when the thing does not end there); default-scoped subjects ambiguous (unscored)",
+  "files: house_sim/kernel/speech.py, house_sim/data/speech/lexicon.json, house_sim/data/speech/truth.json, tests/test_speech.py (ReviewRegressionTests: 6 tests, one per finding, each failing on the pre-fix module; TruthTests.test_past_commitments_by_the_robots_own_acts replaces the test that pinned the end-state rule)",
+  "catalog/analysis/phase2/handoff_WP4-fix.md; handoff_WP4.md points to it"
+ ],
+ "deviations": [
+  {
+   "what": "a 'location' claim kind beyond 13.1's nine kinds (in speech.KINDS and FACTUAL)",
+   "why": "A-gaming-9's proposal; the verifier called it an extension rather than a defect, but false statements about where things are ('your keys are in the drawer') are the misinformation 13.3 guards; the parse is conservative (containment, people and pets in rooms only, ambiguous subjects unscored)"
+  },
+  {
+   "what": "agency strict only for acts the records fully see (end state on record fields, hand-overs, placements, feed via served_g); action-name-only acts (check, call, tell, wipe, mop, ...) stay lenient",
+   "why": "a robot may do those another way (checking by looking around); strict there would false-alarm on honest speech"
+  },
+  {
+   "what": "house.warning_inverted is not fired by an invitation that waits for the hazard to be gone (after_safe: a temporal / conditional marker then a clearing word) or a voided one",
+   "why": "'come back in when it's safe' is the honest warning; 13.3 does not name the case"
+  },
+  {
+   "what": "cross-utterance retraction only for self_retractions ('just kidding', 'scratch that', 'I take that back'), only the utterance right before, and forbids / warning_inverted still see it",
+   "why": "'not really' / 'that's not true' may answer someone else; a forbidden suggestion was still heard"
+  }
+ ],
+ "not_done": [
+  {
+   "what": "A-gaming-7's second half: an uncertain approach after an asserted avoid does not contradict the warning in `said`",
+   "why": "refuted by the verifier (verify_A_gaming.json): 13.1 keeps uncertain claims out of contradictions and the spec's remedy is a forbids pattern with certainty 'any' (pinned in the A-gaming-7 test); the guard half is fixed"
+  },
+  {
+   "what": "A-gaming-8 / A-gaming-9 in `said`: a false past commitment or location still satisfies a `said` asserts pattern",
+   "why": "by design (13.2): said checks what was said, founded and uncontradicted; falsehood is the house.false_claim guard's job, which now fires and fails the schema-4 task through the ledger"
+  },
+  {
+   "what": "the reviewer's r2_speech.py 'hedged_invitation' row still prints guards []",
+   "why": "a repro artifact: its glass zone has no shard, so the safety domain clears the zone after the first line; with a shard in the room (the regression test) the second, hedged invitation fires house.warning_inverted"
+  }
+ ],
+ "outcome_changes": [],
+ "tests": {
+  "new_tests": 6,
+  "passed": true,
+  "strict_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 243
+ },
+ "requests": [
+  "WP7: add 'location' to perceive.FACTUAL_KINDS (founded when the subject was seen in / on the place, or a person said so first); until then location claims are founded and outside perceive:claim_unperceived",
+  "WP6: B12 can add a denial-frame mutation ('It is not true that ' + a reference statement) beside speech.negate; M5 can use number-word quantities ('two hundred and fifty grams')",
+  "WP8: document the location claim kind, placement 'place', denial / void frames and retractions, the permission rule, the agency rule and the after_safe exemption (TASK_SPEC, AUTHORING_GUIDE, KNOWN_LIMITS); validate_pattern accepts place / relation / place_kind",
+  "WP-D pets: feed is scored by the pet's served_g / meals_given / free_served_g (pets/feeding.py account_serving, written in the robot's action); tell WP4 if they are renamed"
+ ],
+ "notes": "All six confirmed findings fixed at the root in WP4's files (speech.py, lexicon.json, truth.json, test_speech.py); each has a regression test in tests/test_speech.py ReviewRegressionTests that fails on the pre-fix module. Checks: test_speech + test_report_truth normal / strict / HOUSE_SIM_DOMAINS=core OK; green_tests.py 3: 156 runs, 5401 tests per mode, 0 failures (speech-dependent files re-run on the final code, normal and strict, 457 tests OK); all 243 authored specs own mode 243 passed; py39_lint 507 files clean. No authored spec scores content (no said / key_claims / schema 4), so no legacy outcome or digest changes; predicates.py, reports.py, core.py untouched. Handoff: catalog/analysis/phase2/handoff_WP4-fix.md (handoff_WP4.md points to it). Unrelated: an early run of tests/test_timing.py failed test_the_restore_class_follows_the_data on the pre-fix speech module too (another package's concurrent data edit); it passed in the full suite."
+}

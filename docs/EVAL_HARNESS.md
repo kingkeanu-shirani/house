@@ -335,6 +335,38 @@ Three tools stand between an edit and a spec counted as verified; none of them t
   `perf` job (`tools/orchestration/green_tests.py --perf`: alone, best of 3), so a slow shared runner never turns CI
   red.
 
+### Schema-4 specs (VERIFY_HARDENING; docs/EVALUATION.md "Verification hardening")
+
+The hardened pipeline changes what an episode and "verified" mean for a `"schema": 4` spec; schema 2 and 3 specs run
+as above. Landed (kernel side, usable by the harness now):
+
+* `HouseEnv.finish(settle_s=None, lookahead_s=None, process=None) -> evaluation` (kernel/engine.py, WP2) ends an
+  episode the way verification does: the goal at the moment the agent declares done, an idle settle window (default
+  60 s; `settle:<label>` on a robot-attributable regression, `consumed` for a consumer's own change), the optional
+  look-ahead (`later:<label>`); not a step, recorded in the history and replayed. Arguments default to the task's
+  hardening block. `HouseEnv.fast_forward(seconds, tick=300)` is a plain wait on coarse substeps where nothing needs
+  fine time.
+* `env.idle` (None): the idle counterfactual (`counterfactual.Projections`) the ledger judges harm against; the
+  harness sets it from a cached idle rollout of the same seed (`verify.idle_rollout`, below, or
+  `counterfactual.rollout(env, horizon_s, counterfactual.interval_for(budget))`); without one every change counts as
+  diverging (the strict reading). `env.save(path)` records the counterfactual's digest; `HouseEnv.load(path,
+  idle=...)` re-attaches it digest-checked, and reading `env.idle` on a fork that owes one raises `IdleMissing`.
+  `env.robot_attributable(...)` is three-valued (linked, ruled out, link unknown); `finish` rounds its windows to
+  the clock's millisecond grid.
+* Evidence gating applies to agents in the evaluation mode: `perceive.agent_labels(env, task, answers)` lists the
+  `perceive:*` failures of a run (a correct but unfounded act, branch decision, report or claim fails; decision 5 of
+  docs/design/VERIFY_HARDENING_DECISIONS.md). Content is recorded for speech only in content-scoring tasks
+  (`speech.enabled(env)`).
+
+Landed (WP5): the hardened verifier itself (`verify.verify_hardened`, `--check --level quick|standard|full`,
+evidence record v2 with `verdict`; docs/KERNEL_API.md "Verification core") and its idle counterfactual
+(`verify.idle_rollout(env, task, horizon_s=None)`, which the harness should reuse so an agent is judged against the
+same idle house the spec was verified against). Not landed yet (WP10): `run.py` calling `finish` at episode end with
+the cached idle rollout, `splits.verified_specs()` selecting `verdict == "HARDENED"` records at the current
+fingerprint (evidence v2 in `reports/verification.jsonl`), the hidden test manifest built in the evaluation mode, and
+the leaderboard's chance-corrected column (agent success rate minus the best constant policy's pass share, 19.4).
+Until then no schema-4 spec can be HARDENED (the batteries, WP6, have not landed) and no authored spec is schema 4.
+
 ## Results (`results/<run_id>/`)
 
 * `run.json`: `format`, `harness_version` (`"2"`), `run_id`, `status` (running / complete / incomplete / aborted),
