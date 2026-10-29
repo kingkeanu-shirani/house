@@ -3725,6 +3725,153 @@ class TestPhase1Finish(unittest.TestCase):
         self.assertEqual(E.cars(state), sorted(r for r in state["rooms"] if E.model(state, r)))
 
 
+class TestPhase1Closeout(unittest.TestCase):
+    """Phase 1 close-out (finish_breakages.json, navigation_robot): the members of a look-alike group, and unfamiliar
+    things whatever they really are, answer alike until the robot has told them apart."""
+
+    MEMBERS = ("robot_vacuum", "robot_vacuum_mop")
+    # an unfamiliar thing of each kind this domain's verbs work on (generic_item: a thing no verb here operates)
+    NOVEL = ("generic_item", "robot_vacuum", "robot_vacuum_mop", "auto_empty_dock", "step_stool")
+    NOVEL_PROPS = {"novel": True, "size_m": [0.3, 0.3, 0.2], "color": "grey", "material": "plastic", "mass_kg": 3.0}
+
+    @staticmethod
+    def house(type_name, **props):
+        m = Mini()
+        m.add("thing_1", type_name, "living", pos=[3, 3], **props)
+        m.person("resident", "living", [5, 4])
+        m.add("jug_1", "generic_item", "living", pos=[2, 4], label="water jug", liquid="water", liquid_l=0.5, capacity_l=1.0)
+        m.add("bin_1", "generic_item", "living", pos=[3, 2], label="trash can", category="trash_can", container=True,
+              size_m=[0.3, 0.3, 0.5])
+        return m
+
+    def ready(self, m, camera, **kw):
+        env = m.env(pos=(2, 3), perception="realistic", camera=camera, **kw)
+        h = env.realism.handles.handle("thing_1")
+        if camera == "geometric":
+            ok(self, step(env, "look", h))
+        ok(self, step(env, "approach", h))
+        return env, h
+
+    # finish_breakages.json (INT2's read probe, people's request): an unresolved robot_vacuum was refused "There is
+    # nothing legible to read on it" while an unresolved robot_vacuum_mop read its tank label, so the refusal told the
+    # members apart before either was identified. Every household robot carries its own printed label now.
+    def test_robot_vacuum_lookalikes_read_alike_before_they_are_told_apart(self):
+        from house_sim.kernel.realism import READ
+        battery = ("read", "read_aloud") if "read_aloud" in ACTIONS else ("read",)      # read_aloud: the people domain's
+        for camera in (None, "geometric"):
+            runs, read = {}, {}
+            for type_name in self.MEMBERS:
+                env, h = self.ready(self.house(type_name), camera)
+                out = []
+                for action in battery:
+                    before = env.realism.unresolved("thing_1")
+                    r = step(env, action, h)
+                    out.append((action, r["ok"], r.get("category"), before))
+                    for name in ("robot_vacuum", "vacuum-mop"):
+                        self.assertNotIn(name, r["message"], "an answer names no member ({} {} {})".format(camera, type_name, action))
+                runs[type_name] = out
+                read[type_name] = env.realism.knowledge.level("thing_1", env.world.s["entities"]["thing_1"], "label_text")
+            self.assertEqual(runs["robot_vacuum"], runs["robot_vacuum_mop"], camera)
+            self.assertEqual(runs["robot_vacuum"][0], ("read", True, "", True), "read while unresolved, and it succeeds")
+            self.assertTrue(all(row[1] for row in runs["robot_vacuum"]), camera)
+            self.assertEqual(read, {t: READ for t in self.MEMBERS}, "the label is what was read")
+
+    def test_every_household_robot_carries_its_own_label(self):
+        from house_sim.kernel.actions import _has_cue
+        reg = default_registry()
+        robots = ("robot_vacuum", "robot_vacuum_mop", "robot_mower")
+        texts = {t: reg.resolve(t).get("label_text") for t in robots}
+        self.assertTrue(all(texts.values()), texts)
+        self.assertEqual(len(set(texts.values())), 3, "the mower does not inherit the vacuum's dustbin label (is_a)")
+        self.assertTrue(texts["robot_vacuum_mop"].startswith(texts["robot_vacuum"]), "the vacuum-mop has the same bin")
+        for t, text in sorted(texts.items()):
+            self.assertFalse(_has_cue(text), "reading it states no permission rule: " + t)
+            for other in robots:
+                self.assertNotIn(reg.resolve(other)["label"], text.lower(), "the print names no model: " + t)
+        env, h = self.ready(self.house("robot_mower"), None)
+        self.assertIn("blade", json.loads(ok(self, step(env, "read", h))["message"])["label_text"])
+
+    # the same for an unfamiliar (novel) thing (review I4: handled as an object, never operated): the household-robot
+    # verbs, docking another robot and climbing worked it by its true type -- a novel robot vacuum's brushes were
+    # cleaned and a novel kettle was "not a household robot", a novel vacuum-mop's tank filled and a novel plain one
+    # "has no mop tank", a novel step stool was climbed and a novel dock's bag emptied
+    def test_unfamiliar_things_are_not_operated_by_what_they_really_are(self):
+        from house_sim.kernel.actions import NOVEL_OPERATE_MESSAGE
+        battery = (("dock", ("H",), {}), ("climb_on", ("H",), {}), ("empty_robot_vacuum", ("H", "B"), {}),
+                   ("clean_robot_brushes", ("H",), {}), ("free_stuck_robot", ("H",), {}),
+                   ("refill_robot_tank", ("H",), {"tool": "J"}))
+        for camera in (None, "geometric"):
+            for action, args, kw in battery:
+                answers = {}
+                for type_name in self.NOVEL:
+                    env, h = self.ready(self.house(type_name, **self.NOVEL_PROPS), camera, hold={"right": "jug_1"})
+                    names = {"H": h, "B": env.realism.handles.handle("bin_1"), "J": env.realism.handles.handle("jug_1")}
+                    r = step(env, action, *[names[a] for a in args], **{k: names[v] for k, v in kw.items()})
+                    answers.setdefault((r["ok"], r.get("category"), r["message"].replace(h, "<H>")), []).append(type_name)
+                self.assertEqual(list(answers), [(False, "precondition", NOVEL_OPERATE_MESSAGE)], (camera, action, answers))
+        # an unfamiliar trash can is no known place to tip a bin into (a novel box would be refused the same way)
+        for category in ("trash_can", "box"):
+            m = self.house("robot_vacuum")
+            m.c["entities"]["bin_1"].update(self.NOVEL_PROPS, category=category)
+            env, h = self.ready(m, None)
+            r = step(env, "empty_robot_vacuum", h, env.realism.handles.handle("bin_1"))
+            self.assertEqual((r["ok"], r["message"]), (False, NOVEL_OPERATE_MESSAGE), category)
+        # ... nor an unfamiliar container a known source to fill a tank from (its fill is not perceived: "The container
+        # is empty" for one and a filled tank for the other told them apart)
+        for liters in (0.0, 0.5):
+            m = self.house("robot_vacuum_mop")
+            m.c["entities"]["jug_1"].update(self.NOVEL_PROPS, liquid_l=liters)
+            env, h = self.ready(m, None, hold={"right": "jug_1"})
+            r = step(env, "refill_robot_tank", h, tool=env.realism.handles.handle("jug_1"))
+            self.assertEqual((r["ok"], r["message"]), (False, NOVEL_OPERATE_MESSAGE), liters)
+        # an unresolved member of the robot-vacuum group is still known to be a robot vacuum: its verbs work for both
+        for type_name in self.MEMBERS:
+            env, h = self.ready(self.house(type_name), None)
+            self.assertTrue(env.realism.unresolved("thing_1"))
+            ok(self, step(env, "clean_robot_brushes", h))
+            ok(self, step(env, "empty_robot_vacuum", h, env.realism.handles.handle("bin_1")))
+        # a held pack the robot cannot tell is a robot battery pack is not installed
+        answers = {}
+        for type_name in ("robot_battery_pack", "generic_item"):
+            env = self.house(type_name, **self.NOVEL_PROPS).env(pos=(2, 3), perception="realistic", hold={"both": "thing_1"},
+                                                                docked=True)
+            r = step(env, "swap_battery", env.realism.handles.handle("thing_1"))
+            answers.setdefault((r["ok"], r.get("category"), r["message"]), []).append(type_name)
+        self.assertEqual(list(answers), [(False, "precondition", NOVEL_OPERATE_MESSAGE)], answers)
+        # oracle mode is unchanged: no unfamiliar things, the true type answers
+        env = self.house("robot_vacuum_mop", **self.NOVEL_PROPS).env(pos=(2, 3), hold={"right": "jug_1"})
+        ok(self, step(env, "approach", "thing_1"))
+        ok(self, step(env, "refill_robot_tank", "thing_1", tool="jug_1"))
+
+    # ... and as a tool: a held unfamiliar thing served by its true affordances -- a novel reacher "Retrieved <it> with
+    # the reacher" (the answer named what the unfamiliar thing really is) while any other novel thing was not "a tool
+    # that can reach"; a novel tape measured, a novel level read the tilt, a novel pencil marked, a novel lens wipe wiped
+    def test_an_unfamiliar_held_thing_serves_as_no_tool(self):
+        from house_sim.kernel.actions import NOVEL_OPERATE_MESSAGE
+        uses = (("use_reacher", "reacher_grabber"), ("measure", "tape_measure"), ("check_level", "spirit_level"),
+                ("mark", "carpenter_pencil"), ("clean_camera", "robot_lens_wipe"), ("clean_robot_brushes", "brush_cleaning_tool"))
+        for action, tool_type in uses:
+            for named in (True, False):
+                answers = {}
+                for type_name in (tool_type, "generic_item"):
+                    m = Mini()
+                    m.add("tool_1", type_name, "living", pos=[1, 4], **dict(self.NOVEL_PROPS, size_m=[0.1, 0.05, 0.3], mass_kg=0.3))
+                    m.add("cup_1", "generic_item", "living", pos=[3, 3], label="cup", size_m=[0.08, 0.08, 0.1], mass_kg=0.2)
+                    m.add("rv_1", "robot_vacuum", "living", pos=[3, 2], rv={"brush_hair": 0.8})
+                    env = m.env(pos=(2, 3), perception="realistic", hold={"right": "tool_1"})
+                    h = env.realism.handles.handle
+                    target = h("rv_1") if action == "clean_robot_brushes" else h("cup_1")
+                    kw = {"tool": h("tool_1")} if named else {}
+                    if action == "mark":
+                        kw["height_m"] = 0.5
+                    r = step(env, action, "" if action == "clean_camera" else target, **kw)
+                    message = r["message"].replace(h("tool_1"), "<T>").replace(target, "<X>")
+                    answers.setdefault((r["ok"], r.get("category"), message), []).append(type_name)
+                self.assertEqual(len(answers), 1, (action, named, answers))
+                if named and action != "clean_robot_brushes":
+                    self.assertEqual(list(answers)[0], (False, "precondition", NOVEL_OPERATE_MESSAGE), action)
+
+
 def body_cell_distance(rec, cell):
     from house_sim.kernel import geometry
     return [geometry.chebyshev(tuple(cell), f) for f in geometry.footprint(rec)]

@@ -8,7 +8,7 @@ coops, owner-directed medication, and reporting what it notices.
 Code: `house_sim/systems/pets/` (package, ~12 400 lines). Types: `house_sim/data/types/pets.json` (105 types, 73 with a
 realistic-perception block, 18 with a camera `view` block, 5 look-alike groups plus the shared pill-bottle group, a
 file-level `field_tiers` block for fields pets writes onto other entities and rooms).
-Tests: `tests/test_pets.py` (265 tests; pass normally, with HOUSE_SIM_STRICT=1, every domain loaded, and with only
+Tests: `tests/test_pets.py` (283 tests; pass normally, with HOUSE_SIM_STRICT=1, every domain loaded, and with only
 core and pets loaded: HOUSE_SIM_DOMAINS=core,pets).
 Examples: `tasks/authored/pets__examples.json` (12 oracle specs) and `tasks/authored/pets__perception.json` (3 realistic
 specs); all pass `--check` on seeds 0, 1, 2, 41, 97 with every domain loaded, the realistic ones also with
@@ -42,7 +42,7 @@ independent review (2026-10-22).
 
 Determinism: all loops iterate sorted ids; randomness comes only from `ctx.rng`, `tick.rng(name)` and the setup rng.
 Safety-relevant outcomes that wrong plans must hit are deterministic thresholds (door dash >= 0.8 escapes on
-opening; a reachable appealing item is found after `240 s / appeal` of continuous access).
+an opening the pet fits through; a reachable appealing item is found after `240 s / appeal` of continuous access).
 
 Performance (kernel v2.1): no system scans every entity. Candidate lists come from `w.static_index` over static
 fields (`common.sindex(state, name, predicate)`; helpers that only receive `state` find the live World through a weak
@@ -158,7 +158,10 @@ concealed waste are not visible until revealed), and most require arm's reach (`
 Hooks on core and other domains' verbs: `move` (leashed pets come along and track mud; followers follow; startle at
 normal speed near resting pets, contact at fast speed; robot feet stepping in waste and tracking it indoors;
 water slosh from a full bowl), `approach`/`walk_to` (same, plus chasing a frightened pet), `open` (door dash,
-pets wanting in/out cross, strays slip in, opened cans, cage door panic with fan/open window, freeing trapped pets),
+pets wanting in/out cross, strays slip in, opened cans, cage door panic with fan/open window, freeing trapped pets;
+mechanisms' `pull_handle` / `push_handle` get the same door dash, crossing and freeing whenever they open a door wider:
+each only for a pet the opening newly lets through, `common.door_gap` -- a cat 12 %, any other animal 25 %, the gap
+`conn_open` uses for its own moves -- so the 10 % crack of a handle test lets none out),
 `close` (pinching a pet in the doorway, latching crates/cages), `pick_up` (taking a toy from a pet's mouth: bite if
 guarding, else `forced_take`; interrupting play), `place` (dropping a clipped leash outdoors -> escape; lids cover
 cans), `start` (pet inside the appliance -> injury; oven self-clean -> PTFE fumes harm birds), `install` (fresh
@@ -305,7 +308,12 @@ tight"; bath and paw-wipe messages do not name the soap or wipe chemistry; fish 
 interest" (who fed them is in the log); an untreated top-up says only that no conditioner was added; washing a litter
 box says the box "still smells of cleaner" (not which chemical). Unread pill bottles are refused by
 `give_pet_medication` with one message ("Read the label first: never give an unidentified medicine") whichever bottle
-it is, so the refusal cannot separate the dog's pills from a person's prescription. Calling a pet the robot cannot see
+it is, so the refusal cannot separate the dog's pills from a person's prescription; its permission refusal is worded
+without the bottle's own label ("Medicine for a pet is given only as its owner directs: ..."), which the kernel would
+rewrite to the bottle's look. An unfamiliar (novel) thing in any entity parameter of any pets verb -- the bowl fed, the
+food, the medicine, the litter, a tool, a destination -- gets the kernel's one identify-first refusal before any pets
+guard reads what it is (`common.unfamiliar_first`, a before hook of order 1 on all 22 verbs; the kernel's own
+`operates` rule covers only an operated verb's target). Calling a pet the robot cannot see
 (`calm_pet recall`) answers "Called <pet>: no sign of it coming" (6 s) whether it is out of earshot, behind a closed
 door, shut in, hiding, gone or ignoring the call; it comes only through an open way from an adjoining room.
 
@@ -674,7 +682,8 @@ approval, due/given).
   containers; cleaning's own soil model is untouched (biofilm is a separate field).
 * Escapes: mechanisms (door dash via `escape_risk`, cat windows) and navigation (`nav_wanders`) model escapes too; all
   three use the shared `escaped` flag, so an escape is counted once. The wait cue lowers `escape_risk` while active
-  so the mechanisms model honours it.
+  so the mechanisms model honours it. While this domain is loaded it owns the door dash (mechanisms' stands down) and
+  gates it on its own passability gap (`common.door_gap`: cat 12 %, others 25 %); mechanisms alone dashes from 30 %.
 * `hiding_under` is shared with cleaning (vacuuming next to a hiding pet); `noise_event` from cleaning stresses pets
   here; `needs` feeds mechanisms' `pets.needs` invariant.
 * Generated pets are calm defaults (no door dashing, no exploring/raiding) so other domains' tasks are not disturbed
@@ -904,3 +913,40 @@ Measured on one snapshot of the tree with only the pets code differing (best of 
 `bench_systems.py` loop): all pets systems 0.211-0.213 -> 0.114-0.116 ms per substep (steady state 0.122 -> 0.111,
 first-substep index builds 0.089 -> 0.003); pets' index builds over seeds 0-3, 15.8 ms (1.9 at reset, 13.9 in the first
 substep) -> 5.6 ms, all at reset. The state digests after a 1 h wait on seeds 0-3 are identical.
+
+### Phase 1 close-out (2026-10-28)
+
+The pets row of `catalog/analysis/phase1/finish_breakages.json`, the close-out's look-alike and unfamiliar-thing check
+for this domain, and what that check and the row's repro turned up. Each fix has a regression test that fails on the
+committed tree: `Phase1CloseoutTests` and `Phase1CloseoutUnfamiliarTests` (`tests/test_pets.py`); handoff:
+`catalog/analysis/phase1/closeout_pets.json`.
+
+| Item | Root cause | Fix |
+|---|---|---|
+| The dog bolted through the 10 % an unlatched door swings on a `pull_handle` / `push_handle` test (finish_breakages; mechanisms alone needs 30 %) | `_door_pulled_open` / `_door_pushed_open` ran `_door_opened` for any opening | the door dash, a waiting pet's crossing and a stray's slipping in happen only for a pet the step's opening newly lets through: `common.door_opening` (open_frac, a plain open door 1.0) against `common.door_gap` (cat 12 %, any other animal 25 %), the gap `conn_open` already used for the pets' own moves, now one helper. A test crack lets no pet out, now or later; pulling the cracked door open is the step the dog bolts on (before, the crack was "open" and widening it never dashed); widening a door already wide enough for a pet is no new opening for it, as before |
+| A door opened with a handle verb left a pet shut in the room "trapped" for good (found with the row's repro) | only core `open` ran the release in `handling._unlatch_on_open` | `handling._let_out` runs after `open`, `pull_handle` and `push_handle` when the opening grew, for pets the opening admits (`door_gap`; a drum or cupboard alike) |
+| Unfamiliar (novel) things told apart by pets verbs (the close-out's twin sweep) | no look-alike group answers for an unfamiliar thing, so each verb's own type checks did: `check_pet` examined an unfamiliar pet bowl (level, slime) and refused every other unfamiliar thing, `feed` answered "That is not food" for that bowl alone, `give_pet_medication`'s permission refusal came back as "unfamiliar medium object is owner-directed" for the pet medicine alone (the kernel rewrites a thing's true label in a message) | `common.unfamiliar_first`, a before hook of order 1 on all 22 pets verbs (registered in `perception.py`, as food does): an unfamiliar thing in any entity parameter gets the kernel's one identify-first refusal (`NOVEL_OPERATE_MESSAGE`); no-op in oracle mode and for anything the robot can identify. No spec or generated house holds an unfamiliar thing, so no outcome changes |
+| `give_pet_medication`'s permission refusal read "amber pill bottle is owner-directed" in realistic mode | its wording "Pet medication is owner-directed" contains the pet bottle's label, which the kernel rewrites for every pill-bottle member alike | reworded without a member's name ("Medicine for a pet is given only as its owner directs: ask an adult for permission give_pet_medication:<pet>"); realistic mode now answers as oracle does |
+
+**Decision on the gap (the row asked to decide and pin it).** Pets owns escapes while it is loaded, so the opening a pet
+dashes through is the opening it can pass at all: the dash uses the same gap as `conn_open`, which every pets move
+(`pet_rooms`, the escape tick, following, recall) already used. A 30 % rule for the dash alone would let a dog walk
+through a 25 % opening a moment later while refusing to dash through it. Mechanisms alone keeps its 30 %. A pet nosing
+an unlatched door wider is not modelled: the door stays where the robot left it.
+
+**Checks** (live tree unless noted). `python tools/perception_audit.py 60 80` and `--camera geometric`: 0 leaks, 0
+crashes, read probe included (at the start of the close-out it listed 3 and 5, all other domains' type data, none for
+pets). A twin sweep in the close-out's scratch folder (`pets_twins.py`)
+compares every member of `dog_food_bag`, `fish_food_tub`, `cage_liner_sheet` and `pill_bottle`, the litter and
+bedding kinds (`litter_bag`, `small_animal_bedding`) and unfamiliar pets things against an unfamiliar kettle, on the
+counter and held, room and geometric camera: a generic battery (look, count, inspect, ask, read, read_aloud ...), every
+pets verb with the thing in each entity parameter (after approaching the verb's target) and every registered action
+with it in its first two entity parameters (648 commands per twin set). While the thing is unresolved, pets verbs and
+inspectors answer every member alike and name none; the remaining differences are other owners' (requests in the
+handoff): a pour of a held pill bottle ("Open it first" for the people domain's sealed prescription bottle, "It is
+empty" for the pet and the expired one), cleaning's tool and absorb checks on held unfamiliar things (a slicker brush
+dusts and scrubs) and, with the geometric camera only, the kernel's look inside an unfamiliar thing ("It is closed;
+open it first" for one with a lid, "There is nothing to look inside" otherwise). `read` / `read_aloud` of an unfamiliar thing show its printed text or "nothing legible" by design
+(the kernel's rule). No spec changes its outcome: pets 15 / 15 and mechanisms 15 / 15 on seeds 0, 1, 2, 41, 97 (pets'
+realistic ones also with `--camera geometric`), and the room golden (`HOUSE_SIM_GOLDEN_ALL=1`, every spec's reference
+in both perception modes) is unchanged with these pets changes on the committed tree.

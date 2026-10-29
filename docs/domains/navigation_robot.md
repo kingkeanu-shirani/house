@@ -9,8 +9,9 @@ measuring and leveling, robot self-maintenance (battery, cameras, falls, faults,
 unobtrusive waiting, remote help), elevators, and other household robots (robot vacuum/mop/mower).
 
 Code: `house_sim/systems/navigation_robot/` (package). Types: `house_sim/data/types/navigation_robot.json`.
-Tests: `tests/test_navigation_robot.py` (210 tests: 24 realistic-perception tests, the 21 kernel v3.0 body tests of
-`TestBodyEnergy` and the 28 tier-1 adoption tests of `TestTier1Adoption`; isolated, strict and all-domain runs, and all
+Tests: `tests/test_navigation_robot.py` (232 tests: 24 realistic-perception tests, the 21 kernel v3.0 body tests of
+`TestBodyEnergy`, the 28 tier-1 adoption tests of `TestTier1Adoption` and the phase-1 classes `TestPhase1Stabilise`,
+`TestPhase1Finish` and `TestPhase1Closeout` (sections 4c-4e); isolated, strict and all-domain runs, and all
 of them again with the kernel's carry law forced active: tests whose mechanic another domain owns when loaded assert the
 integrated outcome, e.g. the people domain's hearing/light/startle models).
 Examples: `tasks/authored/navigation_robot__examples.json` (12 specs, all pass `--check` on seeds 0, 1, 2, 41, 97 with every
@@ -134,6 +135,17 @@ aborted_runs, dock_zone_clear, cleaned_m2, speed_m2_per_min 1.6, drain_pct_per_m
 | `clean_robot_brushes` | target rv; `tool` | not running | with a cutting tool hair -> 0, without halves it; clears a jam | 90 s |
 | `refill_robot_tank` | target rv; `tool` held container; `amount_l` | the container held and not empty, then a mop tank (type-agnostic checks first, so the plain look-alike is found out only by a real pour) | water/manufacturer solution only; vinegar/bleach/ammonia/disinfectant damage it; > 60 C warps it; overfill spills | 30 s |
 | `free_stuck_robot` | target rv; `method` lift/drag; `cell`; `resume` | on the floor | lift: untangled, idle or resumes; drag by bumper breaks it | 20 s |
+
+Unfamiliar things (realistic perception, review I4; phase-1 close-out, section 4e): `climb_on`, `swap_battery` and
+the four household-robot verbs (`empty_robot_vacuum`, `clean_robot_brushes`, `refill_robot_tank`, `free_stuck_robot`)
+are declared `operates=True`, so the engine refuses a target the robot takes for an unfamiliar (novel) thing with the
+kernel's one identify-first message (`actions.NOVEL_OPERATE_MESSAGE`, precondition) before any of their checks; `dock`
+refuses such a target the same way unless it is the robot's own dock (on its map), and `empty_robot_vacuum`'s trash
+can and `refill_robot_tank`'s source container get the same refusal (`common.refuse_unfamiliar`). An unfamiliar held
+thing serves as no tool: a named one gets that refusal, an unnamed one is passed over (`common.tool_candidates` for
+`measure`, `check_level`, `mark`, `clean_camera`; `common.known_tool`, core `require_tool` behind that rule, for
+`use_reacher` and `clean_robot_brushes`). An unresolved member of the robot-vacuum look-alike group is no unfamiliar
+thing (it is known to be a robot vacuum): these verbs work on it.
 
 Hooks on core actions: `move`/`approach`/`walk_to` (before order 6-9: margins refresh, perception-limited
 planning, stuck check (also the body's `software_stuck`: "The navigation software is stuck; request remote help"),
@@ -445,6 +457,41 @@ Handoff: `catalog/analysis/phase1/finish_navigation_robot.json`. Tests in `TestP
   beside a known target its cameras cannot make out before approaching it (section 2); room-camera runs are
   unchanged. `test_go_to_dock_walks_by_the_map_when_the_camera_cannot_make_it_out`; the examples file passes 12/12
   forced realistic + geometric again.
+
+## 4e. Phase 1, close-out
+
+Handoff: `catalog/analysis/phase1/closeout_navigation_robot.json`. Tests in `TestPhase1Closeout`:
+
+* finish_breakages.json (INT2's read probe, people's request): an unresolved `robot_vacuum` was refused "There is
+  nothing legible to read on it" while an unresolved `robot_vacuum_mop` read its tank label, so the refusal told the
+  look-alike members apart before either was identified. Every household robot now carries its own printed care label
+  (`label_text`, read tier): the vacuum's bin / floor / brush rules, the vacuum-mop's the same plus its tank rules, the
+  mower its blade warning (it is_a robot_vacuum, so it would otherwise have inherited the dustbin label). No label names
+  its model or holds a permission cue word. Read and read aloud answer alike for both members while unresolved, in room
+  and geometric camera mode; room mode's read identifies the thing (a read grants inspect), the geometric head camera's
+  read shows the print and leaves the identity to a close look (the group resolves by inspect). `perception_audit.py`'s
+  read probe: 0 leaks for the robot_vacuum group in both modes (was 1 room, 1 geometric). A house with a household
+  robot gains that one record field (no placement changes), and with it the realistic handle salt (a digest of the
+  initial house): 20 of the 60 generation-1 digest entries, the room golden's seed-1 and seed-2 runs and the final
+  states of 4 of its 243 reference plans need the main session's re-record (the handoff lists them; every golden step's
+  outcome and duration and every reference plan's evaluation, steps and time are unchanged). Tests
+  `test_robot_vacuum_lookalikes_read_alike_before_they_are_told_apart`, `test_every_household_robot_carries_its_own_label`.
+* The same for unfamiliar (novel) things (review I4: handled as objects, never operated): this domain's household-robot
+  verbs, `dock` with a target and `climb_on` worked an unfamiliar thing by its true type (a novel robot vacuum's brushes
+  cleaned while any other novel thing was "not a household robot", a novel vacuum-mop's tank filled while a novel plain
+  one "has no mop tank", a novel step stool climbed and a novel ladder asking for approval, a novel dock's bag emptied,
+  a novel robot "has no dock", a novel robot pack installed by `swap_battery`). They now refuse every unfamiliar target,
+  trash can and source container with the kernel's one identify-first message (section 2). Test
+  `test_unfamiliar_things_are_not_operated_by_what_they_really_are`.
+* ... and as a tool: a held unfamiliar thing served by its true affordances -- a novel reacher answered "Retrieved
+  <it> with the reacher" (naming what the unfamiliar thing really is) while any other novel thing was not "a tool
+  that can reach"; a novel tape measured, a novel level read the tilt, a novel pencil marked, a novel lens wipe wiped,
+  a novel cutter cut the hair. This domain's tool pickers (`measure`, `check_level`, `mark`, `clean_camera`) take their
+  tool from `common.tool_candidates` and `use_reacher` / `clean_robot_brushes` from `common.known_tool` (core
+  `require_tool` with the same choice, refusals and wording): a named unfamiliar tool gets the identify-first refusal,
+  an unnamed one is passed over, so every unfamiliar thing answers alike. Test
+  `test_an_unfamiliar_held_thing_serves_as_no_tool`. Core `require_tool` itself still takes an unfamiliar tool by its
+  true affordances for the other domains' verbs (kernel request).
 
 ## 5. Observation and inspection
 
@@ -807,7 +854,7 @@ handles, fields have tiers, knowledge comes only from successful actions, `env.s
 | `handrail` | on_stairs, mount_height_m | - | - | rail_length_m (tape_measure) | `_loose` (felt: inspect within touch reports `loose`) |
 | `robot_battery_pack` | - | part_type, swollen | - | charge_pct (battery_tester; `swap_battery` measures the removed pack) | capacity_wh, value |
 | `battery_charging_station` | - | plugged_in | - | - | charge_rate_pct_per_min |
-| `robot_vacuum`, `robot_vacuum_mop`, `robot_mower` | docked | remote_status, appliance | label_text (the mop's tank rules) | battery_level (battery_tester) | rv (internal state: inspect reports it as perceived, below), value |
+| `robot_vacuum`, `robot_vacuum_mop`, `robot_mower` | docked | remote_status, appliance | label_text (each robot's own care label: the vacuum's bin / floor / brush rules, the vacuum-mop's the same plus its tank rules, the mower's blade warning; phase-1 close-out) | battery_level (battery_tester) | rv (internal state: inspect reports it as perceived, below), value |
 | `robot_vacuum_dock`, `auto_empty_dock`, `robot_mower_dock` | rv_dock | clearance_front_m, clearance_side_m, plugged_in | - | - | bag_fill (inspect shows a bucket) |
 
 Fields this domain writes onto other domains' entities (file-level `field_tiers`): glance `vehicle` (a reversing car
@@ -826,7 +873,7 @@ measured reading reveals them, at the instrument's precision, and the same readi
 
 | Group | Descriptor | Resolve | Members |
 |---|---|---|---|
-| `robot_vacuum` | round robot vacuum | inspect | robot_vacuum, robot_vacuum_mop (only the mop model takes `refill_robot_tank`) |
+| `robot_vacuum` | round robot vacuum | inspect | robot_vacuum, robot_vacuum_mop (only the mop model takes `refill_robot_tank`; both carry a printed label, so read and read aloud answer alike until one is identified) |
 | `robot_mower` | robotic lawn mower | inspect | robot_mower (its own group, so the vacuum group does not swallow it via is_a) |
 | `bubble_level` | aluminum level | inspect | spirit_level, digital_level (a 9 in torpedo level is its own type: its size tells it apart at a glance) |
 
@@ -872,7 +919,7 @@ refuses a sleeper with the same words and category as someone who is not going a
 | `follow` | a lost person's room is not reported (`person_room` null) | - |
 | `lead` with `warn` | calls out only the hazards it can see (no black ice, no damp film from afar, nothing in the dark); an unseen one still trips a frail person | - |
 | `inspect` (this domain's inspector) | handrail `loose`, ladder `wobbles` (where=closely), machine `rocks`: only within touch (else omitted, the rail is not marked checked); door `swing_blockers` the robot can see from where it stands; household robot `robot_status` as perceived (bin_fill empty/low/half/full/overflowing, brush hair none/some hair/heavily wrapped, mop tank to 0.05 L, tank_liquid "liquid" - water and vinegar look alike - no run counters, no `tank_damaged` error: seals fail later and out of sight) and `charge_indicator` empty/low/half/full instead of battery_level; dock `bag` bucket; vacuum-dock `clearance_blockers` and robot-dock `approach_blockers` only as seen from here (handle order); pencil `marks` to 5 mm; floor `floor_hazards` visible from here (never black ice or loose boards, damp films only within 2 cells, nothing in the dark, 5 m range) | core inspect grant |
-| `read` | the ladder's rating label, the tape's case-length note, the laser's and mop tank's labels | core read grant |
+| `read` | the ladder's rating label, the tape's case-length note, the laser's label, every household robot's care label (the vacuum-mop's with its tank rules); room mode's read identifies a robot vacuum (a read grants inspect), the geometric head camera's read shows the print only | core read grant |
 | `refill_robot_tank` | names the liquid only once the source is identified (read its label); otherwise "liquid from <handle>" | - |
 
 Messages, refusals and incident causes name things by id (handles, or "something" for things not seen), never by a

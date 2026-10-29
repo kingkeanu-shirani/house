@@ -9,12 +9,18 @@ Workflow scripts and helpers used to run the multi-agent rounds. Replace `%PROJE
   args: `{domains: [..]}`.
 - `round4_wf.js` — the last domain fix round (template for the next one).
 - `green_tests.py` — every tests/test_*.py, normal and HOUSE_SIM_STRICT=1, in parallel (`[jobs] [pattern]
-  [--modes normal,strict] [--tests-dir DIR] [--json OUT]`); exit status 1 when any run fails (CI reads it).
+  [--modes normal,strict] [--tests-dir DIR] [--json OUT] [--registry FILE|committed|none]`), through the gate's
+  `_unittest` worker with the wall-clock bounds relaxed; exit status 1 when any run fails, a bound skips its body or a
+  perf mark is unregistered (CI reads it). `--perf` asserts the bounds alone (best of 3).
+- `wallclock.py` — the wall-clock bound mechanics (K-GATE3): perf marks by AST, the committed registry, the relax plan,
+  the counting clock, and the helper `wall_clock_bound(self, elapsed, limit)` a bound calls instead of `assertLess`
+  (`from tools.orchestration.wallclock import wall_clock_bound`: asserted in the perf job, recorded otherwise).
 - `run_check.py` — orchestrator-run spec checks (`run FILE ... | --all`, `verify [--rerun N]`, `show`): the workflow
   or the main session runs `--check` itself and appends the verdicts to a hash-chained check log
   (`catalog/review/check_log/orchestrator.jsonl`); agents never self-certify. See below.
-- `gate_policy/` — the gate's main-session policy files: the dated allowlist `known_failing.json` and the second
-  signatures `signoffs/<ID>.json` (read only as committed; see `gate_policy/README.md`).
+- `gate_policy/` — the gate's main-session policy files: the rules `rules.json` (the package table, sub-stages,
+  budgets, features, protected paths), the dated allowlist `known_failing.json`, the wall-clock bound registry
+  `perf_tests.json` and the second signatures `signoffs/<ID>.json` (read only as committed; see `gate_policy/README.md`).
 - `regen_leaderboard.sh` — re-run the offline baselines on the dev subset and rebuild reports/leaderboard.* with a
   throwaway verifier key from the environment (writes nothing to ~/.house_ai).
 - `snapshot.py NAME` — zip the project to archive/NAME.zip without caches, archive/ or private split material.
@@ -49,7 +55,7 @@ The A0 baseline and the handoff with the package table are in `catalog/analysis/
 | Check | What it runs | Pass condition |
 |---|---|---|
 | G0 | `actions_fingerprint()` and the code fingerprints | the action fingerprint is unchanged unless the package may change it |
-| G1 | every `tests/test_*.py`, normal and `HOUSE_SIM_STRICT=1` (one process per file and mode) | all green, except unexpired allowlist entries |
+| G1 | every `tests/test_*.py`, normal and `HOUSE_SIM_STRICT=1` (one process per file and mode; wall-clock bounds relaxed), and `tools/py39_lint.py` | all green, except unexpired allowlist entries; every perf mark registered, none skipping its body; no Python 3.9 violation |
 | G1b | each domain's test file with `HOUSE_SIM_DOMAINS=<domain>`; kernel test files with `HOUSE_SIM_DOMAINS=core` | all green (absolute from phase 1; kernel files from B1 on), except allowlist entries |
 | G1c | imports the package's library modules after every domain is loaded | nothing registered (TIER1_INTEGRATION 1.16); N/A without such modules |
 | G2 | every authored spec in its own perception mode, seeds 0 1 2 41 97 (`verify.run_trial`) | G2-ABS: every spec passes on every seed (new ones included) unless allowlisted; every verdict change reviewed by the package (bound to its files) and signed by the main session; every edited spec signed; no digest change the package may not make |
@@ -57,10 +63,11 @@ The A0 baseline and the handoff with the package table are in `catalog/analysis/
 | G4 | `tools/perception_audit.py 6 150 --workers 4` (+ `--camera geometric` once available) | exit 0; in `compare` also no increase and no dropped variant |
 | G5 | `tools/layout_audit.py 40` and the generation-1 digests of `tests/data/gen1_digests.json` | counts equal to the previous gate; every pinned digest equal |
 | G6 | `tools/fuzz.py 6 300 --workers 4` (+ `--camera geometric`, `--battery 5 --faults random` once available) and `tools/fuzz.py --coverage --workers 4` | exit 0 (no defect, deterministic replay of every house and walk); per-action success coverage reported, an action that stops succeeding needs a signature |
-| G7 | `tools/bench_systems.py 40 0 1 2 3` and a 1 h wait on seeds 0-3, best of 5 | ms/substep and the wait within the package budget (default 1.05 x previous gate; PHYS-INT 1.0 x A0) |
-| G8 | `tests.test_room_golden`, also with `HOUSE_SIM_GOLDEN_ALL=1` | green (required from B1 on) |
+| G7 | `tools/bench_systems.py 40 0 1 2 3` and a 1 h wait on seeds 0-3, best of 5; then the wall-clock bounds alone | ms/substep and the wait within the package budget (rules.json: default 1.05 x previous gate; PHYS-INT 1.0 x A0; P2-WP2 1.15); no bound failing all 3 attempts |
+| G8 | `tests.test_room_golden`, also with `HOUSE_SIM_GOLDEN_ALL=1` | green (required from B1 on); every golden entry re-recorded vs the base reviewed and signed (kind `golden`) |
 | G9 | package extras: physics_audit, body_audit, generator compat + gen-2 layout + gen-2 timing, sweep_bench, geometric camera tools | exit 0 / within budget |
-| G10 | `git diff --name-only HEAD` plus untracked files | every file in the package's list, its handoff or its gate folder; no `gate_policy/` file (main session only); FAIL without git (an isolated copy needs none); N/A without `--package` |
+| G10 | `git diff --name-only HEAD` plus untracked files | every file in the package's list, its handoff or its gate folder; no `gate_policy/` file (main session only); with `--shared-tree` a file goes to a running peer whose scope has it, a protected path never; FAIL without git (an isolated copy needs none); N/A without `--package` |
+| GATE | the gate code of the record (meta `gate`) | equal to the code committed at the record's commit, or a gate-tool package's with a `gate-change` signature |
 
 Each trial record (`specs_own.jsonl`, `specs_realistic.jsonl`) holds the verdict fields (`passed`, `initial_fails`,
 `idle_fails`, `reference_passes`, `perceivable`, every wrong plan's `fails` / `ran`) and the digests
@@ -179,6 +186,38 @@ those fixes left open, each with a regression test in tests/test_gate_tool.py (`
   it attempted refused, waiting aside, a physical success that changed nothing counting as no act -- is not
   evidence (`NeverActed`); a strict-block refusal (safety, privacy, social, authority) and a declared `mistake` are
   left to the full rule.
+
+## Phase-1 close-out: the gate's rules in committed policy (K-GATE3, 2026-10-28)
+
+The independent verifier (catalog/analysis/phase1/finish_VER.json) found four holes that still got through; each is
+closed with a regression test in tests/test_gate_tool.py (`CloseOutGateTests`) that replays the attack:
+
+* **The rules lived in the unprotected gate script** (two edited lines lowered G7's budget and a 20 % slower record
+  compared PASS). Every rule that decides a verdict is `gate_policy/rules.json` now, read from git HEAD (format:
+  `gate_policy/README.md`; the former values are kept exactly and pinned by digest). Every record's `meta.json` `gate`
+  lists the blob hashes of the gate code that made it and of `tools/orchestration/**`; check GATE fails a record made
+  by code that differs from the committed one, unless its package is a gate-tool package with the main session's
+  `gate-change` signature. A comparison run by a differing script is INCOMPLETE, as is one with rules or a bound
+  registry that are not committed yet.
+* **G10 --shared-tree attributed protected files and other owners' tests to peers.** A protected path
+  (`tools/orchestration/**` with the policy, `.github/**`, the room golden, the generation-1 digests) is never
+  attributed; another file only to a peer of a running sub-stage (rules `running_substages`) whose own scope contains
+  it; every attribution is listed in the note, and one in a sub-stage that is not running makes the record no
+  hand-over. On a shared tree with the gate tool's files changed, record on an isolated copy (`isolate --package`).
+* **A hand-edited golden neutralised any pin.** `tools/golden.py` honours a known-failing pin only while the committed
+  allowlist excuses it, and G8 lists every entry that differs from the base (the previous record's entries, else the
+  base commit's) as a re-record needing a reviewed and a signed row of kind `golden`.
+* **A failing test disguised as a wall-clock bound kept CI green.** The correctness runs (gate G1 / G1b / G8, CI's unit
+  suite via green_tests.py) run every perf-marked test relaxed through the `_unittest` worker (`wallclock.py`): its body
+  and functional assertions run, its timing cannot fail (a counting clock; or the `wall_clock_bound` helper, which
+  records instead of asserting). Every perf mark is registered in `gate_policy/perf_tests.json`; an unregistered one
+  fails the run, and a bound that still skips its body counts as a skip unless the registry gives it a dated exception
+  pinned to its source (one today: the thermal relative bound, until 2026-11-30).
+
+Also: `tools/py39_lint.py` (stdlib, Python 3.9 grammar and 3.10+ runtime features) runs in CI and in G1 (the gate's own
+copy over the tree); the close-out package **P1C** and the phase-2 packages **P2-S1 ... P2-S6, P2-ALL** (VERIFY_HARDENING
+section 25) are in the rules. The close-out record: `record --id P1C --package P1C --prev P1F` (reviewed rows cite
+`P1C`; the integrator's non-domain fixes join with `--package P1C+P1C-INT`).
 
 ## run_check.py (orchestrator-verified checks)
 

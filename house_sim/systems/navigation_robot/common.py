@@ -164,6 +164,55 @@ def identified(env, state, eid):
     return "candidates" not in ident and not rec.get("novel")
 
 
+def refuse_unfamiliar(ctx, eid):
+    """Realistic perception: refuse a thing the robot takes for an unfamiliar (novel) one with the kernel's one
+    identify-first wording (actions.NOVEL_OPERATE_MESSAGE), before any check that depends on what it really is. The
+    engine does this itself for the target of a verb declared operates=True; this is for the other things such a verb
+    works with (the trash can a bin is tipped into, the container a tank is filled from), as cleaning's empty_into and
+    plumbing's fill do (review I4; phase-1 close-out). No-op in oracle mode and for anything else."""
+    if unfamiliar(ctx, eid):
+        from ...kernel.actions import NOVEL_OPERATE_MESSAGE
+        raise ActionError(NOVEL_OPERATE_MESSAGE, "precondition")
+
+
+def unfamiliar(ctx, eid):
+    """Realistic perception: the robot takes eid for an unfamiliar (novel) thing (realism.novel_unidentified). False in
+    oracle mode and for unknown ids."""
+    realism = getattr(ctx.env, "realism", None)
+    rec = ctx.w.s["entities"].get(eid) if realism is not None and isinstance(eid, str) else None
+    if rec is None:
+        return False
+    novel = getattr(realism, "novel_unidentified", None)
+    return bool(novel(eid, rec) if callable(novel) else rec.get("novel"))
+
+
+def tool_candidates(ctx, tool_id=None):
+    """The things a verb may take its held tool from: the named one (refused with the kernel's identify-first message
+    when the robot takes it for an unfamiliar thing), else every held thing that is not unfamiliar. An unfamiliar held
+    thing serves as no tool, whatever it really is (review I4; phase-1 close-out: a novel reacher "Retrieved ... with the
+    reacher" and a novel tape measured while any other novel thing was no tool). Core `require_tool` itself still takes
+    one by its true affordances (kernel request); `known_tool` puts this rule in front of it."""
+    if tool_id:
+        refuse_unfamiliar(ctx, tool_id)
+        return [tool_id]
+    return [eid for eid in ctx.w.held_items() if not unfamiliar(ctx, eid)]
+
+
+def known_tool(ctx, capability, tool_id=None, consume=True):
+    """core.require_tool over tool_candidates: the same choice, refusals and wording, but never an unfamiliar thing."""
+    from ..core import require_tool
+    if tool_id:
+        tool_candidates(ctx, tool_id)
+        return require_tool(ctx, capability, tool_id, consume=consume)
+    for eid in tool_candidates(ctx):
+        if not eid or not ctx.holding(eid):
+            continue
+        tool = ctx.w.ent(eid)
+        if capability in set(tool.get("affordances", [])) | set(tool.get("capabilities", [])) | {tool.get("tool_kind")}:
+            return require_tool(ctx, capability, eid, consume=consume)
+    raise ActionError("Hold a tool that can {}".format(capability.replace("_", " ")), "capability")
+
+
 def knows_field(env, state, eid, field, level="inspect"):
     """Realistic mode: the robot learned this field of eid at `level` or better (a door's lock after inspecting or
     trying it). Always True in oracle mode."""

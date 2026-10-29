@@ -1,23 +1,30 @@
 """Run every tests/test_*.py normally and with HOUSE_SIM_STRICT=1 (parallel), summarise results.
 
 usage: python green_tests.py [jobs] [pattern] [--modes normal,strict] [--tests-dir DIR] [--json OUT]
+                             [--registry FILE|committed|none]
        python green_tests.py --perf [pattern] [--attempts N] [--modes normal,strict] [--tests-dir DIR] [--json OUT]
 
-One process per file and mode (HOUSE_SIM_DOMAINS unset). The summary goes to stdout and the per-file results to
-tools/orchestration/green_tests.json (or --json OUT; the tier-1 gate reads the default file for its time estimates).
-Exit status: 0 when every run passes, 1 when any fails (CI and the orchestrator read it), 2 when no test file matches.
+One process per file and mode (HOUSE_SIM_DOMAINS unset), through the tier-1 gate's `_unittest` worker (the report and
+exit status of `python -m unittest`, plus every test's outcome). The summary goes to stdout and the per-file results
+to tools/orchestration/green_tests.json (or --json OUT; the tier-1 gate reads the default file for its time
+estimates). Exit status: 0 when every run passes, 1 when any fails (CI and the orchestrator read it), 2 when no test
+file matches.
 
-Wall-clock bounds are not part of the correctness suite (phase-1 red team, K-GATE2): under parallel load they fail for
-reasons that are not regressions. The parallel runs set HOUSE_SIM_PERF_TESTS=0 (every bound then skips with "wall-clock
-bound off"; an explicit HOUSE_SIM_PERF_TESTS in the caller's environment is kept), and `--perf` is the perf job: the
-bounds alone, one process at a time, HOUSE_SIM_PERF_TESTS=1, each bound passing when one of --attempts runs (default
-3) meets it -- the tolerance for a machine that is busy for a moment. A bound is a test method whose body reads
-HOUSE_SIM_PERF_TESTS (perf_tests). The tier-1 gate runs the same job in G7, alone after its benchmarks.
+Wall-clock bounds are not part of the correctness verdict (phase-1 red team, K-GATE2), but their bodies are part of the
+correctness suite (phase-1 close-out, K-GATE3; tools/orchestration/wallclock.py): the parallel runs set
+HOUSE_SIM_PERF_TESTS=0 (an explicit value in the caller's environment is kept) and the worker runs every perf-marked
+test relaxed -- its body runs, its timing cannot fail (a counting clock, or the wall_clock_bound helper recording
+instead of asserting). A run fails when a perf-marked test still skips its body ("wall-clock bound off") without the
+registry's dated exception, and the whole run fails when a test file of the project carries a perf mark the committed
+registry (tools/orchestration/gate_policy/perf_tests.json; --registry) does not list. `--perf` is the perf job: the
+bounds alone, one process at a time, HOUSE_SIM_PERF_TESTS=1, each bound passing when one of --attempts runs (default 3)
+meets it -- the tolerance for a machine that is busy for a moment. The tier-1 gate runs the same job in G7, alone after
+its benchmarks.
 """
 import argparse
-import ast
 import concurrent.futures as cf
 import glob
+import importlib.util
 import json
 import os
 import re
@@ -31,50 +38,18 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 HERE = os.path.dirname(os.path.abspath(__file__))
 PERF_ENV = "HOUSE_SIM_PERF_TESTS"
 ATTEMPTS = 3
+_WALLCLOCK = []
 
 
-def run(path, strict, cwd):
-    env = dict(os.environ)
-    env.pop("HOUSE_SIM_DOMAINS", None)
-    env.setdefault(PERF_ENV, "0")          # the correctness suite: wall-clock bounds run in the perf job (--perf)
-    if strict:
-        env["HOUSE_SIM_STRICT"] = "1"
-    else:
-        env.pop("HOUSE_SIM_STRICT", None)
-    t = time.time()
-    p = subprocess.run([sys.executable, "-m", "unittest", os.path.relpath(path, cwd)], cwd=cwd, env=env,
-                       capture_output=True, text=True, encoding="utf-8", errors="replace")
-    out = p.stderr + p.stdout
-    m = re.search(r"Ran (\d+) test", out)
-    s = re.search(r"skipped=(\d+)", out)
-    return {"file": os.path.basename(path), "strict": strict, "rc": p.returncode, "ran": int(m.group(1)) if m else 0,
-            "skipped": int(s.group(1)) if s else 0, "secs": round(time.time() - t, 1),
-            "tail": "" if p.returncode == 0 else out[-3000:]}
-
-
-def perf_tests(files):
-    """{file name: [test ids]} of the wall-clock bounds of test files: test methods of a TestCase class whose body
-    reads HOUSE_SIM_PERF_TESTS (the guard every bound carries). Ids are "<tests folder>.<module>.<Class>.<method>"."""
-    out = {}
-    for path in sorted(files):
-        try:
-            with open(path, encoding="utf-8") as f:
-                tree = ast.parse(f.read(), filename=path)
-        except (OSError, SyntaxError, ValueError):
-            continue
-        module = "{}.{}".format(os.path.basename(os.path.dirname(os.path.abspath(path))),
-                                os.path.splitext(os.path.basename(path))[0])
-        ids = []
-        for node in tree.body:
-            if not isinstance(node, ast.ClassDef):
-                continue
-            for item in node.body:
-                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and item.name.startswith("test") and \
-                        any(isinstance(n, ast.Constant) and n.value == PERF_ENV for n in ast.walk(item)):
-                    ids.append("{}.{}.{}".format(module, node.name, item.name))
-        if ids:
-            out[os.path.basename(path)] = ids
-    return out
+def wallclock():
+    """tools/orchestration/wallclock.py (perf marks, the registry, the relax plan), loaded once from beside this
+    script."""
+    if not _WALLCLOCK:
+        spec = importlib.util.spec_from_file_location("wallclock_for_green_tests", os.path.join(HERE, "wallclock.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _WALLCLOCK.append(module)
+    return _WALLCLOCK[0]
 
 
 def _outcomes(path):
@@ -84,6 +59,58 @@ def _outcomes(path):
         return data.get("tests") if isinstance(data, dict) and isinstance(data.get("tests"), dict) else None
     except (OSError, ValueError):
         return None
+
+
+def run(path, strict, cwd, plan_path=None, work=None, excused=()):
+    """One correctness run of a test file through the gate's _unittest worker. The row: file, strict, rc, ran,
+    skipped, secs, outcomes (the ids of every outcome that is not "ok"), bounds_skipped (perf-marked tests that
+    skipped their body without a registry exception: the run fails) and tail."""
+    env = dict(os.environ)
+    env.pop("HOUSE_SIM_DOMAINS", None)
+    env.setdefault(PERF_ENV, "0")          # the correctness suite: wall-clock bounds run relaxed, asserted in --perf
+    if plan_path:
+        env[wallclock().PLAN_ENV] = plan_path
+    if strict:
+        env["HOUSE_SIM_STRICT"] = "1"
+    else:
+        env.pop("HOUSE_SIM_STRICT", None)
+    work = work or tempfile.gettempdir()
+    out_json = os.path.join(work, "{}_{}.json".format(os.path.basename(path)[:-3], "strict" if strict else "normal"))
+    try:
+        os.remove(out_json)
+    except OSError:
+        pass
+    t = time.time()
+    p = subprocess.run([sys.executable, os.path.join(HERE, "tier1_gate.py"), "_unittest", out_json,
+                        os.path.relpath(path, cwd)], cwd=cwd, env=env, capture_output=True, text=True, encoding="utf-8",
+                       errors="replace")
+    out = p.stderr + p.stdout
+    # the counts of this run's own report: the last "Ran N tests" and verdict line of stderr (a test's own output may
+    # quote another run's report before them)
+    ran = re.findall(r"^Ran (\d+) tests?", p.stderr, re.M)
+    verdict = re.findall(r"^(?:OK|FAILED)\b.*$", p.stderr, re.M)
+    s = re.search(r"skipped=(\d+)", verdict[-1]) if verdict else None
+    outcomes = _outcomes(out_json) or {}
+    quiet = {}
+    for tid, outcome in sorted(outcomes.items()):
+        if outcome != "ok":
+            quiet.setdefault(outcome, []).append(tid)
+    skipped_bounds = [tid for tid in quiet.get("perf", []) if tid not in excused]
+    rc = p.returncode
+    if skipped_bounds and not rc:
+        rc = 3                             # a perf-marked test that never ran its body is no pass (K-GATE3)
+        out += "\nperf-marked test(s) skipped their body in a correctness run (no registry exception): {}\n".format(
+            ", ".join(skipped_bounds))
+    return {"file": os.path.basename(path), "strict": strict, "rc": rc, "ran": int(ran[-1]) if ran else 0,
+            "skipped": int(s.group(1)) if s else 0, "secs": round(time.time() - t, 1), "outcomes": quiet,
+            "bounds_skipped": skipped_bounds, "tail": "" if rc == 0 else out[-3000:]}
+
+
+def perf_tests(files):
+    """{file name: [test ids]} of the wall-clock bounds of test files: test methods of a TestCase class whose body
+    reads HOUSE_SIM_PERF_TESTS (the legacy guard) or calls wallclock.wall_clock_bound. Ids are "<tests folder>.
+    <module>.<Class>.<method>"."""
+    return {name: sorted(marks) for name, marks in wallclock().perf_marks(files).items()}
 
 
 def run_perf(ids_by_file, modes, attempts, cwd, work, base_env=None, timeout=1800):
@@ -100,6 +127,7 @@ def run_perf(ids_by_file, modes, attempts, cwd, work, base_env=None, timeout=180
         for mode in modes:
             env = dict(base_env if base_env is not None else os.environ)
             env.pop("HOUSE_SIM_DOMAINS", None)
+            env.pop(wallclock().PLAN_ENV, None)
             env[PERF_ENV] = "1"
             if mode == "strict":
                 env["HOUSE_SIM_STRICT"] = "1"
@@ -163,6 +191,29 @@ def main_perf(args, files, modes, cwd):
     return 1 if failed else 0
 
 
+def bound_policy(files, registry, tests_dir):
+    """(plan, excused ids, unregistered ids, note) of the correctness runs: the perf marks of `files`, the registry
+    (--registry: "committed" -- the project's committed registry, the default for the project's own tests folder --,
+    "none", or a registry file) and the relax plan the worker follows (wallclock.perf_plan)."""
+    wc = wallclock()
+    marks = wc.flat_marks(wc.perf_marks(files))
+    if registry is None:
+        registry = "committed" if os.path.abspath(tests_dir) == os.path.join(ROOT, "tests") else "none"
+    if registry == "none":
+        return wc.perf_plan(marks, {}), set(), [], "no registry (--registry none)"
+    if registry == "committed":
+        data, note = wc.committed_registry(ROOT)
+    else:
+        try:
+            with open(registry, encoding="utf-8") as f:
+                data, note = json.load(f), "registry file " + registry
+        except (OSError, ValueError) as exc:
+            data, note = None, "unreadable registry {} ({})".format(registry, exc)
+    bounds = wc.registry_entries(data)["bounds"]
+    plan = wc.perf_plan(marks, bounds)
+    return plan, {t for t, m in plan.items() if m == "skip"}, wc.unregistered(marks, bounds), note
+
+
 def main(argv):
     p = argparse.ArgumentParser(description="every test file, normal and strict, in parallel")
     p.add_argument("positional", nargs="*", metavar="[jobs] [pattern]",
@@ -173,6 +224,8 @@ def main(argv):
     p.add_argument("--json", help="results file (default: tools/orchestration/green_tests.json; --perf: none)")
     p.add_argument("--perf", action="store_true", help="the perf job: only the wall-clock bounds, alone, with retries")
     p.add_argument("--attempts", type=int, default=ATTEMPTS, help="--perf: runs per bound before it fails (default 3)")
+    p.add_argument("--registry", help="the wall-clock bound registry: 'committed' (default for the project's tests "
+                                      "folder), 'none' (default elsewhere) or a registry file")
     args = p.parse_args(argv)
     args.jobs, args.pattern = 6, "test_*.py"
     rest = list(args.positional)
@@ -194,9 +247,20 @@ def main(argv):
         return 2
     if args.perf:
         return main_perf(args, files, modes, cwd)
-    runs = [(f, m == "strict") for f in files for m in modes]
-    with cf.ThreadPoolExecutor(max(1, args.jobs)) as ex:
-        results = list(ex.map(lambda a: run(a[0], a[1], cwd), runs))
+    # the registry and the plan cover every test file of the folder (an unregistered mark fails the run whatever
+    # pattern selected the files)
+    plan, excused, unregistered, note = bound_policy(sorted(glob.glob(os.path.join(tests_dir, "test_*.py"))),
+                                                     args.registry, tests_dir)
+    work = tempfile.mkdtemp(prefix="green_tests_")
+    try:
+        plan_path = os.path.join(work, "perf_plan.json")
+        with open(plan_path, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(plan, f, indent=1, sort_keys=True)
+        runs = [(f, m == "strict") for f in files for m in modes]
+        with cf.ThreadPoolExecutor(max(1, args.jobs)) as ex:
+            results = list(ex.map(lambda a: run(a[0], a[1], cwd, plan_path, work, excused), runs))
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
     bad = [r for r in results if r["rc"]]
     for r in results:
         print("{:4} {:32} strict={!s:5} ran={:4} {:6}s".format("FAIL" if r["rc"] else "ok", r["file"], r["strict"],
@@ -205,15 +269,19 @@ def main(argv):
     print("TOTAL tests ({} run):".format("normal" if any(not r["strict"] for r in results) else "strict"),
           sum(r["ran"] for r in normal), "failures:", len(bad))
     if os.environ.get(PERF_ENV, "0") == "0":
-        print("wall-clock bounds off in these runs ({}=0): {} bound(s) in the matching files; run them alone with "
-              "--perf".format(PERF_ENV, sum(len(v) for v in perf_tests(files).values())))
+        print("wall-clock bounds relaxed in these runs ({}=0: bodies run, timing not asserted): {} bound(s), {} with a "
+              "registry skip exception; assert them alone with --perf (registry: {})".format(
+                  PERF_ENV, len(plan), len(excused), note))
+    if unregistered:
+        print("UNREGISTERED wall-clock bound(s) (a perf mark the registry {} does not list; the main session registers "
+              "it after review): {}".format(wallclock().REGISTRY, ", ".join(unregistered)))
     out = args.json or os.path.join(os.path.dirname(os.path.abspath(__file__)), "green_tests.json")
     with open(out, "w", encoding="utf-8", newline="\n") as f:
         json.dump(results, f, indent=1)
     for r in bad:
         print("=" * 30, r["file"], "strict" if r["strict"] else "normal")
         print(r["tail"][-1500:])
-    return 1 if bad else 0
+    return 1 if bad or unregistered else 0
 
 
 if __name__ == "__main__":

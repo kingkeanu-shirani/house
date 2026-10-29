@@ -115,7 +115,7 @@ records it.
 | Drawers | `wood_runner_drawer`, `soft_close_drawer`, `push_latch_drawer`, `full_extension_drawer`, `pot_drawer` (30 kg max), `stopless_drawer` |
 | Cabinets/closets | `push_open_cabinet`, `lift_up_cabinet`, `glass_front_cabinet`, `lazy_susan_cabinet`, `blind_corner_cabinet`, `sink_base_cabinet` (latch child lock), `bifold_closet`, `bypass_closet`, `pocket_closet` |
 | Containers | `snap_lid_tote` (4 tabs), `toy_chest` (lid support, 70 deg detent), `storage_chest`, `sliding_lid_box`, `clasp_toolbox`, `magnetic_clasp_box`, `hidden_button_case`, `sliding_latch_tin`, `screw_lid_jar` (63 mm lug lid, 1.2 N m, glass 350 N crack), `press_lid_can` (lid slot, 4 taps), `container_lid` |
-| Dispensers | `pump_bottle` (1.2 ml/stroke, lock, priming), `trigger_bottle` (1.1 ml/squeeze, OFF/SPRAY/STREAM) |
+| Dispensers | `pump_bottle` (1.2 ml/stroke, lock, priming), `trigger_bottle` (1.1 ml/squeeze, OFF/SPRAY/STREAM, blank label) |
 | Locks and aids | `padlock`, `combination_padlock`, `door_wedge`, `magnetic_lock_key`, `rubber_grip_pad` (mu 0.9), `child_lock_latch`, `magnetic_child_lock`, `cabinet_strap_lock` (installable parts) |
 | Controls | `garage_door_button`, `garage_door_remote`, `garage_photo_eye` (15 cm), `alarm_panel` (Away/Stay quick arm), `control_panel_device` (data-defined), `touchscreen_device`, `recliner` |
 
@@ -685,8 +685,9 @@ kernel passes these percepts unchanged instead of adding noise to an estimate):
 inspect), `combination_padlock`, `child_lock_part` (spring vs magnetic child-lock latch, inspect), `pump_dispenser`
 (soap / lotion / sanitizer pump bottles, resolve read, `label_fields: ["label_text"]` so only the printed label
 identifies one; the dispenser helper prints a `label_text`), and `trigger_bottle` joins the kernel's `spray_bottle`
-group (unlabeled stays "spray bottle of liquid"; core `read` refuses an unlabeled bottle, so its `liquid` is never
-read), and `magnetic_lock_key` (a round plastic-cased magnet, `round magnet key` until inspected, candidates
+group (its label is blank, `label_text: ""` as on cleaning's refill `spray_bottle`: core `read` reads it as blank,
+the same form in which every member reads its own print, and an unlabeled bottle stays an unidentified "spray bottle
+of liquid", so its `liquid` is never read; phase-1 close-out, section 20), and `magnetic_lock_key` (a round plastic-cased magnet, `round magnet key` until inspected, candidates
 `magnetic lock key`; phase-1 finish: it was in the kernel's `key` group, whose record showed one size for a 6 x 2 x
 0.3 cm metal key and a 5 x 5 x 1.5 cm disc that the geometric camera, like a person, tells apart at a glance).
 
@@ -1087,3 +1088,42 @@ Left to others (requests in finish_mechanisms.json): pets now owns the door dash
 `pull_handle` / `push_handle` fires for any opening those verbs leave, including the 10 % a test pull swings an
 unlatched door (`test=true`: "it swung open a little"), where this domain's dash needs 30 %; the free-text echo of
 an unresolved target's true type (red team, kernel `realism.inbound`; no verb here has a free-text parameter).
+
+## 20. Phase-1 close-out (the spray_bottle read twins)
+
+The phase-1 finish left this domain one row in catalog/analysis/phase1/finish_breakages.json: the perception audit's
+read probe (INT2, people's request) found that an unread `trigger_bottle` -- this domain's type in cleaning's
+`spray_bottle` look-alike group -- was refused "There is nothing legible to read on it" while an unread
+`all_purpose_cleaner` read its label (room and geometric camera), so the refusal named the plain bottle before it was
+resolved. The cause was the type data: every product spray carries a printed `label_text`, cleaning's refill
+`spray_bottle` a blank one (`""`), and `trigger_bottle` none, so core `read` found no printed field on it at all.
+Regression tests: `Phase1CloseTests` here and cleaning's `Phase1Finish.test_every_unread_spray_bottle_reads_in_the_same_form`
+(tests/test_cleaning.py, the group's owner); result: catalog/analysis/phase1/closeout_mechanisms.json.
+
+* **A blank label, no invented one**: `trigger_bottle` carries `label_text: ""`, the same printed field as every
+  member of the group, blank as on cleaning's refill bottle (a scene still writes one: `label_text="GLASS CLEANER"`).
+  Core `read` answers a blank label as `{"label_text": ""}` and nothing else (a blank label prints nothing: no
+  read-tier field, no contents), so every unread member answers `read` in the same form (ok) in both camera modes; the
+  bottle stays an unidentified "spray bottle of liquid" (realism `_label_fields`: a blank label identifies nothing), and
+  the two plain members (`spray_bottle`, `trigger_bottle`) read, read aloud and look alike afterwards too. A moulded
+  capacity or resin mark was considered and not used: core `read` reads nothing beyond a blank label (cleaning's
+  refill bottle would never show it), a mark on this bottle alone would tell the two plain bottles apart, and a
+  non-blank field would make reading it identify the bottle (and its contents) through `_label_fields`.
+* **What else reads the field**: the checks that judge a label by its text (`rec.get("label_text")` in cleaning,
+  admin_inventory, climate and realism; people's `read_aloud`) treat `""` as no label, as before; safety's chemical
+  storage audit counts a blank label as `unlabeled` (right for a chemical decanted into it, as on cleaning's refill
+  bottle; a plain `trigger_bottle` carries no chemical tag or class, so it is no chemical) and safety's `_identify`
+  skill reads a thing with a label field before inspecting it (one blank read more on the reference's path). The test
+  that pinned the refusal now pins the blank read (`test_look_alike_pump_bottles_and_keys_are_confused_until_read_or_inspected`).
+  No authored spec, furnisher or generated house places a `trigger_bottle`, and every spec of this domain passes as
+  before.
+* **Audits**: `tools/perception_audit.py 60 80` 0 leaks, 0 crashes (room and `--camera geometric`, generation 1 and
+  2; the read probe's `spray_bottle` group included); `tools/layout_audit.py 20 --domain mechanisms` 0 problems
+  (generation 1 and 2).
+
+Left to others (requests in closeout_mechanisms.json): an unfamiliar (novel) thing keeps a blank label in core
+`read` (`NOVEL_PRINT`) and in its rendering (`NOVEL_FIELDS`), so an unfamiliar plain bottle (cleaning's refill bottle,
+and now this one) reads `{"label_text": ""}` where an unfamiliar kettle is refused "nothing legible" -- a field whose
+presence comes from the type (review I4; kernel); people's `read_aloud` refuses a blank label "nothing legible" while
+the thing is still unread, where a labelled member is read out (the read probe compares `read_aloud` only after
+`read`, which resolves the labelled members, so it does not see it).

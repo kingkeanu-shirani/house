@@ -549,7 +549,10 @@ def _inspect(w, eid, record, details, ctx):
     # the same rule as core inspect's contents: a closed opaque container hides what is in it
     closed = bool(rec.get("openable")) and not rec.get("open") and not rec.get("transparent")
     hidden = closed or details.get("contents") == "hidden"
-    if rec.get("container") and not (real and hidden):
+    # an unfamiliar thing shows the kernel's fixed key set only (realism.NOVEL_FIELDS): whether it is a container, and
+    # how full, comes from what it is (phase-1 finish, review I4: a novel mixing bowl or pot got 'packing', a knife not)
+    novel = real and C.novel_unidentified(ctx, eid)
+    if rec.get("container") and not (real and hidden) and not novel:
         # realistic: a closed opaque box, bin, cabinet or fridge shows neither what is packed in it nor in what order
         from .stacking import contents, void_fraction, used_volume
         items = contents(w, eid)
@@ -606,18 +609,35 @@ HIDDEN_TOPICS = {"cut_ok": "_cut_ok", "keep": "_keep", "in_use": "_in_use", "fra
                  "home": "_home", "contents": "_contents", "owner": "_owner", "preference": "_preference", "frame": "_frame"}
 
 
+def _known_record(env, state, eid):
+    """eid's record as the household knows it: the current one, or for a thing that has gone since (eaten, thrown out,
+    merged) the one it had when the episode began; {} for a thing the robot saw that was made during the episode and
+    has gone again; None for an id that never was. People know what was to happen to a thing after it is gone: a thing
+    destroyed out of view is answered like one merely out of view (phase-1 finish, people's request: "I'm not sure what
+    you mean." for a destroyed thing's keep / intended / how / status was an existence oracle). The same rule as the
+    people domain's owner answer (people knowledge._known_record)."""
+    rec = state["entities"].get(eid)
+    if rec is not None:
+        return rec
+    baseline = (getattr(env, "_baseline", None) or {}).get("entities") or {}
+    if eid in baseline:
+        return baseline[eid]
+    return {} if env is not None and eid in dialogue.remembered_ids(env) else None
+
+
 @answerer("manip:")
 def _answer(env, w, pid, topic, ctx):
-    """manip:<key>:<entity> asks a resident what they know about an item (cut it? keep it? still using it? ...)."""
+    """manip:<key>:<entity> asks a resident what they know about an item (cut it? keep it? still using it? ...), from
+    the record the household knew (_known_record)."""
     parts = topic.split(":")
     if len(parts) < 3:
         return None
     key, eid = parts[1], ":".join(parts[2:])
     field = HIDDEN_TOPICS.get(key)
-    if field is None or eid not in w.s["entities"]:
+    rec = _known_record(env, w.s, eid) if field is not None else None
+    if rec is None:
         return {"topic": topic, "value": "I'm not sure what you mean.", "by": pid}
     person = w.s["people"].get(pid, {})
-    rec = w.ent(eid)
     knows = person.get("authority", 0) >= 1 or rec.get("owner") == pid
     if not knows:
         w.stat("unnecessary_questions")

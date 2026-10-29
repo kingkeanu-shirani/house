@@ -84,6 +84,39 @@ def unresolved(env, eid):
     return "candidates" in realism.identity(eid, record, realism.knowledge.entity_level(eid, record))
 
 
+def novel(env, eid, record=None):
+    """True in realistic mode while the robot takes eid for an unfamiliar thing (a novel object or a portion of one:
+    the kernel's Realism.novel_unidentified), whatever it really is. Always False in oracle mode."""
+    realism = realism_of(env)
+    if realism is None:
+        return False
+    if record is None:
+        record = realism.env.world.s["entities"].get(eid)
+    return record is not None and bool(realism.novel_unidentified(eid, record))
+
+
+ENTITY_PARAMS = ("entity", "target")
+
+
+def unfamiliar_first(ctx):
+    """Before hook (order 1) of every verb of this domain: an unfamiliar thing in any of its entity parameters (the
+    target, a tool, a source or destination, a scale, a tag, a funnel, the scope of a count) gets the kernel's one
+    identify-first refusal (kernel.actions.NOVEL_OPERATE_MESSAGE) before any guard reads what it really is. Review I4
+    and the phase-1 close-out's novel sweep: staple, punch, bind, collate, fold_paper, sort_pages and unstaple said
+    "That is not a paper document" for every unfamiliar thing but a document; address_envelope and open_mail answered
+    by envelope, affix_postage, open_package and remove_packing by parcel, take_unit "Open it first" for a napkin pack
+    alone, tag_luggage and weigh_luggage by bag or scale, count listed the chili in a pot. Rooms (a count's scope) are
+    never unfamiliar. No-op in oracle mode."""
+    if realism_of(ctx.env) is None:
+        return
+    from ...kernel.actions import NOVEL_OPERATE_MESSAGE
+    from ...kernel.errors import ActionError
+    for pname, p in sorted(ctx.spec.params.items()):
+        value = ctx.args.get(pname)
+        if p.get("type") in ENTITY_PARAMS and isinstance(value, str) and novel(ctx.env, value):
+            raise ActionError(NOVEL_OPERATE_MESSAGE, "precondition")
+
+
 def count_seen(env, eid, n, level="inspect"):
     """A count as seen: exact when small (<= 12 at inspect), a noisy estimate above, a bucket at a glance."""
     if realism_of(env) is None:

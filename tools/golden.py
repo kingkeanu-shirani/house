@@ -28,11 +28,15 @@ What tests/data/room_golden.json pins (tests/test_room_golden.py checks it; G8 o
 appends {"by", "classes", "date"} to `history`. It refuses to pin a reference plan that fails (phase-1 red team: the
 golden pinned T-7d4006bda247ba-01's scorch as the expected outcome) unless the main session accepted it: the spec is on
 the gate's committed allowlist (tools/orchestration/gate_policy/known_failing.json, kind "spec", covering seed 0 in its
-own mode) or the committed golden (git HEAD) already pins it known-failing. A recorder cannot excuse a failure itself
-(K-GATE2: FIX2's --known-failing pinned any failing reference its recorder named); --known-failing is an
-acknowledgement checked against those two and refused otherwise. Such an entry is stored with "known_failing": true
-(the history entry lists them), and once its reference passes, `check` reports it as an expected change (to
-re-record), not as a difference. A package records only when every changed path belongs to its
+own mode). A recorder cannot excuse a failure itself (K-GATE2: FIX2's --known-failing pinned any failing reference its
+recorder named); --known-failing is an acknowledgement checked against the allowlist and refused otherwise. Such an
+entry is stored with "known_failing": true (the history entry lists them), and once its reference passes, `check`
+reports it as an expected change (to re-record), not as a difference -- but only while the committed allowlist still
+excuses it: the file's own flag excuses nothing (phase-1 close-out, K-GATE3: a hand edit marking an entry known-failing
+made compare accept any digest for it, and the committed golden's own pin was the same flag, committed wholesale), so
+`compare` treats an unexcused pin as a plain one and reports it. The tier-1 gate's G8 also lists every entry that
+differs from the base (the previous record's entries, or the base commit's file) as a re-record needing the package's
+reviewed row and the main session's signed row (kind "golden"). A package records only when every changed path belongs to its
 reviewed classes (3.5): `dump` before the first edit, `dump` again before hand-over, then `diff BEFORE AFTER` prints the
 leaf differences grouped by path pattern (entity, room, person and handle ids and list indexes become `*`, so a
 pattern reads like `entities.*._robot_moved` or `obs.visible_entities.*.state`).
@@ -439,9 +443,10 @@ def failing_references(specs, allowlisted=None, committed=()):
 
 def record(by, classes, new=False, workers=1, path=GOLDEN_FILE, known_failing=()):
     """Re-run everything and rewrite the digests; a new file (or --new) also chooses the scripts and fixed specs. A
-    failing reference is refused (SystemExit) unless the gate's committed allowlist excuses it or the committed golden
-    already pins it known-failing; known_failing (--known-failing) names are checked against the same two and refused
-    otherwise. Accepted failing references are stored with "known_failing": true."""
+    failing reference is refused (SystemExit) unless the gate's committed allowlist excuses it; known_failing
+    (--known-failing) names are checked against it and refused otherwise. Accepted failing references are stored with
+    "known_failing": true. K-GATE3: a known-failing pin of the committed golden no longer excuses a failure by itself
+    (it is the file's own flag; compare honours a pin only while the allowlist excuses it)."""
     _quiet_imports()
     if new or not Path(path).exists():
         specs = collect_specs()
@@ -451,14 +456,15 @@ def record(by, classes, new=False, workers=1, path=GOLDEN_FILE, known_failing=()
                   "fixed_specs": choose_fixed_specs(specs)}
     else:
         golden = load(path)
-    committed = committed_known_failing(path)
-    named = [k for k in known_failing if k not in committed and not allowlisted_failing([k])]
+    named = [k for k in known_failing if not allowlisted_failing([k])]
     if named:
-        raise SystemExit("golden: --known-failing {} is neither on the gate's committed allowlist nor pinned "
-                         "known-failing in the committed golden; a recorder cannot excuse a failure itself (ask the "
-                         "main session for a dated allowlist entry)".format(", ".join(named)))
+        pinned = committed_known_failing(path)
+        raise SystemExit("golden: --known-failing {} is not on the gate's committed allowlist{}; a recorder cannot "
+                         "excuse a failure itself (ask the main session for a dated allowlist entry)".format(
+                             ", ".join(named), " (a known-failing pin of the committed golden excuses nothing by "
+                             "itself)" if any(k in pinned for k in named) else ""))
     runs, specs = compute(golden, None, workers)
-    refused, known = failing_references(specs, allowlisted_failing, committed)
+    refused, known = failing_references(specs, allowlisted_failing)
     if refused:
         raise SystemExit("golden: refusing to pin failing reference plan(s) as the expected outcome: {} (fix them, or "
                          "ask the main session for a dated entry on the gate's committed allowlist)".format(
@@ -474,8 +480,23 @@ def record(by, classes, new=False, workers=1, path=GOLDEN_FILE, known_failing=()
     return golden
 
 
-def compare(golden, runs, specs):
-    """Human-readable differences between the file and fresh results ([] when equal), plus room-mode problems."""
+def vouched_known_failing(golden, keys=None):
+    """The spec keys whose known-failing pin (an entry {"known_failing": true, "passes": false}) the gate's committed
+    allowlist excuses (allowlisted_failing: seed 0 in the spec's own mode). The golden file's own flag excuses nothing
+    (phase-1 close-out, K-GATE3: a hand edit marking any entry known-failing made compare accept any digest for it)."""
+    pinned = [k for k in (keys if keys is not None else (golden.get("specs") or {}))
+              if ((golden.get("specs") or {}).get(k) or {}).get("known_failing")]
+    return allowlisted_failing(pinned) if pinned else set()
+
+
+def compare(golden, runs, specs, vouched=None):
+    """Human-readable differences between the file and fresh results ([] when equal), plus room-mode problems. A
+    known-failing reference that passes now is an expected change (not a difference) only when the gate's committed
+    allowlist vouches for the pin (vouched: the keys it excuses; default vouched_known_failing); any other pin is
+    compared like every entry, and a pin the allowlist does not excuse is reported even while it still fails."""
+    if vouched is None:
+        vouched = vouched_known_failing(golden, list(specs))
+    vouched = {str(k).split("#")[0] for k in vouched} | set(vouched)
     out = []
     for key in sorted(runs):
         want, got = golden["runs"].get(key), runs[key]
@@ -502,8 +523,13 @@ def compare(golden, runs, specs):
         if want is None:
             out.append("spec {}: not in the golden file".format(key))
             continue
-        if want.get("known_failing") and not want.get("passes") and got.get("passes"):
-            continue        # a known-failing reference now passes: an expected change (expected_changes), re-record
+        pinned = bool(want.get("known_failing"))
+        excused = pinned and (key in vouched or key.split("#")[0] in vouched)
+        if pinned and not excused:
+            out.append("spec {}: pinned known-failing without the gate's committed allowlist excusing it (the golden "
+                       "file's own flag excuses nothing; compared as a plain pin)".format(key))
+        if excused and not want.get("passes") and got.get("passes"):
+            continue        # a vouched known-failing reference now passes: an expected change (expected_changes)
         fields = [f for f in ("state", "steps", "time_s", "passes", "refusals", "error", "camera")
                   if want.get(f) != got.get(f)]
         if fields:
@@ -512,10 +538,14 @@ def compare(golden, runs, specs):
     return out
 
 
-def expected_changes(golden, specs):
-    """Known-failing references (pinned with "known_failing") that pass now: the fix the entry waited for."""
+def expected_changes(golden, specs, vouched=None):
+    """Vouched known-failing references (pinned with "known_failing" and excused by the committed allowlist) that pass
+    now: the fix the entry waited for (re-record the golden)."""
+    if vouched is None:
+        vouched = vouched_known_failing(golden, list(specs))
     return ["spec {}: known-failing reference now passes (expected change: re-record the golden)".format(key)
             for key in sorted(specs) if (golden["specs"].get(key) or {}).get("known_failing")
+            and (key in vouched or key.split("#")[0] in vouched)
             and not golden["specs"][key].get("passes") and specs[key].get("passes")]
 
 
@@ -633,7 +663,7 @@ def main(argv=None):
     rec.add_argument("--new", action="store_true", help="choose the scripts and the fixed specs again")
     rec.add_argument("--known-failing", default="",
                      help="comma-separated catalog ids whose failing reference you expect to pin; each must be on "
-                          "the gate's committed allowlist or pinned known-failing in the committed golden")
+                          "the gate's committed allowlist")
     chk = sub.add_parser("check", help="compare fresh results with the file")
     chk.add_argument("--all", action="store_true", help="every spec, not only the fixed ones")
     dmp = sub.add_parser("dump", help="write full checkpoint states and observations")

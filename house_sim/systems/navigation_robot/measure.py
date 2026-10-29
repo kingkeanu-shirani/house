@@ -149,7 +149,7 @@ def fixed_rng(ctx, *parts):
 
 def instrument(ctx, tool_id):
     w = ctx.w
-    candidates = [tool_id] if tool_id else w.held_items()
+    candidates = C.tool_candidates(ctx, tool_id)        # never an unfamiliar held thing (phase-1 close-out)
     for eid in candidates:
         if not eid or not ctx.holding(eid):
             continue
@@ -340,7 +340,7 @@ def check_level(ctx):
     rec = ctx.obj(target, touch=True)
     ctx.require_imaging()       # the bubble (or the eyeballed tilt) is read with the cameras
     tool = None
-    for eid in ([ctx.args["tool"]] if ctx.args.get("tool") else w.held_items()):
+    for eid in C.tool_candidates(ctx, ctx.args.get("tool")):
         if eid and ctx.holding(eid) and (w.ent(eid).get("tool_kind") == "spirit_level" or "check_level" in (w.ent(eid).get("affordances") or [])):
             tool = eid
             break
@@ -379,7 +379,7 @@ def mark(ctx):
     target = ctx.args["target"]
     ctx.obj(target, touch=True)
     tool = None
-    for eid in ([ctx.args["tool"]] if ctx.args.get("tool") else w.held_items()):
+    for eid in C.tool_candidates(ctx, ctx.args.get("tool")):
         if eid and ctx.holding(eid) and ("mark" in (w.ent(eid).get("affordances") or []) or w.ent(eid).get("tool_kind") in ("pencil", "marker")):
             tool = eid
             break

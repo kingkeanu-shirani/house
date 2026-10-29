@@ -64,9 +64,12 @@ def verify_label(ctx):
     state = w.s
     printed_name = rec.get("recipient") or rec.get("to_text")
     printed_address = rec.get("address", "")
-    who = resolve_name(state, printed_name)
+    # a blank label (the box and mail-piece types' default recipient "") prints nothing to verify; it crashed on
+    # "resident:" + None (phase-1 close-out sweep). A label with an address and no name names nobody: unknown_name
+    require(printed_name or printed_address, "The label is blank", "perception")
+    who = resolve_name(state, printed_name) if printed_name else None
     address_ok = address_matches(state, printed_address) if printed_address else True
-    if who in (None,) and printed_name:
+    if who is None:
         verdict = "unknown_name" if address_ok else "wrong_address"
     elif who == "former_occupant":
         verdict = "former_occupant"

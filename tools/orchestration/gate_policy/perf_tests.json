@@ -1,0 +1,141 @@
+{
+ "about": "The committed registry of wall-clock bounds (tools/orchestration/wallclock.py; format in gate_policy/README.md): every test method that reads HOUSE_SIM_PERF_TESTS or calls wall_clock_bound. The correctness runs (green_tests.py, the tier-1 gate's G1 / G1b / G8) run each one relaxed -- its body runs, its timing cannot fail -- and fail on a mark not listed here and on a bound that skips its body without an unexpired skip exception naming its exact source. Main session only: the gate reads the committed version and G10 fails any package that edits it.",
+ "bounds": [
+  {
+   "file": "test_body_core.py",
+   "owner": "kernel: robot body (BODY-*)",
+   "test": "tests.test_body_core.PerformanceTests.test_settlement_with_the_safety_net_while_carrying_stays_in_budget"
+  },
+  {
+   "file": "test_body_engine.py",
+   "owner": "kernel: robot body (BODY-*)",
+   "test": "tests.test_body_engine.PerformanceTests.test_body_system_settlement_and_motion_prefix_budgets"
+  },
+  {
+   "file": "test_body_model.py",
+   "owner": "kernel: robot body (BODY-*)",
+   "test": "tests.test_body_model.DeterminismAndBudget.test_hot_paths_stay_within_three_times_their_budget"
+  },
+  {
+   "file": "test_body_perception.py",
+   "owner": "kernel: robot body (BODY-*)",
+   "test": "tests.test_body_perception.DeterminismAndBudgetTests.test_proprioception_stays_within_three_times_its_budget"
+  },
+  {
+   "file": "test_camera.py",
+   "owner": "kernel: camera (CAM-*)",
+   "test": "tests.test_camera.PerformanceTests.test_can_see_lidar_and_the_idle_watch"
+  },
+  {
+   "file": "test_camera.py",
+   "owner": "kernel: camera (CAM-*)",
+   "test": "tests.test_camera.PerformanceTests.test_end_step_and_observe_overhead"
+  },
+  {
+   "file": "test_camera.py",
+   "owner": "kernel: camera (CAM-*)",
+   "test": "tests.test_camera.PerformanceTests.test_the_watch_with_people_in_the_room_stays_in_budget_during_a_wait"
+  },
+  {
+   "file": "test_camera_actions.py",
+   "owner": "kernel: camera (CAM-*)",
+   "test": "tests.test_camera_actions.PerformanceTests.test_look_around_and_peek_frames_stay_within_budget"
+  },
+  {
+   "file": "test_camera_realism.py",
+   "owner": "kernel: camera (CAM-*)",
+   "test": "tests.test_camera_realism.DeterminismTests.test_geometric_realistic_observe_overhead_is_small"
+  },
+  {
+   "file": "test_dialogue.py",
+   "owner": "kernel: people I/O (PEOPLE-IO)",
+   "test": "tests.test_dialogue.BudgetTests.test_ask_stays_within_budget_on_a_generated_house"
+  },
+  {
+   "file": "test_dialogue.py",
+   "owner": "kernel: people I/O (PEOPLE-IO)",
+   "test": "tests.test_dialogue.VocabularyTests.test_the_vocabulary_loads_once_without_problems"
+  },
+  {
+   "file": "test_generator_gen2.py",
+   "owner": "kernel: generator (GEN)",
+   "test": "tests.test_generator_gen2.Houses.test_generation_two_costs_at_most_a_little_more"
+  },
+  {
+   "file": "test_mind.py",
+   "owner": "kernel: people I/O (PEOPLE-IO)",
+   "test": "tests.test_mind.BudgetTests.test_update_budget_on_a_generated_house"
+  },
+  {
+   "file": "test_perception.py",
+   "owner": "kernel: perception (PEOPLE-IO / K-CAM)",
+   "test": "tests.test_perception.RealisticPerceptionTests.test_realistic_observe_overhead_is_small"
+  },
+  {
+   "file": "test_physics_data.py",
+   "owner": "kernel: physics (PHYS-*)",
+   "test": "tests.test_physics_data.DataFilesTests.test_data_files_are_read_only_and_load_within_budget"
+  },
+  {
+   "file": "test_physics_data.py",
+   "owner": "kernel: physics (PHYS-*)",
+   "test": "tests.test_physics_data.PropsResolutionTests.test_props_is_fast"
+  },
+  {
+   "file": "test_physics_fluids.py",
+   "owner": "kernel: physics (PHYS-*)",
+   "test": "tests.test_physics_fluids.PerformanceTests.test_environment_windy_on_a_furnished_yard"
+  },
+  {
+   "file": "test_physics_fluids.py",
+   "owner": "kernel: physics (PHYS-*)",
+   "test": "tests.test_physics_fluids.PerformanceTests.test_processes_idle_and_with_ten_active"
+  },
+  {
+   "file": "test_physics_settle.py",
+   "owner": "kernel: physics (PHYS-*)",
+   "test": "tests.test_physics_settle.BudgetTests.test_settle_costs"
+  },
+  {
+   "file": "test_physics_settle.py",
+   "owner": "kernel: physics (PHYS-*)",
+   "test": "tests.test_physics_settle.BudgetTests.test_system_costs"
+  },
+  {
+   "file": "test_physics_settle.py",
+   "owner": "kernel: physics (PHYS-*)",
+   "test": "tests.test_physics_settle.BudgetTests.test_worst_case_cascade_cost"
+  },
+  {
+   "file": "test_physics_statics.py",
+   "owner": "kernel: physics (PHYS-*)",
+   "test": "tests.test_physics_statics.DeterminismAndCostTests.test_a_64_consequence_cascade_stays_within_budget"
+  },
+  {
+   "file": "test_physics_statics.py",
+   "owner": "kernel: physics (PHYS-*)",
+   "test": "tests.test_physics_statics.DeterminismAndCostTests.test_cost_budgets_on_a_generated_house"
+  },
+  {
+   "file": "test_physics_thermal.py",
+   "owner": "kernel: physics (PHYS-*)",
+   "skip": {
+    "expires": "2026-11-30",
+    "reason": "a relative bound (assertLess(step_ms, legacy_ms): the new thermal step is faster than the legacy system) that a counting clock cannot keep (both sides measure one tick); convert its two timing assertions to tools/orchestration/wallclock.wall_clock_bound (the body then runs in the correctness runs) and drop this exception",
+    "source_sha256": "4f59c955dfcae46360cd98d0e3d595f67e44e444b2a2f3bf94a77807c883f0e6"
+   },
+   "test": "tests.test_physics_thermal.ThermalStepTests.test_faster_than_the_kernel_thermal_system_on_a_settled_house"
+  },
+  {
+   "file": "test_reports.py",
+   "owner": "kernel: people I/O (PEOPLE-IO)",
+   "test": "tests.test_reports.BudgetTests.test_report_stays_within_budget"
+  },
+  {
+   "file": "test_sight.py",
+   "owner": "kernel: camera (CAM-SIGHT)",
+   "test": "tests.test_sight.PerformanceTests.test_viewsheds_lidar_and_warm_visibility_stay_in_budget"
+  }
+ ],
+ "format": "house-gate-perf-tests-v1"
+}

@@ -457,10 +457,35 @@ def _unlatch_on_open(ctx, result):
     rec = state["entities"].get(eid) or {}
     if "latched" in rec and (is_enclosure(rec) or rec.get("category") in ("pet_crate", "chicken_coop")):
         w.mut(eid)["latched"] = False
+    _let_out(ctx, eid)
+
+
+@after("pull_handle", order=62)
+def _let_out_pulled(ctx, result):
+    """A cupboard, drum or room door the robot opened (or opened wider) with the mechanisms domain's handle verbs lets a
+    pet shut in out as a core open does (phase-1 close-out: a bedroom door pushed open to 100 % left the cat inside
+    "trapped" for good; behavior's before hooks note the opening the step started from)."""
+    if C.door_opening(ctx.w.s["entities"].get(ctx.args.get("target"))) > C.num(ctx.data.get("pets_door_was_frac")):
+        _let_out(ctx, ctx.args.get("target"))
+
+
+@after("push_handle", order=62)
+def _let_out_pushed(ctx, result):
+    if C.door_opening(ctx.w.s["entities"].get(ctx.args.get("target"))) > C.num(ctx.data.get("pets_door_was_frac")):
+        _let_out(ctx, ctx.args.get("target"))
+
+
+def _let_out(ctx, eid):
+    """Pets shut in eid (an appliance drum, a closed cupboard) or in a room behind it (a door) come out once its opening
+    is one they fit through (C.door_gap: a test pull's 10 % crack frees none)."""
+    w = ctx.w
+    state = w.s
+    rec = state["entities"].get(eid) or {}
+    opening = C.door_opening(rec)
     # a pet trapped in an appliance drum or a closed cupboard comes out when it is opened
     for pid in C.pet_ids(state):
         pet = state["pets"][pid]
-        if pet.get("inside") == eid:
+        if pet.get("inside") == eid and opening >= C.door_gap(pet):
             m = w.pet_m(pid)
             m.pop("inside", None)
             m["trapped"] = False
@@ -472,7 +497,7 @@ def _unlatch_on_open(ctx, result):
     if len(rooms) == 2:
         for pid in C.pet_ids(state):
             pet = state["pets"][pid]
-            if not pet.get("trapped") or pet.get("location") not in rooms:
+            if not pet.get("trapped") or pet.get("location") not in rooms or opening < C.door_gap(pet):
                 continue
             conf = pet.get("confinement") or {}
             m = w.pet_m(pid)

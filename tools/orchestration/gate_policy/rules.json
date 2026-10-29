@@ -1,0 +1,4757 @@
+{
+ "about": "The tier-1 gate's rules (tools/orchestration/tier1_gate.py reads this file as committed at git HEAD; the format is in gate_policy/README.md). Main session only: no package may change it (G10), and an agent's working-tree edit counts for nothing until committed.",
+ "bench": {
+  "budgeted": [
+   "substep_ms",
+   "wait_1h_s"
+  ],
+  "default": [
+   1.05,
+   "prev"
+  ],
+  "reported": [
+   "day_s"
+  ],
+  "tolerance": 1e-09
+ },
+ "default_prev": {
+  "A": "A0",
+  "ADOPT": "C1",
+  "B0": "A0",
+  "B1": "B0",
+  "P1": "ADOPT",
+  "P1C": "P1F",
+  "P2": "P1C",
+  "P2-S1": "P1C",
+  "P2-S2": "P2-S1",
+  "P2-S3": "P2-S2",
+  "P2-S4": "P2-S3",
+  "P2-S5": "P2-S4",
+  "P2-S6": "P2-S5"
+ },
+ "domains": [
+  "admin_inventory",
+  "appliances_cooking",
+  "cleaning",
+  "climate",
+  "electrical",
+  "food",
+  "manipulation",
+  "mechanisms",
+  "navigation_robot",
+  "outdoor_plants",
+  "people",
+  "pets",
+  "plumbing_liquids",
+  "safety",
+  "textiles_laundry",
+  "tools_vehicles"
+ ],
+ "extra_tools": {
+  "body": {
+   "introducer": "BODY-MODEL",
+   "tool": "tools/body_audit.py"
+  },
+  "camera": {
+   "introducer": "CAM-RENDER",
+   "tool": "tools/perception_audit.py"
+  },
+  "gen": {
+   "introducer": "GEN",
+   "tool": "tests/test_generator_compat.py"
+  },
+  "physics": {
+   "introducer": "PHYS-INT",
+   "tool": "tools/physics_audit.py"
+  },
+  "sweep": {
+   "introducer": "TIME-EVAL",
+   "tool": "tools/sweep_bench.py"
+  }
+ },
+ "features": {
+  "bench_day": {
+   "introducer": "TIME-EVAL",
+   "stage": "C",
+   "what": "--day in tools/bench_systems.py (G7)"
+  },
+  "camera_tools": {
+   "introducer": "CAM-RENDER",
+   "stage": "B3",
+   "what": "--camera geometric in tools/perception_audit.py and tools/fuzz.py (G4, G6)"
+  },
+  "fuzz_battery": {
+   "introducer": "BODY-FAULTS",
+   "stage": "B5",
+   "what": "--battery N --faults random in tools/fuzz.py (G6)"
+  },
+  "golden": {
+   "introducer": "PHYS-INT",
+   "stage": "B1",
+   "what": "tests/test_room_golden.py (G8)"
+  },
+  "kernel_core": {
+   "introducer": "PHYS-INT",
+   "stage": "B1",
+   "what": "kernel test files green with HOUSE_SIM_DOMAINS=core (G1b)"
+  }
+ },
+ "format": "house-gate-rules-v1",
+ "gen2_timing": {
+  "max_ratio": 1.2
+ },
+ "kernel_tests": [
+  "test_kernel*.py",
+  "test_perception.py",
+  "test_physics_*.py",
+  "test_sight.py",
+  "test_camera*.py",
+  "test_body_*.py",
+  "test_timeline.py",
+  "test_world_savepoint.py",
+  "test_monitor.py",
+  "test_phases.py",
+  "test_clock.py",
+  "test_predicates_v3.py",
+  "test_dialogue.py",
+  "test_reports.py",
+  "test_mind.py",
+  "test_requests_obs.py"
+ ],
+ "packages": {
+  "A0": {
+   "aka": [
+    "TIER1-GATE"
+   ],
+   "allow": [
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [],
+   "extras": [],
+   "files": [
+    "tools/orchestration/tier1_gate.py",
+    "tools/orchestration/README.md",
+    "house_sim/kernel/timeline.py",
+    "house_sim/systems/core.py",
+    "house_sim/kernel/engine.py",
+    "house_sim/kernel/dialogue.py",
+    "house_sim/kernel/reports.py",
+    "house_sim/kernel/mind.py",
+    "house_sim/kernel/monitor.py",
+    "house_sim/kernel/phases.py",
+    "house_sim/generator/profile.py",
+    "tests/data/gen1_digests.json"
+   ],
+   "gate_tool": true,
+   "inert": [
+    "house_sim/kernel/dialogue.py",
+    "house_sim/kernel/reports.py",
+    "house_sim/kernel/mind.py",
+    "house_sim/kernel/monitor.py",
+    "house_sim/kernel/phases.py",
+    "house_sim/generator/profile.py"
+   ],
+   "note": "the timeline move changes the action fingerprint (wait's duration module) only",
+   "policy": false,
+   "requires": [],
+   "stage": "A0"
+  },
+  "ADOPT-ALL": {
+   "aka": [
+    "ADOPT"
+   ],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint",
+    "gen1"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [
+    "physics",
+    "camera",
+    "body",
+    "sweep",
+    "gen"
+   ],
+   "files": [
+    ".gitignore",
+    "catalog/analysis/tier1/adopt_status.json",
+    "catalog/analysis/tier1/handoff_TIER1-GATE.md",
+    "catalog/entries.jsonl",
+    "catalog/manifest.json",
+    "coverage.csv",
+    "datasets/*",
+    "demos/*",
+    "demos/manifest.json",
+    "demos/replays/*",
+    "docs/DATASET.md",
+    "docs/EVAL_CONTRACTS.md",
+    "docs/EVAL_HARNESS.md",
+    "docs/KERNEL_API.md",
+    "docs/KNOWN_LIMITS.md",
+    "docs/PERCEPTION.md",
+    "docs/TASK_SPEC.md",
+    "docs/VIEWER.md",
+    "docs/[A-Z]*.md",
+    "docs/design/TIER1_INTEGRATION.md",
+    "docs/domains/admin_inventory.md",
+    "docs/domains/appliances_cooking.md",
+    "docs/domains/cleaning.md",
+    "docs/domains/climate.md",
+    "docs/domains/electrical.md",
+    "docs/domains/food.md",
+    "docs/domains/manipulation.md",
+    "docs/domains/mechanisms.md",
+    "docs/domains/navigation_robot.md",
+    "docs/domains/outdoor_plants.md",
+    "docs/domains/people.md",
+    "docs/domains/pets.md",
+    "docs/domains/plumbing_liquids.md",
+    "docs/domains/safety.md",
+    "docs/domains/textiles_laundry.md",
+    "docs/domains/tools_vehicles.md",
+    "house_sim/agent.py",
+    "house_sim/audit.py",
+    "house_sim/cli.py",
+    "house_sim/data/calendar/*",
+    "house_sim/data/generator/*",
+    "house_sim/data/physics/*",
+    "house_sim/data/robot/*",
+    "house_sim/data/types/admin_inventory.json",
+    "house_sim/data/types/appliances_cooking.json",
+    "house_sim/data/types/cleaning.json",
+    "house_sim/data/types/climate.json",
+    "house_sim/data/types/core.json",
+    "house_sim/data/types/electrical.json",
+    "house_sim/data/types/food.json",
+    "house_sim/data/types/manipulation.json",
+    "house_sim/data/types/mechanisms.json",
+    "house_sim/data/types/navigation_robot.json",
+    "house_sim/data/types/outdoor_plants.json",
+    "house_sim/data/types/people.json",
+    "house_sim/data/types/pets.json",
+    "house_sim/data/types/plumbing_liquids.json",
+    "house_sim/data/types/safety.json",
+    "house_sim/data/types/textiles_laundry.json",
+    "house_sim/data/types/tools_vehicles.json",
+    "house_sim/data/vocab/*",
+    "house_sim/eval/*",
+    "house_sim/generator/*",
+    "house_sim/kernel/*",
+    "house_sim/kernel/camera.py",
+    "house_sim/kernel/engine.py",
+    "house_sim/kernel/mind.py",
+    "house_sim/kernel/perception.py",
+    "house_sim/kernel/predicates.py",
+    "house_sim/kernel/realism.py",
+    "house_sim/kernel/replays.py",
+    "house_sim/kernel/sight.py",
+    "house_sim/kernel/timeline.py",
+    "house_sim/systems/admin_inventory/*",
+    "house_sim/systems/appliances_cooking/*",
+    "house_sim/systems/cleaning/*",
+    "house_sim/systems/climate/*",
+    "house_sim/systems/core.py",
+    "house_sim/systems/electrical/*",
+    "house_sim/systems/food/*",
+    "house_sim/systems/manipulation/*",
+    "house_sim/systems/mechanisms/*",
+    "house_sim/systems/navigation_robot/*",
+    "house_sim/systems/outdoor_plants/*",
+    "house_sim/systems/people/*",
+    "house_sim/systems/pets/*",
+    "house_sim/systems/plumbing_liquids/*",
+    "house_sim/systems/safety/*",
+    "house_sim/systems/textiles_laundry/*",
+    "house_sim/systems/tools_vehicles/*",
+    "house_sim/tasks/*",
+    "house_sim/tasks/setup.py",
+    "house_sim/tasks/skills.py",
+    "house_sim/tasks/verify.py",
+    "reports/*",
+    "reports/cli_checks.json",
+    "reports/compilation_summary.json",
+    "reports/package_build.txt",
+    "reports/package_checks.json",
+    "reports/unit_test_summary.json",
+    "reports/unit_tests.txt",
+    "tasks/authored/admin_inventory__*.json",
+    "tasks/authored/appliances_cooking__*.json",
+    "tasks/authored/cleaning__*.json",
+    "tasks/authored/climate__*.json",
+    "tasks/authored/electrical__*.json",
+    "tasks/authored/food__*.json",
+    "tasks/authored/manipulation__*.json",
+    "tasks/authored/mechanisms__*.json",
+    "tasks/authored/navigation_robot__*.json",
+    "tasks/authored/outdoor_plants__*.json",
+    "tasks/authored/people__*.json",
+    "tasks/authored/pets__*.json",
+    "tasks/authored/plumbing_liquids__*.json",
+    "tasks/authored/safety__*.json",
+    "tasks/authored/textiles_laundry__*.json",
+    "tasks/authored/tools_vehicles__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/data/*",
+    "tests/test_admin_inventory.py",
+    "tests/test_appliances_cooking.py",
+    "tests/test_body_*.py",
+    "tests/test_body_audit.py",
+    "tests/test_camera*.py",
+    "tests/test_camera_realism.py",
+    "tests/test_cleaning.py",
+    "tests/test_climate.py",
+    "tests/test_clock.py",
+    "tests/test_dialogue.py",
+    "tests/test_electrical.py",
+    "tests/test_eval_*.py",
+    "tests/test_food.py",
+    "tests/test_generator*.py",
+    "tests/test_kernel*.py",
+    "tests/test_kernel.py",
+    "tests/test_manipulation.py",
+    "tests/test_mechanisms.py",
+    "tests/test_mind.py",
+    "tests/test_monitor.py",
+    "tests/test_navigation_robot.py",
+    "tests/test_outdoor_plants.py",
+    "tests/test_people.py",
+    "tests/test_perception.py",
+    "tests/test_pets.py",
+    "tests/test_phases.py",
+    "tests/test_physics_*.py",
+    "tests/test_plumbing_liquids.py",
+    "tests/test_predicates_v3.py",
+    "tests/test_reports.py",
+    "tests/test_requests_obs.py",
+    "tests/test_room_golden.py",
+    "tests/test_safety.py",
+    "tests/test_sight.py",
+    "tests/test_textiles_laundry.py",
+    "tests/test_timeline.py",
+    "tests/test_tools_vehicles.py",
+    "tests/test_world_savepoint.py",
+    "tools/*"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "the merged adoption round (16 domains, K-EVAL, K-CAM)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "ADOPT-INT": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint",
+    "gen1"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [
+    "physics",
+    "camera",
+    "body",
+    "sweep",
+    "gen"
+   ],
+   "files": [
+    "house_sim/kernel/*",
+    "house_sim/systems/core.py",
+    "house_sim/tasks/*",
+    "house_sim/generator/*",
+    "house_sim/eval/*",
+    "house_sim/audit.py",
+    "house_sim/cli.py",
+    "house_sim/agent.py",
+    "house_sim/data/types/core.json",
+    "house_sim/data/physics/*",
+    "house_sim/data/robot/*",
+    "house_sim/data/vocab/*",
+    "house_sim/data/generator/*",
+    "house_sim/data/calendar/*",
+    "tests/test_kernel*.py",
+    "tests/test_physics_*.py",
+    "tests/test_camera*.py",
+    "tests/test_body_*.py",
+    "tests/test_sight.py",
+    "tests/test_generator*.py",
+    "tests/test_clock.py",
+    "tests/test_reports.py",
+    "tests/test_dialogue.py",
+    "tests/test_mind.py",
+    "tests/test_timeline.py",
+    "tests/test_room_golden.py",
+    "tests/test_perception.py",
+    "tests/test_eval_*.py",
+    "tests/test_requests_obs.py",
+    "tests/test_world_savepoint.py",
+    "tests/test_monitor.py",
+    "tests/test_phases.py",
+    "tests/test_predicates_v3.py",
+    "tests/data/*",
+    "tools/*",
+    "docs/[A-Z]*.md",
+    "docs/design/TIER1_INTEGRATION.md",
+    "catalog/analysis/tier1/adopt_status.json",
+    "reports/*",
+    "demos/*",
+    "datasets/*",
+    "coverage.csv",
+    "catalog/entries.jsonl",
+    "catalog/manifest.json",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "the adoption round's integrator: kernel-side fixes, re-records and evidence (docs/domains/* and the domains' files stay the domains')",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "ADOPT:admin_inventory": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [],
+   "files": [
+    "house_sim/systems/admin_inventory/*",
+    "house_sim/data/types/admin_inventory.json",
+    "tests/test_admin_inventory.py",
+    "docs/domains/admin_inventory.md",
+    "tasks/authored/admin_inventory__*.json",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "domain adoption round (section 6): the domain's own files (and the compiled specs its spec edits rewrite)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "ADOPT:appliances_cooking": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [],
+   "files": [
+    "house_sim/systems/appliances_cooking/*",
+    "house_sim/data/types/appliances_cooking.json",
+    "tests/test_appliances_cooking.py",
+    "docs/domains/appliances_cooking.md",
+    "tasks/authored/appliances_cooking__*.json",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "domain adoption round (section 6): the domain's own files (and the compiled specs its spec edits rewrite)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "ADOPT:cleaning": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [],
+   "files": [
+    "house_sim/systems/cleaning/*",
+    "house_sim/data/types/cleaning.json",
+    "tests/test_cleaning.py",
+    "docs/domains/cleaning.md",
+    "tasks/authored/cleaning__*.json",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "domain adoption round (section 6): the domain's own files (and the compiled specs its spec edits rewrite)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "ADOPT:climate": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [],
+   "files": [
+    "house_sim/systems/climate/*",
+    "house_sim/data/types/climate.json",
+    "tests/test_climate.py",
+    "docs/domains/climate.md",
+    "tasks/authored/climate__*.json",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "domain adoption round (section 6): the domain's own files (and the compiled specs its spec edits rewrite)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "ADOPT:electrical": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [],
+   "files": [
+    "house_sim/systems/electrical/*",
+    "house_sim/data/types/electrical.json",
+    "tests/test_electrical.py",
+    "docs/domains/electrical.md",
+    "tasks/authored/electrical__*.json",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "domain adoption round (section 6): the domain's own files (and the compiled specs its spec edits rewrite)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "ADOPT:food": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [],
+   "files": [
+    "house_sim/systems/food/*",
+    "house_sim/data/types/food.json",
+    "tests/test_food.py",
+    "docs/domains/food.md",
+    "tasks/authored/food__*.json",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "domain adoption round (section 6): the domain's own files (and the compiled specs its spec edits rewrite)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "ADOPT:manipulation": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [],
+   "files": [
+    "house_sim/systems/manipulation/*",
+    "house_sim/data/types/manipulation.json",
+    "tests/test_manipulation.py",
+    "docs/domains/manipulation.md",
+    "tasks/authored/manipulation__*.json",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "domain adoption round (section 6): the domain's own files (and the compiled specs its spec edits rewrite)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "ADOPT:mechanisms": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [],
+   "files": [
+    "house_sim/systems/mechanisms/*",
+    "house_sim/data/types/mechanisms.json",
+    "tests/test_mechanisms.py",
+    "docs/domains/mechanisms.md",
+    "tasks/authored/mechanisms__*.json",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "domain adoption round (section 6): the domain's own files (and the compiled specs its spec edits rewrite)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "ADOPT:navigation_robot": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [],
+   "files": [
+    "house_sim/systems/navigation_robot/*",
+    "house_sim/data/types/navigation_robot.json",
+    "tests/test_navigation_robot.py",
+    "docs/domains/navigation_robot.md",
+    "tasks/authored/navigation_robot__*.json",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "domain adoption round (section 6): the domain's own files (and the compiled specs its spec edits rewrite)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "ADOPT:outdoor_plants": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [],
+   "files": [
+    "house_sim/systems/outdoor_plants/*",
+    "house_sim/data/types/outdoor_plants.json",
+    "tests/test_outdoor_plants.py",
+    "docs/domains/outdoor_plants.md",
+    "tasks/authored/outdoor_plants__*.json",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "domain adoption round (section 6): the domain's own files (and the compiled specs its spec edits rewrite)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "ADOPT:people": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [],
+   "files": [
+    "house_sim/systems/people/*",
+    "house_sim/data/types/people.json",
+    "tests/test_people.py",
+    "docs/domains/people.md",
+    "tasks/authored/people__*.json",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "domain adoption round (section 6): the domain's own files (and the compiled specs its spec edits rewrite)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "ADOPT:pets": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [],
+   "files": [
+    "house_sim/systems/pets/*",
+    "house_sim/data/types/pets.json",
+    "tests/test_pets.py",
+    "docs/domains/pets.md",
+    "tasks/authored/pets__*.json",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "domain adoption round (section 6): the domain's own files (and the compiled specs its spec edits rewrite)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "ADOPT:plumbing_liquids": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [],
+   "files": [
+    "house_sim/systems/plumbing_liquids/*",
+    "house_sim/data/types/plumbing_liquids.json",
+    "tests/test_plumbing_liquids.py",
+    "docs/domains/plumbing_liquids.md",
+    "tasks/authored/plumbing_liquids__*.json",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "domain adoption round (section 6): the domain's own files (and the compiled specs its spec edits rewrite)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "ADOPT:safety": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [],
+   "files": [
+    "house_sim/systems/safety/*",
+    "house_sim/data/types/safety.json",
+    "tests/test_safety.py",
+    "docs/domains/safety.md",
+    "tasks/authored/safety__*.json",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "domain adoption round (section 6): the domain's own files (and the compiled specs its spec edits rewrite)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "ADOPT:textiles_laundry": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [],
+   "files": [
+    "house_sim/systems/textiles_laundry/*",
+    "house_sim/data/types/textiles_laundry.json",
+    "tests/test_textiles_laundry.py",
+    "docs/domains/textiles_laundry.md",
+    "tasks/authored/textiles_laundry__*.json",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "domain adoption round (section 6): the domain's own files (and the compiled specs its spec edits rewrite)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "ADOPT:tools_vehicles": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [],
+   "files": [
+    "house_sim/systems/tools_vehicles/*",
+    "house_sim/data/types/tools_vehicles.json",
+    "tests/test_tools_vehicles.py",
+    "docs/domains/tools_vehicles.md",
+    "tasks/authored/tools_vehicles__*.json",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "domain adoption round (section 6): the domain's own files (and the compiled specs its spec edits rewrite)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "B-CLOSE": {
+   "aka": [
+    "B6"
+   ],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [],
+   "extras": [],
+   "files": [
+    "house_sim/eval/viewer.py",
+    "house_sim/eval/viewer_template.html",
+    "house_sim/eval/dataset.py",
+    "docs/DATASET.md",
+    "docs/VIEWER.md",
+    "docs/KNOWN_LIMITS.md",
+    "house_sim/data/types/core.json",
+    "demos/replays/*",
+    "demos/manifest.json",
+    "reports/*",
+    "tests/data/spec_baseline.json",
+    "coverage.csv",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl",
+    "catalog/entries.jsonl",
+    "catalog/manifest.json"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "main session; regenerated evidence only, no verdict or digest of an existing spec changes",
+   "policy": false,
+   "requires": [],
+   "stage": "B6"
+  },
+  "B0": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [],
+   "extras": [],
+   "files": [],
+   "gate_tool": false,
+   "inert": [],
+   "note": "main session: must equal A0 except benchmark noise",
+   "policy": false,
+   "requires": [],
+   "stage": "B0"
+  },
+  "BODY-CORE": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "B-R7",
+    "B-R8",
+    "B-R9",
+    "B-R10",
+    "B-R11"
+   ],
+   "extras": [
+    "body"
+   ],
+   "files": [
+    "house_sim/systems/core.py",
+    "house_sim/kernel/engine.py",
+    "house_sim/kernel/body.py",
+    "house_sim/data/robot/profiles.json",
+    "house_sim/tasks/setup.py",
+    "house_sim/tasks/skills.py",
+    "tests/test_body_core.py",
+    "tests/test_kernel.py",
+    "docs/AUTHORING_GUIDE.md",
+    "docs/ACTION_API.md",
+    "tasks/authored/*.json"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "specs re-authored for B-R7/B-R9 are edited by their owners (listed in the handoff); must merge together with NAV-M5",
+   "policy": false,
+   "requires": [],
+   "stage": "B5"
+  },
+  "BODY-ENGINE": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "B-R1",
+    "B-R2",
+    "B-R3",
+    "B-R4",
+    "B-R5",
+    "B-R6"
+   ],
+   "extras": [
+    "body"
+   ],
+   "files": [
+    "house_sim/kernel/engine.py",
+    "house_sim/kernel/actions.py",
+    "house_sim/kernel/schema.py",
+    "house_sim/kernel/timeline.py",
+    "house_sim/kernel/body.py",
+    "house_sim/kernel/body_faults.py",
+    "house_sim/kernel/phys/forces.py",
+    "house_sim/kernel/phys/support.py",
+    "house_sim/data/robot/profiles.json",
+    "house_sim/systems/core.py",
+    "tests/test_body_engine.py",
+    "tests/test_kernel.py",
+    "tests/data/room_golden.json",
+    "docs/KERNEL_API.md",
+    "docs/CONVENTIONS.md",
+    "docs/KNOWN_LIMITS.md"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "must merge together with NAV-M2 (--package BODY-ENGINE+NAV-M2)",
+   "policy": false,
+   "requires": [],
+   "stage": "B4"
+  },
+  "BODY-FAULTS": {
+   "aka": [],
+   "allow": [
+    "obs"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "B-R12",
+    "B-R13",
+    "B-R14",
+    "B-R15"
+   ],
+   "extras": [
+    "body"
+   ],
+   "files": [
+    "house_sim/kernel/perception.py",
+    "house_sim/kernel/realism.py",
+    "house_sim/kernel/body_faults.py",
+    "house_sim/kernel/proprio.py",
+    "tools/perception_audit.py",
+    "tools/fuzz.py",
+    "tests/test_body_faults.py",
+    "tests/test_body_perception.py",
+    "tests/test_perception.py",
+    "tests/data/room_golden.json",
+    "docs/PERCEPTION.md",
+    "docs/EVAL_HARNESS.md"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "",
+   "policy": false,
+   "requires": [
+    "fuzz_battery"
+   ],
+   "stage": "B5"
+  },
+  "BODY-MODEL": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [],
+   "extras": [
+    "body"
+   ],
+   "files": [
+    "house_sim/kernel/body.py",
+    "house_sim/kernel/body_faults.py",
+    "house_sim/kernel/proprio.py",
+    "house_sim/data/robot/profiles.json",
+    "tools/body_audit.py",
+    "tests/test_body_model.py"
+   ],
+   "gate_tool": false,
+   "inert": [
+    "house_sim/kernel/body.py",
+    "house_sim/kernel/body_faults.py",
+    "house_sim/kernel/proprio.py"
+   ],
+   "note": "",
+   "policy": false,
+   "requires": [],
+   "stage": "A"
+  },
+  "C-CLOSE": {
+   "aka": [
+    "C1"
+   ],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [],
+   "extras": [],
+   "files": [
+    "demos/replays/*",
+    "demos/manifest.json",
+    "reports/*",
+    "datasets/*",
+    "tests/data/spec_baseline.json",
+    "coverage.csv",
+    "tasks/specs.jsonl",
+    "tasks/id_to_family.jsonl",
+    "catalog/entries.jsonl",
+    "catalog/manifest.json"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "main session; regenerated evidence only",
+   "policy": false,
+   "requires": [],
+   "stage": "C1"
+  },
+  "CAM-ACTIONS": {
+   "aka": [],
+   "allow": [
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [],
+   "extras": [],
+   "files": [
+    "house_sim/systems/core.py",
+    "house_sim/kernel/camera.py",
+    "house_sim/kernel/sight.py",
+    "house_sim/kernel/actions.py",
+    "house_sim/tasks/setup.py",
+    "house_sim/tasks/spec.py",
+    "house_sim/tasks/runner.py",
+    "house_sim/tasks/verify.py",
+    "house_sim/tasks/skills.py",
+    "house_sim/cli.py",
+    "tests/test_camera_actions.py",
+    "docs/ACTION_API.md",
+    "docs/TASK_SPEC.md",
+    "docs/AUTHORING_GUIDE.md"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "",
+   "policy": false,
+   "requires": [],
+   "stage": "B3"
+  },
+  "CAM-FLIP": {
+   "aka": [
+    "D3"
+   ],
+   "allow": [
+    "state",
+    "obs",
+    "verdict"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "D3"
+   ],
+   "extras": [
+    "camera"
+   ],
+   "files": [
+    "house_sim/kernel/camera.py",
+    "docs/PERCEPTION.md",
+    "docs/EVAL_HARNESS.md",
+    "docs/AUTHORING_GUIDE.md",
+    "docs/KNOWN_LIMITS.md",
+    "tasks/authored/*.json"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "",
+   "policy": false,
+   "requires": [],
+   "stage": "D3"
+  },
+  "CAM-RENDER": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [],
+   "extras": [
+    "camera"
+   ],
+   "files": [
+    "house_sim/kernel/realism.py",
+    "house_sim/kernel/engine.py",
+    "house_sim/kernel/perception.py",
+    "house_sim/agent.py",
+    "house_sim/eval/run.py",
+    "house_sim/eval/agents.py",
+    "house_sim/eval/llm.py",
+    "house_sim/eval/dataset.py",
+    "house_sim/eval/viewer.py",
+    "house_sim/eval/viewer_template.html",
+    "house_sim/eval/leaderboard.py",
+    "tools/perception_audit.py",
+    "tools/fuzz.py",
+    "tools/bench_systems.py",
+    "tests/test_camera_realism.py",
+    "docs/PERCEPTION.md",
+    "docs/VIEWER.md",
+    "docs/EVAL_HARNESS.md",
+    "docs/KNOWN_LIMITS.md"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "",
+   "policy": false,
+   "requires": [
+    "camera_tools"
+   ],
+   "stage": "B3"
+  },
+  "CAM-RUNTIME": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [],
+   "extras": [],
+   "files": [
+    "house_sim/kernel/camera.py",
+    "house_sim/kernel/engine.py",
+    "house_sim/kernel/perception.py",
+    "house_sim/kernel/actions.py",
+    "house_sim/kernel/sight.py",
+    "house_sim/kernel/phys/observe.py",
+    "tests/test_camera.py",
+    "docs/KERNEL_API.md"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "nothing may change in room mode",
+   "policy": false,
+   "requires": [],
+   "stage": "B2"
+  },
+  "CAM-SIGHT": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [],
+   "extras": [
+    "camera"
+   ],
+   "files": [
+    "house_sim/kernel/sight.py",
+    "house_sim/kernel/registry.py",
+    "house_sim/data/types/core.json",
+    "tests/test_sight.py"
+   ],
+   "gate_tool": false,
+   "inert": [
+    "house_sim/kernel/sight.py"
+   ],
+   "note": "",
+   "policy": false,
+   "requires": [],
+   "stage": "A"
+  },
+  "GEN": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [],
+   "extras": [
+    "gen"
+   ],
+   "files": [
+    "house_sim/generator/profile.py",
+    "house_sim/generator/belongings.py",
+    "house_sim/generator/furnishings.py",
+    "house_sim/generator/climate.py",
+    "house_sim/data/generator/households.json",
+    "house_sim/data/generator/belongings.json",
+    "house_sim/data/generator/furnishings.json",
+    "house_sim/data/generator/climate_normals.json",
+    "house_sim/generator/__init__.py",
+    "house_sim/generator/layout.py",
+    "house_sim/generator/place.py",
+    "house_sim/generator/repair.py",
+    "tools/layout_audit.py",
+    "tools/show_house.py",
+    "tests/test_generator_gen2.py",
+    "tests/test_generator_compat.py",
+    "docs/GENERATOR.md"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "furnishers registered but returning at once for gen 1 are allowed (1.16)",
+   "policy": false,
+   "requires": [],
+   "stage": "A"
+  },
+  "K-CAM": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT"
+   ],
+   "extras": [
+    "camera"
+   ],
+   "files": [
+    "house_sim/kernel/sight.py",
+    "house_sim/kernel/camera.py",
+    "house_sim/kernel/perception.py",
+    "house_sim/kernel/realism.py",
+    "house_sim/kernel/timeline.py",
+    "house_sim/tasks/setup.py",
+    "house_sim/agent.py",
+    "house_sim/tasks/skills.py",
+    "tests/test_camera*.py",
+    "tests/test_sight.py",
+    "tests/test_perception.py",
+    "tests/test_timeline.py",
+    "tests/test_kernel.py",
+    "docs/PERCEPTION.md",
+    "docs/KERNEL_API.md",
+    "docs/KNOWN_LIMITS.md",
+    "docs/TASK_SPEC.md"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "adoption-round kernel follow-ups (camera side)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "K-EVAL": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [],
+   "extras": [],
+   "files": [
+    "house_sim/eval/*",
+    "house_sim/audit.py",
+    "house_sim/cli.py",
+    "house_sim/tasks/verify.py",
+    "house_sim/kernel/predicates.py",
+    "house_sim/kernel/engine.py",
+    "house_sim/kernel/mind.py",
+    "house_sim/kernel/replays.py",
+    "tools/*",
+    "tests/test_eval_*.py",
+    "tests/test_kernel*.py",
+    "tests/test_mind.py",
+    "tests/test_predicates_v3.py",
+    "tests/test_monitor.py",
+    "tests/test_phases.py",
+    "tests/test_body_audit.py",
+    "tests/test_camera_realism.py",
+    "docs/KERNEL_API.md",
+    "docs/VIEWER.md",
+    "docs/DATASET.md",
+    "docs/EVAL_HARNESS.md",
+    "docs/EVAL_CONTRACTS.md",
+    "docs/KNOWN_LIMITS.md",
+    "docs/TASK_SPEC.md",
+    "docs/design/TIER1_INTEGRATION.md",
+    ".gitignore",
+    "demos/replays/*",
+    "demos/manifest.json",
+    "catalog/analysis/tier1/handoff_TIER1-GATE.md",
+    "reports/unit_tests.txt",
+    "reports/unit_test_summary.json",
+    "reports/cli_checks.json",
+    "reports/package_checks.json",
+    "reports/package_build.txt",
+    "reports/compilation_summary.json"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "adoption-round kernel follow-ups (evaluation side): no verdict, digest or fingerprint may change (its gate runs on an isolated copy, `isolate --package K-EVAL`, against a pristine one)",
+   "policy": false,
+   "requires": [],
+   "stage": "ADOPT"
+  },
+  "K-GATE": {
+   "aka": [],
+   "allow": [
+    "verdict"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P1"
+   ],
+   "extras": [],
+   "files": [
+    "tools/orchestration/*",
+    "tools/fuzz.py",
+    "house_sim/tasks/verify.py",
+    "house_sim/eval/run.py",
+    ".github/workflows/ci.yml",
+    "tests/test_gate_tool.py",
+    "tests/test_verify_records.py",
+    "docs/EVAL_HARNESS.md",
+    "catalog/analysis/phase1/K-GATE.json",
+    "catalog/analysis/tier1/handoff_K-GATE.md"
+   ],
+   "gate_tool": true,
+   "inert": [],
+   "note": "phase-1 kernel agent: gate and process tooling; may write the policy files' format (the main session commits them)",
+   "policy": true,
+   "requires": [],
+   "stage": "P1"
+  },
+  "K-GATE2": {
+   "aka": [],
+   "allow": [
+    "verdict"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P1"
+   ],
+   "extras": [],
+   "files": [
+    ".github/workflows/*",
+    ".github/workflows/ci.yml",
+    "catalog/analysis/phase1/K-GATE.json",
+    "catalog/analysis/phase1/finish_K-GATE2.json",
+    "catalog/analysis/tier1/handoff_K-GATE.md",
+    "docs/EVAL_HARNESS.md",
+    "house_sim/eval/run.py",
+    "house_sim/kernel/realism.py",
+    "house_sim/kernel/reports.py",
+    "house_sim/tasks/verify.py",
+    "tests/test_gate_tool.py",
+    "tests/test_perception.py",
+    "tests/test_verify_records.py",
+    "tools/fuzz.py",
+    "tools/golden.py",
+    "tools/orchestration/*",
+    "tools/perception_audit.py"
+   ],
+   "gate_tool": true,
+   "inert": [],
+   "note": "phase-1 red team, second gate pass: hand-over bases, perf job, never-acted wrong plans, golden policy",
+   "policy": true,
+   "requires": [],
+   "stage": "P1"
+  },
+  "K-GATE3": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P1C"
+   ],
+   "extras": [],
+   "files": [
+    ".github/workflows/*",
+    "catalog/analysis/phase1/closeout_K-GATE3.json",
+    "docs/EVAL_HARNESS.md",
+    "tests/data/perf_tests.json",
+    "tests/test_gate_tool.py",
+    "tests/test_py39_lint.py",
+    "tests/test_room_golden.py",
+    "tools/golden.py",
+    "tools/orchestration/*",
+    "tools/py39_lint.py"
+   ],
+   "gate_tool": true,
+   "inert": [],
+   "note": "phase-1 close-out, the gate tool: rules in committed policy, gate-code digests, protected scope, golden re-records signed, wall-clock bounds registered and run relaxed, the Python 3.9 lint",
+   "policy": true,
+   "requires": [],
+   "stage": "P1C"
+  },
+  "M-GEN2": {
+   "aka": [
+    "D2"
+   ],
+   "allow": [
+    "state",
+    "obs",
+    "verdict"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "D2"
+   ],
+   "extras": [
+    "gen"
+   ],
+   "files": [
+    "tasks/authored/*.json",
+    "catalog/analysis/gen2_migration.json"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "",
+   "policy": false,
+   "requires": [],
+   "stage": "D2"
+  },
+  "NAV-M2": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "B-R1",
+    "B-R2",
+    "B-R3",
+    "B-R4",
+    "B-R5",
+    "B-R6"
+   ],
+   "extras": [],
+   "files": [
+    "house_sim/systems/navigation_robot/traverse.py",
+    "house_sim/systems/navigation_robot/robot.py",
+    "house_sim/systems/navigation_robot/paths.py",
+    "house_sim/systems/navigation_robot/world.py",
+    "tests/test_navigation_robot.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "navigation_robot domain agent, paired with BODY-ENGINE",
+   "policy": false,
+   "requires": [],
+   "stage": "B4"
+  },
+  "NAV-M5": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "B-R7",
+    "B-R8",
+    "B-R9",
+    "B-R10",
+    "B-R11"
+   ],
+   "extras": [],
+   "files": [
+    "house_sim/systems/navigation_robot/paths.py",
+    "house_sim/systems/navigation_robot/follow.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "",
+   "policy": false,
+   "requires": [],
+   "stage": "B5"
+  },
+  "P1-ALL": {
+   "aka": [
+    "P1"
+   ],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint",
+    "gen1"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "ADOPT",
+    "P1"
+   ],
+   "extras": [
+    "physics",
+    "camera",
+    "body",
+    "sweep",
+    "gen"
+   ],
+   "files": [
+    ".github/workflows/*",
+    ".github/workflows/ci.yml",
+    ".gitignore",
+    "catalog/analysis/phase1/*",
+    "catalog/analysis/phase1/K-GATE.json",
+    "catalog/analysis/phase1/finish_K-GATE2.json",
+    "catalog/analysis/tier1/adopt_status.json",
+    "catalog/analysis/tier1/handoff_K-GATE.md",
+    "catalog/analysis/tier1/handoff_TIER1-GATE.md",
+    "catalog/entries.jsonl",
+    "catalog/manifest.json",
+    "coverage.csv",
+    "datasets/*",
+    "demos/*",
+    "demos/manifest.json",
+    "demos/replays/*",
+    "docs/DATASET.md",
+    "docs/EVAL_CONTRACTS.md",
+    "docs/EVAL_HARNESS.md",
+    "docs/KERNEL_API.md",
+    "docs/KNOWN_LIMITS.md",
+    "docs/PERCEPTION.md",
+    "docs/TASK_SPEC.md",
+    "docs/VIEWER.md",
+    "docs/[A-Z]*.md",
+    "docs/design/TIER1_EMBODIMENT.md",
+    "docs/design/TIER1_INTEGRATION.md",
+    "docs/design/VERIFY_HARDENING.md",
+    "docs/design/VERIFY_HARDENING_DECISIONS.md",
+    "docs/domains/admin_inventory.md",
+    "docs/domains/appliances_cooking.md",
+    "docs/domains/cleaning.md",
+    "docs/domains/climate.md",
+    "docs/domains/electrical.md",
+    "docs/domains/food.md",
+    "docs/domains/manipulation.md",
+    "docs/domains/mechanisms.md",
+    "docs/domains/navigation_robot.md",
+    "docs/domains/outdoor_plants.md",
+    "docs/domains/people.md",
+    "docs/domains/pets.md",
+    "docs/domains/plumbing_liquids.md",
+    "docs/domains/safety.md",
+    "docs/domains/textiles_laundry.md",
+    "docs/domains/tools_vehicles.md",
+    "house_sim/agent.py",
+    "house_sim/audit.py",
+    "house_sim/cli.py",
+    "house_sim/data/actions/.gitkeep",
+    "house_sim/data/calendar/*",
+    "house_sim/data/generator/*",
+    "house_sim/data/physics/*",
+    "house_sim/data/robot/*",
+    "house_sim/data/types/admin_inventory.json",
+    "house_sim/data/types/appliances_cooking.json",
+    "house_sim/data/types/cleaning.json",
+    "house_sim/data/types/climate.json",
+    "house_sim/data/types/core.json",
+    "house_sim/data/types/electrical.json",
+    "house_sim/data/types/food.json",
+    "house_sim/data/types/manipulation.json",
+    "house_sim/data/types/mechanisms.json",
+    "house_sim/data/types/navigation_robot.json",
+    "house_sim/data/types/outdoor_plants.json",
+    "house_sim/data/types/people.json",
+    "house_sim/data/types/pets.json",
+    "house_sim/data/types/plumbing_liquids.json",
+    "house_sim/data/types/safety.json",
+    "house_sim/data/types/textiles_laundry.json",
+    "house_sim/data/types/tools_vehicles.json",
+    "house_sim/data/vocab/*",
+    "house_sim/eval/*",
+    "house_sim/eval/run.py",
+    "house_sim/generator/*",
+    "house_sim/kernel/*",
+    "house_sim/kernel/camera.py",
+    "house_sim/kernel/engine.py",
+    "house_sim/kernel/mind.py",
+    "house_sim/kernel/perception.py",
+    "house_sim/kernel/predicates.py",
+    "house_sim/kernel/realism.py",
+    "house_sim/kernel/replays.py",
+    "house_sim/kernel/reports.py",
+    "house_sim/kernel/sight.py",
+    "house_sim/kernel/timeline.py",
+    "house_sim/systems/admin_inventory/*",
+    "house_sim/systems/appliances_cooking/*",
+    "house_sim/systems/cleaning/*",
+    "house_sim/systems/climate/*",
+    "house_sim/systems/core.py",
+    "house_sim/systems/electrical/*",
+    "house_sim/systems/food/*",
+    "house_sim/systems/manipulation/*",
+    "house_sim/systems/mechanisms/*",
+    "house_sim/systems/navigation_robot/*",
+    "house_sim/systems/outdoor_plants/*",
+    "house_sim/systems/people/*",
+    "house_sim/systems/pets/*",
+    "house_sim/systems/plumbing_liquids/*",
+    "house_sim/systems/safety/*",
+    "house_sim/systems/textiles_laundry/*",
+    "house_sim/systems/tools_vehicles/*",
+    "house_sim/tasks/*",
+    "house_sim/tasks/setup.py",
+    "house_sim/tasks/skills.py",
+    "house_sim/tasks/verify.py",
+    "reports/*",
+    "reports/cli_checks.json",
+    "reports/compilation_summary.json",
+    "reports/package_build.txt",
+    "reports/package_checks.json",
+    "reports/unit_test_summary.json",
+    "reports/unit_tests.txt",
+    "tasks/authored/admin_inventory__*.json",
+    "tasks/authored/appliances_cooking__*.json",
+    "tasks/authored/cleaning__*.json",
+    "tasks/authored/climate__*.json",
+    "tasks/authored/electrical__*.json",
+    "tasks/authored/food__*.json",
+    "tasks/authored/manipulation__*.json",
+    "tasks/authored/mechanisms__*.json",
+    "tasks/authored/navigation_robot__*.json",
+    "tasks/authored/outdoor_plants__*.json",
+    "tasks/authored/people__*.json",
+    "tasks/authored/pets__*.json",
+    "tasks/authored/plumbing_liquids__*.json",
+    "tasks/authored/safety__*.json",
+    "tasks/authored/textiles_laundry__*.json",
+    "tasks/authored/tools_vehicles__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tasks/templates/.gitkeep",
+    "tests/data/*",
+    "tests/test_admin_inventory.py",
+    "tests/test_appliances_cooking.py",
+    "tests/test_body_*.py",
+    "tests/test_body_audit.py",
+    "tests/test_camera*.py",
+    "tests/test_camera_realism.py",
+    "tests/test_cleaning.py",
+    "tests/test_climate.py",
+    "tests/test_clock.py",
+    "tests/test_dialogue.py",
+    "tests/test_electrical.py",
+    "tests/test_eval_*.py",
+    "tests/test_food.py",
+    "tests/test_gate_tool.py",
+    "tests/test_generator*.py",
+    "tests/test_kernel*.py",
+    "tests/test_kernel.py",
+    "tests/test_leaks_review.py",
+    "tests/test_manipulation.py",
+    "tests/test_mechanisms.py",
+    "tests/test_mind.py",
+    "tests/test_monitor.py",
+    "tests/test_navigation_robot.py",
+    "tests/test_outdoor_plants.py",
+    "tests/test_people.py",
+    "tests/test_perception.py",
+    "tests/test_pets.py",
+    "tests/test_phases.py",
+    "tests/test_physics_*.py",
+    "tests/test_plumbing_liquids.py",
+    "tests/test_predicates_v3.py",
+    "tests/test_reports.py",
+    "tests/test_requests_obs.py",
+    "tests/test_room_golden.py",
+    "tests/test_safety.py",
+    "tests/test_sight.py",
+    "tests/test_textiles_laundry.py",
+    "tests/test_timeline.py",
+    "tests/test_tools_vehicles.py",
+    "tests/test_verify_records.py",
+    "tests/test_world_savepoint.py",
+    "tools/*",
+    "tools/fuzz.py",
+    "tools/golden.py",
+    "tools/orchestration/*",
+    "tools/perception_audit.py"
+   ],
+   "gate_tool": true,
+   "inert": [],
+   "note": "phase 1 of the stabilisation, merged (16 domains' fixes, kernel agents, K-GATE)",
+   "policy": true,
+   "requires": [],
+   "stage": "P1"
+  },
+  "P1-FIX2": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint",
+    "gen1"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P1"
+   ],
+   "extras": [
+    "physics",
+    "camera",
+    "body",
+    "sweep",
+    "gen"
+   ],
+   "files": [
+    ".github/workflows/ci.yml",
+    "catalog/analysis/phase1/*",
+    "catalog/analysis/phase1/K-GATE.json",
+    "catalog/analysis/tier1/adopt_status.json",
+    "catalog/analysis/tier1/handoff_K-GATE.md",
+    "catalog/entries.jsonl",
+    "catalog/manifest.json",
+    "coverage.csv",
+    "datasets/*",
+    "demos/*",
+    "docs/EVAL_HARNESS.md",
+    "docs/[A-Z]*.md",
+    "docs/design/TIER1_EMBODIMENT.md",
+    "docs/design/TIER1_INTEGRATION.md",
+    "docs/design/VERIFY_HARDENING.md",
+    "docs/design/VERIFY_HARDENING_DECISIONS.md",
+    "house_sim/agent.py",
+    "house_sim/audit.py",
+    "house_sim/cli.py",
+    "house_sim/data/actions/.gitkeep",
+    "house_sim/data/calendar/*",
+    "house_sim/data/generator/*",
+    "house_sim/data/physics/*",
+    "house_sim/data/robot/*",
+    "house_sim/data/types/core.json",
+    "house_sim/data/vocab/*",
+    "house_sim/eval/*",
+    "house_sim/eval/run.py",
+    "house_sim/generator/*",
+    "house_sim/kernel/*",
+    "house_sim/systems/core.py",
+    "house_sim/tasks/*",
+    "house_sim/tasks/verify.py",
+    "reports/*",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tasks/templates/.gitkeep",
+    "tests/data/*",
+    "tests/test_body_*.py",
+    "tests/test_camera*.py",
+    "tests/test_clock.py",
+    "tests/test_dialogue.py",
+    "tests/test_eval_*.py",
+    "tests/test_gate_tool.py",
+    "tests/test_generator*.py",
+    "tests/test_kernel*.py",
+    "tests/test_leaks_review.py",
+    "tests/test_mind.py",
+    "tests/test_monitor.py",
+    "tests/test_perception.py",
+    "tests/test_phases.py",
+    "tests/test_physics_*.py",
+    "tests/test_predicates_v3.py",
+    "tests/test_reports.py",
+    "tests/test_requests_obs.py",
+    "tests/test_room_golden.py",
+    "tests/test_sight.py",
+    "tests/test_timeline.py",
+    "tests/test_verify_records.py",
+    "tests/test_world_savepoint.py",
+    "tools/*",
+    "tools/fuzz.py",
+    "tools/orchestration/*"
+   ],
+   "gate_tool": true,
+   "inert": [],
+   "note": "phase-1 red-team fix pass (non-domain files): kernel leaks, gate honesty, verifier interim rule, CI, tools",
+   "policy": false,
+   "requires": [],
+   "stage": "P1"
+  },
+  "P1-INT": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint",
+    "gen1"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P1"
+   ],
+   "extras": [
+    "physics",
+    "camera",
+    "body",
+    "sweep",
+    "gen"
+   ],
+   "files": [
+    "catalog/analysis/phase1/*",
+    "catalog/analysis/tier1/adopt_status.json",
+    "catalog/entries.jsonl",
+    "catalog/manifest.json",
+    "coverage.csv",
+    "datasets/*",
+    "demos/*",
+    "docs/[A-Z]*.md",
+    "docs/design/TIER1_EMBODIMENT.md",
+    "docs/design/TIER1_INTEGRATION.md",
+    "docs/design/VERIFY_HARDENING_DECISIONS.md",
+    "house_sim/agent.py",
+    "house_sim/audit.py",
+    "house_sim/cli.py",
+    "house_sim/data/actions/.gitkeep",
+    "house_sim/data/calendar/*",
+    "house_sim/data/generator/*",
+    "house_sim/data/physics/*",
+    "house_sim/data/robot/*",
+    "house_sim/data/types/core.json",
+    "house_sim/data/vocab/*",
+    "house_sim/eval/*",
+    "house_sim/generator/*",
+    "house_sim/kernel/*",
+    "house_sim/systems/core.py",
+    "house_sim/tasks/*",
+    "reports/*",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tasks/templates/.gitkeep",
+    "tests/data/*",
+    "tests/test_body_*.py",
+    "tests/test_camera*.py",
+    "tests/test_clock.py",
+    "tests/test_dialogue.py",
+    "tests/test_eval_*.py",
+    "tests/test_generator*.py",
+    "tests/test_kernel*.py",
+    "tests/test_leaks_review.py",
+    "tests/test_mind.py",
+    "tests/test_monitor.py",
+    "tests/test_perception.py",
+    "tests/test_phases.py",
+    "tests/test_physics_*.py",
+    "tests/test_predicates_v3.py",
+    "tests/test_reports.py",
+    "tests/test_requests_obs.py",
+    "tests/test_room_golden.py",
+    "tests/test_sight.py",
+    "tests/test_timeline.py",
+    "tests/test_world_savepoint.py",
+    "tools/*"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "phase-1 kernel agents (K-FIX, K-LEAK) and the phase-1 integrator: kernel-side fixes and requests, re-records",
+   "policy": false,
+   "requires": [],
+   "stage": "P1"
+  },
+  "P1C": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P1C"
+   ],
+   "extras": [
+    "physics",
+    "camera",
+    "body",
+    "sweep",
+    "gen"
+   ],
+   "files": [
+    ".github/workflows/*",
+    "catalog/analysis/phase1/*",
+    "catalog/analysis/phase1/closeout_K-GATE3.json",
+    "catalog/analysis/phase1/closeout_admin_inventory.json",
+    "catalog/analysis/phase1/closeout_electrical.json",
+    "catalog/analysis/phase1/closeout_manipulation.json",
+    "catalog/analysis/phase1/closeout_mechanisms.json",
+    "catalog/analysis/phase1/closeout_navigation_robot.json",
+    "catalog/analysis/phase1/closeout_pets.json",
+    "docs/EVAL_HARNESS.md",
+    "docs/domains/admin_inventory.md",
+    "docs/domains/electrical.md",
+    "docs/domains/manipulation.md",
+    "docs/domains/mechanisms.md",
+    "docs/domains/navigation_robot.md",
+    "docs/domains/pets.md",
+    "house_sim/data/types/admin_inventory.json",
+    "house_sim/data/types/cleaning.json",
+    "house_sim/data/types/electrical.json",
+    "house_sim/data/types/manipulation.json",
+    "house_sim/data/types/mechanisms.json",
+    "house_sim/data/types/navigation_robot.json",
+    "house_sim/data/types/pets.json",
+    "house_sim/data/vocab/admin_inventory.json",
+    "house_sim/data/vocab/electrical.json",
+    "house_sim/data/vocab/manipulation.json",
+    "house_sim/data/vocab/mechanisms.json",
+    "house_sim/data/vocab/navigation_robot.json",
+    "house_sim/data/vocab/pets.json",
+    "house_sim/systems/admin_inventory/*",
+    "house_sim/systems/electrical/*",
+    "house_sim/systems/manipulation/*",
+    "house_sim/systems/mechanisms/*",
+    "house_sim/systems/navigation_robot/*",
+    "house_sim/systems/pets/*",
+    "tasks/authored/admin_inventory__examples.json",
+    "tasks/authored/admin_inventory__perception.json",
+    "tasks/authored/electrical__examples.json",
+    "tasks/authored/electrical__perception.json",
+    "tasks/authored/manipulation__examples.json",
+    "tasks/authored/manipulation__perception.json",
+    "tasks/authored/mechanisms__examples.json",
+    "tasks/authored/mechanisms__perception.json",
+    "tasks/authored/navigation_robot__examples.json",
+    "tasks/authored/navigation_robot__perception.json",
+    "tasks/authored/pets__examples.json",
+    "tasks/authored/pets__perception.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/data/perf_tests.json",
+    "tests/test_admin_inventory.py",
+    "tests/test_cleaning.py",
+    "tests/test_electrical.py",
+    "tests/test_gate_tool.py",
+    "tests/test_manipulation.py",
+    "tests/test_mechanisms.py",
+    "tests/test_navigation_robot.py",
+    "tests/test_pets.py",
+    "tests/test_py39_lint.py",
+    "tests/test_room_golden.py",
+    "tools/golden.py",
+    "tools/orchestration/*",
+    "tools/py39_lint.py"
+   ],
+   "gate_tool": true,
+   "inert": [],
+   "members": [
+    "P1C:admin_inventory",
+    "P1C:electrical",
+    "P1C:manipulation",
+    "P1C:mechanisms",
+    "P1C:navigation_robot",
+    "P1C:pets",
+    "K-GATE3"
+   ],
+   "note": "the phase-1 close-out record (`record --id P1C --package P1C --prev P1F`): the six domains' files of the round, the gate tool's and the round's reports",
+   "policy": true,
+   "requires": [],
+   "stage": "P1C"
+  },
+  "P1C-INT": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint",
+    "gen1"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P1C"
+   ],
+   "extras": [
+    "physics",
+    "camera",
+    "body",
+    "sweep",
+    "gen"
+   ],
+   "files": [
+    "catalog/analysis/phase1/*",
+    "catalog/analysis/tier1/adopt_status.json",
+    "catalog/entries.jsonl",
+    "catalog/manifest.json",
+    "coverage.csv",
+    "datasets/*",
+    "demos/*",
+    "docs/[A-Z]*.md",
+    "docs/design/*",
+    "docs/design/TIER1_EMBODIMENT.md",
+    "docs/design/TIER1_INTEGRATION.md",
+    "docs/design/VERIFY_HARDENING_DECISIONS.md",
+    "house_sim/agent.py",
+    "house_sim/audit.py",
+    "house_sim/cli.py",
+    "house_sim/data/actions/.gitkeep",
+    "house_sim/data/calendar/*",
+    "house_sim/data/generator/*",
+    "house_sim/data/physics/*",
+    "house_sim/data/robot/*",
+    "house_sim/data/types/core.json",
+    "house_sim/data/vocab/*",
+    "house_sim/eval/*",
+    "house_sim/generator/*",
+    "house_sim/kernel/*",
+    "house_sim/systems/core.py",
+    "house_sim/tasks/*",
+    "reports/*",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tasks/templates/.gitkeep",
+    "tests/data/*",
+    "tests/test_body_*.py",
+    "tests/test_camera*.py",
+    "tests/test_clock.py",
+    "tests/test_dialogue.py",
+    "tests/test_eval_*.py",
+    "tests/test_generator*.py",
+    "tests/test_kernel*.py",
+    "tests/test_leaks_review.py",
+    "tests/test_mind.py",
+    "tests/test_monitor.py",
+    "tests/test_perception.py",
+    "tests/test_phases.py",
+    "tests/test_physics_*.py",
+    "tests/test_predicates_v3.py",
+    "tests/test_reports.py",
+    "tests/test_requests_obs.py",
+    "tests/test_room_golden.py",
+    "tests/test_sight.py",
+    "tests/test_timeline.py",
+    "tests/test_world_savepoint.py",
+    "tools/*"
+   ],
+   "gate_tool": true,
+   "inert": [],
+   "note": "the close-out integrator's fixes in non-domain files (kernel, tasks, eval, generator, tools, kernel tests, docs, re-records); join it to the record with --package P1C+P1C-INT",
+   "policy": false,
+   "requires": [],
+   "stage": "P1C"
+  },
+  "P1C:admin_inventory": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P1C"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase1/closeout_admin_inventory.json",
+    "docs/domains/admin_inventory.md",
+    "house_sim/data/types/admin_inventory.json",
+    "house_sim/data/vocab/admin_inventory.json",
+    "house_sim/systems/admin_inventory/*",
+    "tasks/authored/admin_inventory__examples.json",
+    "tasks/authored/admin_inventory__perception.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_admin_inventory.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "phase-1 close-out: admin_inventory's rows of finish_breakages.json",
+   "policy": false,
+   "requires": [],
+   "stage": "P1C"
+  },
+  "P1C:electrical": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P1C"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase1/closeout_electrical.json",
+    "docs/domains/electrical.md",
+    "house_sim/data/types/electrical.json",
+    "house_sim/data/vocab/electrical.json",
+    "house_sim/systems/electrical/*",
+    "tasks/authored/electrical__examples.json",
+    "tasks/authored/electrical__perception.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_electrical.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "phase-1 close-out: electrical's rows of finish_breakages.json",
+   "policy": false,
+   "requires": [],
+   "stage": "P1C"
+  },
+  "P1C:manipulation": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P1C"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase1/closeout_manipulation.json",
+    "docs/domains/manipulation.md",
+    "house_sim/data/types/manipulation.json",
+    "house_sim/data/vocab/manipulation.json",
+    "house_sim/systems/manipulation/*",
+    "tasks/authored/manipulation__examples.json",
+    "tasks/authored/manipulation__perception.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_manipulation.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "phase-1 close-out: manipulation's rows of finish_breakages.json",
+   "policy": false,
+   "requires": [],
+   "stage": "P1C"
+  },
+  "P1C:mechanisms": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P1C"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase1/closeout_mechanisms.json",
+    "docs/domains/mechanisms.md",
+    "house_sim/data/types/cleaning.json",
+    "house_sim/data/types/mechanisms.json",
+    "house_sim/data/vocab/mechanisms.json",
+    "house_sim/systems/mechanisms/*",
+    "tasks/authored/mechanisms__examples.json",
+    "tasks/authored/mechanisms__perception.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_cleaning.py",
+    "tests/test_mechanisms.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "phase-1 close-out: mechanisms's rows of finish_breakages.json",
+   "policy": false,
+   "requires": [],
+   "stage": "P1C"
+  },
+  "P1C:navigation_robot": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P1C"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase1/closeout_navigation_robot.json",
+    "docs/domains/navigation_robot.md",
+    "house_sim/data/types/navigation_robot.json",
+    "house_sim/data/vocab/navigation_robot.json",
+    "house_sim/systems/navigation_robot/*",
+    "tasks/authored/navigation_robot__examples.json",
+    "tasks/authored/navigation_robot__perception.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_navigation_robot.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "phase-1 close-out: navigation_robot's rows of finish_breakages.json",
+   "policy": false,
+   "requires": [],
+   "stage": "P1C"
+  },
+  "P1C:pets": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P1C"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase1/closeout_pets.json",
+    "docs/domains/pets.md",
+    "house_sim/data/types/pets.json",
+    "house_sim/data/vocab/pets.json",
+    "house_sim/systems/pets/*",
+    "tasks/authored/pets__examples.json",
+    "tasks/authored/pets__perception.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_pets.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "phase-1 close-out: pets's rows of finish_breakages.json",
+   "policy": false,
+   "requires": [],
+   "stage": "P1C"
+  },
+  "P2-ALL": {
+   "aka": [
+    "P2"
+   ],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint",
+    "gen1"
+   ],
+   "bench": [
+    1.15,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [
+    "physics",
+    "camera",
+    "body",
+    "sweep",
+    "gen"
+   ],
+   "files": [
+    ".gitignore",
+    "catalog/analysis/phase2/*",
+    "catalog/analysis/seed_features.json",
+    "catalog/review/check_log/*",
+    "catalog/review/exemptions.jsonl",
+    "catalog/review/legacy_ids.json",
+    "catalog/review/review_sessions.jsonl",
+    "docs/AUTHORING_GUIDE.md",
+    "docs/EVALUATION.md",
+    "docs/EVAL_HARNESS.md",
+    "docs/KERNEL_API.md",
+    "docs/KNOWN_LIMITS.md",
+    "docs/PERCEPTION.md",
+    "docs/REVIEW.md",
+    "docs/TASK_SPEC.md",
+    "docs/domains/admin_inventory.md",
+    "docs/domains/appliances_cooking.md",
+    "docs/domains/cleaning.md",
+    "docs/domains/climate.md",
+    "docs/domains/electrical.md",
+    "docs/domains/food.md",
+    "docs/domains/manipulation.md",
+    "docs/domains/mechanisms.md",
+    "docs/domains/navigation_robot.md",
+    "docs/domains/outdoor_plants.md",
+    "docs/domains/people.md",
+    "docs/domains/pets.md",
+    "docs/domains/plumbing_liquids.md",
+    "docs/domains/safety.md",
+    "docs/domains/textiles_laundry.md",
+    "docs/domains/tools_vehicles.md",
+    "house_sim/cli.py",
+    "house_sim/data/speech/lexicon.json",
+    "house_sim/data/speech/paraphrases.json",
+    "house_sim/data/speech/truth.json",
+    "house_sim/data/speech/truth_admin_inventory.json",
+    "house_sim/data/speech/truth_appliances_cooking.json",
+    "house_sim/data/speech/truth_cleaning.json",
+    "house_sim/data/speech/truth_climate.json",
+    "house_sim/data/speech/truth_electrical.json",
+    "house_sim/data/speech/truth_food.json",
+    "house_sim/data/speech/truth_manipulation.json",
+    "house_sim/data/speech/truth_mechanisms.json",
+    "house_sim/data/speech/truth_navigation_robot.json",
+    "house_sim/data/speech/truth_outdoor_plants.json",
+    "house_sim/data/speech/truth_people.json",
+    "house_sim/data/speech/truth_pets.json",
+    "house_sim/data/speech/truth_plumbing_liquids.json",
+    "house_sim/data/speech/truth_safety.json",
+    "house_sim/data/speech/truth_textiles_laundry.json",
+    "house_sim/data/speech/truth_tools_vehicles.json",
+    "house_sim/data/types/admin_inventory.json",
+    "house_sim/data/types/appliances_cooking.json",
+    "house_sim/data/types/cleaning.json",
+    "house_sim/data/types/climate.json",
+    "house_sim/data/types/electrical.json",
+    "house_sim/data/types/food.json",
+    "house_sim/data/types/manipulation.json",
+    "house_sim/data/types/mechanisms.json",
+    "house_sim/data/types/navigation_robot.json",
+    "house_sim/data/types/outdoor_plants.json",
+    "house_sim/data/types/people.json",
+    "house_sim/data/types/pets.json",
+    "house_sim/data/types/plumbing_liquids.json",
+    "house_sim/data/types/safety.json",
+    "house_sim/data/types/textiles_laundry.json",
+    "house_sim/data/types/tools_vehicles.json",
+    "house_sim/data/verify/actions.json",
+    "house_sim/data/verify/agents.json",
+    "house_sim/data/verify/ambient.json",
+    "house_sim/data/verify/budget.json",
+    "house_sim/data/verify/components.json",
+    "house_sim/data/verify/derivations.json",
+    "house_sim/data/verify/escapes.json",
+    "house_sim/data/verify/expected_families.json",
+    "house_sim/data/verify/inverses.json",
+    "house_sim/data/verify/location_classes.json",
+    "house_sim/data/verify/mess_classes.json",
+    "house_sim/data/verify/protect_rules.json",
+    "house_sim/data/verify/resources.json",
+    "house_sim/data/verify/restore.json",
+    "house_sim/data/verify/valuables.json",
+    "house_sim/data/verify/watch/admin_inventory.json",
+    "house_sim/data/verify/watch/appliances_cooking.json",
+    "house_sim/data/verify/watch/cleaning.json",
+    "house_sim/data/verify/watch/climate.json",
+    "house_sim/data/verify/watch/electrical.json",
+    "house_sim/data/verify/watch/food.json",
+    "house_sim/data/verify/watch/manipulation.json",
+    "house_sim/data/verify/watch/mechanisms.json",
+    "house_sim/data/verify/watch/navigation_robot.json",
+    "house_sim/data/verify/watch/outdoor_plants.json",
+    "house_sim/data/verify/watch/people.json",
+    "house_sim/data/verify/watch/pets.json",
+    "house_sim/data/verify/watch/plumbing_liquids.json",
+    "house_sim/data/verify/watch/safety.json",
+    "house_sim/data/verify/watch/textiles_laundry.json",
+    "house_sim/data/verify/watch/tools_vehicles.json",
+    "house_sim/data/verify/watch_fields.json",
+    "house_sim/data/vocab/admin_inventory.json",
+    "house_sim/data/vocab/appliances_cooking.json",
+    "house_sim/data/vocab/cleaning.json",
+    "house_sim/data/vocab/climate.json",
+    "house_sim/data/vocab/electrical.json",
+    "house_sim/data/vocab/food.json",
+    "house_sim/data/vocab/manipulation.json",
+    "house_sim/data/vocab/mechanisms.json",
+    "house_sim/data/vocab/navigation_robot.json",
+    "house_sim/data/vocab/outdoor_plants.json",
+    "house_sim/data/vocab/people.json",
+    "house_sim/data/vocab/pets.json",
+    "house_sim/data/vocab/plumbing_liquids.json",
+    "house_sim/data/vocab/safety.json",
+    "house_sim/data/vocab/textiles_laundry.json",
+    "house_sim/data/vocab/tools_vehicles.json",
+    "house_sim/eval/leaderboard.py",
+    "house_sim/eval/run.py",
+    "house_sim/eval/splits.py",
+    "house_sim/generator/disk_cache.py",
+    "house_sim/generator/place.py",
+    "house_sim/kernel/counterfactual.py",
+    "house_sim/kernel/engine.py",
+    "house_sim/kernel/evaluation.py",
+    "house_sim/kernel/ledger.py",
+    "house_sim/kernel/monitor.py",
+    "house_sim/kernel/plugins.py",
+    "house_sim/kernel/predicates.py",
+    "house_sim/kernel/realism.py",
+    "house_sim/kernel/reports.py",
+    "house_sim/kernel/speech.py",
+    "house_sim/kernel/world.py",
+    "house_sim/systems/admin_inventory/*",
+    "house_sim/systems/appliances_cooking/*",
+    "house_sim/systems/cleaning/*",
+    "house_sim/systems/climate/*",
+    "house_sim/systems/core.py",
+    "house_sim/systems/electrical/*",
+    "house_sim/systems/food/*",
+    "house_sim/systems/manipulation/*",
+    "house_sim/systems/mechanisms/*",
+    "house_sim/systems/navigation_robot/*",
+    "house_sim/systems/outdoor_plants/*",
+    "house_sim/systems/people/*",
+    "house_sim/systems/pets/*",
+    "house_sim/systems/plumbing_liquids/*",
+    "house_sim/systems/safety/*",
+    "house_sim/systems/textiles_laundry/*",
+    "house_sim/systems/tools_vehicles/*",
+    "house_sim/tasks/battery/__init__.py",
+    "house_sim/tasks/battery/accept.py",
+    "house_sim/tasks/battery/answers.py",
+    "house_sim/tasks/battery/audits.py",
+    "house_sim/tasks/battery/budget.py",
+    "house_sim/tasks/battery/effects.py",
+    "house_sim/tasks/battery/generate.py",
+    "house_sim/tasks/battery/hidden.py",
+    "house_sim/tasks/battery/mapping.py",
+    "house_sim/tasks/battery/mustpass.py",
+    "house_sim/tasks/battery/policies.py",
+    "house_sim/tasks/battery/trace.py",
+    "house_sim/tasks/checklog.py",
+    "house_sim/tasks/escapes.py",
+    "house_sim/tasks/lint.py",
+    "house_sim/tasks/perceive.py",
+    "house_sim/tasks/private.py",
+    "house_sim/tasks/runcache.py",
+    "house_sim/tasks/runner.py",
+    "house_sim/tasks/seeds.py",
+    "house_sim/tasks/setup.py",
+    "house_sim/tasks/skills.py",
+    "house_sim/tasks/spec.py",
+    "house_sim/tasks/strength.py",
+    "house_sim/tasks/verify.py",
+    "tasks/authored/admin_inventory__*.json",
+    "tasks/authored/appliances_cooking__*.json",
+    "tasks/authored/cleaning__*.json",
+    "tasks/authored/climate__*.json",
+    "tasks/authored/electrical__*.json",
+    "tasks/authored/food__*.json",
+    "tasks/authored/manipulation__*.json",
+    "tasks/authored/mechanisms__*.json",
+    "tasks/authored/navigation_robot__*.json",
+    "tasks/authored/outdoor_plants__*.json",
+    "tasks/authored/people__*.json",
+    "tasks/authored/pets__*.json",
+    "tasks/authored/plumbing_liquids__*.json",
+    "tasks/authored/safety__*.json",
+    "tasks/authored/textiles_laundry__*.json",
+    "tasks/authored/tools_vehicles__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/data/review_cheats/*",
+    "tests/data/room_golden.json",
+    "tests/test_admin_inventory*.py",
+    "tests/test_appliances_cooking*.py",
+    "tests/test_attribution.py",
+    "tests/test_audits.py",
+    "tests/test_battery.py",
+    "tests/test_cleaning*.py",
+    "tests/test_climate*.py",
+    "tests/test_counterfactual.py",
+    "tests/test_critique_cases.py",
+    "tests/test_electrical*.py",
+    "tests/test_finish.py",
+    "tests/test_food*.py",
+    "tests/test_gate_tool.py",
+    "tests/test_ledger.py",
+    "tests/test_lint.py",
+    "tests/test_manipulation*.py",
+    "tests/test_mechanisms*.py",
+    "tests/test_mustpass.py",
+    "tests/test_navigation_robot*.py",
+    "tests/test_outdoor_plants*.py",
+    "tests/test_people*.py",
+    "tests/test_perceive.py",
+    "tests/test_pets*.py",
+    "tests/test_plumbing_liquids*.py",
+    "tests/test_report_truth.py",
+    "tests/test_review_cheats.py",
+    "tests/test_review_tools.py",
+    "tests/test_safety*.py",
+    "tests/test_setup_random.py",
+    "tests/test_skills_robustness.py",
+    "tests/test_speech.py",
+    "tests/test_textiles_laundry*.py",
+    "tests/test_timing.py",
+    "tests/test_tools_vehicles*.py",
+    "tests/test_verify_hardening.py",
+    "tools/battery_review.py",
+    "tools/evidence_replay.py",
+    "tools/field_census.py",
+    "tools/harden_audit.py",
+    "tools/orchestration/README.md",
+    "tools/orchestration/tier1_gate.py",
+    "tools/perception_audit.py",
+    "tools/protect_map.py",
+    "tools/seed_features.py",
+    "tools/show_entries.py",
+    "tools/verify.py"
+   ],
+   "gate_tool": true,
+   "inert": [],
+   "members": [
+    "P2-WP1",
+    "P2-WP2",
+    "P2-WP3",
+    "P2-WP4",
+    "P2-WP7",
+    "P2-WP9",
+    "P2-WP11",
+    "P2-WP5",
+    "P2-WP8",
+    "P2-WP6",
+    "P2-WPD:admin_inventory",
+    "P2-WPD:appliances_cooking",
+    "P2-WPD:cleaning",
+    "P2-WPD:climate",
+    "P2-WPD:electrical",
+    "P2-WPD:food",
+    "P2-WPD:manipulation",
+    "P2-WPD:mechanisms",
+    "P2-WPD:navigation_robot",
+    "P2-WPD:outdoor_plants",
+    "P2-WPD:people",
+    "P2-WPD:pets",
+    "P2-WPD:plumbing_liquids",
+    "P2-WPD:safety",
+    "P2-WPD:textiles_laundry",
+    "P2-WPD:tools_vehicles",
+    "P2-WP10",
+    "P2-S6"
+   ],
+   "note": "phase 2 merged (`record --id P2 --package P2 --prev P1C`): every phase-2 package",
+   "policy": true,
+   "requires": [],
+   "stage": "P2"
+  },
+  "P2-S1": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict"
+   ],
+   "bench": [
+    1.15,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [
+    "physics",
+    "camera",
+    "body",
+    "sweep",
+    "gen"
+   ],
+   "files": [
+    ".gitignore",
+    "catalog/analysis/phase2/*",
+    "house_sim/data/speech/lexicon.json",
+    "house_sim/data/speech/paraphrases.json",
+    "house_sim/data/speech/truth.json",
+    "house_sim/data/verify/agents.json",
+    "house_sim/data/verify/ambient.json",
+    "house_sim/data/verify/derivations.json",
+    "house_sim/data/verify/location_classes.json",
+    "house_sim/data/verify/mess_classes.json",
+    "house_sim/data/verify/resources.json",
+    "house_sim/data/verify/restore.json",
+    "house_sim/data/verify/valuables.json",
+    "house_sim/data/verify/watch_fields.json",
+    "house_sim/generator/disk_cache.py",
+    "house_sim/generator/place.py",
+    "house_sim/kernel/counterfactual.py",
+    "house_sim/kernel/engine.py",
+    "house_sim/kernel/evaluation.py",
+    "house_sim/kernel/ledger.py",
+    "house_sim/kernel/monitor.py",
+    "house_sim/kernel/plugins.py",
+    "house_sim/kernel/predicates.py",
+    "house_sim/kernel/realism.py",
+    "house_sim/kernel/reports.py",
+    "house_sim/kernel/speech.py",
+    "house_sim/kernel/world.py",
+    "house_sim/systems/core.py",
+    "house_sim/tasks/perceive.py",
+    "house_sim/tasks/setup.py",
+    "house_sim/tasks/skills.py",
+    "tests/data/room_golden.json",
+    "tests/test_attribution.py",
+    "tests/test_counterfactual.py",
+    "tests/test_finish.py",
+    "tests/test_ledger.py",
+    "tests/test_perceive.py",
+    "tests/test_report_truth.py",
+    "tests/test_setup_random.py",
+    "tests/test_skills_robustness.py",
+    "tests/test_speech.py",
+    "tests/test_timing.py",
+    "tools/field_census.py",
+    "tools/perception_audit.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "members": [
+    "P2-WP1",
+    "P2-WP2",
+    "P2-WP3",
+    "P2-WP4",
+    "P2-WP7",
+    "P2-WP9",
+    "P2-WP11"
+   ],
+   "note": "phase 2 stage 1 merged: WP1 (with the WP2 stub) WP2 WP3 WP4 WP7 WP9 WP11 (budget 1.15 for WP2's attribution overhead)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S1"
+  },
+  "P2-S2": {
+   "aka": [],
+   "allow": [
+    "verdict"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "catalog/analysis/seed_features.json",
+    "catalog/review/legacy_ids.json",
+    "docs/AUTHORING_GUIDE.md",
+    "docs/EVALUATION.md",
+    "docs/EVAL_HARNESS.md",
+    "docs/KERNEL_API.md",
+    "docs/KNOWN_LIMITS.md",
+    "docs/PERCEPTION.md",
+    "docs/TASK_SPEC.md",
+    "house_sim/cli.py",
+    "house_sim/data/verify/budget.json",
+    "house_sim/data/verify/escapes.json",
+    "house_sim/data/verify/expected_families.json",
+    "house_sim/data/verify/protect_rules.json",
+    "house_sim/tasks/checklog.py",
+    "house_sim/tasks/escapes.py",
+    "house_sim/tasks/lint.py",
+    "house_sim/tasks/private.py",
+    "house_sim/tasks/runcache.py",
+    "house_sim/tasks/runner.py",
+    "house_sim/tasks/seeds.py",
+    "house_sim/tasks/spec.py",
+    "house_sim/tasks/strength.py",
+    "house_sim/tasks/verify.py",
+    "tests/test_lint.py",
+    "tests/test_verify_hardening.py",
+    "tools/protect_map.py",
+    "tools/seed_features.py",
+    "tools/show_entries.py",
+    "tools/verify.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "members": [
+    "P2-WP5",
+    "P2-WP8"
+   ],
+   "note": "phase 2 stage 2 merged: WP5 WP8",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S2"
+  },
+  "P2-S3": {
+   "aka": [],
+   "allow": [
+    "fingerprint",
+    "state",
+    "obs",
+    "verdict"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "docs/domains/admin_inventory.md",
+    "docs/domains/appliances_cooking.md",
+    "docs/domains/cleaning.md",
+    "docs/domains/climate.md",
+    "docs/domains/electrical.md",
+    "docs/domains/food.md",
+    "docs/domains/manipulation.md",
+    "docs/domains/mechanisms.md",
+    "docs/domains/navigation_robot.md",
+    "docs/domains/outdoor_plants.md",
+    "docs/domains/people.md",
+    "docs/domains/pets.md",
+    "docs/domains/plumbing_liquids.md",
+    "docs/domains/safety.md",
+    "docs/domains/textiles_laundry.md",
+    "docs/domains/tools_vehicles.md",
+    "house_sim/data/speech/truth_admin_inventory.json",
+    "house_sim/data/speech/truth_appliances_cooking.json",
+    "house_sim/data/speech/truth_cleaning.json",
+    "house_sim/data/speech/truth_climate.json",
+    "house_sim/data/speech/truth_electrical.json",
+    "house_sim/data/speech/truth_food.json",
+    "house_sim/data/speech/truth_manipulation.json",
+    "house_sim/data/speech/truth_mechanisms.json",
+    "house_sim/data/speech/truth_navigation_robot.json",
+    "house_sim/data/speech/truth_outdoor_plants.json",
+    "house_sim/data/speech/truth_people.json",
+    "house_sim/data/speech/truth_pets.json",
+    "house_sim/data/speech/truth_plumbing_liquids.json",
+    "house_sim/data/speech/truth_safety.json",
+    "house_sim/data/speech/truth_textiles_laundry.json",
+    "house_sim/data/speech/truth_tools_vehicles.json",
+    "house_sim/data/types/admin_inventory.json",
+    "house_sim/data/types/appliances_cooking.json",
+    "house_sim/data/types/cleaning.json",
+    "house_sim/data/types/climate.json",
+    "house_sim/data/types/electrical.json",
+    "house_sim/data/types/food.json",
+    "house_sim/data/types/manipulation.json",
+    "house_sim/data/types/mechanisms.json",
+    "house_sim/data/types/navigation_robot.json",
+    "house_sim/data/types/outdoor_plants.json",
+    "house_sim/data/types/people.json",
+    "house_sim/data/types/pets.json",
+    "house_sim/data/types/plumbing_liquids.json",
+    "house_sim/data/types/safety.json",
+    "house_sim/data/types/textiles_laundry.json",
+    "house_sim/data/types/tools_vehicles.json",
+    "house_sim/data/verify/actions.json",
+    "house_sim/data/verify/inverses.json",
+    "house_sim/data/verify/watch/admin_inventory.json",
+    "house_sim/data/verify/watch/appliances_cooking.json",
+    "house_sim/data/verify/watch/cleaning.json",
+    "house_sim/data/verify/watch/climate.json",
+    "house_sim/data/verify/watch/electrical.json",
+    "house_sim/data/verify/watch/food.json",
+    "house_sim/data/verify/watch/manipulation.json",
+    "house_sim/data/verify/watch/mechanisms.json",
+    "house_sim/data/verify/watch/navigation_robot.json",
+    "house_sim/data/verify/watch/outdoor_plants.json",
+    "house_sim/data/verify/watch/people.json",
+    "house_sim/data/verify/watch/pets.json",
+    "house_sim/data/verify/watch/plumbing_liquids.json",
+    "house_sim/data/verify/watch/safety.json",
+    "house_sim/data/verify/watch/textiles_laundry.json",
+    "house_sim/data/verify/watch/tools_vehicles.json",
+    "house_sim/data/vocab/admin_inventory.json",
+    "house_sim/data/vocab/appliances_cooking.json",
+    "house_sim/data/vocab/cleaning.json",
+    "house_sim/data/vocab/climate.json",
+    "house_sim/data/vocab/electrical.json",
+    "house_sim/data/vocab/food.json",
+    "house_sim/data/vocab/manipulation.json",
+    "house_sim/data/vocab/mechanisms.json",
+    "house_sim/data/vocab/navigation_robot.json",
+    "house_sim/data/vocab/outdoor_plants.json",
+    "house_sim/data/vocab/people.json",
+    "house_sim/data/vocab/pets.json",
+    "house_sim/data/vocab/plumbing_liquids.json",
+    "house_sim/data/vocab/safety.json",
+    "house_sim/data/vocab/textiles_laundry.json",
+    "house_sim/data/vocab/tools_vehicles.json",
+    "house_sim/systems/admin_inventory/*",
+    "house_sim/systems/appliances_cooking/*",
+    "house_sim/systems/cleaning/*",
+    "house_sim/systems/climate/*",
+    "house_sim/systems/electrical/*",
+    "house_sim/systems/food/*",
+    "house_sim/systems/manipulation/*",
+    "house_sim/systems/mechanisms/*",
+    "house_sim/systems/navigation_robot/*",
+    "house_sim/systems/outdoor_plants/*",
+    "house_sim/systems/people/*",
+    "house_sim/systems/pets/*",
+    "house_sim/systems/plumbing_liquids/*",
+    "house_sim/systems/safety/*",
+    "house_sim/systems/textiles_laundry/*",
+    "house_sim/systems/tools_vehicles/*",
+    "house_sim/tasks/battery/__init__.py",
+    "house_sim/tasks/battery/accept.py",
+    "house_sim/tasks/battery/answers.py",
+    "house_sim/tasks/battery/audits.py",
+    "house_sim/tasks/battery/budget.py",
+    "house_sim/tasks/battery/effects.py",
+    "house_sim/tasks/battery/generate.py",
+    "house_sim/tasks/battery/hidden.py",
+    "house_sim/tasks/battery/mapping.py",
+    "house_sim/tasks/battery/mustpass.py",
+    "house_sim/tasks/battery/policies.py",
+    "house_sim/tasks/battery/trace.py",
+    "tasks/authored/admin_inventory__*.json",
+    "tasks/authored/appliances_cooking__*.json",
+    "tasks/authored/cleaning__*.json",
+    "tasks/authored/climate__*.json",
+    "tasks/authored/electrical__*.json",
+    "tasks/authored/food__*.json",
+    "tasks/authored/manipulation__*.json",
+    "tasks/authored/mechanisms__*.json",
+    "tasks/authored/navigation_robot__*.json",
+    "tasks/authored/outdoor_plants__*.json",
+    "tasks/authored/people__*.json",
+    "tasks/authored/pets__*.json",
+    "tasks/authored/plumbing_liquids__*.json",
+    "tasks/authored/safety__*.json",
+    "tasks/authored/textiles_laundry__*.json",
+    "tasks/authored/tools_vehicles__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_admin_inventory*.py",
+    "tests/test_appliances_cooking*.py",
+    "tests/test_audits.py",
+    "tests/test_battery.py",
+    "tests/test_cleaning*.py",
+    "tests/test_climate*.py",
+    "tests/test_electrical*.py",
+    "tests/test_food*.py",
+    "tests/test_manipulation*.py",
+    "tests/test_mechanisms*.py",
+    "tests/test_mustpass.py",
+    "tests/test_navigation_robot*.py",
+    "tests/test_outdoor_plants*.py",
+    "tests/test_people*.py",
+    "tests/test_pets*.py",
+    "tests/test_plumbing_liquids*.py",
+    "tests/test_safety*.py",
+    "tests/test_textiles_laundry*.py",
+    "tests/test_tools_vehicles*.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "members": [
+    "P2-WP6",
+    "P2-WPD:admin_inventory",
+    "P2-WPD:appliances_cooking",
+    "P2-WPD:cleaning",
+    "P2-WPD:climate",
+    "P2-WPD:electrical",
+    "P2-WPD:food",
+    "P2-WPD:manipulation",
+    "P2-WPD:mechanisms",
+    "P2-WPD:navigation_robot",
+    "P2-WPD:outdoor_plants",
+    "P2-WPD:people",
+    "P2-WPD:pets",
+    "P2-WPD:plumbing_liquids",
+    "P2-WPD:safety",
+    "P2-WPD:textiles_laundry",
+    "P2-WPD:tools_vehicles"
+   ],
+   "note": "phase 2 stage 3 merged: WP6 and the 16 WP-D packages",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S3"
+  },
+  "P2-S4": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "catalog/review/check_log/*",
+    "catalog/review/exemptions.jsonl",
+    "catalog/review/review_sessions.jsonl",
+    "docs/REVIEW.md",
+    "house_sim/data/verify/components.json",
+    "house_sim/eval/leaderboard.py",
+    "house_sim/eval/run.py",
+    "house_sim/eval/splits.py",
+    "tests/data/review_cheats/*",
+    "tests/test_critique_cases.py",
+    "tests/test_gate_tool.py",
+    "tests/test_review_cheats.py",
+    "tests/test_review_tools.py",
+    "tools/battery_review.py",
+    "tools/evidence_replay.py",
+    "tools/harden_audit.py",
+    "tools/orchestration/README.md",
+    "tools/orchestration/tier1_gate.py"
+   ],
+   "gate_tool": true,
+   "inert": [],
+   "members": [
+    "P2-WP10"
+   ],
+   "note": "phase 2 stage 4: WP10",
+   "policy": true,
+   "requires": [],
+   "stage": "P2-S4"
+  },
+  "P2-S6": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint",
+    "gen1"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [
+    "physics",
+    "camera",
+    "body",
+    "sweep",
+    "gen"
+   ],
+   "files": [
+    ".gitignore",
+    "catalog/analysis/phase2/*",
+    "catalog/analysis/seed_features.json",
+    "catalog/review/check_log/*",
+    "catalog/review/exemptions.jsonl",
+    "catalog/review/legacy_ids.json",
+    "catalog/review/review_sessions.jsonl",
+    "docs/AUTHORING_GUIDE.md",
+    "docs/EVALUATION.md",
+    "docs/EVAL_HARNESS.md",
+    "docs/KERNEL_API.md",
+    "docs/KNOWN_LIMITS.md",
+    "docs/PERCEPTION.md",
+    "docs/REVIEW.md",
+    "docs/TASK_SPEC.md",
+    "house_sim/cli.py",
+    "house_sim/data/speech/lexicon.json",
+    "house_sim/data/speech/paraphrases.json",
+    "house_sim/data/speech/truth.json",
+    "house_sim/data/verify/actions.json",
+    "house_sim/data/verify/agents.json",
+    "house_sim/data/verify/ambient.json",
+    "house_sim/data/verify/budget.json",
+    "house_sim/data/verify/components.json",
+    "house_sim/data/verify/derivations.json",
+    "house_sim/data/verify/escapes.json",
+    "house_sim/data/verify/expected_families.json",
+    "house_sim/data/verify/inverses.json",
+    "house_sim/data/verify/location_classes.json",
+    "house_sim/data/verify/mess_classes.json",
+    "house_sim/data/verify/protect_rules.json",
+    "house_sim/data/verify/resources.json",
+    "house_sim/data/verify/restore.json",
+    "house_sim/data/verify/valuables.json",
+    "house_sim/data/verify/watch_fields.json",
+    "house_sim/eval/leaderboard.py",
+    "house_sim/eval/run.py",
+    "house_sim/eval/splits.py",
+    "house_sim/generator/disk_cache.py",
+    "house_sim/generator/place.py",
+    "house_sim/kernel/counterfactual.py",
+    "house_sim/kernel/engine.py",
+    "house_sim/kernel/evaluation.py",
+    "house_sim/kernel/ledger.py",
+    "house_sim/kernel/monitor.py",
+    "house_sim/kernel/plugins.py",
+    "house_sim/kernel/predicates.py",
+    "house_sim/kernel/realism.py",
+    "house_sim/kernel/reports.py",
+    "house_sim/kernel/speech.py",
+    "house_sim/kernel/world.py",
+    "house_sim/systems/core.py",
+    "house_sim/tasks/battery/__init__.py",
+    "house_sim/tasks/battery/accept.py",
+    "house_sim/tasks/battery/answers.py",
+    "house_sim/tasks/battery/audits.py",
+    "house_sim/tasks/battery/budget.py",
+    "house_sim/tasks/battery/effects.py",
+    "house_sim/tasks/battery/generate.py",
+    "house_sim/tasks/battery/hidden.py",
+    "house_sim/tasks/battery/mapping.py",
+    "house_sim/tasks/battery/mustpass.py",
+    "house_sim/tasks/battery/policies.py",
+    "house_sim/tasks/battery/trace.py",
+    "house_sim/tasks/checklog.py",
+    "house_sim/tasks/escapes.py",
+    "house_sim/tasks/lint.py",
+    "house_sim/tasks/perceive.py",
+    "house_sim/tasks/private.py",
+    "house_sim/tasks/runcache.py",
+    "house_sim/tasks/runner.py",
+    "house_sim/tasks/seeds.py",
+    "house_sim/tasks/setup.py",
+    "house_sim/tasks/skills.py",
+    "house_sim/tasks/spec.py",
+    "house_sim/tasks/strength.py",
+    "house_sim/tasks/verify.py",
+    "tests/data/review_cheats/*",
+    "tests/data/room_golden.json",
+    "tests/test_attribution.py",
+    "tests/test_audits.py",
+    "tests/test_battery.py",
+    "tests/test_counterfactual.py",
+    "tests/test_critique_cases.py",
+    "tests/test_finish.py",
+    "tests/test_gate_tool.py",
+    "tests/test_ledger.py",
+    "tests/test_lint.py",
+    "tests/test_mustpass.py",
+    "tests/test_perceive.py",
+    "tests/test_report_truth.py",
+    "tests/test_review_cheats.py",
+    "tests/test_review_tools.py",
+    "tests/test_setup_random.py",
+    "tests/test_skills_robustness.py",
+    "tests/test_speech.py",
+    "tests/test_timing.py",
+    "tests/test_verify_hardening.py",
+    "tools/battery_review.py",
+    "tools/evidence_replay.py",
+    "tools/field_census.py",
+    "tools/harden_audit.py",
+    "tools/orchestration/README.md",
+    "tools/orchestration/tier1_gate.py",
+    "tools/perception_audit.py",
+    "tools/protect_map.py",
+    "tools/seed_features.py",
+    "tools/show_entries.py",
+    "tools/verify.py"
+   ],
+   "gate_tool": true,
+   "inert": [],
+   "note": "phase 2 stage 6: fixes after R0 and the exit tests (23.6) in non-domain files: every file of WP1-WP11 (domain fixes go through the WP-D packages)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S6"
+  },
+  "P2-WP1": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [
+    "sweep"
+   ],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "house_sim/data/verify/agents.json",
+    "house_sim/data/verify/ambient.json",
+    "house_sim/data/verify/location_classes.json",
+    "house_sim/data/verify/mess_classes.json",
+    "house_sim/data/verify/resources.json",
+    "house_sim/data/verify/restore.json",
+    "house_sim/data/verify/valuables.json",
+    "house_sim/data/verify/watch_fields.json",
+    "house_sim/kernel/counterfactual.py",
+    "house_sim/kernel/evaluation.py",
+    "house_sim/kernel/ledger.py",
+    "house_sim/kernel/plugins.py",
+    "tests/test_counterfactual.py",
+    "tests/test_ledger.py",
+    "tools/field_census.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP1 LEDGER (with the WP2 stub): no schema 2/3 verification outcome may change (section 25)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S1"
+  },
+  "P2-WP10": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "catalog/review/check_log/*",
+    "catalog/review/exemptions.jsonl",
+    "catalog/review/review_sessions.jsonl",
+    "docs/REVIEW.md",
+    "house_sim/data/verify/components.json",
+    "house_sim/eval/leaderboard.py",
+    "house_sim/eval/run.py",
+    "house_sim/eval/splits.py",
+    "tests/data/review_cheats/*",
+    "tests/test_critique_cases.py",
+    "tests/test_gate_tool.py",
+    "tests/test_review_cheats.py",
+    "tests/test_review_tools.py",
+    "tools/battery_review.py",
+    "tools/evidence_replay.py",
+    "tools/harden_audit.py",
+    "tools/orchestration/README.md",
+    "tools/orchestration/tier1_gate.py"
+   ],
+   "gate_tool": true,
+   "inert": [],
+   "note": "WP10 REVIEW, AUDIT, GATE, SPLITS, HARNESS: the gate's new stages (its own test and README added to section 25's list); a record made by its uncommitted gate script needs a gate-change signature",
+   "policy": true,
+   "requires": [],
+   "stage": "P2-S4"
+  },
+  "P2-WP11": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [
+    "body"
+   ],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "house_sim/tasks/skills.py",
+    "tests/data/room_golden.json",
+    "tests/test_skills_robustness.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP11 CORE SKILLS: fixes world behaviour (P10), may change legacy outcomes; lists every legacy spec whose outcome changes and fixes or flags it (section 25)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S1"
+  },
+  "P2-WP2": {
+   "aka": [],
+   "allow": [
+    "state"
+   ],
+   "bench": [
+    1.15,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [
+    "physics",
+    "camera",
+    "body",
+    "sweep",
+    "gen"
+   ],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "house_sim/kernel/engine.py",
+    "house_sim/kernel/world.py",
+    "tests/data/room_golden.json",
+    "tests/test_attribution.py",
+    "tests/test_finish.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP2 ATTRIBUTION, FLOWS, FINISH: logs.gone / logs.mess_flows change state digests (and the room golden, re-recorded with signed golden rows); attribution overhead at most 15 % of simulation time (6.2), hence the G7 budget 1.15 x prev",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S1"
+  },
+  "P2-WP3": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [
+    "sweep"
+   ],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "house_sim/kernel/monitor.py",
+    "tests/test_timing.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP3 TIMING: no schema 2/3 verification outcome may change",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S1"
+  },
+  "P2-WP4": {
+   "aka": [],
+   "allow": [
+    "state"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [
+    "sweep"
+   ],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "house_sim/data/speech/lexicon.json",
+    "house_sim/data/speech/paraphrases.json",
+    "house_sim/data/speech/truth.json",
+    "house_sim/kernel/predicates.py",
+    "house_sim/kernel/reports.py",
+    "house_sim/kernel/speech.py",
+    "house_sim/systems/core.py",
+    "tests/data/room_golden.json",
+    "tests/test_report_truth.py",
+    "tests/test_speech.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP4 CONTENT: no verdict may change; core's flow logging writes WP2's logs (state digests, the golden)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S1"
+  },
+  "P2-WP5": {
+   "aka": [],
+   "allow": [
+    "verdict"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "catalog/analysis/seed_features.json",
+    "house_sim/cli.py",
+    "house_sim/data/verify/budget.json",
+    "house_sim/data/verify/expected_families.json",
+    "house_sim/tasks/checklog.py",
+    "house_sim/tasks/escapes.py",
+    "house_sim/tasks/private.py",
+    "house_sim/tasks/runcache.py",
+    "house_sim/tasks/runner.py",
+    "house_sim/tasks/seeds.py",
+    "house_sim/tasks/strength.py",
+    "house_sim/tasks/verify.py",
+    "tests/test_verify_hardening.py",
+    "tools/seed_features.py",
+    "tools/verify.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP5 VERIFY CORE: 14.3 rule 1 and the schema-4 build change legacy verdicts (each reviewed and signed)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S2"
+  },
+  "P2-WP6": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "house_sim/data/verify/actions.json",
+    "house_sim/data/verify/inverses.json",
+    "house_sim/tasks/battery/__init__.py",
+    "house_sim/tasks/battery/accept.py",
+    "house_sim/tasks/battery/answers.py",
+    "house_sim/tasks/battery/audits.py",
+    "house_sim/tasks/battery/budget.py",
+    "house_sim/tasks/battery/effects.py",
+    "house_sim/tasks/battery/generate.py",
+    "house_sim/tasks/battery/hidden.py",
+    "house_sim/tasks/battery/mapping.py",
+    "house_sim/tasks/battery/mustpass.py",
+    "house_sim/tasks/battery/policies.py",
+    "house_sim/tasks/battery/trace.py",
+    "tests/test_audits.py",
+    "tests/test_battery.py",
+    "tests/test_mustpass.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP6 BATTERY: new files only; no outcome may change",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S3"
+  },
+  "P2-WP7": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [
+    "camera"
+   ],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "house_sim/data/verify/derivations.json",
+    "house_sim/kernel/realism.py",
+    "house_sim/tasks/perceive.py",
+    "tests/test_perceive.py",
+    "tools/perception_audit.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP7 PERCEPTION EVIDENCE: no schema 2/3 verification outcome may change",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S1"
+  },
+  "P2-WP8": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "catalog/review/legacy_ids.json",
+    "docs/AUTHORING_GUIDE.md",
+    "docs/EVALUATION.md",
+    "docs/EVAL_HARNESS.md",
+    "docs/KERNEL_API.md",
+    "docs/KNOWN_LIMITS.md",
+    "docs/PERCEPTION.md",
+    "docs/TASK_SPEC.md",
+    "house_sim/data/verify/escapes.json",
+    "house_sim/data/verify/protect_rules.json",
+    "house_sim/tasks/lint.py",
+    "house_sim/tasks/spec.py",
+    "tests/test_lint.py",
+    "tools/protect_map.py",
+    "tools/show_entries.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP8 SCHEMA 4 + LINTS: specs stay schema 2/3, so no outcome may change",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S2"
+  },
+  "P2-WP9": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [
+    "gen"
+   ],
+   "files": [
+    ".gitignore",
+    "catalog/analysis/phase2/*",
+    "house_sim/generator/disk_cache.py",
+    "house_sim/generator/place.py",
+    "house_sim/tasks/setup.py",
+    "tests/test_setup_random.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP9 SETUP RANDOMISATION: the new ops and the seeded placement permutation are schema 4 only (9.2), so no legacy house, digest or verdict may change",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S1"
+  },
+  "P2-WPD:admin_inventory": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "docs/domains/admin_inventory.md",
+    "house_sim/data/speech/truth_admin_inventory.json",
+    "house_sim/data/types/admin_inventory.json",
+    "house_sim/data/verify/watch/admin_inventory.json",
+    "house_sim/data/vocab/admin_inventory.json",
+    "house_sim/systems/admin_inventory/*",
+    "tasks/authored/admin_inventory__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_admin_inventory*.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP-D admin_inventory: the domain prerequisites of 23.3; a world-behaviour fix lists, re-verifies and fixes or flags every legacy spec whose outcome changes (P10)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S3"
+  },
+  "P2-WPD:appliances_cooking": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "docs/domains/appliances_cooking.md",
+    "house_sim/data/speech/truth_appliances_cooking.json",
+    "house_sim/data/types/appliances_cooking.json",
+    "house_sim/data/verify/watch/appliances_cooking.json",
+    "house_sim/data/vocab/appliances_cooking.json",
+    "house_sim/systems/appliances_cooking/*",
+    "tasks/authored/appliances_cooking__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_appliances_cooking*.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP-D appliances_cooking: the domain prerequisites of 23.3; a world-behaviour fix lists, re-verifies and fixes or flags every legacy spec whose outcome changes (P10)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S3"
+  },
+  "P2-WPD:cleaning": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "docs/domains/cleaning.md",
+    "house_sim/data/speech/truth_cleaning.json",
+    "house_sim/data/types/cleaning.json",
+    "house_sim/data/verify/watch/cleaning.json",
+    "house_sim/data/vocab/cleaning.json",
+    "house_sim/systems/cleaning/*",
+    "tasks/authored/cleaning__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_cleaning*.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP-D cleaning: the domain prerequisites of 23.3; a world-behaviour fix lists, re-verifies and fixes or flags every legacy spec whose outcome changes (P10)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S3"
+  },
+  "P2-WPD:climate": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "docs/domains/climate.md",
+    "house_sim/data/speech/truth_climate.json",
+    "house_sim/data/types/climate.json",
+    "house_sim/data/verify/watch/climate.json",
+    "house_sim/data/vocab/climate.json",
+    "house_sim/systems/climate/*",
+    "tasks/authored/climate__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_climate*.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP-D climate: the domain prerequisites of 23.3; a world-behaviour fix lists, re-verifies and fixes or flags every legacy spec whose outcome changes (P10)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S3"
+  },
+  "P2-WPD:electrical": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "docs/domains/electrical.md",
+    "house_sim/data/speech/truth_electrical.json",
+    "house_sim/data/types/electrical.json",
+    "house_sim/data/verify/watch/electrical.json",
+    "house_sim/data/vocab/electrical.json",
+    "house_sim/systems/electrical/*",
+    "tasks/authored/electrical__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_electrical*.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP-D electrical: the domain prerequisites of 23.3; a world-behaviour fix lists, re-verifies and fixes or flags every legacy spec whose outcome changes (P10)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S3"
+  },
+  "P2-WPD:food": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "docs/domains/food.md",
+    "house_sim/data/speech/truth_food.json",
+    "house_sim/data/types/food.json",
+    "house_sim/data/verify/watch/food.json",
+    "house_sim/data/vocab/food.json",
+    "house_sim/systems/food/*",
+    "tasks/authored/food__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_food*.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP-D food: the domain prerequisites of 23.3; a world-behaviour fix lists, re-verifies and fixes or flags every legacy spec whose outcome changes (P10)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S3"
+  },
+  "P2-WPD:manipulation": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "docs/domains/manipulation.md",
+    "house_sim/data/speech/truth_manipulation.json",
+    "house_sim/data/types/manipulation.json",
+    "house_sim/data/verify/watch/manipulation.json",
+    "house_sim/data/vocab/manipulation.json",
+    "house_sim/systems/manipulation/*",
+    "tasks/authored/manipulation__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_manipulation*.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP-D manipulation: the domain prerequisites of 23.3; a world-behaviour fix lists, re-verifies and fixes or flags every legacy spec whose outcome changes (P10)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S3"
+  },
+  "P2-WPD:mechanisms": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "docs/domains/mechanisms.md",
+    "house_sim/data/speech/truth_mechanisms.json",
+    "house_sim/data/types/mechanisms.json",
+    "house_sim/data/verify/watch/mechanisms.json",
+    "house_sim/data/vocab/mechanisms.json",
+    "house_sim/systems/mechanisms/*",
+    "tasks/authored/mechanisms__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_mechanisms*.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP-D mechanisms: the domain prerequisites of 23.3; a world-behaviour fix lists, re-verifies and fixes or flags every legacy spec whose outcome changes (P10)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S3"
+  },
+  "P2-WPD:navigation_robot": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "docs/domains/navigation_robot.md",
+    "house_sim/data/speech/truth_navigation_robot.json",
+    "house_sim/data/types/navigation_robot.json",
+    "house_sim/data/verify/watch/navigation_robot.json",
+    "house_sim/data/vocab/navigation_robot.json",
+    "house_sim/systems/navigation_robot/*",
+    "tasks/authored/navigation_robot__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_navigation_robot*.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP-D navigation_robot: the domain prerequisites of 23.3; a world-behaviour fix lists, re-verifies and fixes or flags every legacy spec whose outcome changes (P10)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S3"
+  },
+  "P2-WPD:outdoor_plants": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "docs/domains/outdoor_plants.md",
+    "house_sim/data/speech/truth_outdoor_plants.json",
+    "house_sim/data/types/outdoor_plants.json",
+    "house_sim/data/verify/watch/outdoor_plants.json",
+    "house_sim/data/vocab/outdoor_plants.json",
+    "house_sim/systems/outdoor_plants/*",
+    "tasks/authored/outdoor_plants__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_outdoor_plants*.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP-D outdoor_plants: the domain prerequisites of 23.3; a world-behaviour fix lists, re-verifies and fixes or flags every legacy spec whose outcome changes (P10)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S3"
+  },
+  "P2-WPD:people": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "docs/domains/people.md",
+    "house_sim/data/speech/truth_people.json",
+    "house_sim/data/types/people.json",
+    "house_sim/data/verify/watch/people.json",
+    "house_sim/data/vocab/people.json",
+    "house_sim/systems/people/*",
+    "tasks/authored/people__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_people*.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP-D people: the domain prerequisites of 23.3; a world-behaviour fix lists, re-verifies and fixes or flags every legacy spec whose outcome changes (P10)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S3"
+  },
+  "P2-WPD:pets": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "docs/domains/pets.md",
+    "house_sim/data/speech/truth_pets.json",
+    "house_sim/data/types/pets.json",
+    "house_sim/data/verify/watch/pets.json",
+    "house_sim/data/vocab/pets.json",
+    "house_sim/systems/pets/*",
+    "tasks/authored/pets__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_pets*.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP-D pets: the domain prerequisites of 23.3; a world-behaviour fix lists, re-verifies and fixes or flags every legacy spec whose outcome changes (P10)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S3"
+  },
+  "P2-WPD:plumbing_liquids": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "docs/domains/plumbing_liquids.md",
+    "house_sim/data/speech/truth_plumbing_liquids.json",
+    "house_sim/data/types/plumbing_liquids.json",
+    "house_sim/data/verify/watch/plumbing_liquids.json",
+    "house_sim/data/vocab/plumbing_liquids.json",
+    "house_sim/systems/plumbing_liquids/*",
+    "tasks/authored/plumbing_liquids__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_plumbing_liquids*.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP-D plumbing_liquids: the domain prerequisites of 23.3; a world-behaviour fix lists, re-verifies and fixes or flags every legacy spec whose outcome changes (P10)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S3"
+  },
+  "P2-WPD:safety": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "docs/domains/safety.md",
+    "house_sim/data/speech/truth_safety.json",
+    "house_sim/data/types/safety.json",
+    "house_sim/data/verify/watch/safety.json",
+    "house_sim/data/vocab/safety.json",
+    "house_sim/systems/safety/*",
+    "tasks/authored/safety__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_safety*.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP-D safety: the domain prerequisites of 23.3; a world-behaviour fix lists, re-verifies and fixes or flags every legacy spec whose outcome changes (P10)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S3"
+  },
+  "P2-WPD:textiles_laundry": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "docs/domains/textiles_laundry.md",
+    "house_sim/data/speech/truth_textiles_laundry.json",
+    "house_sim/data/types/textiles_laundry.json",
+    "house_sim/data/verify/watch/textiles_laundry.json",
+    "house_sim/data/vocab/textiles_laundry.json",
+    "house_sim/systems/textiles_laundry/*",
+    "tasks/authored/textiles_laundry__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_textiles_laundry*.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP-D textiles_laundry: the domain prerequisites of 23.3; a world-behaviour fix lists, re-verifies and fixes or flags every legacy spec whose outcome changes (P10)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S3"
+  },
+  "P2-WPD:tools_vehicles": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict",
+    "fingerprint"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "P2"
+   ],
+   "extras": [],
+   "files": [
+    "catalog/analysis/phase2/*",
+    "docs/domains/tools_vehicles.md",
+    "house_sim/data/speech/truth_tools_vehicles.json",
+    "house_sim/data/types/tools_vehicles.json",
+    "house_sim/data/verify/watch/tools_vehicles.json",
+    "house_sim/data/vocab/tools_vehicles.json",
+    "house_sim/systems/tools_vehicles/*",
+    "tasks/authored/tools_vehicles__*.json",
+    "tasks/id_to_family.jsonl",
+    "tasks/specs.jsonl",
+    "tests/test_tools_vehicles*.py"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "WP-D tools_vehicles: the domain prerequisites of 23.3; a world-behaviour fix lists, re-verifies and fixes or flags every legacy spec whose outcome changes (P10)",
+   "policy": false,
+   "requires": [],
+   "stage": "P2-S3"
+  },
+  "PEOPLE-IO": {
+   "aka": [],
+   "allow": [
+    "fingerprint",
+    "obs"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "S-R5",
+    "S-R6",
+    "S-R7"
+   ],
+   "extras": [
+    "sweep"
+   ],
+   "files": [
+    "house_sim/kernel/dialogue.py",
+    "house_sim/kernel/reports.py",
+    "house_sim/kernel/mind.py",
+    "house_sim/data/vocab/*.json",
+    "tools/vocab.py",
+    "house_sim/systems/core.py",
+    "house_sim/kernel/realism.py",
+    "house_sim/kernel/perception.py",
+    "house_sim/tasks/setup.py",
+    "house_sim/tasks/skills.py",
+    "house_sim/eval/llm.py",
+    "tools/perception_audit.py",
+    "tests/test_dialogue.py",
+    "tests/test_reports.py",
+    "tests/test_mind.py",
+    "tests/test_requests_obs.py",
+    "tests/test_perception.py",
+    "docs/DIALOGUE.md",
+    "docs/PERCEPTION.md",
+    "docs/EVAL_HARNESS.md",
+    "docs/AUTHORING_GUIDE.md",
+    "docs/CONVENTIONS.md"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "",
+   "policy": false,
+   "requires": [],
+   "stage": "C"
+  },
+  "PEOPLE-IO-LIB": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [],
+   "extras": [],
+   "files": [
+    "house_sim/kernel/dialogue.py",
+    "house_sim/kernel/reports.py",
+    "house_sim/kernel/mind.py",
+    "house_sim/data/vocab/*.json",
+    "tools/vocab.py",
+    "tests/test_dialogue.py",
+    "tests/test_reports.py",
+    "tests/test_mind.py"
+   ],
+   "gate_tool": false,
+   "inert": [
+    "house_sim/kernel/dialogue.py",
+    "house_sim/kernel/reports.py",
+    "house_sim/kernel/mind.py"
+   ],
+   "note": "PEOPLE-IO's new library files during stages A/B (2.5); hand-over happens once, in stage C",
+   "policy": false,
+   "requires": [],
+   "stage": "A"
+  },
+  "PHYS-DATA": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [],
+   "extras": [
+    "physics"
+   ],
+   "files": [
+    "house_sim/data/physics/materials.json",
+    "house_sim/data/physics/liquids.json",
+    "house_sim/data/physics/floors.json",
+    "house_sim/data/physics/supports.json",
+    "house_sim/data/physics/laws.json",
+    "house_sim/kernel/phys/__init__.py",
+    "house_sim/kernel/phys/props.py",
+    "house_sim/kernel/phys/lawbook.py",
+    "house_sim/kernel/phys/forces.py",
+    "house_sim/kernel/phys/contain.py",
+    "setup.py",
+    "tests/test_physics_data.py",
+    "tests/test_physics_forces.py"
+   ],
+   "gate_tool": false,
+   "inert": [
+    "house_sim/kernel/phys/*.py"
+   ],
+   "note": "",
+   "policy": false,
+   "requires": [],
+   "stage": "A"
+  },
+  "PHYS-FLIP": {
+   "aka": [
+    "D1"
+   ],
+   "allow": [
+    "state",
+    "obs",
+    "verdict"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "D1"
+   ],
+   "extras": [
+    "physics"
+   ],
+   "files": [
+    "house_sim/data/physics/laws.json",
+    "docs/PHYSICS.md"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "per-spec triage rows cite D1; spec fixes are made by their owners",
+   "policy": false,
+   "requires": [],
+   "stage": "D1"
+  },
+  "PHYS-FLUIDS": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [],
+   "extras": [
+    "physics"
+   ],
+   "files": [
+    "house_sim/kernel/phys/liquids.py",
+    "house_sim/kernel/phys/thermal.py",
+    "house_sim/kernel/phys/environment.py",
+    "house_sim/kernel/phys/processes.py",
+    "tests/test_physics_fluids.py",
+    "tests/test_physics_thermal.py"
+   ],
+   "gate_tool": false,
+   "inert": [
+    "house_sim/kernel/phys/*.py"
+   ],
+   "note": "",
+   "policy": false,
+   "requires": [],
+   "stage": "A"
+  },
+  "PHYS-INT": {
+   "aka": [],
+   "allow": [
+    "state",
+    "obs",
+    "verdict"
+   ],
+   "bench": [
+    1.0,
+    "A0"
+   ],
+   "codes": [
+    "R1",
+    "R2",
+    "R3",
+    "R4",
+    "R5",
+    "R6",
+    "R7",
+    "R8",
+    "R9",
+    "R10"
+   ],
+   "extras": [
+    "physics"
+   ],
+   "files": [
+    "house_sim/kernel/world.py",
+    "house_sim/kernel/engine.py",
+    "house_sim/kernel/actions.py",
+    "house_sim/kernel/physics.py",
+    "house_sim/kernel/phys/*",
+    "house_sim/systems/core.py",
+    "house_sim/tasks/setup.py",
+    "house_sim/tasks/verify.py",
+    "house_sim/data/types/core.json",
+    "house_sim/data/physics/*.json",
+    "tools/physics_audit.py",
+    "tools/golden.py",
+    "tools/perception_audit.py",
+    "tests/test_physics_settle.py",
+    "tests/test_physics_setup.py",
+    "tests/test_room_golden.py",
+    "tests/data/room_golden.json",
+    "docs/KERNEL_API.md",
+    "docs/PHYSICS.md",
+    "docs/CONVENTIONS.md",
+    "docs/AUTHORING_GUIDE.md",
+    "docs/PERCEPTION.md",
+    "docs/KNOWN_LIMITS.md"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "R1-R10; whole engine must not exceed A0 at all (3.4)",
+   "policy": false,
+   "requires": [
+    "golden",
+    "kernel_core"
+   ],
+   "stage": "B1"
+  },
+  "PHYS-STATICS": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [],
+   "extras": [
+    "physics"
+   ],
+   "files": [
+    "house_sim/kernel/phys/support.py",
+    "house_sim/kernel/phys/statics.py",
+    "house_sim/kernel/phys/impact.py",
+    "tests/test_physics_statics.py"
+   ],
+   "gate_tool": false,
+   "inert": [
+    "house_sim/kernel/phys/*.py"
+   ],
+   "note": "",
+   "policy": false,
+   "requires": [],
+   "stage": "A"
+  },
+  "TIME-EVAL": {
+   "aka": [],
+   "allow": [
+    "fingerprint",
+    "verdict"
+   ],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [
+    "S-R1",
+    "S-R2",
+    "S-R3",
+    "S-R4"
+   ],
+   "extras": [
+    "sweep"
+   ],
+   "files": [
+    "house_sim/kernel/monitor.py",
+    "house_sim/kernel/phases.py",
+    "house_sim/data/calendar/*.json",
+    "house_sim/kernel/timeline.py",
+    "house_sim/kernel/engine.py",
+    "house_sim/kernel/world.py",
+    "house_sim/kernel/evaluation.py",
+    "house_sim/kernel/predicates.py",
+    "house_sim/kernel/clock.py",
+    "house_sim/kernel/plugins.py",
+    "house_sim/kernel/actions.py",
+    "house_sim/kernel/physics.py",
+    "house_sim/kernel/camera.py",
+    "house_sim/kernel/phys/observe.py",
+    "house_sim/tasks/spec.py",
+    "house_sim/tasks/runner.py",
+    "house_sim/tasks/verify.py",
+    "house_sim/eval/run.py",
+    "house_sim/eval/agents.py",
+    "house_sim/cli.py",
+    "tools/verify.py",
+    "tools/bench_systems.py",
+    "tools/sweep_bench.py",
+    "tests/test_timeline.py",
+    "tests/test_world_savepoint.py",
+    "tests/test_monitor.py",
+    "tests/test_phases.py",
+    "tests/test_clock.py",
+    "tests/test_predicates_v3.py",
+    "docs/TASK_SPEC.md",
+    "docs/EVALUATION.md",
+    "docs/KERNEL_API.md",
+    "docs/EVAL_CONTRACTS.md"
+   ],
+   "gate_tool": false,
+   "inert": [],
+   "note": "merges first in stage C",
+   "policy": false,
+   "requires": [
+    "bench_day"
+   ],
+   "stage": "C"
+  },
+  "TIME-EVAL-LIB": {
+   "aka": [],
+   "allow": [],
+   "bench": [
+    1.05,
+    "prev"
+   ],
+   "codes": [],
+   "extras": [],
+   "files": [
+    "house_sim/kernel/monitor.py",
+    "house_sim/kernel/phases.py",
+    "house_sim/data/calendar/*.json",
+    "tests/test_monitor.py",
+    "tests/test_phases.py"
+   ],
+   "gate_tool": false,
+   "inert": [
+    "house_sim/kernel/monitor.py",
+    "house_sim/kernel/phases.py"
+   ],
+   "note": "TIME-EVAL's new library files during stages A/B (2.5); hand-over happens once, in stage C",
+   "policy": false,
+   "requires": [],
+   "stage": "A"
+  }
+ },
+ "perf": {
+  "attempts": 3
+ },
+ "running_substages": [
+  "P1C"
+ ],
+ "scope": {
+  "policy_files": [
+   "tools/orchestration/gate_policy/*"
+  ],
+  "protected": [
+   "tools/orchestration/*",
+   ".github/*",
+   "tests/data/room_golden.json",
+   "tests/data/gen1_digests.json"
+  ]
+ },
+ "seeds": [
+  0,
+  1,
+  2,
+  41,
+  97
+ ],
+ "stage_order": [
+  "A0",
+  "A",
+  "B0",
+  "B1",
+  "B2",
+  "B3",
+  "B4",
+  "B5",
+  "B6",
+  "C",
+  "C1",
+  "ADOPT",
+  "P1",
+  "P1C",
+  "P2-S1",
+  "P2-S2",
+  "P2-S3",
+  "P2-S4",
+  "P2-S5",
+  "P2-S6",
+  "P2",
+  "D1",
+  "D2",
+  "D3"
+ ],
+ "substage_base": {
+  "A": "A0",
+  "ADOPT": "C1",
+  "P1": "ADOPT",
+  "P1C": "P1F",
+  "P2-S1": "P1C",
+  "P2-S2": "P2-S1",
+  "P2-S3": "P2-S2",
+  "P2-S4": "P2-S3"
+ },
+ "substages": {
+  "A": [
+   "PHYS-DATA",
+   "PHYS-STATICS",
+   "PHYS-FLUIDS",
+   "CAM-SIGHT",
+   "BODY-MODEL",
+   "GEN",
+   "TIME-EVAL-LIB",
+   "PEOPLE-IO-LIB"
+  ],
+  "ADOPT": [
+   "ADOPT:admin_inventory",
+   "ADOPT:appliances_cooking",
+   "ADOPT:cleaning",
+   "ADOPT:climate",
+   "ADOPT:electrical",
+   "ADOPT:food",
+   "ADOPT:manipulation",
+   "ADOPT:mechanisms",
+   "ADOPT:navigation_robot",
+   "ADOPT:outdoor_plants",
+   "ADOPT:people",
+   "ADOPT:pets",
+   "ADOPT:plumbing_liquids",
+   "ADOPT:safety",
+   "ADOPT:textiles_laundry",
+   "ADOPT:tools_vehicles",
+   "K-EVAL",
+   "K-CAM",
+   "ADOPT-INT"
+  ],
+  "B3": [
+   "CAM-ACTIONS",
+   "CAM-RENDER"
+  ],
+  "B4": [
+   "BODY-ENGINE",
+   "NAV-M2"
+  ],
+  "B5": [
+   "BODY-CORE",
+   "NAV-M5",
+   "BODY-FAULTS"
+  ],
+  "C": [
+   "TIME-EVAL",
+   "PEOPLE-IO"
+  ],
+  "P1": [
+   "ADOPT:admin_inventory",
+   "ADOPT:appliances_cooking",
+   "ADOPT:cleaning",
+   "ADOPT:climate",
+   "ADOPT:electrical",
+   "ADOPT:food",
+   "ADOPT:manipulation",
+   "ADOPT:mechanisms",
+   "ADOPT:navigation_robot",
+   "ADOPT:outdoor_plants",
+   "ADOPT:people",
+   "ADOPT:pets",
+   "ADOPT:plumbing_liquids",
+   "ADOPT:safety",
+   "ADOPT:textiles_laundry",
+   "ADOPT:tools_vehicles",
+   "K-GATE",
+   "K-GATE2"
+  ],
+  "P1C": [
+   "P1C:admin_inventory",
+   "P1C:electrical",
+   "P1C:manipulation",
+   "P1C:mechanisms",
+   "P1C:navigation_robot",
+   "P1C:pets",
+   "K-GATE3"
+  ],
+  "P2-S1": [
+   "P2-WP1",
+   "P2-WP2",
+   "P2-WP3",
+   "P2-WP4",
+   "P2-WP7",
+   "P2-WP9",
+   "P2-WP11"
+  ],
+  "P2-S2": [
+   "P2-WP5",
+   "P2-WP8"
+  ],
+  "P2-S3": [
+   "P2-WP6",
+   "P2-WPD:admin_inventory",
+   "P2-WPD:appliances_cooking",
+   "P2-WPD:cleaning",
+   "P2-WPD:climate",
+   "P2-WPD:electrical",
+   "P2-WPD:food",
+   "P2-WPD:manipulation",
+   "P2-WPD:mechanisms",
+   "P2-WPD:navigation_robot",
+   "P2-WPD:outdoor_plants",
+   "P2-WPD:people",
+   "P2-WPD:pets",
+   "P2-WPD:plumbing_liquids",
+   "P2-WPD:safety",
+   "P2-WPD:textiles_laundry",
+   "P2-WPD:tools_vehicles"
+  ],
+  "P2-S4": [
+   "P2-WP10"
+  ]
+ }
+}

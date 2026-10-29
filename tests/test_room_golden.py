@@ -9,6 +9,8 @@ A difference means room-mode behaviour changed. Only the packages allowed to cha
 PHYS-INT, BODY-ENGINE, BODY-FAULTS) re-record, and only after `python tools/golden.py dump --out BEFORE` (before the
 first edit), the same into AFTER (before hand-over) and `python tools/golden.py diff BEFORE AFTER` show that every
 changed path belongs to their reviewed classes; then `python tools/golden.py record --by <ID> --classes <...>`.
+A known-failing pin excuses a changed reference only while the gate's committed allowlist excuses its spec (K-GATE3:
+the file's own flag excuses nothing), and the tier-1 gate's G8 lists every re-recorded entry for two signatures.
 
     python -m unittest tests.test_room_golden
     HOUSE_SIM_GOLDEN_ALL=1 python -m unittest tests.test_room_golden
@@ -16,6 +18,7 @@ changed path belongs to their reviewed classes; then `python tools/golden.py rec
 import os
 import sys
 import unittest
+import unittest.mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
@@ -76,6 +79,41 @@ class RoomGoldenTests(unittest.TestCase):
         self.assertEqual(set(self.specs), expected)
         diffs = golden.compare(self.golden, {}, self.specs)
         self.assertEqual(diffs, [], HINT)
+
+
+class KnownFailingGuardTests(unittest.TestCase):
+    """Phase-1 close-out (K-GATE3; finish_VER.json, golden attack G2): a hand edit of tests/data/room_golden.json that
+    changed an entry's digest and marked it {"known_failing": true, "passes": false} made compare skip it whenever the
+    run passed, so any digest was accepted. Only the gate's committed allowlist vouches for a known-failing pin now."""
+
+    def golden(self):
+        return {"runs": {}, "specs": {"T-1": {"passes": True, "state": "s1", "steps": 3},
+                                      "T-2": {"passes": True, "state": "s2", "steps": 4}}}
+
+    def test_a_hand_marked_pin_does_not_hide_a_changed_digest(self):
+        fresh = {"T-1": {"passes": True, "state": "s1", "steps": 3}, "T-2": {"passes": True, "state": "s2", "steps": 4}}
+        forged = self.golden()
+        forged["specs"]["T-1"].update(state="0" * 64, known_failing=True, passes=False)     # the attack
+        diffs = golden.compare(forged, {}, fresh, vouched=set())
+        self.assertTrue(any(d.startswith("spec T-1: state, passes differ") for d in diffs), diffs)
+        self.assertTrue(any("without the gate's committed allowlist" in d for d in diffs), diffs)
+        self.assertEqual(golden.expected_changes(forged, fresh, vouched=set()), [])
+        with unittest.mock.patch.object(golden, "allowlisted_failing", lambda keys: set()):
+            self.assertTrue(golden.compare(forged, {}, fresh))              # the default reads the committed allowlist
+        # vouched by the committed allowlist: the fix the entry waited for, an expected change (re-record)
+        self.assertEqual(golden.compare(forged, {}, fresh, vouched={"T-1"}), [])
+        self.assertEqual(len(golden.expected_changes(forged, fresh, vouched={"T-1"})), 1)
+        with unittest.mock.patch.object(golden, "allowlisted_failing", lambda keys: set(keys) & {"T-1"}):
+            self.assertEqual(golden.compare(forged, {}, fresh), [])
+
+    def test_an_unvouched_pin_is_reported_even_while_it_still_fails(self):
+        pinned = self.golden()
+        pinned["specs"]["T-2"].update(passes=False, known_failing=True)
+        fresh = {"T-1": {"passes": True, "state": "s1", "steps": 3}, "T-2": {"passes": False, "state": "s2", "steps": 4}}
+        self.assertEqual(golden.compare(pinned, {}, fresh, vouched={"T-2"}), [])
+        diffs = golden.compare(pinned, {}, fresh, vouched=set())
+        self.assertEqual(len(diffs), 1)
+        self.assertIn("pinned known-failing without the gate's committed allowlist", diffs[0])
 
 
 class GoldenToolTests(unittest.TestCase):

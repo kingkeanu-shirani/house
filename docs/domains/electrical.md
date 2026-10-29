@@ -14,13 +14,14 @@ and alarm clocks, ESD-sensitive PC parts. Verbs: `plug_in`, `unplug`, `connect_c
 Code: `house_sim/systems/electrical/` (package: common, power, cords, lighting, batteries, cables, devices, charging,
 detectors, clocks, pairing, perception, percept, harms, physical, sightlines, hub, furnish, smarthome, scenarios,
 skills). Types: `house_sim/data/types/electrical.json` (about 140 types, with realistic-perception tiers, look-alike
-groups, camera `view` blocks and domain-wide `field_tiers`). Tests: `tests/test_electrical.py` (170 tests; pass with all
+groups, camera `view` blocks and domain-wide `field_tiers`). Tests: `tests/test_electrical.py` (184 tests; pass with all
 16 domains loaded, with `HOUSE_SIM_STRICT=1` and with `HOUSE_SIM_DOMAINS=core,electrical`). Examples:
 `tasks/authored/electrical__examples.json` (12 specs, oracle) and `tasks/authored/electrical__perception.json` (4
 perception-centric specs, realistic, `"camera": "geometric"`); every spec declares `"house": {"gen": 2}` and passes
 `--check` on seeds 0, 1, 2, 41, 97 in its own mode; the examples also pass `--perception realistic` with either camera.
 The tier-1 adoption (kernel v3.0 physics, camera and robot body, v3.1 sweep, the smart-home layer) is section 11; the
-report vocabulary is section 12; phase 1 of the stabilisation after the independent review (2026-10-22) is section 13.
+report vocabulary is section 12; phase 1 of the stabilisation after the independent review (2026-10-22) is section 13,
+its finishing round section 14 and its close-out section 15.
 
 Fidelity: S for switching logic, device state machines and bookkeeping; G for plug/connector geometry, cord routing
 over the room grid, Qi coil alignment, cable reach, IR line of sight and ceiling reach; P-approx for the lumped loads
@@ -122,9 +123,10 @@ cells/alarms re-evaluated), `open_cover` (opening a plugged-in appliance casing 
 
 ## 4. Systems (every 30 s substep)
 
-All seven stay per-substep because they are event-sensitive (breaker trip curves, GFCI/ground faults, alarm-clock and
-chirp timing, charge thresholds, boot timers) and none scans the entity table: they iterate kernel static indexes
-(`common.ids(w, name)` over `w.static_index`, predicates on creation-time fields: category, type, ports, slots,
+All of them stay per-substep because they are event-sensitive (breaker trip curves, GFCI/ground faults, alarm-clock and
+chirp timing, charge thresholds, boot timers; `electrical.wet_gear` must see a device dry before its next drip) and none
+scans the entity table (`electrical.wet_gear` reads only the devices that gather liquid): they iterate kernel static
+indexes (`common.ids(w, name)` over `w.static_index`, predicates on creation-time fields: category, type, ports, slots,
 `plug_required`, `power_w`, clock dicts...) and re-check dynamic fields; supply walks share a per-pass memo (provider
 liveness, branch-circuit liveness and each top-level supply answer, so one power step walks each chain once). The
 indexes declare the fields their predicates read (`common.INDEX_READS`, `declare_index`) and are built at
@@ -144,6 +146,7 @@ live, replayed or reloaded episode (`test_the_electrical_static_indexes_match_a_
 | `electrical.charging` (62) | battery charge/drain, taper > 80 %, weak-charger hold, temperature holds, swollen runaway (15 min -> fire), soft/flammable surface heating, NiMH bays (alkaline leaks), EV sessions |
 | `electrical.detectors` (64) | power/condition sync, intermittent chirps, CO dose and smoke alarms, interconnect, hush expiry (sensing/sounds deferred to safety.detectors when that domain is loaded) |
 | `electrical.clocks` (66) | stopped clocks drift, volatile clocks blink after outages and lose alarms, auto-sync at 03:00, alarms ring when the displayed time crosses them |
+| `electrical.wet_gear` (77) | after the drying systems (cleaning 75, appliances_cooking 76): a device dry again (wetness at most 0.001) forgets the litres that gathered on it (section 11, Physics); idle while nothing gathers |
 
 ## 5. Perception (oracle mode; realistic mode in section 5a)
 
@@ -606,10 +609,16 @@ helper create. Regression tests: `tests/test_electrical.py` `Tier1PhysicsAdoptio
 * **Liquid ingress** (`physical.py`, hook `phys.wetted`: spills, overflows, rain, a wet item set on a device). Gear
   rated for water (weather-rated outdoor gear; an IP rating whose second digit is 4 or more: smartphones, smartwatches
   and fitness trackers IP68, wireless earbuds IPX4) and a few drops (under 20 ml) are unaffected; cables are not gear (a
-  wet jacket is no harm). Energized mains gear leaks to ground: its GFCI receptacle or GFCI breaker trips
-  (`ground_fault`), otherwise it is an electrical hazard (stat `electrical_hazard`, harm
-  `electrical.shock_risk:<id>`), and while still wet it shorts its circuit whenever it runs (`power._shorted_devices`:
-  the breaker trips under load). A switched-on battery device shorts inside and dies (the kernel's
+  wet jacket is no harm). The litres reaching a device add up while it stays wet (section `gathering`, hidden; phase-1
+  close-out, plumbing_liquids' request): drips arrive in 5 ml portions (the kernel's droplet limit: the drip law, a
+  pot or umbrella dripping through plumbing's `drip_lpm`), so a dripping pot's fourth portion gets in as a tipped
+  cup's 20 ml do. Once its wetness is down to 0.001 (no film left: cleaning's drying, a towel) what reached it before
+  is gone: `electrical.wet_gear` forgets it after the drying systems each substep, so also in a wait in which no
+  electrical refresh runs, and so does the dry-device refresher; liquid that leaves no film (a seep from a wet thing
+  resting on dry gear, a device without a top) does not gather, only a single 20 ml arrival gets in. Energized mains
+  gear leaks to ground: its GFCI receptacle or GFCI breaker trips (`ground_fault`), otherwise it is an electrical
+  hazard (stat `electrical_hazard`, harm `electrical.shock_risk:<id>`), and while still wet it shorts its circuit
+  whenever it runs (`power._shorted_devices`: the breaker trips under load). A switched-on battery device shorts inside and dies (the kernel's
   `break_entity(..., "short_circuit")`). Mains gear and anything unpowered take the kernel's `water_damage` (0.5) and
   stay dead (`water_ingress`, hidden: no boot, no light, no charge, no alarm) until their wetness is back to 0.05 or
   less (cleaning's drying, a towel); the refresher `sync_dry_devices` then clears the flag.
@@ -853,14 +862,23 @@ by true type); `phys.wetted` passing the spill's own attribution (`by`); an unca
 "failure to prevent" (VERIFY_HARDENING 27.3); a shared fire-ignition hook so electrical cord, outlet and battery fires
 start the fire model; app-level handles for the smart-home app (adoption request electrical-4: a seen smart bulb is
 listed by its camera handle, which names it among look-alike LED bulbs); `--gen 2` in the perception audit and fuzzer
-(electrical-5); plumbing_liquids: its `common.wet` writes `wetness` directly instead of the kernel's `liquids.wet`, so
-`phys.wetted` never runs for its spills and splashes (no ingress for electrical gear, and no attribution: in the A/B of
-all 243 specs the only change is that T-686df131c7c736-01's two splashing wrong plans, seed 1, no longer carry
-`electrical.always_on_interrupted`: the counter appliances it soaks trip the kitchen's GFCI breaker a few seconds later,
-which now reads as exogenous; they still fail on `damage` and `spills`); textiles_laundry: `heater_active` should ask
-`physics.is_powered` (an unpowered heater with `on` true scorches textiles); cleaning (`bulb_hot`, `bulb_temperature`)
-and safety (`battery_indicator`): no extras on an unfamiliar thing; catalog: "Report damaged cable." appears twice
-(T-dd81fe507682fc-01, T-e752686ae3a5fb-01).
+(electrical-5; done: both take `--gen 1|2`); plumbing_liquids: its `common.wet` writes `wetness` directly instead of the
+kernel's `liquids.wet`, so `phys.wetted` never runs for its spills and splashes (no ingress for electrical gear, and no
+attribution: in the A/B of all 243 specs the only change is that T-686df131c7c736-01's two splashing wrong plans, seed
+1, no longer carry `electrical.always_on_interrupted`: the counter appliances it soaks trip the kitchen's GFCI breaker a
+few seconds later, which now reads as exogenous; they still fail on `damage` and `spills`; done in the phase-1 finish: `common.wet` goes
+through the kernel's `liquids.wet`, so `phys.wetted` runs for its spills, splashes and drips); textiles_laundry:
+`heater_active` should ask `physics.is_powered` (an unpowered heater with `on` true scorches textiles; done:
+`model.heater_active` asks `physics.is_powered` for corded and battery heaters); cleaning (`bulb_hot`,
+`bulb_temperature`) and safety (`battery_indicator`): no extras on an unfamiliar thing (done: cleaning's inspect details
+stop at `state.unfamiliar`, the kernel's `realism.novel_unidentified`, before the bulb block; safety's `hazard_cues`
+returns at `common.unfamiliar`, `ctx.unresolved`, before the alarm state and battery indicator); catalog: "Report
+damaged cable." appears twice (T-dd81fe507682fc-01, T-e752686ae3a5fb-01; nothing to fix: the source catalog lists it
+under two sections and `catalog/entries.jsonl` records both as duplicate group cc9be53801e5f1). Status at the phase-1
+close-out (section 15): the kernel's unfamiliar projection and generic refusal are done (`realism.NOVEL_FIELDS`; an
+`operates` action refuses an unfamiliar target with `actions.NOVEL_OPERATE_MESSAGE` first); still open, deferred to the
+verifier-hardening phase (`catalog/analysis/phase1/finish_INT2.json` not_fixed): `phys.wetted` passing the spill's
+attribution, the uncapped acted-on record, one consequence API, the shared fire-ignition hook and app-level handles.
 
 Verification (phase 1): `tests/test_electrical.py` 170 tests pass with all domains, with `HOUSE_SIM_STRICT=1` and with
 `HOUSE_SIM_DOMAINS=core,electrical`; all 16 specs pass `--check` on seeds 0, 1, 2, 41, 97 in their own mode, the
@@ -897,3 +915,48 @@ builds it replaces did). Exactness: every one of the 1,215 trials of the 243 aut
 97) keeps its verdict, failure lists and its idle, reference and wrong-plan final digests; 12 generated houses
 (generation 1 and 2) reach identical digests after six waits (20.5 h) with the probes on and off, and the same digests
 as the HEAD code.
+
+## 15. Phase 1 close-out (2026-10-28)
+
+Inputs: the two electrical rows of `catalog/analysis/phase1/finish_breakages.json`. Handoff:
+`catalog/analysis/phase1/closeout_electrical.json`. Regression tests: `tests/test_electrical.py`
+`PhaseOneCloseoutTests` (5 tests; the first four fail on the code before this round, the fifth pins the new system's
+idle probe) and `electrical.wet_gear` in `test_idle_probes_are_exact`.
+
+| Item | Root cause | Fix |
+|---|---|---|
+| plumbing_liquids' request: live mains gear under a dripping pot never took ingress however much water gathered on it | `phys.wetted` judged INGRESS_L (20 ml) per call, and drips arrive in 5 ml portions (the kernel's droplet limit: the kernel's drip law, plumbing's `leaks.drip_onto` once per substep); only the power step's soaked-device ground fault (wetness above 0.4) ever tripped a GFCI, and the device never took ingress | `physical._gathers`: the litres reaching a device add up while it stays wet (section `gathering`, {device: litres}, never perceived) and get in once they reach 20 ml; a device dry again (wetness at most `GATHER_DRY` 0.001, no film left) forgets them, through the new `electrical.wet_gear` system (order 77, right after cleaning's and appliances_cooking's drying; idle while nothing gathers) and the dry-device refresher; liquid that leaves no film (a seep from a wet thing resting on dry gear) does not gather (section 11, Physics) |
+| INT2 / textiles_laundry: section 13 still listed as open requests the other owners had done | the doc was not updated after their fixes | marked done there (textiles' `heater_active`, plumbing's `common.wet` through the kernel, cleaning's and safety's unfamiliar-thing extras, `--gen 2` in the perception audit and fuzzer, the catalog duplicate), with the kernel requests that stay deferred |
+
+What changes: only a portion under 20 ml completing a gathering gets in where nothing did before (a dripping pot's
+fourth 5 ml portion, small splashes adding up on gear that stays wet); one 20 ml arrival behaves as before, and every
+judgement after the threshold (rated gear, GFCI trip or shock risk, battery short, `water_ingress` until dry,
+attribution through the robot-wetting marker) is unchanged. The probe test also runs a 15 ml drip and 3.5 h of drying
+with the idle probes on and off (identical digests; the device forgets the litres once dry when a drying domain is
+loaded).
+
+Own finding, not fixed (cross-domain; `closeout_electrical.json` not_fixed and requests): 71 electrical gear types
+(lamps, bulbs, chargers, power strips, outlets, switches, alarms, remotes, clocks) inherit the core default `water_safe:
+true`, and nothing marks them `electronic`, so the domains that ask `electronic or water_safe is False` treat them as
+water-safe: plumbing's `leaks.drip_onto` takes a plugged wireless charging pad under a dripping pot for a waterproof
+drip catcher (20 ml pool in `pooled_l` in 2 minutes and `phys.wetted` never runs, so it never takes ingress), and
+cleaning's liquid-ingress checks (a soaked cloth's wipe, `rinse_item` under the tap) and mechanisms' dispense damage
+read the same flag. Marking the gear `water_safe: false` in the
+type data changes every generated house (generation-1 digests, which a close-out package may not change) and other
+domains' cleaning and drip outcomes, so it is left to the next phase with the owners. Known limit of the dry test: a
+device dried by a system that runs before order 77 (outdoor_plants' weather, 45-46) and wetted again later in the same
+substep before order 77 (the kernel's drip law, 48) still counts the litres from before it dried; `phys.wetted` passing the wetness
+before the arrival (a kernel request) would let the hook decide at the arrival itself.
+
+Verification (close-out): `tests/test_electrical.py` 184 tests pass with all domains, with `HOUSE_SIM_STRICT=1` and
+with `HOUSE_SIM_DOMAINS=core,electrical`; the 16 specs pass `--check` on seeds 0, 1, 2, 41, 97 in their own mode (the
+perception file also with `--camera geometric`, the examples also realistic with the geometric camera). All 243
+authored specs pass in their own mode with the hook instrumented: in the whole run 14 portions under 20 ml reached
+gear, all in T-686df131c7c736-01's splashing wrong plans (0.5-6.9 ml on counter appliances, none completing a
+gathering), so no verdict or failure list can change, and only those trials' final states carry the `gathering`
+section (gate class `state`). The room golden (all 275 files: 8 script runs and 243 reference plans) is identical with
+and without this round's electrical code on one snapshot of the tree. `perception_audit.py 60 80`, room and geometric
+camera (the read probe included): 0 leaks, 0 crashes; `layout_audit.py 20 --domain electrical`: 120 houses, 0
+problems; `fuzz.py --coverage`: 44,296 commands, 0 defects, 0 nondeterministic replays. The new idle probe costs about
+0.13 us per substep. `tests/test_plumbing_liquids.py`, `test_cleaning.py`, `test_appliances_cooking.py`,
+`test_safety.py`, `test_kernel_contracts.py` and `test_physics_fluids.py` pass.

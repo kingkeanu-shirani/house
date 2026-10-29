@@ -2406,7 +2406,7 @@ class Tier1SweepAdoptionTests(unittest.TestCase):
         from house_sim.kernel import plugins
         from house_sim.kernel.predicates import digest
         for name in ("electrical.power", "electrical.lights", "electrical.detectors", "electrical.devices",
-                     "electrical.charging", "electrical.cells"):
+                     "electrical.charging", "electrical.cells", "electrical.wet_gear"):
             self.assertIn(name, plugins.SYSTEM_IDLE)
 
         def run(probes, seed, gen):
@@ -3238,6 +3238,133 @@ class PhaseOneFinishTests(unittest.TestCase):
         w.mut(cords[0])["temperature_c"] = C.num(ents[cords[0]].get("temperature_c"), 21.0) + 5.0
         self.assertFalse(P.power_idle(w), "a modelled cord's temperature is")
         w.commit()
+
+
+SPEAKER = {"label": "speaker", "category": "audio", "power_w": 20.0, "plug_required": True, "plug_type": "type_a",
+           "switchable": True, "on": True, "cord_length_m": 1.8, "size_m": [0.3, 0.2, 0.25], "mass_kg": 2.0,
+           "surface": True, "accepts_items": True, "electronic": True}
+
+
+def dripped_on_gear(dripper):
+    """A plugged speaker on a bathroom GFCI receptacle with `dripper` (props) standing on it."""
+    return build([{"op": "room", "var": "bath", "type": "bathroom", "pick": "first"},
+                  {"op": "helper", "name": "electrical.outlet", "args": {"room": "{bath}", "gfci": True, "new": True,
+                                                                        "height": 1.05}},
+                  {"op": "spawn", "var": "dev", "type": "generic_item", "floor": "{bath}", "props": SPEAKER},
+                  {"op": "helper", "name": "electrical.plug", "args": {"device": "{dev}", "outlet": "{outlet}"}},
+                  {"op": "spawn", "var": "pot", "type": "generic_item", "on": "{dev}",
+                   "props": dict({"label": "pot", "size_m": [0.12, 0.12, 0.12], "mass_kg": 0.5}, **dripper)},
+                  {"op": "robot", "room": "{bath}"}])
+
+
+class PhaseOneCloseoutTests(unittest.TestCase):
+    """Phase 1 close-out (catalog/analysis/phase1/finish_breakages.json, domain electrical;
+    catalog/analysis/phase1/closeout_electrical.json)."""
+
+    def test_drips_onto_live_gear_add_up_to_ingress(self):
+        """plumbing_liquids' request: drips reach phys.wetted in 5 ml portions (the kernel's droplet limit), each under
+        INGRESS_L, so live mains gear under a dripping pot never took ingress however much water gathered on it."""
+        from house_sim.systems.electrical.physical import gathered_l
+        env, b, r = plugged_lamp(gfci=True)
+        for _ in range(3):
+            wet(env, b["lamp"], 0.005)
+        self.assertFalse(ent(env, b["outlet"])["gfci_tripped"], "15 ml are not yet a mouthful")
+        self.assertFalse(ent(env, b["lamp"]).get("water_ingress"))
+        self.assertEqual(gathered_l(env.world.s, b["lamp"]), 0.015)
+        wet(env, b["lamp"], 0.005)
+        self.assertTrue(ent(env, b["outlet"])["gfci_tripped"], "20 ml gathered: the lamp leaks to ground")
+        self.assertTrue(ent(env, b["lamp"])["water_ingress"])
+        self.assertGreater(ent(env, b["lamp"])["damage"]["water_damage"], 0)
+        self.assertEqual(gathered_l(env.world.s, b["lamp"]), 0.0, "the gathering is spent")
+        self.assertNotIn("gathering", env.world.s["electrical"])
+
+    def test_gathered_water_is_forgotten_once_the_gear_is_dry(self):
+        """The litres add up only while the gear stays wet: once it is dry (cleaning's drying, a towel) what reached it
+        before is gone, also when it dried during a wait in which no electrical refresh ran (electrical.wet_gear runs
+        after the drying systems)."""
+        env, b, r = plugged_lamp(gfci=True)
+        wet(env, b["lamp"], 0.015)
+        w = env.world
+        w.begin()
+        w.mut(b["lamp"])["wetness"] = 0.0          # dried off, with no electrical refresh
+        w.commit()
+        ok(self, env, "wait", seconds=30)
+        wet(env, b["lamp"], 0.005)
+        self.assertFalse(ent(env, b["outlet"])["gfci_tripped"], "the 15 ml dried off before these 5 ml arrived")
+        for _ in range(3):
+            wet(env, b["lamp"], 0.005)
+        self.assertTrue(ent(env, b["outlet"])["gfci_tripped"], "20 ml gathered since it was last dry")
+        # liquid that leaves no film (a seep from a wet thing resting on dry gear) does not gather
+        env, b, r = plugged_lamp(gfci=True)
+        from house_sim.kernel.plugins import run_hooks
+        for _ in range(5):
+            w = env.world
+            w.begin()
+            run_hooks("phys.wetted", w, b["lamp"], 0.005, "water", None)
+            w.commit()
+        self.assertFalse(ent(env, b["outlet"])["gfci_tripped"])
+        self.assertNotIn("gathering", env.world.s.get("electrical") or {})
+
+    def test_a_kernel_drip_onto_a_plugged_device_gets_in_once_20_ml_gathered(self):
+        """The kernel's drip law (an ice pack thawing on a speaker) deposits 5 ml portions: liquid gets inside once
+        20 ml reached the device (before, only the power step's soaked-device ground fault at wetness 0.4 tripped the
+        GFCI, and the device never took ingress)."""
+        env, b, r = dripped_on_gear({})
+        from house_sim.kernel.phys import liquids
+        w = env.world
+        w.begin()
+        self.assertTrue(liquids.drip_start(w, b["pot"], 1.2, until_l=0.1, by="exogenous"))      # 10 ml per 30 s
+        w.commit()
+        ok(self, env, "wait", seconds=30)
+        self.assertFalse(ent(env, b["dev"]).get("water_ingress"))
+        ok(self, env, "wait", seconds=30)
+        self.assertTrue(ent(env, b["dev"])["water_ingress"], "20 ml gathered")
+        self.assertTrue(ent(env, b["outlet"])["gfci_tripped"])
+        self.assertLess(ent(env, b["dev"])["wetness"], 0.4, "before the soaked-device ground fault")
+
+    def test_the_wet_gear_probe_is_exact(self):
+        """electrical.wet_gear's idle probe: 15 ml dripped on a device, then hours of drying (when a drying domain is
+        loaded) reach the same state with the probes on and off."""
+        from house_sim.kernel import plugins
+        from house_sim.kernel.phys import liquids
+        from house_sim.kernel.predicates import digest
+        from house_sim.systems.electrical.physical import gathered_l
+
+        def run(probes):
+            old = plugins.IDLE_PROBES[0]
+            plugins.IDLE_PROBES[0] = probes
+            try:
+                env, b, r = dripped_on_gear({})
+                w = env.world
+                w.begin()
+                liquids.drip_start(w, b["pot"], 1.2, until_l=0.015, by="exogenous")
+                w.commit()
+                ok(self, env, "wait", seconds=120)
+                gathered = gathered_l(env.world.s, b["dev"])
+                for seconds in (1800, 3 * 3600):
+                    ok(self, env, "wait", seconds=seconds)
+                return gathered, gathered_l(env.world.s, b["dev"]), digest(env.world.s)
+            finally:
+                plugins.IDLE_PROBES[0] = old
+        on, off = run(True), run(False)
+        self.assertEqual(on[0], 0.015, "the drip's 15 ml gathered")
+        from house_sim.systems.electrical.common import has_system
+        if has_system("cleaning.drying") or has_system("appliances_cooking.drying"):
+            self.assertEqual(on[1], 0.0, "the device dried during the wait and forgot them")
+        self.assertEqual(on, off)
+
+    def test_a_pot_dripping_on_a_plugged_tv_trips_its_gfci_once_water_gathers(self):
+        """The request's repro (tests/test_plumbing_liquids.py Phase1Finish
+        test_drips_onto_gear_run_the_wetting_hooks_and_damage_it_once_water_gathers) with electrical loaded and the
+        TV plugged in: plumbing's 5 ml drips gather on it and get in."""
+        from house_sim.systems.electrical.common import has_system
+        if not has_system("plumbing_liquids.water"):
+            self.skipTest("drip_lpm drips belong to plumbing_liquids")
+        env, b, r = dripped_on_gear({"category": "planter", "drip_lpm": 0.02, "drip_left_l": 0.1,
+                                     "label": "just-watered pot"})
+        ok(self, env, "wait", seconds=60)
+        self.assertTrue(ent(env, b["dev"])["water_ingress"], "20 ml gathered on it within the minute")
+        self.assertTrue(ent(env, b["outlet"])["gfci_tripped"])
 
 
 if __name__ == "__main__":

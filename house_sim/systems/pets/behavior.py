@@ -1314,7 +1314,12 @@ def _walk_effects(ctx, result):
 
 @after("open", order=60)
 def _door_opened(ctx, result):
-    """Door dash, pets waiting at the door going through, wanting-in dogs barging in."""
+    """Door dash, pets waiting at the door going through, wanting-in dogs barging in -- each only for a pet the step's
+    opening newly lets through (C.door_gap: a cat 12 %, any other animal 25 %, the gap conn_open lets it pass later
+    too). A test pull's or push's 10 % crack lets none through, and widening a door that was already wide enough for
+    a pet is no new opening for it (its own moves had that way already). Phase-1 close-out: the pull_handle /
+    push_handle test crack let a dog bolt where mechanisms' own dash (standing down while pets owns escapes) needed
+    30 %."""
     w = ctx.w
     state = w.s
     eid = ctx.args.get("target")
@@ -1324,10 +1329,14 @@ def _door_opened(ctx, result):
         return
     conn_id = next((cid for cid in sorted(state["connections"]) if state["connections"][cid].get("door") == eid), None)
     conn = state["connections"].get(conn_id) or {}
+    opening, before = C.door_opening(rec), C.num(ctx.data.get("pets_door_was_frac"))
     for pid in C.pet_ids(state):
         pet = state["pets"][pid]
         here = pet.get("location")
         if here not in rooms or not C.is_free(pet) or not C.is_awake(pet):
+            continue
+        gap = C.door_gap(pet)
+        if opening < gap or before >= gap:
             continue
         there = rooms[1] if rooms[0] == here else rooms[0]
         cell = tuple((conn.get("cells") or {}).get(here) or rec.get("pos") or (0, 0))
@@ -1358,25 +1367,26 @@ def _door_opened(ctx, result):
 
 @before("pull_handle", order=60)
 def _before_handle_pull(ctx):
-    ctx.data["pets_door_was_open"] = bool((ctx.w.s["entities"].get(ctx.args.get("target")) or {}).get("open"))
+    ctx.data["pets_door_was_frac"] = C.door_opening(ctx.w.s["entities"].get(ctx.args.get("target")))
 
 
 @before("push_handle", order=60)
 def _before_handle_push(ctx):
-    ctx.data["pets_door_was_open"] = bool((ctx.w.s["entities"].get(ctx.args.get("target")) or {}).get("open"))
+    ctx.data["pets_door_was_frac"] = C.door_opening(ctx.w.s["entities"].get(ctx.args.get("target")))
 
 
 @after("pull_handle", order=60)
 def _door_pulled_open(ctx, result):
-    """A door the robot opened with the mechanisms domain's handle verbs gets the same door dash and going through as a
-    core open: this domain owns the door dash while it is loaded (mechanisms' request: one owner, one draw)."""
-    if not ctx.data.get("pets_door_was_open") and (ctx.w.s["entities"].get(ctx.args.get("target")) or {}).get("open"):
+    """A door the robot opened (or opened wider) with the mechanisms domain's handle verbs gets the same door dash and
+    going through as a core open: this domain owns the door dash while it is loaded (mechanisms' request: one owner,
+    one draw); _door_opened lets through only the pets the new opening is wide enough for."""
+    if C.door_opening(ctx.w.s["entities"].get(ctx.args.get("target"))) > C.num(ctx.data.get("pets_door_was_frac")):
         _door_opened(ctx, result)
 
 
 @after("push_handle", order=60)
 def _door_pushed_open(ctx, result):
-    if not ctx.data.get("pets_door_was_open") and (ctx.w.s["entities"].get(ctx.args.get("target")) or {}).get("open"):
+    if C.door_opening(ctx.w.s["entities"].get(ctx.args.get("target"))) > C.num(ctx.data.get("pets_door_was_frac")):
         _door_opened(ctx, result)
 
 

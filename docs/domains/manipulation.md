@@ -85,6 +85,7 @@ furnisher uses them when that domain is loaded (adding `cover_area_m2`, `wind_li
 | `fasteners` {name: {count, click_force_n}}, `zipper`, `snaps`, `velcro`, `grommets` / `rings` | fasteners, curtain liners |
 | `wrapped` {material, layers, coverage, padding_mm}, `covered_by`, `cover_secured` | wrap/cover state |
 | `label_text`, `label_face`, `label_adhesion`, `price_tag`, `labels_layered` | labels |
+| `tear_notch`, `tear_perforation`, `packaged`, `sealed` | packaging `tear` opens along its notch or perforation (`wrapping.tears_open`); `perforated` alone is the kernel's and plumbing's drain flag (a colander): it opens only a sealed / packed sheet of a hand-tearable material |
 | `stack_member`, `stack_count`, `stack_marginal`, `nested`, `pack_seq`, `pack_z_m`, `pack_on` | stacks and packing (written by the domain; `pack_on` = items on a furniture shelf this one was set on top of) |
 | `xy_m`, `yaw_deg`, `rot`, `tucked`, `table_gap_m` | continuous floor pose (written by the domain) |
 | `held_grip` (kernel), `presented` {feature, toward, grip} | grip remembered from `pick_up(grip=)` (kernel v2.1 re-checks it on move/place/hand_over); presentation for a hand-over: presenting a sharp/pointed item's handle re-grips it by the spine (`grip: "spine"`) |
@@ -743,7 +744,8 @@ thing has), `safe_handling(ctx, eid)` (check_handling with the grip the robot re
 * `shake` (held): a closed container (lid, cap, seal, or a trigger/pump head, which is shut unless it is worked)
   reports by feel "liquid sloshes inside" / "broken pieces clink inside" / "something shifts inside" / "it feels
   empty"; shaking anything held grants touch on its mass (realistic only). "fizz builds up" (pressure in a closed
-  can) is oracle-only, "now mixed" shows only through a clear bottle.
+  can) is oracle-only, "now mixed" shows only through a clear bottle. An unfamiliar (novel) thing is not shaken: the
+  kernel's identify-first refusal, whatever it is (section 18).
 * `tape`: pulling a strip off a held roll and pressing it down is a close look at the tape (inspect grant on the
   roll), so naming its kind ("painters tape") is consistent with identifying a `paper_tape_roll` look-alike.
 * `wrap`: a close look at the roll or sheet used (inspect grant on the tool); reports coverage to 5 % and the
@@ -753,7 +755,8 @@ thing has), `safe_handling(ctx, eid)` (check_handling with the grip the robot re
   structure (the material/fragility estimates of spec-secret fields are oracle-only). A closed opaque box, bin,
   cabinet or fridge shows no packing order or fill (realistic); an open one gives void/fill to 5 % and lists only
   the contents core inspect found (ties in packing order broken by handle, never by true id). `leaking` is the
-  record's own flag only.
+  record's own flag only. An unfamiliar (novel) thing gets no packing at all (the kernel's fixed key set,
+  `realism.NOVEL_FIELDS`; a felt weight from a lift stays).
 * `read` (core): the cast weight on gym weights, box stamps, printed toy-box facts (the read-tier fields above).
 * Messages that do not measure say what the robot sees or feels: prop results ("the door stays put", "the leg still
   rocks", "it slides or tips") instead of forces and masses, and no "valuable or in use" note (value and in-use are
@@ -774,7 +777,8 @@ thing has), `safe_handling(ctx, eid)` (check_handling with the grip the robot re
   group's common size, so every member gets the same bearing, spot and message (the review's identity sweep found
   `rotate face_toward` giving "to 178 deg" vs "to 182 deg" for laundry jugs of different true size). Contact physics
   (what a swept turn knocks, what fits) keeps the true size; groups whose members differ in true size are their type
-  owners' to align.
+  owners' to align. An unfamiliar thing belongs to no group whatever its true type's: it is aimed at by its own
+  (seen) size.
 * Durations: `wrap` and `cover` take a time computed from the exact surface area, rolling up a rug or mat one from
   its exact length; realistic mode rounds these up to 5 s, so the clock is not a tape measure. Other durations
   depend only on what the robot sees or itself does (distances it moved, turns, layers, a felt weight class).
@@ -795,7 +799,9 @@ sealed"; `tear` on a thermal receipt vs a paper scrap and on foil vs plain gift 
   read its label first" (or "... inspect it closely first"), category precondition, 1 s. After that look the action
   proceeds even if the thing stays unidentified (a blank label: the robot learned what it could). Used by the verbs
   whose outcome hinges on a fact of the particular product: `unseal` (a pharmacy seal), `tear` on non-roll items
-  (material), `unwrap` of factory packaging (not of the robot's own wrapping) and `remove_label`.
+  (material), `unwrap` of factory packaging (not of the robot's own wrapping) and `remove_label`. An unfamiliar
+  (novel) thing is never identified by a look, so it gets the kernel's identify-first refusal before and after the
+  look (section 18).
 * Physics fixes that removed type-only differences: any paper tears by hand (thermal receipt, foil-laminated gift
   wrap, kraft, tissue, cardstock, kitchen foil, plain fabric) but not a wire-cored tie or plastics (`tears_by_hand`);
   only soft absorbent things are wrung out (sponges by kind or type name, or `absorbent` with a cloth/sponge
@@ -1053,3 +1059,69 @@ Performance (G7): this domain's systems cost about 0.008 ms per 30 s substep (bo
 runs them, best of 3 over 200 substeps on seeds 0-3) on the ADOPT tree, at HEAD and now: no share of the P1
 regression. The wind probe is now exact about exposure (windy weather with only indoor light things is idle), which
 pays for the kernel's per-item wind reading.
+
+---------------------------------------------------------------------------------------------
+
+## 18. Phase 1 close (finish_breakages.json, the manipulation rows)
+
+Fixed at the root, each with a regression test in `tests/test_manipulation.py` (`PhaseOneCloseTests`); every test
+fails on the previous code:
+
+* **Tearing along a perforation reads the tear marking, not the drain flag (appliances_cooking's request).** A held
+  stainless steel colander (`perforated: true`, the drain flag of the kernel's liquids and plumbing) answered "Tore
+  col open along its notch" and got `open` / `torn_open`. `wrapping.tears_open` opens a thing along a notch or
+  perforation only when it is marked for it (`tear_notch`, or the new `tear_perforation`, whatever `along`) or, torn
+  along its perforation or notch, when it is a sealed or factory-packed pack of a sheet material a hand can rip
+  (`tears_by_hand`: a perforated paper sachet). A rigid perforated body is refused like any rigid thing ("It does
+  not tear by hand; use a cutting tool"); a perforated paper sheet that is no sealed pack is torn (damaged), not
+  opened. Test: `test_a_perforated_rigid_thing_does_not_tear_open_along_a_notch` (oracle and realistic, both
+  `along` values; the sachet, a `tear_perforation` pouch torn along its edge and a `tear_notch` packet still open).
+* **Unfamiliar things are not told apart by this domain (food's request; red_leaks I4, finish_VER).** The inspector
+  added `packing` (fill, void, order) for an unfamiliar open container (a novel mixing bowl, a pot of chili) and not
+  for a novel knife, and `shake` said "it feels empty" for an unfamiliar kettle, "liquid sprayed out" for an open
+  bleach bottle and nothing for the rest. A sweep of every verb of this domain over unfamiliar twins (one look, true
+  kinds differing; every entity parameter, on the table and held) found more: `tear` pulled a sheet off a novel roll
+  and tore a novel document, `squeeze` wrung out a sponge or pressed a box flat, `roll` coiled a cord, `seal` /
+  `unseal` worked an envelope, `remove_label` peeled a bottle's label, a novel knife cut in `unwrap`'s tool slot, a
+  novel wrap / tape / cord roll wrapped, taped or tied, a novel bowl took things in `stack` / `pack` / `arrange`, and
+  `rotate face_toward` aimed at a novel receipt with its true type's look-alike group size. Now (`common.py`):
+  * the verbs that work their target by what it is (`NOVEL_WORKED`: shake, tear, squeeze, roll, seal, unseal,
+    remove_label, remove_tape, unwrap and every fastener verb -- zip, fasten, tie, velcro, snap, clip, attach,
+    screw_together, twist and their undoing verbs) are declared `operates=True`: the engine refuses an unfamiliar
+    target with the kernel's one identify-first message (`actions.NOVEL_OPERATE_MESSAGE`) before anything reads it;
+  * `novel_guard`, a before-hook of every verb of the domain (order 5, registered in `__init__`), refuses an
+    unfamiliar thing named as a tool, aid, destination or compartment (`NOVEL_SLOTS`: no tool, aid, material or
+    receptacle the robot knows of), `unpack`'s target unless it lies in something (then it is the item taken out),
+    and repeats the target check for nested leaves (`Env.perform` runs before-hooks, not the engine's operates
+    check);
+  * `require_identified` refuses an unfamiliar thing before and after the look (a look never identifies one), the
+    inspector shows it no `packing` (the felt weight of a lift stays: touch), and `perceived_size` gives it its own
+    size (it belongs to no group, kernel `actions.lookalike_group`).
+  An unfamiliar thing is still handled as an object: pushed, pulled, slid, dragged, flipped, rotated, tilted,
+  thrown, caught, hefted, stacked or packed (into a familiar receptacle), unpacked out of one, wrapped, covered,
+  labelled, taped, aligned and arranged; reference parameters (align `reference`, arrange `relative_to` / `frame` /
+  `facing`, rotate `face_toward`, set_orientation `toward`, hold_steady `aim_at`) take where it is, which the robot
+  sees. Tests: `test_every_verb_answers_unfamiliar_twins_alike` (eleven true kinds behind one look: every verb x
+  entity parameter x table / held, identical (ok, category, message); worked targets and held tool / receptacle
+  slots get the identify-first refusal), `test_the_inspector_shows_no_packing_for_an_unfamiliar_thing`,
+  `test_shake_gives_one_answer_for_every_unfamiliar_thing` (nothing sprays), and the positive control
+  `test_an_unfamiliar_thing_is_still_handled_as_an_object`. The residual differences of the full-registry sweep
+  (`novel_sweep.py` in the round's scratch: 18 food / plumbing / cleaning / manipulation types, five states) are
+  physical: the felt weight class (`support mode=heft`), and liquid spilling out of an open container that is
+  flipped, thrown or knocked over (the kernel's spill note); a packed item's true volume moves a familiar crate's
+  void estimate.
+* **Asking about a thing destroyed out of view (people's request; red_leaks 6 residual).** `ask about=<a thing
+  thrown out out of view>` with aspect keep / intended / how / status answered "I'm not sure what you mean." where
+  a thing merely out of view got its answer (48 differences in people's probe). `world._answer` now answers from
+  the record the household knew (`world._known_record`: the current record, else `env._baseline`'s, else `{}` for a
+  thing the robot saw that was made during the episode; the people domain's owner answer uses the same rule), with
+  the same knows / necessary counting. Test:
+  `test_asking_about_a_thing_destroyed_out_of_view_answers_as_about_one_out_of_view` (realistic and oracle; with and
+  without the hidden truth; an adult and a child asking; the answer and the question counters identical). People's
+  probe: 0 differences. An id that never was still gets "I'm not sure what you mean.".
+
+Kernel requests filed (closeout_manipulation.json): core `place` into / onto an unfamiliar destination still tells
+its type apart (receptacle, "Open it first", "Put it on that, not in it"); nested leaves skip the operates refusal;
+dialogue routes get no env, so `manipulation.items` stays a weak (fallback) topic for a destroyed thing that carried
+hidden truth where the one out of view gets a plain topic (identical answers unless a later domain route answers a
+gone id); the aspects keep / intended / how / status belong in `RememberedSubjectTests`.

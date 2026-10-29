@@ -56,10 +56,18 @@ jobs:
       - name: interpreter
         run: python -VV
 
+      # every .py file of house_sim/, tools/, tests/ and the top level is Python 3.9: grammar, runtime unions, 3.10+
+      # standard-library calls (tools/py39_lint.py; the tier-1 gate's G1 runs it too). On 3.14 it catches what only
+      # fails on 3.9 when that line runs
+      - name: Python 3.9 lint
+        run: python tools/py39_lint.py
+
       # every tests/test_*.py, normal and HOUSE_SIM_STRICT=1, one process per file and mode; exit 1 on any failure.
-      # This is the correctness suite: the wall-clock bounds are off here (HOUSE_SIM_PERF_TESTS=0; under four parallel
-      # processes on a shared runner they fail for reasons that are not regressions, phase-1 red team) and run in the
-      # separate perf job below
+      # This is the correctness suite: the wall-clock bounds run relaxed here (HOUSE_SIM_PERF_TESTS=0: their bodies
+      # and functional assertions run, their timing is not asserted -- under four parallel processes on a shared
+      # runner it fails for reasons that are not regressions, phase-1 red team) and are asserted in the separate perf
+      # job below. A perf-marked test that skips its body, or one missing from the committed registry
+      # tools/orchestration/gate_policy/perf_tests.json, fails this step (tools/orchestration/wallclock.py)
       - name: unit suite
         env:
           HOUSE_SIM_PERF_TESTS: "0"
@@ -87,7 +95,8 @@ jobs:
             ${{ runner.temp }}/check_entry.json
           if-no-files-found: ignore
 
-  # the wall-clock bounds (every test that reads HOUSE_SIM_PERF_TESTS), alone, one process at a time, normal and strict;
+  # the wall-clock bounds (every registered perf mark: a test that reads HOUSE_SIM_PERF_TESTS or calls
+  # wall_clock_bound), asserted alone, one process at a time, normal and strict;
   # each bound passes when one of 3 attempts meets it (the tolerance for a runner busy for a moment). Informational:
   # shared runners are not the reference machine, so a slow runner never turns CI red; the tier-1 gate runs the same
   # job in G7 on a quiet machine, where a bound failing every attempt fails the gate (tools/orchestration/README.md)

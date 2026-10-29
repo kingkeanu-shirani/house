@@ -23,7 +23,7 @@ from ...kernel import body, geometry
 from ...kernel.actions import action
 from ...kernel.errors import require
 from ...kernel.plugins import after, before
-from ..core import check_handling, require_tool, subtree_mass
+from ..core import check_handling, subtree_mass
 from . import common as C
 from . import hazards as H
 
@@ -95,8 +95,12 @@ def stability_problems(w, aid, rid, c, step_height, step_index, realistic=False)
         category="physical",
         doc="Climb onto a step stool or step ladder standing next to the robot (step = which step to stand on; default the "
             "highest allowed). The aid must be unfolded, ladders with spreaders locked, on a level dry floor without a rug. "
-            "Ladders need approval (permission climb_on:<id>) and an adult present. Climbing furniture is unsafe.")
+            "Ladders need approval (permission climb_on:<id>) and an adult present. Climbing furniture is unsafe.",
+        operates=True)
 def climb_on(ctx):
+    # operates=True: with realistic perception the engine refuses to climb a thing the robot takes for an unfamiliar one
+    # (what it bears is unknown) with the kernel's one identify-first message (review I4; phase-1 close-out: a novel step
+    # stool was climbed, a novel ladder asked for approval and any other novel thing "cannot be stood on")
     w = ctx.w
     state = w.s
     aid = ctx.args["target"]
@@ -202,7 +206,7 @@ def step_down(ctx):
 def use_reacher(ctx):
     w = ctx.w
     state = w.s
-    tool = require_tool(ctx, "reach", ctx.args.get("tool"), consume=False)
+    tool = C.known_tool(ctx, "reach", ctx.args.get("tool"), consume=False)     # never an unfamiliar held thing
     trec = w.ent(tool)
     target = ctx.args["target"]
     rec = ctx.obj(target, touch=True, reach=False)

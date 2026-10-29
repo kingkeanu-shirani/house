@@ -169,7 +169,7 @@ def wrap(ctx):
 
 @action("unwrap", params={"target": "entity", "tool": "?entity", "depth_mm": {"type": "number", "default": 3.0, "min": 0.0, "max": 60.0},
                           "save_wrap": {"type": "bool", "default": False}},
-        duration=lambda ctx: ctx.data.get("manip_s", 15.0), energy=0.005, category="physical",
+        duration=lambda ctx: ctx.data.get("manip_s", 15.0), energy=0.005, category="physical", operates=True,
         doc="Remove wrapping (or open a crumpled packing sheet): by hand, or slit with a held blade at depth_mm (deeper than the wrap "
             "cuts soft contents and cables). Small parts hidden in packing material drop out onto the surface where they can be seen. "
             "Other people's gifts need their permission.")
@@ -502,7 +502,7 @@ def tape(ctx):
                                "speed": {"type": "str", "default": "slow", "choices": ["slow", "fast"]}, "tool": "?entity",
                                "depth_mm": {"type": "number", "default": 3.0, "min": 0.0, "max": 60.0},
                                "where": {"type": "str", "default": "top_seam", "choices": ["top_seam", "bottom_seam", "all", "surface"]}},
-        duration=lambda ctx: 6.0 if ctx.args.get("speed") == "slow" else 2.0, energy=0.003, noise=0.1, category="physical",
+        duration=lambda ctx: 6.0 if ctx.args.get("speed") == "slow" else 2.0, energy=0.003, noise=0.1, category="physical", operates=True,
         doc="Remove tape: peel it back slowly at a low angle (folded back ~150-180 deg) so paint/finish stays put, or slit a box seam with a "
             "held box cutter at a shallow depth_mm (deep cuts slice the contents under the seam). Packing tape on paint lifts paint; "
             "residue on glass needs cleaning.")
@@ -610,7 +610,7 @@ def apply_label(ctx):
 
 @action("remove_label", params={"target": "entity", "method": {"type": "str", "default": "peel", "choices": ["peel", "soak", "scrape", "solvent", "heat"]},
                                 "tool": "?entity", "hand": "?str:left|right"},
-        duration=lambda ctx: 25.0 if ctx.args.get("method") == "soak" else 6.0, energy=0.002, category="physical",
+        duration=lambda ctx: 25.0 if ctx.args.get("method") == "soak" else 6.0, energy=0.002, category="physical", operates=True,
         doc="Take a label or price sticker off: peel slowly (paper labels leave residue), soak glass jars in warm water (clean), heat with a "
             "hair-dryer tool, scrape (scratches gifts and plastics) or use a solvent (damages finishes). The removed label goes into a free "
             "hand so labels with addresses can be shredded.")
@@ -698,7 +698,7 @@ def remove_label(ctx):
 
 @action("squeeze", params={"target": "entity", "amount_ml": "?number", "force_n": {"type": "number", "default": 30.0, "min": 0.0, "max": 400.0},
                            "destination": "?entity"},
-        duration=3.0, energy=0.005, category="physical",
+        duration=3.0, energy=0.005, category="physical", operates=True,
         doc="Apply controlled compression: dispense amount_ml from a tube/bottle (cap must be off), press an empty carton/box/bag flat once its "
             "seams are open, or press air out of a bag. Squeezing a full package crushes the contents; capped tubes burst at the seam; "
             "pressurised cans and glass must never be crushed.")
@@ -827,9 +827,20 @@ def tears_by_hand(rec):
     return mat in HAND_TEARABLE or mat.endswith("_paper") or mat.startswith("paper")
 
 
+def tears_open(rec, along):
+    """Whether tearing opens rec along a notch or a perforation made for it: packaging marked with a tear notch or a
+    tear perforation (`tear_notch` / `tear_perforation`, any `along`), or -- torn along its perforation or notch -- a
+    sealed or factory-packed pack of a sheet material a hand can rip (a perforated paper sachet). `perforated` alone is
+    the drain flag of the kernel and plumbing (a colander, a sieve): a rigid perforated body does not tear open."""
+    if rec.get("tear_notch") or rec.get("tear_perforation"):
+        return True
+    return along in ("perforation", "notch") and bool(rec.get("perforated")) and tears_by_hand(rec) and \
+        bool(rec.get("sealed") or rec.get("packaged"))
+
+
 @action("tear", params={"target": "entity", "length_m": {"type": "number", "default": 0.4, "min": 0.02, "max": 10.0},
                         "along": {"type": "str", "default": "perforation", "choices": ["perforation", "edge", "notch", "anywhere"]}, "hand": "?str:left|right"},
-        duration=3.0, energy=0.002, noise=0.05, category="physical",
+        duration=3.0, energy=0.002, noise=0.05, category="physical", operates=True,
         doc="Tear: a sheet of length_m off a roll (wrapping paper, foil, plastic wrap, paper towel, packing paper, tape without a dispenser) into a "
             "free hand, or open packaging at its tear notch/perforation. Tearing documents or fabric damages them.")
 def tear(ctx):
@@ -861,7 +872,7 @@ def tear(ctx):
     # (every member of its group gets this same answer)
     C.require_identified(ctx, eid)
     m = w.mut(eid)
-    if rec.get("tear_notch") or along in ("perforation", "notch") and (rec.get("perforated") or rec.get("tear_notch")):
+    if tears_open(rec, along):
         m["open"] = True
         m["torn_open"] = True
         m["sealed"] = False

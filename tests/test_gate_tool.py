@@ -26,9 +26,15 @@ a record of a folder that is neither the project nor an isolated copy of it fail
 determinism check, worker crashes and the required audit variants; per-test ids, once recorded, are required; the
 wall-clock bounds leave the correctness runs for G7's perf job (best of 3, alone) and must run there; the golden takes
 no self-named known failure.
+Phase-1 close-out (K-GATE3, CloseOutGateTests; finish_VER.json's four holes): the gate's rules are committed policy
+(gate_policy/rules.json, every former value kept) and a record made by gate code that differs from the committed one
+fails GATE (a gate-tool package's needs a "gate-change" signature); --shared-tree never attributes a protected file and
+only to a running peer that owns the file, listing every attribution; every re-recorded room-golden entry needs a
+reviewed and a signed "golden" row, and a known-failing pin counts only while the committed allowlist excuses it; the
+wall-clock bounds run relaxed in the correctness runs (their bodies run), are registered (gate_policy/perf_tests.json)
+and one that skips its body counts as a skip; the phase-2 packages; the Python 3.9 lint in G1 and CI.
 Everything runs on temporary folders; nothing is committed and no policy file of the project is written.
 """
-import ast
 import contextlib
 import copy
 import fnmatch
@@ -58,6 +64,28 @@ _RC.loader.exec_module(run_check)
 FILE_A = "admin_inventory__examples.json"
 TREE = "t" * 64                 # the tree fingerprint of the synthetic records (tree_fingerprint is patched to it)
 FILE_C = "cleaning__examples.json"
+# the gate's committed rules and bound registry as the working tree has them (the close-out's policy files; the tests
+# serve them as committed through a fake trusted_json)
+RULES_DATA = json.loads((ROOT / gate.RULES_FILE).read_text(encoding="utf-8"))
+REGISTRY_DATA = json.loads((ROOT / gate.PERF_REGISTRY).read_text(encoding="utf-8"))
+# the gate code of the synthetic records and of the "committed" project (running_gate / committed_gate are patched)
+FAKE_CODE = {"tools/orchestration/tier1_gate.py": "a" * 40, "tools/orchestration/green_tests.py": "b" * 40,
+             "tools/orchestration/wallclock.py": "c" * 40, "tools/py39_lint.py": "d" * 40}
+FAKE_COMMIT = "f" * 40
+GATE_META = {"code": FAKE_CODE, "digest": gate.code_digest(FAKE_CODE), "commit": FAKE_COMMIT}
+
+
+@contextlib.contextmanager
+def sealed(code=None, committed=None):
+    """The gate code as committed: the running gate and the commit's gate files are the fake ones (or `code` running
+    against `committed`), so a test of the comparison rules does not depend on this working tree's own edits."""
+    running = dict(code or FAKE_CODE)
+    info = {"script": "tools/orchestration/tier1_gate.py", "files": running, "code": running,
+            "digest": gate.code_digest(running)}
+    with mock.patch.object(gate, "running_gate", lambda: info), \
+            mock.patch.object(gate, "committed_gate", lambda commit="HEAD": dict(committed or FAKE_CODE)), \
+            mock.patch.object(gate, "head_commit", lambda: FAKE_COMMIT):
+        yield
 
 
 def trial(key, seed, file=FILE_A, passed=True, state="s0", spec_hash=None, wrong=None):
@@ -81,9 +109,11 @@ def write_record(folder, meta, own=(), realistic=None, audits=None, tests=None):
         gate.write_json(folder / "tests.json", tests)
 
 
-def policy_files(known=None, signoffs=None):
-    """A stand-in for gate.trusted_json: the committed policy files of a fake project."""
-    files = {}
+def policy_files(known=None, signoffs=None, rules=None, registry=None):
+    """A stand-in for gate.trusted_json: the committed policy files of a fake project (the rules and the bound registry
+    default to the working tree's)."""
+    files = {gate.RULES_FILE: RULES_DATA if rules is None else rules,
+             gate.PERF_REGISTRY: REGISTRY_DATA if registry is None else registry}
     if known is not None:
         files[gate.KNOWN_FAILING] = {"format": gate.KNOWN_FAILING_FORMAT, "entries": known}
     for gid, rows in (signoffs or {}).items():
@@ -96,7 +126,8 @@ def policy_files(known=None, signoffs=None):
 
 
 class GateCase(unittest.TestCase):
-    """Synthetic gate records in a temporary gates folder (C1 the previous gate, X the package's record)."""
+    """Synthetic gate records in a temporary gates folder (C1 the previous gate, X the package's record), made by the
+    committed gate code (sealed)."""
     PKG = "ADOPT:admin_inventory"
 
     def setUp(self):
@@ -104,7 +135,7 @@ class GateCase(unittest.TestCase):
         self.addCleanup(shutil.rmtree, str(self.gates), True)
         self.prev_meta = {"id": "C1", "stage": "C1", "finished": "2026-10-15"}
         self.meta = {"id": "X", "packages": [self.PKG], "stage": "ADOPT", "prev": "C1", "finished": "2026-10-20",
-                     "tree": TREE}
+                     "tree": TREE, "gate": dict(GATE_META)}
 
     def record(self, prev_rows, cur_rows, prev_audits=None, cur_audits=None, cur_tests=None, meta=None):
         write_record(self.gates / "C1", self.prev_meta, own=prev_rows, audits=prev_audits)
@@ -115,7 +146,8 @@ class GateCase(unittest.TestCase):
         out = io.StringIO()
         with mock.patch.object(gate, "trusted_json", policy or policy_files()), \
                 mock.patch.object(gate, "tree_fingerprint", lambda root: TREE), \
-                mock.patch.object(gate, "changed_files", lambda root: ([], None)), contextlib.redirect_stdout(out):
+                mock.patch.object(gate, "changed_files", lambda root: ([], None)), sealed(), \
+                contextlib.redirect_stdout(out):
             code = gate.main(["--root", str(ROOT), "--gates-root", str(self.gates), "compare", "C1", "X",
                               "--package", package or self.PKG] + list(extra))
         return code, out.getvalue()
@@ -200,7 +232,7 @@ class SecondSignatureTests(GateCase):
                     [trial("A-1", 0), trial("A-2", 0, spec_hash="h-2b")])
         gate.write_json(self.gates / "X" / "reviewed.json", [{"catalog_id": "A-1", "code": "ADOPT"}])
         draft_path = self.gates / "draft.json"
-        with contextlib.redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()), sealed():
             gate.main(["--root", str(ROOT), "--gates-root", str(self.gates), "signoff", "C1", "X", "--by", "main",
                        "--out", str(draft_path)])
         draft = json.loads(draft_path.read_text(encoding="utf-8"))
@@ -385,8 +417,11 @@ class ScopeTests(unittest.TestCase):
         self.assertEqual(k_eval["status"], "FAIL")
         self.assertEqual(k_eval["protected"], [gate.KNOWN_FAILING])
         self.assertEqual(k_gate["status"], "PASS")
-        self.assertEqual(domain["attributed"].get(gate.KNOWN_FAILING), "K-GATE")   # a concurrent policy package
-        self.assertNotIn(gate.KNOWN_FAILING, domain["outside"])
+        # K-GATE3: a protected file (the gate script, its policy) is never attributed to a peer -- phase 1 attributed
+        # both to K-GATE / K-EVAL and a domain package that edited them passed G10 with --shared-tree
+        self.assertEqual(domain["attributed"], {})
+        self.assertEqual((domain["status"], sorted(domain["outside"])), ("FAIL", sorted(files)))
+        self.assertEqual(sorted(domain["protected"]), sorted(files))
 
     def test_the_phase_1_packages(self):
         self.assertEqual(gate.resolve_package("P1"), "P1-ALL")
@@ -412,18 +447,31 @@ class ScopeTests(unittest.TestCase):
         write_record(gates / "C1", {"id": "C1", "stage": "C1", "finished": "2026-10-15"}, own=rows)
         write_record(gates / "ADOPT_cleaning", {"id": "ADOPT_cleaning", "packages": ["ADOPT:cleaning"],
                                                 "stage": "ADOPT", "prev": "C1", "finished": "2026-10-20",
-                                                "tree": TREE}, own=rows)
+                                                "tree": TREE, "gate": dict(GATE_META)}, own=rows)
         changed = (["house_sim/systems/cleaning/floors.py", "house_sim/systems/food/model.py"], None)
-        out = io.StringIO()
-        with mock.patch.object(gate, "changed_files", lambda root: changed), \
-                mock.patch.object(gate, "tree_fingerprint", lambda root: TREE), \
-                mock.patch.object(gate, "trusted_json", policy_files()), contextlib.redirect_stdout(out):
-            code = gate.main(["--root", str(ROOT), "--gates-root", str(gates), "compare", "--package",
-                              "ADOPT:cleaning", "--shared-tree"])
-        self.assertEqual(code, 0, out.getvalue())
-        self.assertIn("compare C1 -> ADOPT_cleaning", out.getvalue())
-        self.assertIn("G10  PASS", out.getvalue())
-        self.assertIn("compare result: PASS", out.getvalue())
+
+        def run(rules):
+            out = io.StringIO()
+            with mock.patch.object(gate, "changed_files", lambda root: changed), \
+                    mock.patch.object(gate, "tree_fingerprint", lambda root: TREE), sealed(), \
+                    mock.patch.object(gate, "trusted_json", policy_files(rules=rules)), contextlib.redirect_stdout(out):
+                code = gate.main(["--root", str(ROOT), "--gates-root", str(gates), "compare", "--package",
+                                  "ADOPT:cleaning", "--shared-tree"])
+            return code, out.getvalue()
+        running = copy.deepcopy(RULES_DATA)
+        running["running_substages"] = ["ADOPT"]            # the adoption round, while it ran
+        code, text = run(running)
+        self.assertEqual(code, 0, text)
+        self.assertIn("compare C1 -> ADOPT_cleaning", text)
+        self.assertIn("G10  PASS", text)
+        self.assertIn("house_sim/systems/food/model.py -> ADOPT:food", text)       # listed for review (K-GATE3)
+        self.assertIn("compare result: PASS", text)
+        # once the round is over its sub-stage is no longer running: the attribution is no hand-over (K-GATE3)
+        code, text = run(None)
+        self.assertEqual(code, 0, text)
+        self.assertIn("G10  PASS", text)
+        self.assertIn("compare result: INCOMPLETE", text)
+        self.assertIn("sub-stage(s) ADOPT, P1 that are not running", text)
 
 
 class TrustedPolicyTests(unittest.TestCase):
@@ -589,7 +637,7 @@ class RedTeamGateTests(GateCase):
         old_checks = {c: {"status": "PASS", "note": "earlier run", "tree": "old" * 21 + "x"} for c in gate.CHECKS}
         old_meta = {"recorded": list(gate.CHECKS), "checks": old_checks, "started": "2026-10-01T00:00:00+00:00"}
         with mock.patch.object(gate, "trusted_json", policy_files()), \
-                mock.patch.object(gate, "tree_fingerprint", lambda root: TREE):
+                mock.patch.object(gate, "tree_fingerprint", lambda root: TREE), sealed():
             g = gate.Gate(args)
             g.fingerprints = {}
             g.results = {"G10": {"status": "PASS", "note": "0 changed files"}}
@@ -738,20 +786,39 @@ class RedTeamGateTests(GateCase):
 
 
 BOUNDS_FILE = (
-    "import os\nimport unittest\nfrom pathlib import Path\n\nCOUNTER = Path(__file__).with_name('attempts.txt')\n\n\n"
+    "import os\nimport time\nimport unittest\nfrom pathlib import Path\n\n"
+    "COUNTER = Path(__file__).with_name('attempts.txt')\n\n\n"
     "class T(unittest.TestCase):\n"
     "    def test_flaky_bound(self):\n"
     "        if os.environ.get('HOUSE_SIM_PERF_TESTS', '1') == '0':\n"
     "            self.skipTest('wall-clock bound off (HOUSE_SIM_PERF_TESTS=0)')\n"
     "        n = int(COUNTER.read_text()) if COUNTER.exists() else 0\n"
     "        COUNTER.write_text(str(n + 1))\n"
-    "        self.assertGreater(n, 0)       # over budget the first time only: a busy moment\n\n"
+    "        start = time.perf_counter()\n"
+    "        time.sleep(0.3 if n == 0 else 0.0)        # over budget the first time only: a busy moment\n"
+    "        self.assertEqual(sum(range(10)), 45)     # its functional assertion\n"
+    "        self.assertLess(time.perf_counter() - start, 0.2, 'over budget')\n\n"
     "    def test_slow_bound(self):\n"
     "        if os.environ.get('HOUSE_SIM_PERF_TESTS', '1') == '0':\n"
     "            self.skipTest('wall-clock bound off (HOUSE_SIM_PERF_TESTS=0)')\n"
-    "        self.fail('always over budget')\n\n"
+    "        start = time.perf_counter()\n"
+    "        time.sleep(0.25)\n"
+    "        self.assertLess(time.perf_counter() - start, 0.2, 'always over budget')\n\n"
     "    def test_plain(self):\n"
     "        pass\n")
+# a failing correctness test disguised as a wall-clock bound (finish_VER.json, perf_disguise.py), and one that keeps
+# skipping its body even when relaxed
+DISGUISED_FILE = (
+    "import os\nimport unittest\n\n\n"
+    "class DisguisedTests(unittest.TestCase):\n"
+    "    def test_a_correctness_check_that_fails(self):\n"
+    "        if os.environ.get('HOUSE_SIM_PERF_TESTS', '1') == '0':\n"
+    "            self.skipTest('wall-clock bound off (HOUSE_SIM_PERF_TESTS=0)')\n"
+    "        self.assertEqual(1 + 1, 3)\n\n"
+    "    def test_one_that_never_runs_its_body(self):\n"
+    "        if os.environ.get('HOUSE_SIM_PERF_TESTS', '1') != '1':\n"
+    "            self.skipTest('wall-clock bound off (HOUSE_SIM_PERF_TESTS is not 1)')\n"
+    "        self.assertEqual(1 + 1, 3)\n")
 
 
 class SecondPassGateTests(GateCase):
@@ -763,7 +830,8 @@ class SecondPassGateTests(GateCase):
         out = io.StringIO()
         with mock.patch.object(gate, "trusted_json", policy or policy_files()), \
                 mock.patch.object(gate, "tree_fingerprint", lambda root: TREE), \
-                mock.patch.object(gate, "changed_files", lambda root: ([], None)), contextlib.redirect_stdout(out):
+                mock.patch.object(gate, "changed_files", lambda root: ([], None)), sealed(), \
+                contextlib.redirect_stdout(out):
             code = gate.main(["--root", str(ROOT), "--gates-root", str(self.gates), "compare", prev, cur, "--package",
                               self.PKG] + list(extra))
         return code, out.getvalue()
@@ -799,7 +867,7 @@ class SecondPassGateTests(GateCase):
                                reviewed=None, camera=None, shared_tree=False)
         with mock.patch.object(gate, "trusted_json", policy_files()), \
                 mock.patch.object(gate, "tree_fingerprint", lambda root: TREE), \
-                mock.patch.object(gate, "changed_files", lambda root: ([], None)):
+                mock.patch.object(gate, "changed_files", lambda root: ([], None)), sealed():
             g = gate.Gate(args)
             self.assertIsNone(g.prev_dir())
             g.fingerprints = {}
@@ -828,7 +896,7 @@ class SecondPassGateTests(GateCase):
                                                                     "prev": mine} for c in gate.CHECKS}}
         with mock.patch.object(gate, "trusted_json", policy_files()), \
                 mock.patch.object(gate, "tree_fingerprint", lambda root: TREE), \
-                mock.patch.object(gate, "changed_files", lambda root: ([], None)):
+                mock.patch.object(gate, "changed_files", lambda root: ([], None)), sealed():
             g = gate.Gate(args)
             prev = g.prev_dir()
             g.fingerprints = {}
@@ -971,7 +1039,9 @@ class SecondPassGateTests(GateCase):
         self.assertIn("PERF FAIL", text)
         self.assertIn("1 failing every attempt", text)
 
-    def test_the_worker_marks_bounds_and_the_perf_job_retries_them(self):
+    def test_the_worker_relaxes_bounds_and_the_perf_job_retries_them(self):
+        """K-GATE2 moved the bounds to G7's perf job (best of 3, alone); K-GATE3 runs their bodies in the correctness
+        runs too, with the timing relaxed (a counting clock), so a slow moment there never fails them."""
         tmp = Path(tempfile.mkdtemp(prefix="gate_perf_"))
         self.addCleanup(shutil.rmtree, str(tmp), True)
         (tmp / "tests").mkdir()
@@ -985,7 +1055,9 @@ class SecondPassGateTests(GateCase):
                               text=True, timeout=300)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(json.loads(out.read_text(encoding="utf-8"))["tests"],
-                         {flaky: "perf", slow: "perf", plain: "ok"})       # FIX2's worker: "skip"
+                         {flaky: "ok", slow: "ok", plain: "ok"})      # their bodies ran (K-GATE2's worker: "perf")
+        self.assertEqual((tmp / "tests" / "attempts.txt").read_text(), "1")
+        (tmp / "tests" / "attempts.txt").unlink()
         green = gate._green_tests()
         self.assertEqual(green.perf_tests([str(tmp / "tests" / "test_bounds.py")]), {"test_bounds.py": [flaky, slow]})
         rows = green.run_perf({"test_bounds.py": [flaky, slow]}, ("normal",), 3, str(tmp), str(tmp / "work"))
@@ -994,32 +1066,39 @@ class SecondPassGateTests(GateCase):
         self.assertEqual(rows[0]["attempts"], {flaky: 2, slow: 3})
         self.assertIn("always over budget", rows[0]["tail"])
         self.assertEqual(gate.perf_failures({"perf": rows}), [("test_bounds.py", "normal", slow)])
-        # the correctness runs: green_tests.py turns the bounds off unless the caller set the switch
+        # the correctness runs: green_tests.py relaxes the bounds unless the caller set the switch
         quiet = dict(os.environ)
         quiet.pop("HOUSE_SIM_PERF_TESTS", None)
         proc = subprocess.run([sys.executable, str(ROOT / "tools" / "orchestration" / "green_tests.py"), "1",
                                "--modes", "normal", "--tests-dir", str(tmp / "tests"), "--json", str(tmp / "g.json")],
                               env=quiet, capture_output=True, text=True, timeout=300)
         self.assertEqual(proc.returncode, 0, proc.stdout)
-        self.assertEqual(json.loads((tmp / "g.json").read_text(encoding="utf-8"))[0]["skipped"], 2)
-        self.assertIn("run them alone with --perf", proc.stdout)
+        self.assertEqual(json.loads((tmp / "g.json").read_text(encoding="utf-8"))[0]["skipped"], 0)
+        self.assertIn("assert them alone with --perf", proc.stdout)
         proc = subprocess.run([sys.executable, str(ROOT / "tools" / "orchestration" / "green_tests.py"), "--perf",
                                "--modes", "normal", "--tests-dir", str(tmp / "tests")], env=quiet,
                               capture_output=True, text=True, timeout=300)
         self.assertEqual(proc.returncode, 1, proc.stdout)
         self.assertIn("FAIL " + slow, proc.stdout)
 
-    def test_the_gates_correctness_runs_turn_the_bounds_off(self):
-        args = SimpleNamespace(root=str(ROOT), gates_root=str(self.gates), id="ENVCASE", out=None, work=None,
-                               package=None, stage="B0", only="G1,G1b,G8", skip=None, seeds=None, jobs=1, extras="",
-                               bench_repeats=1, prev="none", spec_files=None, reviewed=None, camera=None,
-                               shared_tree=False, test_timeout=60)
-        g = gate.Gate(args)
-        g.prev_dir_cached = None
-        jobs = g.test_jobs()
-        self.assertTrue(jobs)
-        self.assertEqual({j.env.get(gate.PERF_ENV) for j in jobs}, {"0"})
+    def test_the_gates_correctness_runs_relax_the_bounds(self):
+        args = SimpleNamespace(root=str(ROOT), gates_root=str(self.gates), id="ENVCASE", out=None,
+                               work=str(self.gates / "work"), package=None, stage="B0", only="G1,G1b,G8", skip=None,
+                               seeds=None, jobs=1, extras="", bench_repeats=1, prev="none", spec_files=None,
+                               reviewed=None, camera=None, shared_tree=False, test_timeout=60)
+        with mock.patch.object(gate, "trusted_json", policy_files()):
+            g = gate.Gate(args)
+            g.prev_dir_cached = None
+            jobs = g.test_jobs()
+        units = [j for j in jobs if not j.meta.get("lint")]
+        self.assertTrue(units)
+        self.assertEqual({j.env.get(gate.PERF_ENV) for j in units}, {"0"})
+        plan = json.loads(Path(units[0].env[gate._wallclock().PLAN_ENV]).read_text(encoding="utf-8"))
+        self.assertEqual(plan["tests.test_mind.BudgetTests.test_update_budget_on_a_generated_house"], "count")
+        self.assertEqual(plan["tests.test_physics_thermal.ThermalStepTests."
+                              "test_faster_than_the_kernel_thermal_system_on_a_settled_house"], "skip")
         self.assertEqual({j.check for j in jobs}, {"G1", "G1b", "G8"})
+        self.assertEqual([j.name for j in jobs if j.meta.get("lint")], ["G1 py39_lint"])      # K-GATE3: in G1
         bounds = g.perf_bounds()
         self.assertIn("tests.test_mind.BudgetTests.test_update_budget_on_a_generated_house", bounds["test_mind.py"])
 
@@ -1083,10 +1162,12 @@ class NoopAndGoldenPolicyTests(unittest.TestCase):
         pinned = {"runs": {}, "specs": {"A-1": {"passes": False, "state": "s1", "known_failing": True},
                                         "B-1": {"passes": True, "state": "s2"}}}
         fixed = {"A-1": {"passes": True, "state": "s9"}, "B-1": {"passes": True, "state": "s2"}}
-        self.assertEqual(golden.compare(pinned, {}, fixed), [])        # the fix the entry waited for
-        self.assertEqual(len(golden.expected_changes(pinned, fixed)), 1)
+        # the fix the entry waited for -- while the committed allowlist vouches for the pin (K-GATE3)
+        self.assertEqual(golden.compare(pinned, {}, fixed, vouched={"A-1"}), [])
+        self.assertEqual(len(golden.expected_changes(pinned, fixed, vouched={"A-1"})), 1)
         broken = {"A-1": {"passes": False, "state": "s1"}, "B-1": {"passes": False, "state": "s3"}}
-        self.assertEqual(len(golden.compare(pinned, {}, broken)), 1)    # B-1 regressed: a difference
+        self.assertEqual(len(golden.compare(pinned, {}, broken, vouched={"A-1"})), 1)    # B-1 regressed
+        self.assertEqual(len(golden.compare(pinned, {}, fixed, vouched=set())), 2)      # the file's flag alone
         with self.assertRaises(SystemExit):                              # record() refuses before writing anything
             with mock.patch.object(golden, "compute", lambda g, keys, workers: ({}, specs)), \
                     mock.patch.object(golden, "allowlisted_failing", lambda keys: set()), \
@@ -1098,8 +1179,9 @@ class NoopAndGoldenPolicyTests(unittest.TestCase):
 
     def test_a_recorder_cannot_excuse_a_failing_reference_itself(self):
         """K-GATE2 (red_defects 12 residual): FIX2's `record --known-failing ID` pinned any failing reference its
-        recorder named. Only the main session's acceptance counts: the committed allowlist, or a known-failing pin of
-        the committed golden; a named id outside both is refused before anything runs."""
+        recorder named. Only the main session's acceptance counts: the committed allowlist (K-GATE3: a known-failing
+        pin of the committed golden no longer does -- it is the file's own flag); a named id outside it is refused
+        before anything runs."""
         sys.path.insert(0, str(ROOT / "tools"))
         import golden
         specs = {"A-1": {"passes": False, "state": "s1"}, "B-1": {"passes": True, "state": "s2"}}
@@ -1119,7 +1201,14 @@ class NoopAndGoldenPolicyTests(unittest.TestCase):
             record(set(), set(), known=["A-1"])                 # self-named: refused
         self.assertIn("cannot excuse a failure itself", str(caught.exception))
         self.assertEqual(saved, [])
-        pinned = record({"A-1"}, set())                          # the committed golden pins it: kept
+        with self.assertRaises(SystemExit) as caught:
+            record({"A-1"}, set())                              # the committed golden pins it: no longer enough
+        self.assertIn("refusing to pin failing reference", str(caught.exception))
+        with self.assertRaises(SystemExit) as caught:
+            record({"A-1"}, set(), known=["A-1"])
+        self.assertIn("excuses nothing by itself", str(caught.exception))
+        self.assertEqual(saved, [])
+        pinned = record(set(), {"A-1"})                          # allowlisted: kept
         self.assertTrue(pinned["specs"]["A-1"]["known_failing"])
         pinned = record(set(), {"A-1"}, known=["A-1"])          # allowlisted: accepted, also when named
         self.assertEqual(pinned["history"][-1]["known_failing"], ["A-1"])
@@ -1285,56 +1374,23 @@ class ProcessToolTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stdout)
 
     def test_every_python_file_is_python_3_9(self):
-        """The project targets Python 3.9 (setup.py) and is developed on 3.14: grammar (ast feature_version) and the
-        common 3.10+ runtime features that would only fail when that line runs."""
-        newer = {"pairwise": "itertools.pairwise", "bit_count": "int.bit_count", "cbrt": "math.cbrt",
-                 "exp2": "math.exp2", "StrEnum": "enum.StrEnum", "aclosing": "contextlib.aclosing"}
-        problems = []
-        files = [p for d in ("house_sim", "tools", "tests") for p in (ROOT / d).rglob("*.py")] + list(ROOT.glob("*.py"))
-        for path in sorted(p for p in files if "__pycache__" not in p.parts):
-            src = path.read_text(encoding="utf-8")
-            try:
-                tree = ast.parse(src, filename=str(path), feature_version=(3, 9))
-            except SyntaxError as exc:
-                problems.append("{}: not Python 3.9 syntax: {}".format(path.relative_to(ROOT), exc))
-                continue
-            future = any(isinstance(n, ast.ImportFrom) and n.module == "__future__" and
-                         any(a.name == "annotations" for a in n.names) for n in tree.body)
-            for node in ast.walk(tree):
-                where = "{}:{}".format(path.relative_to(ROOT).as_posix(), getattr(node, "lineno", "?"))
-                if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "zip" and \
-                        any(k.arg == "strict" for k in node.keywords):
-                    problems.append(where + " zip(strict=) is 3.10+")
-                if isinstance(node, ast.Call) and getattr(node.func, "id", None) in ("isinstance", "issubclass") and \
-                        len(node.args) == 2 and isinstance(node.args[1], ast.BinOp):
-                    problems.append(where + " isinstance(x, A | B) is 3.10+")
-                if isinstance(node, ast.Attribute) and node.attr in newer:
-                    problems.append(where + " {} is 3.10+".format(newer[node.attr]))
-                if isinstance(node, ast.Name) and node.id in ("aiter", "anext"):
-                    problems.append(where + " {} is 3.10+".format(node.id))
-                if isinstance(node, (ast.Import, ast.ImportFrom)):
-                    names = [a.name for a in node.names] if isinstance(node, ast.Import) else [node.module or ""]
-                    if "tomllib" in names:
-                        problems.append(where + " tomllib is 3.11+")
-                    if isinstance(node, ast.ImportFrom) and node.module == "datetime" and \
-                            any(a.name == "UTC" for a in node.names):
-                        problems.append(where + " datetime.UTC is 3.11+")
-                if not future:
-                    anns = []
-                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                        anns = [a.annotation for a in node.args.args + node.args.kwonlyargs if a.annotation] + \
-                            ([node.returns] if node.returns else [])
-                    elif isinstance(node, ast.AnnAssign):
-                        anns = [node.annotation]
-                    if any(isinstance(n, ast.BinOp) and isinstance(n.op, ast.BitOr) for a in anns for n in ast.walk(a)):
-                        problems.append(where + " an X | Y annotation needs from __future__ import annotations on 3.9")
-        self.assertEqual(problems, [], "\n".join(problems[:40]))
+        """The project targets Python 3.9 (setup.py) and is developed on 3.14: tools/py39_lint.py (K-GATE3; it replaced
+        the checks this test made itself) finds 3.10+ grammar, run-time unions and newer standard-library calls; CI
+        and the gate's G1 run it (tests/test_py39_lint.py covers the lint's rules)."""
+        spec = importlib.util.spec_from_file_location("py39_lint_for_gate_test", str(ROOT / "tools" / "py39_lint.py"))
+        lint = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(lint)
+        count, problems = lint.lint(ROOT)
+        self.assertGreater(count, 300)
+        self.assertEqual([str(p) for p in problems], [], "\n".join(str(p) for p in problems[:40]))
+        self.assertTrue(lint.lint_source("x = isinstance(1, int | str)\n"))       # the lint bites
 
     def test_the_ci_workflow_covers_both_pythons_and_both_systems(self):
         text = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
         for needle in ('"3.9"', '"3.14"', "ubuntu-latest", "windows-latest", "green_tests.py",
                        "run_check.py run --all", "core.autocrlf false", "HOUSE_AI_FORBID_NETWORK",
-                       'HOUSE_SIM_PERF_TESTS: "0"', "continue-on-error: true", "--allowlist"):
+                       'HOUSE_SIM_PERF_TESTS: "0"', "continue-on-error: true", "--allowlist",
+                       "python tools/py39_lint.py"):
             self.assertIn(needle, text)
         self.assertNotIn("secrets.", text)                  # no secrets, no paid services
         # K-GATE2: the wall-clock bounds are a separate, informational perf job (best of 3, alone), not a step of the
@@ -1346,6 +1402,429 @@ class ProcessToolTests(unittest.TestCase):
         self.assertNotIn("--perf", tests_job)
         self.assertNotIn("-k budget", text)
         self.assertNotIn("\t", text)
+
+
+# the digests of the rules the committed gate script held before the close-out (HEAD e5e8727; sha256 of their
+# canonical JSON): the committed rules must keep every one of them exactly -- no rule gets weaker
+FORMER_RULES = {
+    "packages": "edd3a123e16cc3725e338006a48b6aec599bb2dcc717adf11c3b6b86c2409cf1",
+    "substages": "1c25821f1264d347b2d45b22c6ee3b67e66cc83148239648df8c445568400cf6",
+    "default_prev": "82e020c11527a1fd1eacf65ad92dfa3960eff5cfab1ee5e47990c623be8599da",
+    "substage_base": "f81d2bdf738bccb44c7dcd65a75f2b26479ae8659fe239c390f1db0f7dda8ca7",
+    "stage_order": "2d24f1e8d1eb660593eb8f556460533ef385c640964bb598f5685e398af7b8fb",
+    "domains": "e83901e4f5887bb7ad600cc0f6a0d6f1ec25975c44336d1a51222514623ea669",
+    "seeds": "f8058eee3f5a5c59491129d53737615877bb1a31095cf5f4f90178445e37108b",
+    "kernel_tests": "fbceed967f5c751bee6339030911617e128b36342685e69b09b35cc8e6dabc76",
+    "features": "6cd71367103735c63411e553c91543b7d702dc07626388c231838c624363a674",
+    "extra_tools": "9b8e89cf9fe126466ccc72f68e8552d7ac1000d544839cf4a498e8ce361ff020",
+    "protected": "9d960a0d6d2e0bb24847c0d322426042d066310c48ccf8b88c3ddefff0a4f769",
+    "perf_attempts": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
+}
+NEW_STAGES = ("P1C", "P2-S1", "P2-S2", "P2-S3", "P2-S4", "P2-S5", "P2-S6", "P2")
+
+
+def canonical(value):
+    import hashlib
+    return hashlib.sha256(json.dumps(value, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+class CloseOutGateTests(GateCase):
+    """The phase-1 close-out (K-GATE3): the four holes the independent verifier found (catalog/analysis/phase1/
+    finish_VER.json; its scripts budget_attack.py, scope_attacks.py, golden_attacks.py, perf_disguise.py). Each test
+    replays its attack and fails on the K-GATE2 gate."""
+
+    # ---- 1. the gate's rules lived in the unprotected gate script
+    def test_the_rules_are_committed_policy_with_every_former_value(self):
+        old_ids = [p for p in RULES_DATA["packages"] if not (p.startswith(("P1C", "P2-")) or p == "K-GATE3")]
+        fields = ("stage", "files", "allow", "codes", "extras", "inert", "bench", "requires", "aka", "note", "policy")
+        now = {
+            "packages": {p: {k: RULES_DATA["packages"][p][k] for k in fields} for p in old_ids},
+            "substages": {k: v for k, v in RULES_DATA["substages"].items() if k not in NEW_STAGES},
+            "default_prev": {k: v for k, v in RULES_DATA["default_prev"].items() if k not in NEW_STAGES},
+            "substage_base": {k: v for k, v in RULES_DATA["substage_base"].items() if k not in NEW_STAGES},
+            "stage_order": [s for s in RULES_DATA["stage_order"] if s not in NEW_STAGES],
+            "domains": RULES_DATA["domains"], "seeds": RULES_DATA["seeds"], "kernel_tests": RULES_DATA["kernel_tests"],
+            "features": {k: [v["stage"], v["introducer"], v["what"]] for k, v in RULES_DATA["features"].items()},
+            "extra_tools": {k: [v["tool"], v["introducer"]] for k, v in RULES_DATA["extra_tools"].items()},
+            "protected": RULES_DATA["scope"]["policy_files"], "perf_attempts": RULES_DATA["perf"]["attempts"]}
+        self.assertEqual({k: canonical(v) for k, v in now.items()}, FORMER_RULES)
+        self.assertEqual(RULES_DATA["bench"]["default"], [1.05, "prev"])
+        self.assertEqual((RULES_DATA["bench"]["tolerance"], RULES_DATA["gen2_timing"]["max_ratio"]), (1e-9, 1.2))
+        self.assertEqual(RULES_DATA["bench"]["budgeted"], ["substep_ms", "wait_1h_s"])
+        # the script holds no rule any more: the two lines budget_attack.py edited are gone
+        source = (ROOT / "tools" / "orchestration" / "tier1_gate.py").read_text(encoding="utf-8")
+        for needle in ('"bench": [1.05, "prev"]', 'bench=(1.05, "prev")', "PACKAGES = {", "SUBSTAGES = {",
+                       "PERF_ATTEMPTS = 3", "DEFAULT_PREV = {"):
+            self.assertNotIn(needle, source)
+        with mock.patch.object(gate, "trusted_json", policy_files()):
+            self.assertEqual(gate.PACKAGES["PHYS-INT"]["bench"], [1.0, "A0"])          # read from the rules
+            self.assertEqual(gate.policy_for(["P2-WP2"])["bench"], [1.15, "prev"])   # a package's own budget
+            self.assertEqual(gate.policy_for(["ADOPT:cleaning", "PHYS-INT"])["bench"], [1.0, "A0"])
+
+    def test_the_budget_comes_from_the_committed_rules_not_the_working_tree(self):
+        """budget_attack.py: two edited lines raised G7's budget to 1.5 and a 20 % slower record compared PASS. The
+        budget is committed policy now: a working-tree edit of the rules counts for nothing."""
+        rows = [trial("A-1", 0)]
+        self.record(rows, rows)
+        gate.write_json(self.gates / "C1" / "bench.json", {"G7": {"substep_ms": 2.69, "wait_1h_s": 1.0201}})
+        gate.write_json(self.gates / "X" / "bench.json", {"G7": {"substep_ms": 3.228, "wait_1h_s": 1.224}})
+        code, text = self.compare()
+        self.assertEqual(code, 1, text)
+        self.assertIn("limit 2.825 = prev x 1.05)  OVER BUDGET", text)
+        lenient = copy.deepcopy(RULES_DATA)
+        lenient["packages"][self.PKG]["bench"] = [1.5, "prev"]
+        self.assertEqual(self.compare(policy=policy_files(rules=lenient))[0], 0)    # the rules decide, if committed
+        if not shutil.which("git"):
+            return
+        repo = Path(tempfile.mkdtemp(prefix="gate_rules_"))
+        self.addCleanup(shutil.rmtree, str(repo), True)
+
+        def git(*args):
+            return subprocess.run(["git", "-C", str(repo)] + list(args), capture_output=True, text=True)
+        git("init", "-q")
+        git("config", "user.email", "test@example.invalid")
+        git("config", "user.name", "gate test")
+        git("config", "commit.gpgsign", "false")
+        path = repo / gate.RULES_FILE
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps(RULES_DATA), encoding="utf-8")
+        git("add", "-A")
+        self.assertEqual(git("commit", "-q", "-m", "rules").returncode, 0)
+        path.write_text(json.dumps(lenient), encoding="utf-8")          # the attack: edit the working-tree rules
+        with mock.patch.object(gate, "policy_root", lambda: repo):
+            self.assertEqual(gate.rules()["packages"][self.PKG]["bench"], [1.05, "prev"])
+            self.assertTrue(gate.rules()["_committed"])
+        gate._RULES.clear()
+
+    def test_a_record_made_by_an_edited_gate_script_is_no_hand_over(self):
+        """The script half of budget_attack.py: a record made by a gate script that differs from the committed one
+        (its blob hashes in meta "gate") fails GATE; only the gate tool's own package may record so, with the main
+        session's gate-change signature naming that code."""
+        rows = [trial("A-1", 0)]
+        edited = dict(FAKE_CODE, **{"tools/orchestration/tier1_gate.py": "e" * 40})
+        self.record(rows, rows, meta={"gate": {"code": edited, "digest": gate.code_digest(edited),
+                                               "commit": FAKE_COMMIT}})
+        code, text = self.compare()
+        self.assertEqual(code, 1, text)
+        self.assertIn("GATE FAIL  made by a gate script that differs", text)
+        self.assertIn("tools/orchestration/tier1_gate.py", text)
+        # the gate tool's own package: FAIL without, PASS with the gate-change signature
+        self.meta.update(packages=["K-GATE3"], stage="P1C")
+        self.record(rows, rows, meta={"gate": {"code": edited, "digest": gate.code_digest(edited),
+                                               "commit": FAKE_COMMIT}})
+        code, text = self.compare(package="K-GATE3")
+        self.assertEqual(code, 1, text)
+        self.assertIn('"kind": "gate-change"', text)
+        signed = policy_files(signoffs={"X": [{"kind": "gate-change", "digest": gate.code_digest(edited)}]})
+        code, text = self.compare(package="K-GATE3", policy=signed)
+        self.assertEqual(code, 0, text)
+        self.assertIn("gate-change", text)
+        # a record without its gate code cannot be verified, and a comparing script that differs is no hand-over
+        meta = dict(self.meta)
+        meta.pop("gate")
+        write_record(self.gates / "X", meta, own=rows)
+        self.assertIn("no gate-code digest in the record", self.compare(package="K-GATE3")[1])
+        self.meta.update(packages=[self.PKG], stage="ADOPT")
+        self.record(rows, rows)
+        out = io.StringIO()
+        with mock.patch.object(gate, "trusted_json", policy_files()), \
+                mock.patch.object(gate, "tree_fingerprint", lambda root: TREE), \
+                mock.patch.object(gate, "changed_files", lambda root: ([], None)), \
+                mock.patch.object(gate, "running_gate", lambda: {"script": "x", "files": edited, "code": edited,
+                                                                 "digest": gate.code_digest(edited)}), \
+                mock.patch.object(gate, "committed_gate", lambda commit="HEAD": dict(FAKE_CODE)), \
+                contextlib.redirect_stdout(out):
+            code = gate.main(["--root", str(ROOT), "--gates-root", str(self.gates), "compare", "C1", "X", "--package",
+                              self.PKG])
+        self.assertEqual(code, 0, out.getvalue())
+        self.assertIn("compare result: INCOMPLETE", out.getvalue())
+        self.assertIn("the comparing gate script differs from the committed one", out.getvalue())
+
+    def test_a_record_written_by_changed_gate_code_fails(self):
+        out = Path(tempfile.mkdtemp(prefix="gate_code_"))
+        self.addCleanup(shutil.rmtree, str(out), True)
+        args = SimpleNamespace(root=str(ROOT), gates_root=str(out), id="EDITED", out=str(out / "EDITED"),
+                               work=str(out / "work"), package=self.PKG, stage=None, only=None, skip=None, seeds=None,
+                               jobs=1, extras=None, bench_repeats=1, prev="none", spec_files=None, reviewed=None,
+                               camera=None, shared_tree=False)
+        edited = dict(FAKE_CODE, **{"tools/orchestration/tier1_gate.py": "e" * 40})
+        with mock.patch.object(gate, "trusted_json", policy_files()), \
+                mock.patch.object(gate, "tree_fingerprint", lambda root: TREE), \
+                mock.patch.object(gate, "changed_files", lambda root: ([], None)), \
+                sealed(code=edited, committed=FAKE_CODE):
+            g = gate.Gate(args)
+            g.fingerprints = {}
+            g.results = {c: {"status": "PASS", "note": "ok"} for c in gate.CHECKS}
+            g.spec_rows = {"own": [], "realistic": []}
+            g.spec_summary = {m: {"specs": 0, "passed": 0, "trials": 0, "failing": {}} for m in ("own", "realistic")}
+            (out / "EDITED").mkdir()
+            with contextlib.redirect_stdout(io.StringIO()):
+                g.write(None, gate.now_iso(), {})
+        meta = json.loads((out / "EDITED" / "meta.json").read_text(encoding="utf-8"))
+        self.assertEqual(meta["verdict"], "FAIL", meta["summary"])
+        self.assertIn("failing: GATE", meta["summary"])
+        self.assertEqual(meta["gate"]["differs"], ["tools/orchestration/tier1_gate.py"])
+        self.assertEqual(meta["gate"]["code"], edited)
+        self.assertEqual({c["gate"] for c in meta["checks"].values()}, {gate.code_digest(edited)})
+
+    # ---- 2. G10 attributed protected files and other owners' tests to concurrent peers
+    def test_protected_files_are_never_attributed_and_peers_must_own_the_file(self):
+        """scope_attacks.py: with --shared-tree a domain package passed G10 after editing the gate script (attributed
+        to K-EVAL), planting an allowlist entry (to K-GATE) or loosening another owner's test (to K-CAM)."""
+        protected = ["tools/orchestration/tier1_gate.py", gate.KNOWN_FAILING, ".github/workflows/ci.yml",
+                     "tests/data/room_golden.json", "tests/data/gen1_digests.json", gate.RULES_FILE]
+        with mock.patch.object(gate, "trusted_json", policy_files()):
+            for pkg in ("ADOPT:cleaning", "P1C:pets"):
+                for f in protected:
+                    with mock.patch.object(gate, "changed_files", lambda root, f=f: ([f], None)):
+                        result = gate.scope_check(ROOT, gate.policy_for([pkg]), pkg, shared_tree=True)
+                    self.assertEqual((result["status"], result["attributed"], result["protected"]), ("FAIL", {}, [f]),
+                                     (pkg, f))
+            # the running sub-stage (P1C): a file outside the package goes to a peer only when its own scope has it
+            changed = (["house_sim/systems/pets/agents.py", "tests/test_cleaning.py", "tests/test_perception.py",
+                        "house_sim/systems/food/model.py", "catalog/analysis/tier1/gate/P1C_electrical/meta.json"], None)
+            with mock.patch.object(gate, "changed_files", lambda root: changed):
+                result = gate.scope_check(ROOT, gate.policy_for(["P1C:pets"]), "P1C_pets", shared_tree=True)
+        self.assertEqual(result["attributed"], {"tests/test_cleaning.py": "P1C:mechanisms",
+                                                "catalog/analysis/tier1/gate/P1C_electrical/meta.json": "P1C:electrical"})
+        self.assertEqual(sorted(result["outside"]), ["house_sim/systems/food/model.py", "tests/test_perception.py"])
+        self.assertIn("tests/test_cleaning.py -> P1C:mechanisms", result["note"])        # listed for review
+        self.assertEqual(result["historical"], [])
+        self.assertEqual(RULES_DATA["running_substages"], ["P1C"])
+
+    def test_an_attribution_in_a_sub_stage_that_is_not_running_is_no_hand_over(self):
+        out = Path(tempfile.mkdtemp(prefix="gate_hist_"))
+        self.addCleanup(shutil.rmtree, str(out), True)
+        write_record(out / "C1", self.prev_meta, own=[trial("C-1", 0, file=FILE_C)])
+        args = SimpleNamespace(root=str(ROOT), gates_root=str(out), id="ADOPT_cleaning", out=str(out / "ADOPT_cleaning"),
+                               work=str(out / "work"), package="ADOPT:cleaning", stage=None, only="G10", skip=None,
+                               seeds=None, jobs=1, extras=None, bench_repeats=1, prev=None, spec_files=None,
+                               reviewed=None, camera=None, shared_tree=True)
+        changed = (["house_sim/systems/cleaning/floors.py", "house_sim/kernel/camera.py"], None)
+        with mock.patch.object(gate, "trusted_json", policy_files()), \
+                mock.patch.object(gate, "tree_fingerprint", lambda root: TREE), \
+                mock.patch.object(gate, "changed_files", lambda root: changed), sealed():
+            g = gate.Gate(args)
+            scope = gate.scope_check(ROOT, g.policy, g.id, True)
+            g.data["scope"]["G10"] = scope
+            g.fingerprints = {}
+            g.results = {"G10": {"status": scope["status"], "note": scope["note"]}}
+            (out / "ADOPT_cleaning").mkdir()
+            with contextlib.redirect_stdout(io.StringIO()):
+                g.write(g.prev_dir(), gate.now_iso(), {})
+        self.assertEqual((scope["status"], scope["attributed"]), ("PASS", {"house_sim/kernel/camera.py": "K-CAM"}))
+        self.assertEqual(scope["historical"], ["ADOPT", "P1"])
+        meta = json.loads((out / "ADOPT_cleaning" / "meta.json").read_text(encoding="utf-8"))
+        self.assertFalse(meta["handover"], meta["summary"])
+        self.assertIn("sub-stage(s) ADOPT, P1 that are not running", meta["incomplete"])
+
+    # ---- 3. a hand-edited room golden neutralised any pin
+    def golden_records(self, prev_entries, cur_entries, reviewed=None, package="P1C-INT"):
+        self.meta.update(packages=[package], stage="P1C")
+        rows = [trial("A-1", 0)]
+        self.record(rows, rows, cur_tests={"golden": {"entries": cur_entries, "base": "x", "changes": []}})
+        gate.write_json(self.gates / "C1" / "tests.json", {"golden": {"entries": prev_entries}})
+        if reviewed is not None:
+            gate.write_json(self.gates / "X" / "reviewed.json", reviewed)
+
+    def test_every_re_recorded_golden_entry_needs_a_reviewed_and_a_signed_row(self):
+        """golden_attacks.py G2: an entry's digest changed by hand and marked known-failing passed G8. The gate now
+        lists every entry that differs from the previous record's as a re-record needing two signatures."""
+        before = {"specs/T-1": "a" * 16, "specs/T-2": "b" * 16, "runs/0/oracle": "c" * 16}
+        after = dict(before, **{"specs/T-1": "e" * 16})
+        self.golden_records(before, before)
+        code, text = self.compare(package="P1C-INT")
+        self.assertEqual(code, 0, text)
+        self.assertIn("GOLD PASS  room golden: 0 entr(ies) re-recorded vs the previous record C1", text)
+        self.golden_records(before, after)
+        code, text = self.compare(package="P1C-INT")
+        self.assertEqual(code, 1, text)
+        self.assertIn("1 without the package's reviewed golden row: specs/T-1 (edited)", text)
+        self.assertIn("1 without the main session's signed golden row", text)
+        review = [{"kind": "golden", "key": "specs/*", "code": "P1C"}]
+        self.golden_records(before, after, reviewed=review)
+        self.assertEqual(self.compare(package="P1C-INT")[0], 1)                     # reviewed, not signed
+        signed = policy_files(signoffs={"X": [{"kind": "golden", "key": "specs/T-1", "digest": "e" * 16}]})
+        code, text = self.compare(package="P1C-INT", policy=signed)
+        self.assertEqual(code, 0, text)
+        stale = policy_files(signoffs={"X": [{"kind": "golden", "key": "specs/T-1", "digest": "a" * 16}]})
+        self.assertEqual(self.compare(package="P1C-INT", policy=stale)[0], 1)       # a signature names one digest
+        # a package that does not own the golden cannot review it (a domain package's row counts for nothing)
+        self.golden_records(before, after, reviewed=review, package="P1C:pets")
+        self.assertEqual(self.compare(package="P1C:pets", policy=signed)[0], 1)
+        # the signoff draft lists the row for the main session
+        with mock.patch.object(gate, "trusted_json", policy_files()), sealed():
+            draft = gate.signoff_draft(self.gates / "C1", self.gates / "X", gate.policy_for(["P1C:pets"]), [])
+        self.assertIn({"kind": "golden", "key": "specs/T-1", "digest": "e" * 16, "change": "edited",
+                       "reviewed_by_package": False}, draft["rows"])
+
+    def test_golden_entries_and_the_base_of_a_record(self):
+        data = {"format": "f", "camera": "room", "fixed_specs": ["T-1"], "history": [{"by": "x"}],
+                "runs": {"0/oracle": {"steps": []}}, "specs": {"T-1": {"state": "s"}}}
+        entries = gate.golden_entries(data)
+        self.assertEqual(sorted(entries), ["meta/camera", "meta/fixed_specs", "meta/format", "runs/0/oracle",
+                                           "specs/T-1"])
+        edited = copy.deepcopy(data)
+        edited["specs"]["T-1"].update(known_failing=True, passes=False)         # the attack's hand edit
+        edited["history"].append({"by": "y"})                                  # the history is no entry
+        self.assertEqual(gate.golden_changes(entries, gate.golden_entries(edited)),
+                         [{"key": "specs/T-1", "change": "edited", "digest": gate.golden_entries(edited)["specs/T-1"]}])
+        self.assertEqual([c["change"] for c in gate.golden_changes(None, entries)], ["added"] * 5)
+        # the real golden at HEAD: the base of a record against a previous record without entries
+        if shutil.which("git"):
+            head = gate.golden_at("HEAD")
+            self.assertTrue(head and any(k.startswith("specs/") for k in head))
+
+    # ---- 4. a failing correctness test disguised as a wall-clock bound
+    def test_a_failing_test_disguised_as_a_bound_fails_the_correctness_run(self):
+        """perf_disguise.py: a test that skipped with the bound's message when HOUSE_SIM_PERF_TESTS=0 and otherwise
+        asserted 1 + 1 == 3 kept CI's correctness step green. Bounds run relaxed now: the body runs, so the failure
+        fails; a test that still skips its body fails the run; an unregistered perf mark fails it too."""
+        tmp = Path(tempfile.mkdtemp(prefix="gate_disguise_"))
+        self.addCleanup(shutil.rmtree, str(tmp), True)
+        (tmp / "tests").mkdir()
+        (tmp / "tests" / "test_ver_disguise.py").write_text(DISGUISED_FILE, encoding="utf-8")
+        fails = "tests.test_ver_disguise.DisguisedTests.test_a_correctness_check_that_fails"
+        skips = "tests.test_ver_disguise.DisguisedTests.test_one_that_never_runs_its_body"
+        out = tmp / "out.json"
+        proc = subprocess.run([sys.executable, str(ROOT / "tools" / "orchestration" / "tier1_gate.py"), "_unittest",
+                               str(out), "tests/test_ver_disguise.py"], cwd=str(tmp),
+                              env=dict(os.environ, HOUSE_SIM_PERF_TESTS="0"), capture_output=True, text=True,
+                              timeout=300)
+        self.assertEqual(proc.returncode, 1, proc.stderr)                       # the CI correctness step: red
+        self.assertEqual(json.loads(out.read_text(encoding="utf-8"))["tests"], {fails: "fail", skips: "perf"})
+        green = str(ROOT / "tools" / "orchestration" / "green_tests.py")
+        registry = tmp / "registry.json"
+        gate.write_json(registry, {"format": gate._wallclock().REGISTRY_FORMAT, "bounds": [
+            {"test": fails, "owner": "o"}, {"test": skips, "owner": "o"}]})
+        quiet = {k: v for k, v in os.environ.items() if k != "HOUSE_SIM_PERF_TESTS"}
+        proc = subprocess.run([sys.executable, green, "1", "--modes", "normal", "--tests-dir", str(tmp / "tests"),
+                               "--registry", str(registry), "--json", str(tmp / "g.json")], env=quiet,
+                              capture_output=True, text=True, timeout=300)
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        result = json.loads((tmp / "g.json").read_text(encoding="utf-8"))[0]
+        self.assertEqual(result["bounds_skipped"], [skips])
+        self.assertIn(fails, result["outcomes"]["fail"])
+        # registered and passing, but unregistered: a new perf mark is visible in review
+        (tmp / "tests" / "test_ver_disguise.py").write_text(DISGUISED_FILE.replace("1 + 1, 3", "1 + 1, 2").replace(
+            "!= '1'", "== '0'"), encoding="utf-8")
+        gate.write_json(registry, {"format": gate._wallclock().REGISTRY_FORMAT, "bounds": [{"test": fails,
+                                                                                             "owner": "o"}]})
+        proc = subprocess.run([sys.executable, green, "1", "--modes", "normal", "--tests-dir", str(tmp / "tests"),
+                               "--registry", str(registry), "--json", str(tmp / "g.json")], env=quiet,
+                              capture_output=True, text=True, timeout=300)
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("UNREGISTERED wall-clock bound(s)", proc.stdout)
+        self.assertIn(skips, proc.stdout)
+        gate.write_json(registry, {"format": gate._wallclock().REGISTRY_FORMAT, "bounds": [
+            {"test": fails, "owner": "o"}, {"test": skips, "owner": "o"}]})
+        proc = subprocess.run([sys.executable, green, "1", "--modes", "normal", "--tests-dir", str(tmp / "tests"),
+                               "--registry", str(registry)], env=quiet, capture_output=True, text=True, timeout=300)
+        self.assertEqual(proc.returncode, 0, proc.stdout)
+
+    def test_a_bound_that_skips_its_body_counts_as_a_skip_in_the_record(self):
+        """G1b (and G1, G8) count a perf-marked test that never ran its body as a skip, whatever the previous record
+        ran -- unless the committed registry gives it a dated skip exception pinned to its exact source."""
+        bound = "tests.test_x.T.test_c"
+        cur = {"G1b": [row("test_x.py", mode="core", skipped=1, ids=RedTeamGateTests.IDS,
+                           outcomes={"perf": [bound]})],
+               "perf": [{"file": "test_x.py", "mode": "normal", "ids": [bound], "failed": [], "attempts": {bound: 1}}]}
+        bad, _ = gate.test_regressions({}, cur, perf_ok=set())                  # no previous rows at all
+        self.assertEqual([(b[0], b[3]) for b in bad], [("G1b", bound)])
+        self.assertIn("skipped its body", bad[0][4])
+        self.assertEqual(gate.test_regressions({}, cur, perf_ok={bound}), ([], []))     # its registry exception
+        self.assertEqual(gate.test_regressions({}, cur), ([], []))             # a record from before K-GATE3
+        wc = gate._wallclock()
+        mark = {"kind": "guard", "source_sha256": "s" * 64}
+        entry = {"test": bound, "owner": "o", "skip": {"source_sha256": "s" * 64, "expires": "2999-01-01",
+                                                       "reason": "r"}}
+        self.assertTrue(wc.skip_excused(entry, mark))
+        self.assertFalse(wc.skip_excused(entry, dict(mark, source_sha256="t" * 64)))   # the method was edited
+        self.assertFalse(wc.skip_excused(dict(entry, skip=dict(entry["skip"], expires="2000-01-01")), mark))
+        self.assertEqual(wc.perf_plan({bound: mark}, {bound: entry}), {bound: "skip"})
+        self.assertEqual(wc.perf_plan({bound: mark}, {}), {bound: "count"})
+        self.assertEqual(wc.unregistered({bound: mark}, {}), [bound])
+
+    def test_compare_requires_the_bound_scan_and_the_lint_of_a_new_record(self):
+        rows = [trial("A-1", 0)]
+        tests = tests_json([row("test_x.py", ids=RedTeamGateTests.IDS)])
+        bound = "tests.test_x.T.test_c"
+        tests.update(bounds={"marks": {bound: {"kind": "guard", "source_sha256": "s" * 64, "file": "test_x.py"}}},
+                     py39={"rc": 0, "files": 3, "count": 0, "violations": []})
+        self.record(rows, rows, cur_tests=tests)
+        code, text = self.compare()
+        self.assertEqual(code, 1, text)
+        self.assertIn("1 unregistered wall-clock bound(s)", text)
+        registry = dict(REGISTRY_DATA, bounds=REGISTRY_DATA["bounds"] + [{"test": bound, "owner": "o"}])
+        code, text = self.compare(policy=policy_files(registry=registry))
+        self.assertEqual(code, 0, text)
+        self.assertIn("Python 3.9 lint: 3 file(s), 0 violations", text)
+        tests["py39"] = {"rc": 1, "files": 3, "count": 1, "violations": ["tools/x.py:3: zip(strict=) is 3.10+"]}
+        self.record(rows, rows, cur_tests=tests)
+        code, text = self.compare(policy=policy_files(registry=registry))
+        self.assertEqual(code, 1, text)
+        self.assertIn("zip(strict=) is 3.10+", text)
+        del tests["py39"], tests["bounds"]
+        self.record(rows, rows, cur_tests=tests, meta={"recorded": list(gate.CHECKS)})
+        code, text = self.compare(policy=policy_files(registry=registry))
+        self.assertEqual(code, 1, text)
+        self.assertIn("no wall-clock bound scan in this record", text)
+        self.assertIn("no Python 3.9 lint result in this record", text)
+
+    def test_the_registry_lists_every_bound_of_the_project(self):
+        wc = gate._wallclock()
+        marks = wc.flat_marks(wc.perf_marks(sorted((ROOT / "tests").glob("test_*.py"))))
+        bounds = wc.registry_entries(REGISTRY_DATA)["bounds"]
+        self.assertEqual(wc.unregistered(marks, bounds), [])
+        self.assertEqual(sorted(bounds), sorted(marks))
+        self.assertEqual(wc.registry_entries(REGISTRY_DATA)["invalid"], [])
+        skips = [t for t, e in bounds.items() if e.get("skip")]
+        self.assertEqual(skips, ["tests.test_physics_thermal.ThermalStepTests."
+                                 "test_faster_than_the_kernel_thermal_system_on_a_settled_house"])
+        self.assertTrue(wc.skip_excused(bounds[skips[0]], marks[skips[0]], today="2026-10-28"))
+
+    # ---- 5. the phase-2 packages (docs/design/VERIFY_HARDENING.md section 25)
+    def test_the_phase_2_packages(self):
+        with mock.patch.object(gate, "trusted_json", policy_files()):
+            pk, sub = gate.PACKAGES, gate.SUBSTAGES
+            self.assertEqual(list(sub["P2-S1"]), ["P2-WP1", "P2-WP2", "P2-WP3", "P2-WP4", "P2-WP7", "P2-WP9",
+                                                  "P2-WP11"])
+            self.assertEqual(list(sub["P2-S2"]), ["P2-WP5", "P2-WP8"])
+            self.assertEqual(list(sub["P2-S3"]), ["P2-WP6"] + ["P2-WPD:" + d for d in gate.DOMAINS])
+            self.assertEqual(list(sub["P2-S4"]), ["P2-WP10"])
+            prev = gate.DEFAULT_PREV
+            self.assertEqual([prev[s] for s in ("P1C", "P2-S1", "P2-S2", "P2-S3", "P2-S4", "P2-S5", "P2-S6", "P2")],
+                             ["P1F", "P1C", "P2-S1", "P2-S2", "P2-S3", "P2-S4", "P2-S5", "P1C"])
+            self.assertEqual(gate.resolve_package("P2"), "P2-ALL")
+            union = set(pk["P2-ALL"]["files"])
+            for pid in [p for p in pk if p.startswith("P2-") and p != "P2-ALL"]:
+                self.assertTrue(set(pk[pid]["files"]) <= union, pid)
+            for pid, needle in (("P2-WP1", "house_sim/kernel/ledger.py"), ("P2-WP2", "house_sim/kernel/world.py"),
+                                ("P2-WP5", "house_sim/tasks/verify.py"), ("P2-WP6", "house_sim/tasks/battery/hidden.py"),
+                                ("P2-WP8", "house_sim/tasks/lint.py"), ("P2-WP10", "tools/orchestration/tier1_gate.py"),
+                                ("P2-WPD:pets", "house_sim/systems/pets/*")):
+                self.assertIn(needle, pk[pid]["files"], pid)
+            # only the gate tool's packages (WP10, its stage, the exit fixes, the union) reach the gate script
+            reach = sorted(p for p in pk if p.startswith("P2") and any(
+                fnmatch.fnmatchcase("tools/orchestration/tier1_gate.py", g) for g in pk[p]["files"]))
+            self.assertEqual(reach, ["P2-ALL", "P2-S4", "P2-S6", "P2-WP10"])
+            self.assertTrue(all(pk[p]["gate_tool"] for p in reach))
+            # one owner per file inside a sub-stage, apart from the shared re-records and the phase's report folder
+            shared = {"tests/data/room_golden.json", "catalog/analysis/phase2/*"} | set(
+                ["tasks/specs.jsonl", "tasks/id_to_family.jsonl"])
+            for key in ("P2-S1", "P2-S2", "P2-S3"):
+                seen = {}
+                for pid in sub[key]:
+                    for f in set(pk[pid]["files"]) - shared:
+                        self.assertNotIn(f, seen, (key, pid, f, seen.get(f)))
+                        seen[f] = pid
+            self.assertEqual(pk["P2-WP2"]["bench"], [1.15, "prev"])            # WP2's 15 % attribution overhead
+            self.assertEqual(pk["P2-WP1"]["allow"], [])                        # no schema 2/3 outcome may change
+            self.assertEqual(pk["P1C"]["members"], ["P1C:" + d for d in (
+                "admin_inventory", "electrical", "manipulation", "mechanisms", "navigation_robot", "pets")] +
+                ["K-GATE3"])
+            self.assertIn("house_sim/data/types/cleaning.json", pk["P1C:mechanisms"]["files"])
+            self.assertTrue(pk["P1C"]["gate_tool"] and pk["P1C"]["policy"])
 
 
 if __name__ == "__main__":

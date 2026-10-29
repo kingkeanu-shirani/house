@@ -25,3 +25,10 @@ from . import timekeeping  # noqa: F401
 from . import furnish  # noqa: F401
 from . import helpers  # noqa: F401
 from . import skills  # noqa: F401
+from . import perceive
+from ...kernel.plugins import ACTIONS as _ACTIONS, before as _before
+
+# an unfamiliar (novel) thing in any entity parameter of this domain's verbs gets the kernel's one identify-first
+# refusal before any guard reads what it really is (perceive.unfamiliar_first; review I4, phase-1 close-out)
+for _name in sorted(n for n, s in _ACTIONS.items() if s.fn.__module__.startswith(__name__ + ".")):
+    _before(_name, order=1)(perceive.unfamiliar_first)

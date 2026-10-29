@@ -127,6 +127,11 @@ def dock(ctx):
     w = ctx.w
     state = w.s
     target = ctx.args.get("target")
+    if target and target not in (state["robot"].get("home"), state["robot"].get("dock")):
+        # an unfamiliar thing is neither seated as a household robot nor backed onto as a dock (review I4; phase-1
+        # close-out: a novel robot vacuum "has no dock" while any other novel thing "is not the robot's charging
+        # dock"); the robot's own dock is on its map
+        C.refuse_unfamiliar(ctx, target)
     if target and target in state["entities"] and state["entities"][target].get("rv"):
         from . import robots
         return robots.dock_other(ctx, target)
@@ -200,8 +205,11 @@ def undock(ctx):
 @action("swap_battery", params={"target": "entity"}, duration=60.0, energy=0.0, category="physical", arms=2,
         doc="Swap the robot's battery for a held charged pack (the depleted pack ends up in the robot's hands). A pack "
             "is a 2.4 kWh, 14 kg brick: the swap takes both hands. Needs the dock's power or a hot-swap capable robot; "
-            "swollen or hot packs are refused.")
+            "swollen or hot packs are refused.", operates=True)
 def swap_battery(ctx):
+    # operates=True: a held pack the robot takes for an unfamiliar thing is refused by the engine with the kernel's one
+    # identify-first message (phase-1 close-out: a novel robot pack was installed, any other novel thing "is not a
+    # robot battery pack")
     w = ctx.w
     state = w.s
     pack = ctx.args["target"]
@@ -242,7 +250,7 @@ def swap_battery(ctx):
 def clean_camera(ctx):
     w = ctx.w
     tool = ctx.args.get("tool")
-    candidates = [tool] if tool else w.held_items()
+    candidates = C.tool_candidates(ctx, tool)       # never an unfamiliar held thing (phase-1 close-out)
     chosen = None
     for eid in candidates:
         if not eid or not ctx.holding(eid):

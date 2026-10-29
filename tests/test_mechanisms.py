@@ -2630,7 +2630,8 @@ class RealisticPerceptionTests(unittest.TestCase):
         self.assertEqual("metal key", obs[H(e, "car_key")]["label"])
         self.assertEqual("spray bottle of liquid", obs[H(e, "plain_sprayer")]["label"])
         ok(self, e.step("read", H(e, "soap_pump")))
-        no(self, e.step("read", H(e, "plain_sprayer")), "nothing legible")
+        # a blank label reads as blank, as every spray reads its print (phase-1 close-out: it was refused alone)
+        self.assertEqual({"label_text": ""}, json.loads(ok(self, e.step("read", H(e, "plain_sprayer")))["message"]))
         ok(self, e.step("inspect", H(e, "magnet_key")))
         ok(self, e.step("inspect", H(e, "plain_sprayer")))
         obs = e.observe()["visible_entities"]
@@ -3775,6 +3776,73 @@ class Phase1FinishTests(unittest.TestCase):
                 hooks[:] = saved
         for seed in (1, 3):
             self.assertEqual(run(True, seed), run(False, seed), seed)
+
+
+class Phase1CloseTests(unittest.TestCase):
+    """Phase-1 close-out (catalog/analysis/phase1/finish_breakages.json, the mechanisms row; result in
+    catalog/analysis/phase1/closeout_mechanisms.json): the spray_bottle look-alike group's read twins -- an unread
+    trigger_bottle was refused 'nothing legible' where every labelled spray read its label, so the refusal named the
+    plain bottle before it was resolved."""
+
+    @staticmethod
+    def spray_members():
+        return sorted(default_registry().lookalike_types().get("spray_bottle") or [])
+
+    def read_twin(self, type_name, camera):
+        """(outcomes, read message, observation after, unresolved after, env) of an unread `type_name` on the living-room
+        table with a resident beside it: approach, read, read_aloud (people's verb, when loaded); each outcome is (verb,
+        ok, category) of a step taken while the thing was unresolved, as the perception audit's read probe compares."""
+        h = House()
+        h.add("bottle", type_name, "table")
+        h.person("adult_1", "living", [1, 5])
+        e = HouseEnv(h.env(room="living", pos=(3, 5))._initial, None, 0, perception="realistic", camera=camera)
+        handle = H(e, "bottle")
+        ok(self, e.step("approach", handle))
+        outcomes, message = [], None
+        for verb in [v for v in ("read", "read_aloud") if v in ACTIONS]:
+            before = e.realism.unresolved("bottle")
+            r = e.step(verb, handle)
+            if verb == "read":
+                message = r["message"]
+            if before:
+                outcomes.append((verb, r["ok"], r["category"]))
+        seen = e.observe()["visible_entities"].get(handle) or {}
+        return outcomes, message, seen, e.realism.unresolved("bottle"), e
+
+    def test_every_spray_bottle_member_carries_the_same_printed_field(self):
+        # every member answers read through the same printed field; a plain bottle's is blank, never an invented label
+        reg = default_registry()
+        members = self.spray_members()
+        self.assertIn("trigger_bottle", members)
+        self.assertEqual([], [m for m in members if not isinstance(reg.resolve(m).get("label_text"), str)])
+        self.assertEqual("", reg.resolve("trigger_bottle")["label_text"])
+        self.assertFalse(reg.resolve("trigger_bottle").get("printed"))
+
+    def test_an_unread_trigger_bottle_reads_in_the_same_form_as_every_spray_bottle(self):
+        members = self.spray_members()
+        for camera in ("room", "geometric"):
+            rows = {m: self.read_twin(m, camera) for m in members}
+            outcomes, message, seen, unresolved, e = rows["trigger_bottle"]
+            self.assertEqual(("read", True, ""), outcomes[0], (camera, message))
+            self.assertEqual({"label_text": ""}, json.loads(message), camera)     # a blank label: nothing printed
+            self.assertTrue(unresolved, camera)                                  # reading a blank names nothing
+            self.assertEqual("spray bottle of liquid", seen.get("label"), camera)
+            self.assertNotIn("liquid", seen, camera)
+            self.assertEqual(set(), true_ids(e, [message, seen]), camera)
+            self.assertNotRegex(message, "(?i)trigger", camera)     # (the group's candidates name every member alike)
+            reg = default_registry()
+            for name, row in rows.items():
+                # while unresolved before the step, every member answers in the same form (ok, category); a blank
+                # label leaves a member unresolved, so the plain members are also compared on reading it aloud
+                self.assertEqual(outcomes[:1], row[0][:1], (camera, name, row[1]))
+                if reg.resolve(name).get("label_text") == "":
+                    self.assertEqual(outcomes, row[0], (camera, name))
+            if "spray_bottle" in rows:
+                # cleaning's plain refill bottle: the two plain members read and look alike after reading too
+                plain = rows["spray_bottle"]
+                self.assertEqual(plain[:2], rows["trigger_bottle"][:2], camera)
+                self.assertEqual({k: v for k, v in plain[2].items() if k != "location"},      # (handles differ)
+                                 {k: v for k, v in seen.items() if k != "location"}, camera)
 
 
 def _kind_of_reference(rec):

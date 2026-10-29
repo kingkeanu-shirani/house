@@ -418,10 +418,14 @@ class _StateView(object):
 def perceived_size(ctx, eid):
     """The size [w, d, h] the robot sees eid at when that is not its true size, else None: an unresolved look-alike
     (realistic perception) shows its group's common size (realism.group_glance), never the member's own, until it is
-    identified or measured."""
+    identified or measured. An unfamiliar (novel) thing belongs to no group, whatever its true type's (kernel
+    actions.lookalike_group): the robot sees its own size (phase-1 finish: a novel receipt was aimed at with the size of
+    its true type's look-alike group, a novel knife at its own)."""
     realism = getattr(ctx.env, "realism", None)
     w = ctx.w
     if realism is None or not isinstance(eid, str) or eid not in w.s["entities"] or not ctx.unresolved(eid):
+        return None
+    if novel_unidentified(ctx, eid):
         return None
     rec = w.s["entities"][eid]
     gname, group = realism.group_of(rec)
@@ -1268,6 +1272,9 @@ def require_identified(ctx, eid):
         return
     realism = ctx.env.realism
     rec = ctx.w.s["entities"][eid]
+    if novel_unidentified(ctx, eid):
+        # an unfamiliar thing: no look identifies it, so the action would read its true kind after the look
+        refuse_novel(ctx, eid)
     from ...kernel.realism import INSPECT, READ
     mode = "inspect"
     if not rec.get("novel"):
@@ -1281,6 +1288,58 @@ def require_identified(ctx, eid):
     if need == READ:
         raise ActionError("You cannot tell what this is yet; read its label first", "precondition")
     raise ActionError("You cannot tell what this is yet; inspect it closely first", "precondition")
+
+
+# An unfamiliar (novel) thing is handled as an object -- moved, turned, carried, stacked, packed, wrapped, covered,
+# hefted -- but this domain's verbs never work it by what it is, and it is no tool, aid, material or receptacle the
+# robot knows of (kernel actions.NOVEL_OPERATE_MESSAGE; phase-1 finish, review I4: shake said "it feels empty" for an
+# unfamiliar kettle, tear opened a perforated colander, a cord coiled, a sponge was wrung out, an envelope sealed and
+# an unfamiliar knife cut a wrap where every other unfamiliar thing was refused). NOVEL_WORKED verbs work their target
+# by its kind (its closures, seams, threads, contents, label or material): they are declared operates=True, so the
+# engine refuses an unfamiliar target first, and novel_guard repeats that for nested leaves (Env.perform runs the
+# before-hooks, not the engine's operates check). NOVEL_SLOTS are the parameters naming a tool, an aid or a
+# receptacle: an unfamiliar thing there is refused the same way, and so is unpack's target unless it lies in something
+# (then it is the item taken out, not the container worked open). Reference parameters (align's reference, arrange's
+# relative_to / frame / facing, rotate's face_toward, set_orientation's toward, hold_steady's aim_at) take where a
+# thing is, which the robot sees.
+NOVEL_WORKED = ("shake", "tear", "squeeze", "roll", "seal", "unseal", "remove_label", "remove_tape", "unwrap", "zip",
+                "unzip", "fasten", "unfasten", "tie", "untie", "velcro", "unvelcro", "snap", "unsnap", "clip", "unclip",
+                "attach", "detach", "screw_together", "unscrew_apart", "twist", "untwist")
+NOVEL_SLOTS = ("tool", "aid", "destination", "compartment")
+
+
+def novel_unidentified(ctx, eid):
+    """Realistic mode: whether the robot takes eid for an unfamiliar thing (a novel object, or a portion of one: kernel
+    Realism.novel_unidentified), whatever it really is. False in oracle mode and for anything that is not an entity."""
+    realism = getattr(getattr(ctx, "env", None), "realism", None)
+    if realism is None or not realistic(ctx) or not isinstance(eid, str):
+        return False
+    record = ctx.w.s["entities"].get(eid)
+    return record is not None and bool(realism.novel_unidentified(eid, record))
+
+
+def refuse_novel(ctx, *eids):
+    """Refuse with the kernel's one identify-first message (the engine's refusal of an operates=True verb's unfamiliar
+    target) when any of eids is an unfamiliar thing the robot has not identified; no-op otherwise."""
+    if any(novel_unidentified(ctx, eid) for eid in eids):
+        from ...kernel.actions import NOVEL_OPERATE_MESSAGE
+        raise ActionError(NOVEL_OPERATE_MESSAGE, "precondition")
+
+
+def novel_guard(ctx):
+    """Before-hook of every verb of this domain (registered in __init__): the target of a NOVEL_WORKED verb, unpack's
+    target as the container, and any NOVEL_SLOTS argument must not be an unfamiliar thing."""
+    if not realistic(ctx):
+        return
+    names = [key for key in NOVEL_SLOTS if key in ctx.spec.params]
+    target = ctx.args.get("target")
+    if ctx.spec.name in NOVEL_WORKED:
+        names.insert(0, "target")
+    elif ctx.spec.name == "unpack" and isinstance(target, str):
+        # where it lies is seen (location / relation are glance fields of an unfamiliar thing too)
+        if (ctx.w.s["entities"].get(target) or {}).get("relation") != "in":
+            names.insert(0, "target")
+    refuse_novel(ctx, *(ctx.args.get(key) for key in names))
 
 
 def id_order(env, ids):

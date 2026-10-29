@@ -3190,6 +3190,36 @@ class Phase1Finish(unittest.TestCase):
             for type_name in members[1:]:
                 self.assertEqual(rows[type_name], first, (camera, type_name))
 
+    def test_every_unread_spray_bottle_reads_in_the_same_form(self):
+        """Phase-1 close-out (finish_breakages.json, the spray_bottle row; mechanisms' trigger_bottle): every member
+        of the group carries the same printed field (label_text; blank on a plain bottle, never an invented label), so
+        read and read_aloud answer every unread member in the same form (ok, category) -- the trigger bottle, with no
+        printed field, was refused 'nothing legible' alone, which named the plain bottle before it was read."""
+        from house_sim.kernel.plugins import ACTIONS, load_domains
+        load_domains()
+        reg = default_registry()
+        members = sorted(reg.lookalike_types()["spray_bottle"])
+        self.assertEqual([], [t for t in members if not isinstance(reg.resolve(t).get("label_text"), str)])
+        verbs = [v for v in ("read", "read_aloud") if v in ACTIONS]       # read_aloud is people's
+        for camera in (None, "geometric"):
+            rows = {}
+            for type_name in members:
+                lab = Lab(perception="realistic", camera=camera, extra={"probe": _on_counter(type_name, 0.3, color="blue")})
+                lab.ent("probe").pop("pos", None)
+                lab.go("counter")
+                handle = lab.env.realism.handles.handle("probe")
+                out = []
+                for verb in verbs:
+                    unread = lab.env.realism.unresolved("probe")
+                    res = lab.step(verb, handle)
+                    if unread:
+                        out.append((verb, res["ok"], res["category"]))
+                rows[type_name] = (out, reg.resolve(type_name)["label_text"] == "")
+            for type_name, (out, blank) in rows.items():
+                self.assertEqual(("read", True, ""), out[0], (camera, type_name))
+                if blank:       # a blank label leaves it unread: the plain members also answer read_aloud alike
+                    self.assertEqual(rows["spray_bottle"][0], out, (camera, type_name))
+
     def test_route_probing_an_unidentified_spill_does_not_tell_its_liquid(self):
         """Review L4 / FIX2 residual: a spill whose liquid the robot cannot identify keeps routes out of it for any of
         wet / slip / sticky whatever its true floor_hazard -- through the kernel's hazard filter, every path_blocked

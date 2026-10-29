@@ -26,7 +26,6 @@ from ...kernel import geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, hook, system
-from ..core import require_tool
 from . import common as C
 from . import hazards as H
 
@@ -381,6 +380,13 @@ def rv_system(w, dt, tick):
 
 # ----------------------------------------------------------------------
 # maintenance verbs
+#
+# They work a household robot (or a dock) as a device, so they are declared operates=True: with realistic perception
+# the engine refuses a target the robot takes for an unfamiliar thing with the kernel's one identify-first message
+# before any of this code runs (review I4; phase-1 close-out: a novel robot vacuum's brushes were cleaned while a novel
+# kettle was "not a household robot", a novel vacuum-mop's tank filled while a novel plain one "has no mop tank"). The
+# trash can and the source container they work with are refused the same way (common.refuse_unfamiliar). An unresolved
+# member of the robot-vacuum look-alike group is no unfamiliar thing: it is known to be a robot vacuum.
 
 def _rv_target(ctx, eid):
     w = ctx.w
@@ -391,7 +397,7 @@ def _rv_target(ctx, eid):
 
 @action("empty_robot_vacuum", params={"target": "entity", "destination": "entity"}, duration=20.0, energy=0.0, category="physical",
         doc="Pull the robot vacuum's bin (or an auto-empty dock's bag) and tip it into a trash can. Whatever it swallowed goes "
-            "with it: take out small valuables first.")
+            "with it: take out small valuables first.", operates=True)
 def empty_robot_vacuum(ctx):
     w = ctx.w
     state = w.s
@@ -399,6 +405,7 @@ def empty_robot_vacuum(ctx):
     dest = ctx.args["destination"]
     trec = ctx.obj(target, touch=True) if not ctx.holding(target) else w.ent(target)
     drec = ctx.obj(dest, touch=True)
+    C.refuse_unfamiliar(ctx, dest)      # an unfamiliar trash can is no known place to tip a bin into
     trash = drec.get("waste_stream") in ("trash", "landfill") or drec.get("accepts_any_waste") or drec.get("category") in ("trash", "wastebasket", "trash_can", "bin") \
         or C.is_type(drec, "wastebasket") or C.is_type(drec, "trash_can")
     require(trash, "Empty it into a trash can", "precondition")
@@ -427,7 +434,8 @@ def empty_robot_vacuum(ctx):
 
 @action("clean_robot_brushes", params={"target": "entity", "tool": "?entity"}, duration=90.0, energy=0.0, category="physical",
         doc="Turn the robot vacuum over, cut the hair wrapped on its main and side brushes with held scissors or its brush "
-            "cleaning tool, and clear a jammed brush roll (anything caught comes out into the robot's free hand area).")
+            "cleaning tool, and clear a jammed brush roll (anything caught comes out into the robot's free hand area).",
+        operates=True)
 def clean_robot_brushes(ctx):
     w = ctx.w
     target = ctx.args["target"]
@@ -435,7 +443,7 @@ def clean_robot_brushes(ctx):
     data = rv(trec)
     require(data.get("state") not in ("cleaning", "returning"), "It is running; stop it first", "precondition")
     try:
-        tool = require_tool(ctx, "cut", ctx.args.get("tool"), consume=False)
+        tool = C.known_tool(ctx, "cut", ctx.args.get("tool"), consume=False)     # never an unfamiliar held thing
     except ActionError:
         tool = None
     jam = [c for c in w.children(target) if c in (data.get("ingested") or []) and data.get("stuck_reason") == "brush_jammed"]
@@ -459,7 +467,7 @@ def clean_robot_brushes(ctx):
 
 @action("refill_robot_tank", params={"target": "entity", "tool": "entity", "amount_l": "?number"}, duration=30.0, energy=0.0, category="physical",
         doc="Fill the vacuum-mop's water tank from a held container. Water or the manufacturer's floor solution only; bleach, "
-            "vinegar, ammonia or disinfectants ruin the seals and pump. Hot water (> 60 C) warps the tank.")
+            "vinegar, ammonia or disinfectants ruin the seals and pump. Hot water (> 60 C) warps the tank.", operates=True)
 def refill_robot_tank(ctx):
     w = ctx.w
     target = ctx.args["target"]
@@ -469,6 +477,7 @@ def refill_robot_tank(ctx):
     # attempt, with a filled container in hand, finds out that a plain robot vacuum has no mop tank
     src = ctx.args["tool"]
     require(ctx.holding(src), "Hold the container you are pouring from")
+    C.refuse_unfamiliar(ctx, src)       # an unfamiliar container's fill is not known: "empty" would tell it apart
     srec = w.ent(src)
     liters = C.num(srec.get("liquid_l"))
     require(liters > 0, "The container is empty", "resource")
@@ -503,7 +512,7 @@ def refill_robot_tank(ctx):
                                     "cell": "?cell", "resume": {"type": "bool", "default": False}},
         duration=20.0, energy=0.005, category="physical",
         doc="Rescue a stuck household robot: lift it (by its body, not the bumper) to open floor (cell) and optionally resume "
-            "its run, untangling whatever caught it. Dragging it by the bumper breaks the bumper switch.")
+            "its run, untangling whatever caught it. Dragging it by the bumper breaks the bumper switch.", operates=True)
 def free_stuck_robot(ctx):
     w = ctx.w
     state = w.s

@@ -4001,5 +4001,177 @@ class Phase1FinishTests(unittest.TestCase):
         self.assertEqual(C.pet_rooms(state, "dog_1"), {"living", "kitchen", "hall", "bedroom", "laundry", "bath", "entry"})
 
 
+class Phase1CloseoutTests(unittest.TestCase):
+    """Phase-1 close-out (catalog/analysis/phase1/finish_breakages.json, the pets row; result in
+    catalog/analysis/phase1/closeout_pets.json; docs/domains/pets.md section 12): a door's opening lets a pet dash or go
+    through only when it is one the pet fits through (C.door_gap, the gap conn_open uses: a cat 12 %, any other animal
+    25 %), so the 10 % an unlatched door swings on a pull_handle / push_handle test lets none out."""
+
+    def setUp(self):
+        if "pull_handle" not in ACTIONS:
+            self.skipTest("the mechanisms domain's handle verbs are not loaded")
+
+    def _at_front_door(self, species="dog", dash=0.95):
+        h = House()
+        h.c["entities"]["front_door"].update(locked=False, latched=False)
+        if species == "cat":
+            h.pet("pet_1", "cat", room="entry", pos=[1, 2], behaviors={"door_dash": dash})
+        else:
+            h.pet("pet_1", "dog", room="entry", pos=[1, 2], behaviors={"door_dash": dash})
+        return h.env("entry", [1, 1])
+
+    def test_a_test_pull_or_push_crack_lets_no_pet_bolt(self):
+        # finish_breakages (pets): _door_pulled_open / _door_pushed_open dashed for any opening, the 10 % test crack too
+        # (a door_dash of 0.8 or more bolts without a draw); mechanisms alone needs 30 %
+        for verb in ("pull_handle", "push_handle"):
+            for species in ("dog", "cat"):
+                env = self._at_front_door(species)
+                r = ok(self, step(env, verb, "front_door", test=True))
+                self.assertIn("swung open a little", r["message"], (verb, species))
+                self.assertTrue(ent(env, "front_door")["open"])
+                self.assertAlmostEqual(0.1, ent(env, "front_door")["mech"]["open_frac"])
+                self.assertFalse(pet(env, "pet_1").get("escaped"), (verb, species, r["message"]))
+                self.assertNotIn("bolted", r["message"])
+                self.assertLess(C.door_opening(ent(env, "front_door")), C.door_gap(pet(env, "pet_1")))
+                step(env, "wait", seconds=60)             # nor does its own wandering pass the crack later
+                self.assertFalse(pet(env, "pet_1").get("escaped"), (verb, species))
+                self.assertNotIn("pet_escape", env.evaluate()["failures"])
+
+    def test_widening_the_crack_is_the_opening_a_pet_bolts_through(self):
+        # the dash moved to the step that makes the opening wide enough: pulling the cracked door open bolts the dog
+        env = self._at_front_door("dog")
+        ok(self, step(env, "pull_handle", "front_door", test=True))
+        self.assertFalse(pet(env, "pet_1").get("escaped"))
+        r = ok(self, step(env, "pull_handle", "front_door"))
+        self.assertTrue(pet(env, "pet_1").get("escaped"), r["message"])
+        self.assertEqual("front_door", pet(env, "pet_1").get("escaped_via"))
+        self.assertIn("pet_escape", env.evaluate()["failures"])
+
+    def test_the_gap_a_pet_bolts_through_is_the_one_it_passes(self):
+        # 15 % lets a cat through (12 %) and not a dog (25 %); a door already wide enough before the step is no new
+        # opening for the pet (its own moves had that way: conn_open)
+        for species, out in (("cat", True), ("dog", False)):
+            env = self._at_front_door(species)
+            r = ok(self, step(env, "pull_handle", "front_door", extent=0.15))
+            self.assertEqual(out, bool(pet(env, "pet_1").get("escaped")), (species, r["message"]))
+            state = env.world.s
+            self.assertEqual(out, C.conn_open(state, state["connections"]["c_ef"], pet(env, "pet_1")), species)
+        h = House()
+        h.c["entities"]["front_door"].update(locked=False, latched=False, open=True, mech={"open_frac": 0.3})
+        h.pet("pet_1", "dog", room="entry", pos=[1, 2], behaviors={"door_dash": 0.95})
+        env = h.env("entry", [1, 1])
+        r = ok(self, step(env, "pull_handle", "front_door", extent=1.0))
+        self.assertEqual(1.0, C.door_opening(ent(env, "front_door")))
+        self.assertFalse(pet(env, "pet_1").get("escaped"), r["message"])
+
+    def test_a_door_opened_by_its_handle_lets_a_shut_in_cat_out(self):
+        # found in passing: only a core open freed a pet shut in a room (handling._unlatch_on_open); a bedroom door
+        # pushed open to 100 % left the cat "trapped" for good. A test crack frees none (the cat's gap is 12 %)
+        for verb, kw, out in (("push_handle", {}, True), ("push_handle", {"test": True}, False),
+                              ("pull_handle", {"test": True}, False)):
+            h = House()
+            h.c["entities"]["door_bed"].update(open=False, latched=False)
+            h.pet("cat_1", "cat", room="bedroom", pos=[1, 1], trapped=True, confinement={"intent": "accidental"})
+            env = h.env("hall", [2, 2])
+            r = ok(self, step(env, verb, "door_bed", **kw))
+            self.assertEqual(not out, bool(pet(env, "cat_1").get("trapped")), (verb, kw, r["message"]))
+            step(env, "wait", seconds=60)
+            self.assertEqual("hall" if out else "bedroom", pet(env, "cat_1")["location"], (verb, kw))
+
+    def test_a_pet_waiting_at_the_door_does_not_trot_through_the_crack(self):
+        h = House()
+        h.c["entities"]["back_door"].update(locked=False, latched=False, open=False)
+        h.pet("dog_1", "dog", room="back", pos=[1, 1], behaviors={"door_dash": 0.0})
+        h.c["pets"]["dog_1"].update(wants="in", activity="waiting_at_door")
+        env = h.env("kitchen", [6, 4])
+        ok(self, step(env, "pull_handle", "back_door", test=True))
+        self.assertEqual("back", pet(env, "dog_1")["location"])
+        self.assertEqual("in", pet(env, "dog_1").get("wants"))
+        r = ok(self, step(env, "pull_handle", "back_door"))
+        self.assertEqual("kitchen", pet(env, "dog_1")["location"], r["message"])
+        self.assertIn("trots through", r["message"])
+
+
+class Phase1CloseoutUnfamiliarTests(unittest.TestCase):
+    """Phase-1 close-out, the novel twin sweep (scratch probe over every pets verb with an unfamiliar thing in each
+    entity parameter): an unfamiliar (novel) thing has no look-alike group to answer for it, so every pets verb now
+    gives the kernel's one identify-first refusal for it in any entity parameter (common.unfamiliar_first)."""
+
+    LOOK = {"novel": True, "label": "thing", "size_m": [0.2, 0.15, 0.25], "color": "gray", "material": "plastic",
+            "mass_kg": 0.6}
+    TWINS = ("pet_water_bowl", "dog_kibble_bag", "pet_medication", "cat_litter_bag", "electric_kettle")
+
+    def _env(self, type_name, held):
+        h = House()
+        h.add("bowl", "pet_food_bowl", "kitchen", pos=[3, 3])
+        h.add("box", "litter_box", "kitchen", pos=[2, 3])
+        h.add("thing", type_name, "kitchen", pos=[4, 3], **self.LOOK)
+        h.pet("dog_1", "dog", room="kitchen", pos=[4, 2], behaviors={"door_dash": 0.0})
+        return h.env("kitchen", [3, 2], hold={"right": "thing"} if held else None, perception="realistic")
+
+    def test_every_pets_verb_refuses_an_unfamiliar_thing_alike(self):
+        from house_sim.kernel.actions import NOVEL_OPERATE_MESSAGE
+        battery = [(False, "check_pet", lambda H: (H("thing"), "", {})),
+                   (False, "feed", lambda H: (H("thing"), "", {"food": H("bowl")})),
+                   (True, "feed", lambda H: (H("bowl"), "", {"food": H("thing")})),
+                   (True, "give_pet_medication", lambda H: ("dog_1", "", {"medication": H("thing")})),
+                   (True, "give_treat", lambda H: ("dog_1", "", {"treat": H("thing")})),
+                   (True, "refill_litter", lambda H: (H("box"), "", {"litter": H("thing")})),
+                   (True, "scoop_litter", lambda H: (H("box"), H("bowl"), {"tool": H("thing")})),
+                   (True, "brush_pet", lambda H: ("dog_1", "", {"tool": H("thing")}))]
+        for held, verb, args in battery:
+            answers = {}
+            for type_name in [t for t in self.TWINS if t in default_registry().types]:   # (core,pets: no kettle)
+                env = self._env(type_name, held)
+                H = env.realism.handles.handle
+                self.assertTrue(env.realism.novel_unidentified("thing"))
+                target, destination, kw = args(H)
+                r = step(env, verb, target, destination, **kw)
+                answers[type_name] = (r["ok"], r["category"], r["message"])
+            self.assertEqual(1, len(set(answers.values())), (verb, answers))
+            self.assertGreaterEqual(len(answers), 4)
+            self.assertEqual((False, "precondition", NOVEL_OPERATE_MESSAGE), answers["pet_water_bowl"], verb)
+
+    def test_every_pets_verb_carries_the_unfamiliar_guard_first(self):
+        from house_sim.kernel.plugins import BEFORE
+        verbs = sorted(n for n, s in ACTIONS.items() if s.fn.__module__.startswith("house_sim.systems.pets."))
+        self.assertEqual(22, len(verbs))
+        for verb in verbs:
+            names = [n for _o, n, _f in BEFORE[verb]]
+            self.assertIn("house_sim.systems.pets.common.unfamiliar_first", names, verb)
+            self.assertEqual(1, [o for o, n, _f in BEFORE[verb] if n.endswith(".unfamiliar_first")][0])
+
+    def test_the_medication_permission_refusal_names_no_bottle(self):
+        # the old wording "Pet medication is owner-directed" held the pet bottle's own label, which the kernel rewrites
+        # in a message: "amber pill bottle is owner-directed" for an unresolved bottle (every member alike) and
+        # "unfamiliar medium object is owner-directed" for an unfamiliar one. Realistic mode now answers as oracle does
+        members = [t for t in ("pet_medication", "prescription_bottle", "expired_medication") if t in default_registry().types]
+        for type_name in members:
+            answers = []
+            for perception in ("oracle", "realistic"):
+                h = House()
+                h.add("med", type_name, "kitchen", pos=[4, 3])
+                h.pet("dog_1", "dog", room="kitchen", pos=[4, 2])
+                env = h.env("kitchen", [3, 2], hold={"right": "med"}, perception=perception)
+                med = env.realism.handles.handle("med") if perception == "realistic" else "med"
+                if perception == "realistic":
+                    self.assertTrue(env.realism.unresolved("med"), type_name)
+                r = step(env, "give_pet_medication", "dog_1", medication=med)
+                answers.append((r["ok"], r["message"]))
+            self.assertEqual(answers[0], answers[1], type_name)
+            self.assertFalse(answers[1][0])
+            self.assertIn("ask an adult for permission give_pet_medication:dog_1", answers[1][1])
+
+    def test_oracle_mode_and_familiar_things_are_unchanged(self):
+        # the guard is a no-op in oracle mode and for a thing the robot can identify: the bowl is checked as before
+        for perception in ("oracle", "realistic"):
+            h = House()
+            h.add("bowl", "pet_water_bowl", "kitchen", pos=[4, 3])
+            env = h.env("kitchen", [3, 2], perception=perception)
+            target = env.realism.handles.handle("bowl") if perception == "realistic" else "bowl"
+            r = ok(self, step(env, "check_pet", target))
+            self.assertIn("level", r["message"], perception)
+
+
 if __name__ == "__main__":
     unittest.main()

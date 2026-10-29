@@ -979,6 +979,29 @@ def unresolved(ctx, eid):
     return "candidates" in realism.identity(eid, rec, realism.knowledge.entity_level(eid, rec))
 
 
+def unfamiliar_first(ctx):
+    """Before hook (order 1) of every pets verb (perception.py registers it): an unfamiliar (novel) thing in any of its
+    entity parameters -- the bowl fed, the food, the medication, the litter, a tool, a destination -- gets the
+    kernel's one identify-first refusal (kernel.actions.NOVEL_OPERATE_MESSAGE) before any guard reads what it really
+    is. An unfamiliar thing has no look-alike group to answer for it, so the verbs' own refusals named it: check_pet
+    examined an unfamiliar pet bowl ("level", "slime") and refused every other unfamiliar thing ("Nothing pet-related
+    to check there"), feed said "That is not food" for that bowl alone, and give_pet_medication's permission refusal
+    came back as "unfamiliar medium object is owner-directed" for the pet medication alone (the kernel rewrites a
+    thing's true label in a message). Phase-1 close-out, the novel twin sweep. No-op in oracle mode."""
+    realism = realism_of(ctx)
+    if realism is None:
+        return
+    from ...kernel.actions import NOVEL_OPERATE_MESSAGE
+    entities = ctx.w.s["entities"]
+    for pname, param in sorted(ctx.spec.params.items()):
+        if param.get("type") not in ("entity", "target"):
+            continue
+        eid = ctx.args.get(pname)
+        rec = entities.get(eid) if isinstance(eid, str) else None
+        if rec is not None and realism.novel_unidentified(eid, rec):
+            raise ActionError(NOVEL_OPERATE_MESSAGE, "precondition")
+
+
 def shown_before(obj, eid):
     """Realistic perception: the robot has been shown eid this episode (its handle was issued: it saw the thing or a
     message named it), so it knows the thing is there even when the camera cannot see it from where it stands now.
@@ -1095,6 +1118,19 @@ def pet_door_admits(state, conn, pet, outward=None):
     return False
 
 
+def door_opening(door):
+    """How far a door or gate stands open, 0..1: the mechanisms domain's open_frac, a plain open door all the way."""
+    if not (door or {}).get("open"):
+        return 0.0
+    return num((door.get("mech") or {}).get("open_frac"), 1.0)
+
+
+def door_gap(pet):
+    """The narrowest door opening (open fraction) a pet slips through: a cat 12 %, any other animal 25 %. A test pull's
+    or push's 10 % crack lets none through (phase-1 close-out: the door dash and conn_open share this one rule)."""
+    return 0.12 if species(pet or {}) == "cat" else 0.25
+
+
 def conn_open(state, conn, pet=None):
     """True when a pet could pass this connection right now."""
     if conn.get("kind") in ("elevator_door", "hatch"):
@@ -1103,9 +1139,7 @@ def conn_open(state, conn, pet=None):
     if door is None:
         return True
     if door.get("open"):
-        frac = num((door.get("mech") or {}).get("open_frac"), 1.0)
-        need = 0.12 if species(pet or {}) == "cat" else 0.25
-        return frac >= need
+        return door_opening(door) >= door_gap(pet)
     if pet is not None:
         if door.get("category") in ("gate", "safety_gate") and door.get("pet_barrier", True):
             height = num((door.get("size_m") or [0, 0, 1.0])[2], 1.0)

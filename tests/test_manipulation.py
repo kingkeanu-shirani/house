@@ -3837,5 +3837,229 @@ class PhaseOneFinishTests(unittest.TestCase):
         self.assertEqual(ent(e, "hose")["deploy_result"], {"knots": 0, "kinks": 0})
 
 
+# ======================================================================================
+class PhaseOneCloseTests(unittest.TestCase):
+    """Phase-1 close (finish_breakages.json, the manipulation rows; docs/domains/manipulation.md section 18): tearing a
+    perforated thing, unfamiliar things told apart by this domain's verbs and inspector, and asking about a thing
+    destroyed out of view. Every test fails on the previous code."""
+
+    # one look for every unfamiliar twin (same size, colour, material and mass, no liquid): only what it really is
+    # differs, so every answer must be the same (heft, spills and knocks are physical and follow these alone)
+    LOOK = dict(novel=True, color="gray", material="plastic", size_m=[0.2, 0.15, 0.25], mass_kg=0.5, volume_l=1.0)
+    # true kinds behind the look, each told apart by some verb before the fix: tear (a sheet off a roll), squeeze (wrung
+    # out, pressed flat), roll (coiled), seal / unseal (an envelope), zip (a jacket), a cutting tool, a wrap or a tape
+    # roll in a tool slot, a receptacle in a destination slot, aiming with its true type's look-alike group size (the
+    # shake, packing and colander cases have their own tests below)
+    NOVEL_KINDS = (("plain", "generic_item", {}),
+                   ("bowl", "generic_item", dict(container=True, accepts_items=True, capacity_l=2.0)),
+                   ("gift_wrap", "gift_wrap_roll", {}),
+                   ("film_roll", "bubble_wrap_roll", {}),
+                   ("tape", "packing_tape", {}),
+                   ("sponge", "generic_item", dict(category="sponge", absorbent=True, absorb_capacity_l=0.2)),
+                   ("envelope", "generic_item", dict(category="envelope", container=True, accepts_items=True, capacity_l=0.1,
+                                                     sealed=True)),
+                   ("cord", "generic_item", dict(category="extension_cord", coilable=True, length_m=4.0)),
+                   ("box", "generic_item", dict(category="box", flattenable=True, container=True, accepts_items=True,
+                                                capacity_l=5.0)),
+                   ("jacket", "generic_item", dict(category="jacket", zipper={"closed_frac": 0.0, "teeth_ok": True})),
+                   ("knife", "generic_item", dict(category="knife", sharp=True, cutting_edge=True, hazards=["sharp"])))
+
+    def _novel_scene(self, type_name, props):
+        """The twin on a table beside the robot (id 'thing'), a familiar mug, an open familiar box and a familiar sheet
+        of paper beside it."""
+        m = Mini()
+        m.add("work_table", "table", "living", pos=[1, 1])
+        m.add("thing", type_name, "work_table", spos=[0.2, 0.2], **dict(props, **self.LOOK))
+        m.add("mug", "generic_item", "work_table", spos=[0.7, 0.2], label="mug", mass_kg=0.3, size_m=[0.09, 0.09, 0.1],
+              volume_l=0.4)
+        m.add("crate", "generic_item", "work_table", spos=[1.0, 0.6], label="open crate", container=True, accepts_items=True,
+              capacity_l=20.0, size_m=[0.4, 0.3, 0.3], mass_kg=1.0)
+        m.add("letter", "generic_item", "work_table", spos=[0.2, 0.7], label="letter", category="document", material="paper",
+              size_m=[0.21, 0.3, 0.001], mass_kg=0.005)
+        return m
+
+    @staticmethod
+    def _entity_params(spec):
+        return [k for k, p in spec.params.items() if p.get("type") in ("entity", "target", "agent")]
+
+    def _sweep(self, type_name, props):
+        """Every manipulation verb with the twin in each of its entity parameters (the other required ones: the familiar
+        mug, or the crate when the twin is the held thing), the twin on the table and held: (ok, category, message).
+        A refused command changes nothing (the engine rolls it back); after one that succeeded the scene is restored."""
+        from house_sim.systems.manipulation import VERBS
+        m = self._novel_scene(type_name, props)
+        rows = {}
+        for state in ("table", "held"):
+            hold = {"left": "mug"} if state == "table" else {"right": "thing"}
+            e = m.env(pos=(1, 2), perception="realistic", hold=hold)
+            h = e.realism.handles.handle
+            partner = h("mug") if state == "table" else h("crate")
+            for verb in VERBS:
+                spec = ACTIONS[verb]
+                names = self._entity_params(spec)
+                for pname in names:
+                    args = {pname: h("thing")}
+                    for other in names:
+                        if other != pname and not spec.params[other].get("optional"):
+                            args[other] = partner
+                    args.update({k: v for k, v in (("text", "Mia"), ("angle_deg", 20.0)) if k in spec.params})
+                    target = args.pop("target", "")
+                    r = e.step(verb, target, args.pop("destination", ""), **args)
+                    rows[(state, verb, pname)] = (r["ok"], r["category"], H.sub("<H>", r["message"]))
+                    if r["ok"]:
+                        e = m.env(pos=(1, 2), perception="realistic", hold=hold)
+        return rows
+
+    def test_every_verb_answers_unfamiliar_twins_alike(self):
+        from house_sim.kernel.actions import NOVEL_OPERATE_MESSAGE
+        sweeps = {name: self._sweep(type_name, props) for name, type_name, props in self.NOVEL_KINDS
+                  if self._known(type_name)}
+        base = sweeps.pop("plain")
+        for name, rows in sorted(sweeps.items()):
+            diffs = {k: (base[k], v) for k, v in rows.items() if v != base[k]}
+            self.assertEqual(diffs, {}, name)
+        from house_sim.systems.manipulation.common import NOVEL_WORKED
+        refused = (False, "precondition", NOVEL_OPERATE_MESSAGE)
+        for verb in NOVEL_WORKED:                     # worked by kind: refused whatever it is, on the table or held
+            self.assertEqual(base[("table", verb, "target")], refused, verb)
+            self.assertEqual(base[("held", verb, "target")], refused, verb)
+        for (state, verb, pname), answer in base.items():
+            if pname in ("tool", "aid", "destination", "compartment") and state == "held" and answer[1] != "argument":
+                self.assertEqual(answer, refused, (verb, pname))   # no tool, aid or receptacle it knows of
+
+    def _known(self, type_name):
+        return type_name in default_registry().types
+
+    def test_an_unfamiliar_thing_is_still_handled_as_an_object(self):
+        m = self._novel_scene("generic_item", dict(container=True, accepts_items=True, capacity_l=2.0))
+        e = m.env(pos=(1, 2), perception="realistic", hold={"right": "thing"})
+        h = e.realism.handles.handle
+        ok(self, e.step("pack", h("thing"), h("crate")))                  # packed into a familiar crate
+        self.assertEqual(ent(e, "thing")["location"], "crate")
+        ok(self, e.step("unpack", h("thing")))                            # taken out again: the item, not a container
+        self.assertEqual(ent(e, "thing")["location"], "robot")
+        ok(self, e.step("support", h("thing"), mode="heft"))
+        ok(self, e.step("rotate", h("thing"), face_toward=h("mug")))      # turned toward where the mug is seen
+        o = m.env(pos=(1, 2), hold={"right": "thing"})                    # oracle mode: no unfamiliar things
+        ok(self, o.step("shake", "thing"))
+
+    def test_the_inspector_shows_no_packing_for_an_unfamiliar_thing(self):
+        # finish_breakages.json (food's request; red_leaks I4): a novel mixing bowl or pot of chili got 'packing'
+        # (fill fraction, order), a novel knife not
+        seen = {}
+        for name, props in (("bowl", dict(container=True, accepts_items=True, capacity_l=2.0)), ("plain", {})):
+            m = self._novel_scene("generic_item", props)
+            if name == "bowl":
+                m.add("apple", "generic_item", "thing", label="apple", size_m=[0.08, 0.08, 0.08], mass_kg=0.2, volume_l=0.3)
+            e = m.env(pos=(1, 2), perception="realistic")
+            h = e.realism.handles.handle
+            keys = []
+            for where in (None, "closely", "inside"):
+                details = json.loads(ok(self, e.step("inspect", h("thing"), **({"where": where} if where else {})))["message"])
+                self.assertNotIn("packing", details, (name, where))
+                keys.append(sorted(details))
+            seen[name] = keys
+        self.assertEqual(seen["bowl"], seen["plain"])
+        m = Mini()                                                        # a familiar open box still shows its packing
+        m.add("work_table", "table", "living", pos=[1, 1])
+        m.add("box_1", "moving_box_small", "work_table", spos=[0.2, 0.2], open=True)
+        m.add("mug_1", "generic_item", "box_1", label="mug", mass_kg=0.3, size_m=[0.1, 0.1, 0.1], volume_l=1.0)
+        e = m.env(pos=(1, 2), perception="realistic")
+        h = e.realism.handles.handle
+        details = json.loads(ok(self, e.step("inspect", h("box_1")))["message"])
+        self.assertEqual(details["packing"]["order_bottom_up"], [h("mug_1")])
+
+    def test_shake_gives_one_answer_for_every_unfamiliar_thing(self):
+        # finish_breakages.json / finish_VER: 'Shook obj: it feels empty' (a kettle), '...: liquid sprayed out' (a bleach
+        # bottle), plain for the rest; now the kernel's identify-first refusal, and nothing sprays
+        from house_sim.kernel.actions import NOVEL_OPERATE_MESSAGE
+        answers = {}
+        for name, props in (("plain", {}), ("kettle", dict(container=True, openable=True, open=False, accepts_items=True, capacity_l=1.7)),
+                            ("jug", dict(container=True, accepts_items=True, capacity_l=2.0, liquid="water", liquid_l=0.5))):
+            m = self._novel_scene("generic_item", props)
+            e = m.env(pos=(1, 2), perception="realistic", hold={"right": "thing"})
+            r = e.step("shake", e.realism.handles.handle("thing"))
+            answers[name] = (r["ok"], r["category"], H.sub("<H>", r["message"]))
+            self.assertEqual(stat(e, "spills"), 0, name)
+        self.assertEqual(set(answers.values()), {(False, "precondition", NOVEL_OPERATE_MESSAGE)}, answers)
+        m = Mini()
+        m.add("box_2", "moving_box_small", "living", open=False)          # a familiar closed box still tells by feel
+        e = m.env(perception="realistic", hold={"right": "box_2"})
+        self.assertIn("it feels empty", ok(self, e.step("shake", e.realism.handles.handle("box_2")))["message"])
+
+    def test_a_perforated_rigid_thing_does_not_tear_open_along_a_notch(self):
+        # finish_breakages.json (appliances_cooking's request): a held stainless steel colander (perforated: the drain
+        # flag of the kernel and plumbing) answered 'Tore col open along its notch' and got open / torn_open
+        m = Mini()
+        m.add("col", "generic_item", "living", label="colander", material="stainless_steel", perforated=True, container=True,
+              accepts_items=True, size_m=[0.3, 0.3, 0.15], mass_kg=0.6)
+        m.add("sachet", "generic_item", "living", label="tea sachet", material="paper", perforated=True, sealed=True,
+              size_m=[0.06, 0.06, 0.01], mass_kg=0.003)
+        m.add("pouch", "generic_item", "living", label="snack pouch", material="plastic", tear_perforation=True, sealed=True,
+              size_m=[0.15, 0.2, 0.02], mass_kg=0.05)
+        m.add("packet", "generic_item", "living", label="seed packet", material="plastic", tear_notch=True, sealed=True,
+              size_m=[0.08, 0.12, 0.005], mass_kg=0.01)
+        m.add("sieve", "generic_item", "living", label="paper sieve", material="paper", perforated=True,
+              size_m=[0.2, 0.2, 0.01], mass_kg=0.01)
+        for perception in (None, "realistic"):
+            for along in ("perforation", "notch"):
+                with self.subTest(perception=perception, along=along):
+                    e = m.env(perception=perception, hold={"right": "col"})
+                    name = e.realism.handles.handle if perception else (lambda x: x)
+                    if perception:
+                        ok(self, e.step("inspect", name("col")))
+                    r = e.step("tear", name("col"), along=along)
+                    self.assertFalse(r["ok"], r["message"])
+                    self.assertEqual(r["message"], "It does not tear by hand; use a cutting tool")
+                    self.assertFalse(ent(e, "col").get("open") or ent(e, "col").get("torn_open"))
+        e = m.env(hold={"right": "sachet", "left": "pouch"})
+        self.assertIn("along its notch", ok(self, e.step("tear", "sachet"))["message"])      # sealed tearable sheet pack
+        self.assertTrue(ent(e, "sachet")["torn_open"])
+        self.assertIn("along its notch", ok(self, e.step("tear", "pouch", along="edge"))["message"])
+        e = m.env(hold={"right": "packet", "left": "sieve"})
+        self.assertIn("along its notch", ok(self, e.step("tear", "packet", along="anywhere"))["message"])
+        r = ok(self, e.step("tear", "sieve"))                             # paper with holes, not a sealed pack: torn
+        self.assertEqual(r["message"], "Tore sieve")
+        self.assertFalse(ent(e, "sieve").get("torn_open"))
+
+    def test_asking_about_a_thing_destroyed_out_of_view_answers_as_about_one_out_of_view(self):
+        # finish_breakages.json (people's request; red_leaks 6 residual): ask about=<a thing destroyed out of view>
+        # with aspect keep / intended / how / status answered "I'm not sure what you mean." where a thing merely out
+        # of view got its answer
+        from house_sim.systems.manipulation import world as manip_world
+        for perception in ("realistic", None):
+            m = Mini()
+            hidden = dict(_keep=True, _in_use=True, _recipient="ana", _fragile="hold it by the base")
+            for eid, spot in (("jar_a", [2, 2]), ("jar_b", [3, 2]), ("tin_a", [2, 4]), ("tin_b", [3, 4])):
+                truth = hidden if eid.startswith("jar") else {}
+                m.add(eid, "generic_item", "kitchen", pos=spot, label="jar", size_m=[0.1, 0.1, 0.12], mass_kg=0.3, **truth)
+            m.person("ana", "living", [3, 3], has_phone=True)
+            m.person("kid", "living", [4, 3], role="child", authority=0, has_phone=True)
+            e = m.env(room="kitchen", pos=(2, 3), perception=perception)
+            e.observe()
+            names = {x: (e.realism.handles.handle(x) if perception else x) for x in ("jar_a", "jar_b", "tin_a", "tin_b")}
+            ok(self, e.step("move", "living"))
+            w = e.world
+            w.begin()
+            for gone in ("jar_b", "tin_b"):
+                w.s["entities"].pop(gone)                                  # out of view: thrown out
+            w.commit()
+            for kept, gone in (("jar_a", "jar_b"), ("tin_a", "tin_b")):
+                for asker in ("ana", "kid"):
+                    for aspect in ("keep", "intended", "how", "status"):
+                        rows = []
+                        for eid in (kept, gone):
+                            before = dict(w.s.get("stats") or {})
+                            r = ok(self, e.step("ask", asker, about=names[eid], aspect=aspect, channel="text"))
+                            after = w.s.get("stats") or {}
+                            counted = {k: after.get(k, 0) - before.get(k, 0) for k in ("necessary_questions", "unnecessary_questions")}
+                            rows.append((r["ok"], r["category"], str(r["message"]).replace(names[eid], "<subject>"), counted))
+                        with self.subTest(perception=perception, thing=kept, asker=asker, aspect=aspect):
+                            self.assertEqual(rows[0], rows[1])
+                            self.assertNotIn("not sure what you mean", rows[1][2])
+            # an id that never was is still not understood
+            self.assertEqual(manip_world._answer(e, w, "ana", "manip:keep:jar_zz", None)["value"], "I'm not sure what you mean.")
+
+
 if __name__ == "__main__":
     unittest.main()

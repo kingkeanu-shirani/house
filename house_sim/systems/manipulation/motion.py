@@ -814,7 +814,7 @@ def _spiral_diameter(length, thickness, core=0.05, tight=True):
                         "route": "?str:along_wall|across_walkway|under_rug",
                         "loop_diameter_m": {"type": "number", "optional": True, "min": 0.05, "max": 1.0},
                         "park": "?str:kickstand|lean|none"},
-        duration=lambda ctx: ctx.data.get("manip_s", 6.0), energy=0.03, noise=0.1, category="physical", timing="speed",
+        duration=lambda ctx: ctx.data.get("manip_s", 6.0), energy=0.03, noise=0.1, category="physical", operates=True, timing="speed",
         noise_db=_noise_db,
         doc="Roll an object: wheel a cart/bin/suitcase (tilt two-wheel bins onto their wheels first) to a cell or an adjacent room under control, "
             "roll a ball or round load, or roll a flexible item (rug, yoga mat, sleeping bag, bag top) into a tight cylinder "
@@ -1489,7 +1489,7 @@ def tilt(ctx):
 
 
 @action("shake", params={"target": "entity", "seconds": {"type": "number", "default": 5.0, "min": 1.0, "max": 120.0}},
-        duration=lambda ctx: C.num(ctx.args.get("seconds"), 5.0) + 1.0, energy=0.01, noise=0.1, category="physical",
+        duration=lambda ctx: C.num(ctx.args.get("seconds"), 5.0) + 1.0, energy=0.01, noise=0.1, category="physical", operates=True,
         timing="commanded",
         doc="Shake a held object: mix a 'shake well' bottle (cap must be tight), shake debris out of a doormat, rug or cover "
             "(do it outdoors), or check contents. Shaking an open/loose container sprays it; shaking a carbonated drink builds pressure.")

@@ -1,0 +1,77 @@
+{
+ "id": "pets",
+ "fixed": [
+  {
+   "item": "finish_breakages.json (pets): the dog bolts through the 10 % an unlatched door swings on a pull_handle / push_handle test (mech.open_frac 0.1); mechanisms alone needs 30 %",
+   "how": "Decided and pinned: a pet dashes, crosses (wants in/out) or slips in (stray) only through an opening it fits through, the gap the pets' own moves already used. common.door_opening (open_frac; a plain open door 1.0) and common.door_gap (cat 12 %, any other animal 25 %) are one helper shared with conn_open. behavior._door_opened skips a pet when the opening is narrower than its gap or was already wide enough before the step (behavior's before hooks on pull_handle / push_handle record pets_door_was_frac instead of a was-open flag; _door_pulled_open / _door_pushed_open call _door_opened whenever the opening grew). So the test crack lets no pet out, now or later; pulling the cracked door open is the step the dog bolts on (at HEAD the crack counted as open and widening it never dashed); widening a door already wide enough is no new opening, as at HEAD. Why not 30 %: pets owns escapes while loaded, and a 30 % dash next to a 25 % passage would let a dog walk through an opening it refused to dash through; mechanisms alone keeps its 30 %.",
+   "test": "tests/test_pets.py Phase1CloseoutTests: test_a_test_pull_or_push_crack_lets_no_pet_bolt (the row's repro: dog and cat, both verbs, door_dash 0.95, 60 s wait), test_widening_the_crack_is_the_opening_a_pet_bolts_through, test_the_gap_a_pet_bolts_through_is_the_one_it_passes (15 %: cat out, dog not; conn_open agrees; a 30 % door widened to 100 % gives no second dash), test_a_pet_waiting_at_the_door_does_not_trot_through_the_crack. All four fail on HEAD's pets code (scratch tree p1c_pets/old_tree)."
+  },
+  {
+   "item": "Found with the row's repro: a door opened with mechanisms' handle verbs left a pet shut in the room 'trapped' for good (push_handle door_bed to 100 %: the cat stayed trapped in the bedroom after 120 s)",
+   "how": "handling._let_out (the release that only core open ran, in _unlatch_on_open) now also runs after pull_handle and push_handle when the opening grew, and frees a pet shut in a room, drum or cupboard only when the opening admits it (door_gap: a test crack frees none).",
+   "test": "Phase1CloseoutTests.test_a_door_opened_by_its_handle_lets_a_shut_in_cat_out (fails on HEAD: 'Pushed door_bed open to 100%' with the cat still trapped)."
+  },
+  {
+   "item": "Unfamiliar (novel) things told apart by pets verbs before identification (the close-out's twin sweep, room mode): check_pet examined an unfamiliar pet water bowl (level, slime) and refused every other unfamiliar thing ('Nothing pet-related to check there'); feed target=<unfamiliar bowl> answered 'That is not food' vs 'That is not a pet bowl, seed cup or feeder'; give_pet_medication's permission refusal came back as 'unfamiliar medium object is owner-directed' for the unfamiliar pet medicine alone (the kernel rewrites an unfamiliar thing's own label in a message)",
+   "how": "common.unfamiliar_first, a before hook of order 1 registered in perception.py on all 22 pets verbs (the pattern food uses): an unfamiliar thing (Realism.novel_unidentified) in any entity or target parameter gets the kernel's one identify-first refusal (kernel.actions.NOVEL_OPERATE_MESSAGE) before any pets guard reads what it is. No-op in oracle mode and for anything identifiable. No spec, scenario helper or generated house holds an unfamiliar thing, so no outcome changes (golden-all unchanged).",
+   "test": "Phase1CloseoutUnfamiliarTests.test_every_pets_verb_refuses_an_unfamiliar_thing_alike (check_pet, feed both ways, give_pet_medication, give_treat, refill_litter, scoop_litter tool, brush_pet tool over five unfamiliar twins), test_every_pets_verb_carries_the_unfamiliar_guard_first, test_oracle_mode_and_familiar_things_are_unchanged (control). The first two fail on HEAD."
+  },
+  {
+   "item": "give_pet_medication's permission refusal for an unresolved pill bottle read 'amber pill bottle is owner-directed: ...' in realistic mode (byte-identical across the pill_bottle members, but garbled: the wording 'Pet medication is owner-directed' contains the pet bottle's label, which the kernel rewrites for every member of the group)",
+   "how": "Reworded without any member's name: 'Medicine for a pet is given only as its owner directs: ask an adult for permission give_pet_medication:<pet>' (category still permission). Realistic mode now answers exactly as oracle does.",
+   "test": "Phase1CloseoutUnfamiliarTests.test_the_medication_permission_refusal_names_no_bottle (oracle == realistic for each pill-bottle member; fails on HEAD)."
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "pill_bottle look-alikes: a pour of a held unresolved bottle answers by member: the people domain's prescription_bottle (medication_container, sealed: true) 'Open it first' (precondition), the pet medicine and the safety domain's expired bottle 'It is empty' (resource)",
+   "why": "Three owners' type data (people, safety, pets) must agree on one rule; pets alone setting sealed: true on pet_medication would only move the odd member (2 vs 1 either way) and would change X-fee35ef3aac659-01's golden reference state for no gain. Filed as a request to people and safety; pets will add sealed: true to pet_medication in the same change if that is the rule chosen."
+  },
+  {
+   "item": "Cleaning verbs tell held unfamiliar things apart: dust / scrub / degrease / treat_upholstery work with an unfamiliar slicker brush ('Dusted ... (main: no change)') and refuse every other unfamiliar thing; absorb answers 'Pour it out only over a spill' for an unfamiliar kettle or pet water bowl and 'Hold an absorbent towel, ...' otherwise",
+   "why": "Another owner's verbs (cleaning's held-tool checks); pets type data is not the cause (slicker_brush is_a pet_brush). Filed as a request to cleaning with a repro."
+  },
+  {
+   "item": "A pet nosing an unlatched door wider",
+   "why": "Not modelled (the door stays where the robot left it); documented in docs/domains/pets.md section 12 with the gap decision."
+  },
+  {
+   "item": "T-dda4e199f3f5b0-01 seed 1, forced realistic: reports.dog_1.urgency is a judgement, not a perceived word",
+   "why": "Unchanged from the phase-1 finish: left to VERIFY_HARDENING's typed reports / judgement fields (own mode passes 5/5)."
+  },
+  {
+   "item": "Geometric camera only: a look inside (inspect / peek where=inside) an unfamiliar thing answers by whether it really has a lid",
+   "why": "The kernel's inside view (the room camera answers alike); filed as part of the kernel request."
+  }
+ ],
+ "specs_changed_outcome": [],
+ "tests": {
+  "count": 283,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 15,
+  "passed": 15
+ },
+ "requests": [
+  {
+   "owner": "people, safety",
+   "request": "Make every pill_bottle member closed for pouring alike (scratch repro p1c_pets/repro_pill_pour.py; tests/test_pets.py House(); h.add('med', <type>, 'kitchen', pos=[4, 3]); h.add('mug', 'mug', 'counter'); env = h.env('kitchen', [2, 1], hold={'right': 'med'}, perception='realistic'); env.step('pour', H('med'), H('mug'))): prescription_bottle -> (False, precondition, 'Open it first') because medication_container has sealed: true; expired_medication (safety) and pet_medication (pets) -> (False, resource, 'It is empty'). Proposal: every member carries sealed: true (a capped amber bottle); pets adds it to pet_medication in the same change (re-record X-fee35ef3aac659-01's golden state)."
+  },
+  {
+   "owner": "cleaning",
+   "request": "Refuse held unfamiliar (novel) things alike in dust / scrub / degrease / treat_upholstery (the held tool) and absorb (scratch repro p1c_pets/repro_novel_cleaning.py: tests/test_pets.py House(); h.add('thing', T, 'living', pos=[6, 8], novel=True, label='thing', size_m=[0.2, 0.15, 0.25], color='gray', material='plastic', mass_kg=0.6); env = h.env('living', [6, 8], hold={'right': 'thing'}, perception='realistic'): dust/scrub H('table') succeed for T=slicker_brush ('Dusted ... (main: no change)') and refuse 'Hold a duster, cloth or soft brush' for pet_water_bowl / electric_kettle / dog_kibble_bag; absorb H('thing') says 'Pour it out only over a spill' for pet_water_bowl and electric_kettle, 'Hold an absorbent towel, ...' for the others). cleaning.state.refuse_unfamiliar exists; it is not applied to the held tool."
+  },
+  {
+   "owner": "mechanisms",
+   "request": "A pull test of a door that opens by pushing from the robot's side swings it open (scratch repro p1c_pets/exp_trapped.py: tests/test_pets.py House(); door_bed open=False, latched=False; robot in the hall at (2, 2): step('pull_handle', 'door_bed') -> 'It doesn't move: this one opens by pushing from this side', but step('pull_handle', 'door_bed', test=True) -> 'It moves: the door was not latched (it swung open a little)', open_frac 0.1). handles._test calls apply_open(0.1) without _direction_ok: a door cannot swing toward its stop. Same for push_handle test=True on the front door from the entry (a pull door)."
+  },
+  {
+   "owner": "kernel",
+   "request": "Low: an unfamiliar thing's own label is rewritten inside its printed text on read (novel fish_food: read -> label_text 'unfamiliar medium object - floating food for surface and mid-water fish ...'; the print starts 'Tropical fish flakes', its label), which tells the agent the print named the product at that spot; and any domain wording that merely equals an unfamiliar thing's label is rewritten for that thing alone (pets' old 'Pet medication is owner-directed', now reworded). INT2 already lists label substitution as imprecise; this is a concrete repro for it. Also (geometric camera only): inspect / peek where=inside of an unfamiliar thing answers by its true openable flag: 'It is closed; open it first' for an unfamiliar kettle, kibble bag, litter bag or fish-food tub, 'There is nothing to look inside' for an unfamiliar pet medicine bottle, pet water bowl or slicker brush (same look, room mode answers alike; scratch p1c_pets/tw_sweep_geo.json, novel:pets_small counter, battery:inspect_inside / peek_inside)."
+  }
+ ],
+ "notes": "GREEN (live tree, 2026-10-28): tests/test_pets.py 283 tests OK in normal mode, with HOUSE_SIM_STRICT=1, and with HOUSE_SIM_DOMAINS=core,pets (normal and strict; 7 skips there: the 2 earlier ones plus the 5 Phase1CloseoutTests that need mechanisms' handle verbs -- a G1b count-based skip increase to sign as new tests). tests/test_mechanisms.py 223 OK (its one-draw-per-opening test still holds). --check: pets__examples.json 12/12 and pets__perception.json 3/3 in own mode on seeds 0, 1, 2, 41, 97 and pets__perception.json 3/3 with --camera geometric (13 of the 15 run in generation 2: house.gen 2); mechanisms__examples.json 12/12 and mechanisms__perception.json 3/3 as a cross-check of the door change. Room golden on the committed tree plus only these pets files (scratch p1c_pets/mine_tree): tests.test_room_golden OK and HOUSE_SIM_GOLDEN_ALL=1 OK (all 243 references, oracle and realistic, unchanged). On the live tree the fixed golden failed meanwhile (run 1/oracle reset state digest differs, 56 diffs) from other owners' in-progress edits (it passes with HEAD + pets only). python tools/perception_audit.py 60 80 and --camera geometric: 0 leaks, 0 crashes in both (the read probe included; at the start of the round it listed 3 / 5, all admin_inventory, navigation_robot and mechanisms type data, none pets). python tools/layout_audit.py 20 --domain pets: 120 houses 0 problems; --gen 2: 220 houses 0 problems, 0 domain follow-ups. python tools/fuzz.py --coverage on a frozen snapshot of the live tree (p1c_pets/snap; the live tree changes under the replays): 243 specs, 44,296 commands, 0 distinct defects, 0 nondeterministic. Twin sweep (scratch p1c_pets/pets_twins.py, adapted from the verifier's twins harness): every member of dog_food_bag, fish_food_tub, cage_liner_sheet, pill_bottle, the litter kinds and bedding kinds, and unfamiliar pets things against an unfamiliar kettle; on the counter and held; a generic battery, every pets verb with the thing in each entity parameter (after approaching the verb's target) and every registered action with it in its first two entity parameters (648 commands per twin set); room mode: pets verbs and inspectors answer every unresolved member alike and name none (the only differences are the pill-bottle pour, cleaning's tool / absorb checks, physical heft and the read of printed text, which is the kernel's rule); geometric camera: the same, plus the kernel's look inside an unfamiliar thing (requests). Look-alike groups: 0 differences in both modes except the pill-bottle pour; 0 names of a member in any refusal or answer before resolution (the only name hits are the group's own candidate list in inspect, identical for every member). Files touched: house_sim/systems/pets/{behavior,common,handling,health,perception}.py, tests/test_pets.py, docs/domains/pets.md (header test count, section 3 hooks, determinism thresholds, 5a unfamiliar things, 10 escapes, new section 12 'Phase 1 close-out'), this file. All LF. Nothing committed, staged, stashed or branched; nothing under %USERPROFILE%\\.house_ai; no network or paid calls. VERIFY_HARDENING.md not implemented or contradicted (the door gap is the passability its zone model reads: pets expose passability, 6.4)."
+}

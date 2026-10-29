@@ -15,11 +15,16 @@ import copy
 
 from ...kernel import geometry
 from ...kernel.errors import ActionError, require
-from ...kernel.plugins import after, answerer, before, hook, inspector, invariant, observer
+from ...kernel.plugins import ACTIONS, after, answerer, before, hook, inspector, invariant, observer
 from ...kernel.predicates import root_room
 from . import behavior as B
 from . import common as C
 from . import model as M
+
+# unfamiliar things: one identify-first refusal on every pets verb, before any guard reads what the thing is
+# (common.unfamiliar_first; the verb modules are imported before this one, see __init__)
+for _name in sorted(n for n, s in ACTIONS.items() if s.fn.__module__.startswith(__package__ + ".")):
+    before(_name, order=1)(C.unfamiliar_first)
 
 MOVING = ("eating", "drinking", "walking", "playing", "pacing", "exploring", "waiting_at_door", "sniffing", "running_off", "begging")
 # activities of a pet lying still (asleep or awake): one percept in realistic mode

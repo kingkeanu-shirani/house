@@ -2985,6 +2985,185 @@ class StabiliseTests(unittest.TestCase):
                 read |= keys
             self.assertEqual(read, fields, pred.__name__)            # and nothing declared that it never reads
 
+    # ----- phase 1 close-out (catalog/analysis/phase1/finish_breakages.json, this domain's two rows) -----
+
+    def test_reading_an_unidentified_marker_reads_its_barrel_whichever_marker_it_is(self):
+        # the perception audit's read probe (INT2): an unresolved washable marker was refused "There is nothing
+        # legible to read on it" (no read-tier print) while an unresolved permanent marker read {"permanent": true};
+        # the refusal named the member before it was told apart. Both barrels print it now (the same key), and
+        # reading aloud reads the same form, in either camera mode
+        from house_sim.kernel.plugins import ACTIONS
+        from house_sim.kernel.realism import INSPECT
+        battery = ("read", "read_aloud") if "read_aloud" in ACTIONS else ("read",)    # read_aloud: the people domain
+        members = sorted(default_registry().lookalike_types()["felt_marker"])
+        self.assertEqual(members, ["marker_pen", "washable_marker"])
+        for camera in (None, "geometric"):
+            answers = {}
+            for name in members:
+                ops = [{"op": "room", "var": "lr", "type": "living_room"},
+                       {"op": "spawn", "var": "pen", "type": name, "floor": "{lr}", "eid": "probe_marker"},
+                       {"op": "robot", "room": "{lr}", "near": "{pen}"},
+                       {"op": "person", "id": "probe_resident", "role": "adult", "room": "{lr}"},
+                       {"op": "lights", "room": "{lr}", "on": True}]
+                spec = {"catalog_id": "test_admin"}
+                if camera:
+                    ops.append({"op": "camera", "face": "{pen}", "tilt": -60})      # the read probe's pose
+                    spec["camera"] = camera
+                config = generate_house(2, residents="minimal", pets="none")
+                b = apply_setup(config, ops, default_registry(), 2, spec, camera=camera)
+                env = HouseEnv(config, seed=2, perception="realistic", camera=camera)
+                self.assertTrue(env.realism.unresolved(b["pen"]))
+                rstep(env, "approach", b["pen"])
+                out = []
+                for action in battery:
+                    before = env.realism.knowledge.entity_level(b["pen"], ent(env, b["pen"])) < INSPECT
+                    result = rstep(env, action, b["pen"])
+                    self.assertTrue(result["ok"], (camera, name, action, result["message"]))
+                    shown = sorted(json.loads(result["message"])) if action == "read" else None
+                    out.append((action, result["ok"], result["category"], shown, before))
+                answers[name] = out
+            self.assertEqual(answers["marker_pen"], answers["washable_marker"], camera)
+            self.assertEqual(answers["marker_pen"][0][3], ["permanent"])      # what the barrel says, the same key
+
+    # unfamiliar things a household's stock and papers may really be, and other domains' things when they are loaded
+    # (the food scene's pot of chili among them)
+    NOVEL_LOOK = {"novel": True, "size_m": [0.2, 0.15, 0.25], "color": "gray", "material": "plastic"}
+    NOVEL_KINDS = ("stock_pot", "sorting_bin", "chef_knife", "electric_kettle", "tissue_box", "napkin_pack",
+                   "toilet_paper_pack", "soap_dispenser", "document")
+
+    def _novel_count_scene(self, kind, contents=False):
+        reg = default_registry()
+        ops = [{"op": "room", "var": "dr", "type": "dining_room"},
+               {"op": "find", "var": "table", "type": "dining_table", "room": "{dr}", "pick": "first"},
+               {"op": "find", "var": "clutter", "within": "{table}", "pick": "all", "required": False},
+               {"op": "remove", "target": "{clutter}"},
+               {"op": "spawn", "var": "thing", "type": kind, "on": "{table}", "eid": "thing_1",
+                "props": dict(self.NOVEL_LOOK)},
+               {"op": "spawn", "var": "pad", "type": "sticky_note", "on": "{table}", "eid": "partner_1"}]
+        if contents:
+            inside = "chili" if reg.known("chili") else "sticky_note"
+            ops.append({"op": "spawn", "var": "soup", "type": inside, "in": "{thing}", "eid": "soup_1"})
+        env, b, r = build_real(ops + [{"op": "robot", "near": "{table}"}], require=())
+        return env, b, r
+
+    @staticmethod
+    def _canon_count(env, message):
+        """A count message with handles mapped to the true ids they stand for (twins hash their handles apart) and
+        the id lists sorted, so twins that differ only in the unfamiliar thing's true type compare equal."""
+        out = json.loads(message)
+        by_handle = env.realism.handles.by_handle
+        out["ids"] = sorted(by_handle.get(h, h) for h in out["ids"])
+        out["levels"] = {by_handle.get(h, h): v for h, v in out["levels"].items()}
+        out["scope"] = by_handle.get(out["scope"], out["scope"])
+        return out
+
+    def test_counting_tells_no_unfamiliar_thing_by_what_it_really_is(self):
+        # food's phase-1 finding (red_leaks I4; VER finding 6): count of an unfamiliar pot listed the chili in it
+        # (nothing for an unfamiliar knife), count of the table gave only an unfamiliar kettle a "levels" entry, an
+        # unfamiliar napkin pack its printed 250 and an unfamiliar 12-pack its rolls instead of itself, and
+        # count what=<its true type> counted it. Now counting one is the kernel's identify-first refusal, and in a
+        # count of what holds it, it is one thing seen: matched by its look only, else reported unidentified
+        from house_sim.kernel.actions import NOVEL_OPERATE_MESSAGE
+        kinds = [k for k in self.NOVEL_KINDS if default_registry().known(k)]
+        holder = "stock_pot" if "stock_pot" in kinds else "sorting_bin"        # holds the chili (or a note)
+        refusals, tables, asked = {}, {}, {}
+        for kind in kinds:
+            env, b, r = self._novel_count_scene(kind, contents=kind == holder)
+            self.assertTrue(env.realism.novel_unidentified(b["thing"]))
+            r.skill("approach", target=b["thing"])
+            tries = ({}, {"unit": "packages"}, {"what": "chili"})
+            refusals[kind] = [(res["ok"], res["category"], res["message"])
+                              for res in (rstep(env, "count", b["thing"], **kw) for kw in tries)]
+            if kind == holder:
+                continue                        # the chili in the pot is a thing of its own on the table
+            tables[kind] = [self._canon_count(env, rok(self, env, "count", b["table"], **kw)["message"])
+                            for kw in ({}, {"unit": "packages"})]
+            asked[kind] = [self._canon_count(env, rok(self, env, "count", b["table"], what=what)["message"])
+                           for what in self.NOVEL_KINDS + ("unfamiliar",)]
+        self.assertEqual(set(map(json.dumps, refusals.values())),
+                         {json.dumps([(False, "precondition", NOVEL_OPERATE_MESSAGE)] * 3)}, refusals)
+        self.assertEqual(len({json.dumps(v, sort_keys=True) for v in tables.values()}), 1, tables)
+        self.assertEqual(len({json.dumps(v, sort_keys=True) for v in asked.values()}), 1, asked)
+        first = sorted(tables)[0]
+        units, packages = tables[first]
+        self.assertIn("thing_1", units["ids"])                       # one thing, counted as one
+        self.assertEqual((units["levels"], units["from_label"], units["empty"]), ({}, 0, 0))
+        self.assertIn("thing_1", packages["ids"])
+        for what, out in zip(self.NOVEL_KINDS, asked[first]):
+            self.assertNotIn("thing_1", out["ids"], what)            # never by its true type ...
+            self.assertEqual(out["unidentified"], 1, what)           # ... it may be one
+        self.assertEqual((asked[first][-1]["ids"], asked[first][-1]["unidentified"]), (["thing_1"], 0))   # its look
+        # oracle mode counts the truth, as before
+        env, b, r = build([{"op": "room", "var": "dr", "type": "dining_room"},
+                           {"op": "find", "var": "table", "type": "dining_table", "room": "{dr}", "pick": "first"},
+                           {"op": "spawn", "var": "thing", "type": holder, "on": "{table}",
+                            "props": dict(self.NOVEL_LOOK)},
+                           {"op": "spawn", "var": "soup", "type": "sticky_note", "in": "{thing}"},
+                           {"op": "robot", "near": "{table}"}], require=())
+        self.assertEqual(msg(ok(self, env, "count", b["thing"]))["ids"], [b["soup"]])
+
+    # the phase-1 close-out's novel sweep twinned these (real types of this domain an unfamiliar thing may be)
+    SWEPT_KINDS = ("tissue_box", "napkin_pack", "toilet_paper_roll", "soap_dispenser", "document", "mail_piece",
+                   "package_box", "envelope", "stapler", "luggage_scale", "suitcase", "storage_bag_box")
+
+    def test_every_verb_of_this_domain_refuses_an_unfamiliar_thing_alike(self):
+        # the close-out's novel sweep (every verb, the unfamiliar thing in each entity parameter, the rest a sticky
+        # note): staple / punch / bind / collate / fold_paper / sort_pages / unstaple said "That is not a paper
+        # document" for every unfamiliar thing but a document ("There are no sheets left in it"), address_envelope and
+        # open_mail answered by envelope, affix_postage / open_package / remove_packing by parcel, take_unit "Open it
+        # first" for a napkin pack alone, tag_luggage and weigh_luggage by bag or scale. Now every verb gives the
+        # kernel's one identify-first refusal for an unfamiliar thing in any entity parameter, before any guard
+        from house_sim.kernel.actions import NOVEL_OPERATE_MESSAGE
+        from house_sim.kernel.plugins import ACTIONS
+        domain = "house_sim.systems.admin_inventory."
+        verbs = sorted((n, s) for n, s in ACTIONS.items() if s.fn.__module__.startswith(domain))
+        filler = {"str": "x", "text": "x", "number": 1, "int": 1, "list": ["x"], "bool": False}
+        answers = {}
+        for kind in self.SWEPT_KINDS:
+            env, b, r = self._novel_count_scene(kind)
+            r.skill("approach", target=b["thing"])
+            rows = []
+            for name, spec in verbs:
+                for pname, p in sorted(spec.params.items()):
+                    if p.get("type") not in ("entity", "target"):
+                        continue
+                    args = {}
+                    for key, q in spec.params.items():
+                        if q.get("type") in ("entity", "target") and (not q.get("optional") or key == pname):
+                            args[key] = b["thing"] if key == pname else b["pad"]
+                        elif not q.get("optional"):
+                            args[key] = q["choices"][0] if "choices" in q else filler.get(q.get("type"), "x")
+                    out = rstep(env, name, **args)
+                    rows.append((name, pname, out["ok"], out["category"], out["message"]))
+                    self.assertEqual((out["ok"], out["message"]), (False, NOVEL_OPERATE_MESSAGE), (kind, name, pname))
+            answers[kind] = rows
+        self.assertEqual(len({json.dumps(rows) for rows in answers.values()}), 1)
+        # oracle mode: the verbs answer by the truth, as before
+        env, b, r = build([{"op": "room", "var": "lr", "type": "living_room"},
+                           {"op": "spawn", "var": "x", "type": "napkin_pack", "floor": "{lr}",
+                            "props": dict(self.NOVEL_LOOK)},
+                           {"op": "robot", "near": "{x}"}], require=())
+        self.assertEqual(refused(self, env, "take_unit", b["x"])["message"], "Open it first")
+
+    def test_a_blank_shipping_label_is_reported_blank(self):
+        # found by the close-out sweep: verify_label of a box or mail piece whose label prints nothing (the types'
+        # default recipient "") crashed ("resident:" + None); a label with an address and no name names nobody
+        for kind in ("package_box", "mail_piece"):
+            for real in (False, True):
+                ops = [{"op": "room", "var": "lr", "type": "living_room"},
+                       {"op": "spawn", "var": "x", "type": kind, "floor": "{lr}"},
+                       {"op": "robot", "near": "{x}"}]
+                env, b, r = (build_real if real else build)(ops, require=())
+                out = (rstep if real else step)(env, "verify_label", b["x"])
+                self.assertEqual((out["ok"], out["category"], out["message"]),
+                                 (False, "perception", "The label is blank"), (kind, real))
+        ops = [{"op": "room", "var": "lr", "type": "living_room"},
+               {"op": "spawn", "var": "x", "type": "package_box", "floor": "{lr}",
+                "props": {"address": "12 Nowhere Lane, Elsewhere"}},
+               {"op": "robot", "near": "{x}"}]
+        env, b, r = build(ops, require=())
+        self.assertEqual(msg(ok(self, env, "verify_label", b["x"]))["verdict"], "wrong_address")
+
 
 def generate_root(config, eid):
     """Root room of an entity in a generated config."""

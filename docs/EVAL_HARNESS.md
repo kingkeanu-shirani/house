@@ -319,15 +319,21 @@ Three tools stand between an edit and a spec counted as verified; none of them t
   should have run and did not counts as a failure; the fuzzer reports per-action success coverage (a physical action
   that "succeeds" without changing the world is no success). A record is a hand-over only when it ran every check on
   one tree (this project or an isolated copy of one of its commits), on all verification seeds with the package's
-  extras, and was compared with the package's hand-over base. Wall-clock bounds are no correctness test: the unit
-  runs skip them (`HOUSE_SIM_PERF_TESTS=0`) and G7 runs them alone, each passing when one of 3 attempts meets it.
+  extras, and was compared with the package's hand-over base. The gate's rules (package scopes, allowed changes,
+  budgets, sub-stages) are committed policy (`tools/orchestration/gate_policy/rules.json`), and a record made by gate
+  code that differs from the committed one is no hand-over. Wall-clock bounds are no correctness verdict but stay
+  correctness coverage: the unit runs run every bound with its timing relaxed (its body and functional assertions run;
+  `tools/orchestration/wallclock.py`), every bound is registered (`gate_policy/perf_tests.json`), and G7 asserts them
+  alone, each passing when one of 3 attempts meets it. G1 also runs the Python 3.9 lint (`tools/py39_lint.py`).
 * **Orchestrator checks** (`tools/orchestration/run_check.py`): the authoring workflow re-runs `--check` itself
   after every author and review step and appends the verdicts to a hash-chained log
   (`catalog/review/check_log/orchestrator.jsonl`); the batch's result is the tool's passing set.
-* **CI** (`.github/workflows/ci.yml`): the unit suite and every spec on one seed, on Python 3.9 and 3.14, Windows and
-  Linux, offline (`HOUSE_AI_FORBID_NETWORK=1`), no secrets; a spec the gate's committed allowlist excuses on its
-  failing seed does not fail the spec step. The wall-clock bounds run in a separate, informational `perf` job
-  (`tools/orchestration/green_tests.py --perf`: alone, best of 3), so a slow shared runner never turns CI red.
+* **CI** (`.github/workflows/ci.yml`): the Python 3.9 lint, the unit suite and every spec on one seed, on Python 3.9
+  and 3.14, Windows and Linux, offline (`HOUSE_AI_FORBID_NETWORK=1`), no secrets; a spec the gate's committed allowlist
+  excuses on its failing seed does not fail the spec step. The unit suite runs every wall-clock bound relaxed and fails
+  on an unregistered bound or one that skips its body; the bounds' timing is asserted in a separate, informational
+  `perf` job (`tools/orchestration/green_tests.py --perf`: alone, best of 3), so a slow shared runner never turns CI
+  red.
 
 ## Results (`results/<run_id>/`)
 

@@ -6,6 +6,7 @@ Importing this package registers every action, hook, system, observer, inspector
 invariant, answerer, scenario helper, skill and furnisher of the domain.
 See docs/domains/manipulation.md.
 """
+from ...kernel.plugins import before as _before
 from . import common  # noqa: F401
 from . import handling  # noqa: F401
 from . import motion  # noqa: F401
@@ -24,3 +25,7 @@ VERBS = ("stack", "unstack", "push", "pull", "drag", "slide", "roll", "rotate", 
          "clip", "unclip", "zip", "unzip", "snap", "unsnap", "velcro", "unvelcro", "tape", "remove_tape", "apply_label",
          "remove_label", "tie", "untie", "wrap", "unwrap", "cover", "uncover", "hold_steady", "support", "throw", "catch",
          "squeeze", "tear", "pack", "unpack", "arrange", "align", "seal", "unseal")
+
+# an unfamiliar thing is not worked by kind, nor used as a tool, aid or receptacle (common.novel_guard)
+for _verb in VERBS:
+    _before(_verb, order=5)(common.novel_guard)

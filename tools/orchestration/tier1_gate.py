@@ -54,7 +54,8 @@ row covers it (a row of the package's handoff table, gate/<ID>/reviewed.json or 
 id, the seeds, the mode and one of the package's R codes); digest changes (reference_state_hash and the other state
 digests, the reference observation digest), an action fingerprint change and layout or generation-1 changes pass only
 for packages whose row allows them; benchmarks may not exceed the reference by more than the package's factor.
-The package table (PACKAGES) is TIER1_INTEGRATION section 2 transcribed; `packages` prints it.
+The package table (TIER1_INTEGRATION section 2 transcribed, then the adoption round, phase 1, its close-out and phase
+2) is committed policy: tools/orchestration/gate_policy/rules.json (K-GATE3); `packages` prints it.
 
 Hardening (phase 1 of the stabilisation; REVIEW_REPORT H12, top-10 item 3; phases/p2_tests_gate.md T3-T5):
 * Absolute rules beside the delta rule. G2-ABS: every authored spec passes in its own mode on every seed (new specs
@@ -123,6 +124,29 @@ Phase-1 red team, second pass (K-GATE2: the holes FIX2's fixes left open):
 * Every check result also carries the previous record it was judged against: a partial run against another previous
   record than the merged checks' is STALE like one on another tree.
 
+Phase-1 close-out (K-GATE3: the four holes of catalog/analysis/phase1/finish_VER.json):
+* The rules are committed policy. Every rule that decides a verdict -- the package table (file scopes, allowed
+  difference classes, review codes, extras, budgets, features), the sub-stages, their bases and which run now, the
+  stage order and default previous gates, the feature and extra requirements, the perf limits and tolerances, the
+  protected paths -- is gate_policy/rules.json, read from git HEAD like the allowlist (rules(); two edited lines of this
+  script lowered G7's budget before). Every record's meta "gate" lists the blob hashes of the gate code that made it
+  (every .py file of tools/orchestration and tools/py39_lint.py) and of every file under tools/orchestration, and the
+  commit it is judged against; check GATE fails a record made by code that differs from that commit's, except for a
+  gate-tool package (rules "gate_tool") with the main session's signoff row {"kind": "gate-change", "digest"}; a
+  comparison run by a differing script, or made with rules or a bound registry that are not committed yet (the
+  bootstrap draft), is INCOMPLETE.
+* G10 --shared-tree never attributes a protected path (rules scope.protected: tools/orchestration/** with the policy,
+  .github/**, the room golden, the generation-1 digests) to a peer; another file only to a peer of a running sub-stage
+  whose own scope contains it; every attribution is listed; one in a sub-stage that is not running is no hand-over.
+* G8 lists every entry of tests/data/room_golden.json that differs from the previous record's (or the base commit's)
+  as a re-record needing the package's reviewed row and the main session's signed row (kind "golden"); the golden's
+  known-failing pins count only while the committed allowlist excuses them (tools/golden.py).
+* Wall-clock bounds run relaxed in the correctness runs (tools/orchestration/wallclock.py: their bodies run, the
+  timing cannot fail), every perf mark must be in the committed registry gate_policy/perf_tests.json (G1), and a
+  perf-marked test that skips its body counts as a skip (G1, G1b, G8) unless the registry gives it a dated exception
+  pinned to its source.
+* G1 also runs tools/py39_lint.py (the gate's own copy) over the tree.
+
 Stdlib only; Python 3.9+. No network. Worker processes import house_sim from --root.
 """
 import argparse
@@ -146,32 +170,31 @@ HERE = Path(__file__).resolve().parent
 DEFAULT_ROOT = HERE.parent.parent
 GATE_DIR = "catalog/analysis/tier1/gate"
 HANDOFF_DIR = "catalog/analysis/tier1"
-SEEDS = (0, 1, 2, 41, 97)
 CHECKS = ("G0", "G1", "G1b", "G1c", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10")
-DOMAINS = ("admin_inventory", "appliances_cooking", "cleaning", "climate", "electrical", "food", "manipulation",
-           "mechanisms", "navigation_robot", "outdoor_plants", "people", "pets", "plumbing_liquids", "safety",
-           "textiles_laundry", "tools_vehicles")
-# kernel test files that must also pass with HOUSE_SIM_DOMAINS=core (G1b, TIER1_INTEGRATION 3.1)
-KERNEL_TESTS = ("test_kernel*.py", "test_perception.py", "test_physics_*.py", "test_sight.py", "test_camera*.py",
-                "test_body_*.py", "test_timeline.py", "test_world_savepoint.py", "test_monitor.py", "test_phases.py",
-                "test_clock.py", "test_predicates_v3.py", "test_dialogue.py", "test_reports.py", "test_mind.py",
-                "test_requests_obs.py")
 RUNTIME_ENV = ("HOUSE_SIM_DOMAINS", "HOUSE_SIM_STRICT", "HOUSE_SIM_SAFE", "HOUSE_SIM_GOLDEN_ALL",
-               "HOUSE_SIM_PERF_TESTS")
-# wall-clock bounds (K-GATE2): off in the correctness runs (G1, G1b, G8, the G9 test extras), on in G7's perf job
+               "HOUSE_SIM_PERF_TESTS", "HOUSE_SIM_PERF_PLAN", "HOUSE_SIM_PERF_RECORD")
+# wall-clock bounds (K-GATE2, K-GATE3): relaxed in the correctness runs (G1, G1b, G8, the G9 test extras: the body runs,
+# the timing cannot fail; tools/orchestration/wallclock.py), asserted in G7's perf job
 PERF_ENV = "HOUSE_SIM_PERF_TESTS"
 PERF_OFF = {PERF_ENV: "0"}
-PERF_SKIP_REASON = "wall-clock bound off"       # the skip message every bound gives with HOUSE_SIM_PERF_TESTS=0
-PERF_ATTEMPTS = 3
+PERF_SKIP_REASON = "wall-clock bound off"       # the skip message every legacy bound gives with HOUSE_SIM_PERF_TESTS=0
 TRANSIENT = ("tools/.fuzz_replay_*.json",)        # written and removed by tools/fuzz.py while G6 runs
 CATALOG_ID = re.compile(r"\b[A-Z]-[0-9a-f]{14}-\d{2}\b")
-CODE = re.compile(r"(?<![\w-])(?:[A-Z]-)?R\d+(?![\w-])|(?<![\w-])(?:D[123]|ADOPT|P1)(?![\w-])")
-# the gate's policy files (main session only): the dated allowlist of known failures and the second signatures. They
-# count only as committed (trusted_json); no package may change them (G10) except K-GATE, which defines their format
+# the gate's policy files (main session only): the rules (the package table, sub-stages, budgets, features: K-GATE3),
+# the dated allowlist of known failures, the wall-clock bound registry and the second signatures. They count only as
+# committed (trusted_json); no package may change them (G10) except a policy package (the gate tool's, which defines
+# their format, and the main session's merged records)
 POLICY_DIR = "tools/orchestration/gate_policy"
+RULES_FILE = POLICY_DIR + "/rules.json"
 KNOWN_FAILING = POLICY_DIR + "/known_failing.json"
+PERF_REGISTRY = POLICY_DIR + "/perf_tests.json"
 SIGNOFF_DIR = POLICY_DIR + "/signoffs"
-PROTECTED = (POLICY_DIR + "/*",)
+# the gate's own code (K-GATE3): every .py file of tools/orchestration (this script, the perf job, the wall-clock
+# helper, ...) and the Python 3.9 lint it runs in G1. A record lists their blob hashes; one made by code that differs
+# from the committed code is no hand-over (a gate-tool package's needs the main session's "gate-change" signature)
+GATE_CODE_DIR = "tools/orchestration"
+GATE_CODE_EXTRA = ("tools/py39_lint.py",)
+GOLDEN_FILE = "tests/data/room_golden.json"
 # what a gate record's checks depend on (tree_fingerprint, FIX2): code, data, specs, tests, tools, docs and the CI files --
 # not the gate records, results and analysis reports written beside them
 FINGERPRINT_PATHS = ("house_sim", "tasks", "tests", "tools", "docs", ".github", "setup.py", "setup_project.py",
@@ -179,342 +202,212 @@ FINGERPRINT_PATHS = ("house_sim", "tasks", "tests", "tools", "docs", ".github", 
 # the record's own statuses compare honours (the other checks it recomputes, with the allowlist and signatures as
 # committed now): FIX2
 OWN_STATUS = ("G0", "G1c", "G4", "G5", "G7", "G9", "G10")
+RULES_FORMAT = "house-gate-rules-v1"
 KNOWN_FAILING_FORMAT = "house-gate-known-failing-v1"
 SIGNOFF_FORMAT = "house-gate-signoff-v1"
 # statuses: PASS, FAIL, INFO (recorded, no condition), SKIP (a check that should have run did not: counts as FAIL),
 # N/A (the check does not apply to this package: counts as passing)
 FAILING = ("FAIL", "SKIP")
 TEST_MODES = ("normal", "strict", "isolated", "core", "golden", "golden_all")
-
-# ----------------------------------------------------------------------------------------------------------------
-# packages (TIER1_INTEGRATION.md sections 2.2-2.6, 3.2 and 3.4)
-#
-# files    globs of the files the package may create or edit (G10); its handoff and gate folder are always allowed
-# allow    difference classes it may change against the previous gate:
-#            fingerprint  the action fingerprint
-#            state        reference_state_hash and the other state digests (idle, wrong plans, initial config, task),
-#                         reference_steps and reference_time_s
-#            obs          the digest of the reference run's final observation
-#            verdict      G2/G3 verdicts, each one only with a reviewed row citing one of `codes`
-#            layout       layout_audit counts;  gen1  generation-1 house digests
-# bench    (factor, reference): G7 primary metrics may not exceed reference * factor ("prev" or a gate id)
-# extras   G9 extras run by default;  inert  module globs that must import without registering anything (G1c)
-# requires features that must exist for this package (golden, kernel_core, camera_tools, fuzz_battery, bench_day)
-
-SWEEP_LIB_TESTS = ("tests/test_monitor.py", "tests/test_phases.py")
-# files `python -m house_sim --verify` rewrites besides reports/*: the coverage table (audit.report) and the compiled
-# catalog (compiler.compile_specs); the close steps regenerate them (B6 / C1 handoffs, request 2)
-VERIFY_OUTPUTS = ("coverage.csv", "tasks/specs.jsonl", "tasks/id_to_family.jsonl", "catalog/entries.jsonl",
-                  "catalog/manifest.json")
-# the compiled specs follow tasks/authored/*.json: a domain that edits its specs and recompiles rewrites them
-COMPILED_SPECS = ("tasks/specs.jsonl", "tasks/id_to_family.jsonl")
+# the difference classes a package may be allowed to change against its previous gate (rules.json "allow"):
+#   fingerprint  the action fingerprint
+#   state        reference_state_hash and the other state digests (idle, wrong plans, initial config, task),
+#                reference_steps and reference_time_s
+#   obs          the digest of the reference run's final observation
+#   verdict      G2/G3 verdicts, each one only with a reviewed row citing one of the package's codes
+#   layout       layout_audit counts;  gen1  generation-1 house digests
+ALLOW_CLASSES = ("fingerprint", "state", "obs", "verdict", "layout", "gen1")
+PACKAGE_FIELDS = ("stage", "files", "allow", "codes", "extras", "inert", "bench", "requires", "aka", "note", "policy")
+RULE_KEYS = ("seeds", "domains", "kernel_tests", "stage_order", "default_prev", "substage_base", "substages",
+             "running_substages", "features", "extra_tools", "bench", "perf", "gen2_timing", "scope", "packages")
 # empty directories the project needs that git does not carry (an isolated copy made from `git archive` lacks them:
 # audit.fingerprint globs tasks/templates and tests copy it; house_sim/data/actions holds optional action files)
 EMPTY_DIRS = ("tasks/templates", "house_sim/data/actions")
 
 
-def _pkg(stage, files, allow=(), codes=(), extras=(), inert=(), bench=(1.05, "prev"), requires=(), aka=(), note="",
-         policy=False):
-    """policy: the package may change the gate's policy files (PROTECTED; only K-GATE, which defines their format)."""
-    return {"stage": stage, "files": list(files), "allow": list(allow), "codes": list(codes), "extras": list(extras),
-            "inert": list(inert), "bench": list(bench), "requires": list(requires), "aka": list(aka), "note": note,
-            "policy": bool(policy)}
+# ----------------------------------------------------------------------------------------------------------------
+# the gate's rules (K-GATE3): tools/orchestration/gate_policy/rules.json as committed
+#
+# The package table (TIER1_INTEGRATION.md sections 2.2-2.6, 3.2 and 3.4, then the adoption round, phase 1, its close-out
+# and phase 2: docs/design/VERIFY_HARDENING.md section 25), the sub-stages and their bases, the stage order and default
+# previous gates, the feature requirements, the extras' tools, the perf budgets and tolerances and the protected paths
+# lived in this script until the phase-1 close-out: two edited lines lowered G7's budget and a 20 % slower record
+# compared PASS (finish_VER.json). They are committed policy now, read from git HEAD like the allowlist; the format is in
+# gate_policy/README.md. A package entry:
+#   files    globs of the files the package may create or edit (G10); its handoff and gate folder are always allowed
+#   allow    difference classes it may change (ALLOW_CLASSES);  codes  the review codes its reviewed rows cite
+#   bench    [factor, reference]: G7's budgeted metrics may not exceed reference * factor ("prev" or a gate id)
+#   extras   G9 extras run by default;  inert  module globs that must import without registering anything (G1c)
+#   requires features that must exist for this package (golden, kernel_core, camera_tools, fuzz_battery, bench_day)
+#   aka      aliases;  policy  may change the policy files;  gate_tool  owns the gate tool (a record made by an
+#            uncommitted gate script is a hand-over only for such a package, with a "gate-change" signature)
+#   members  (unions) the packages whose handoffs and gate records are the union's own
+
+_RULES = {}
 
 
-PACKAGES = {
-    "A0": _pkg("A0", [
-        "tools/orchestration/tier1_gate.py", "tools/orchestration/README.md", "house_sim/kernel/timeline.py",
-        "house_sim/systems/core.py", "house_sim/kernel/engine.py", "house_sim/kernel/dialogue.py",
-        "house_sim/kernel/reports.py", "house_sim/kernel/mind.py", "house_sim/kernel/monitor.py",
-        "house_sim/kernel/phases.py", "house_sim/generator/profile.py", "tests/data/gen1_digests.json"],
-        allow=["fingerprint"],
-        inert=["house_sim/kernel/dialogue.py", "house_sim/kernel/reports.py", "house_sim/kernel/mind.py",
-               "house_sim/kernel/monitor.py", "house_sim/kernel/phases.py", "house_sim/generator/profile.py"],
-        aka=["TIER1-GATE"], note="the timeline move changes the action fingerprint (wait's duration module) only"),
-    # ---- stage A: libraries, zero behaviour change
-    "PHYS-DATA": _pkg("A", [
-        "house_sim/data/physics/materials.json", "house_sim/data/physics/liquids.json",
-        "house_sim/data/physics/floors.json", "house_sim/data/physics/supports.json", "house_sim/data/physics/laws.json",
-        "house_sim/kernel/phys/__init__.py", "house_sim/kernel/phys/props.py", "house_sim/kernel/phys/lawbook.py",
-        "house_sim/kernel/phys/forces.py", "house_sim/kernel/phys/contain.py", "setup.py",
-        "tests/test_physics_data.py", "tests/test_physics_forces.py"],
-        inert=["house_sim/kernel/phys/*.py"], extras=["physics"]),
-    "PHYS-STATICS": _pkg("A", [
-        "house_sim/kernel/phys/support.py", "house_sim/kernel/phys/statics.py", "house_sim/kernel/phys/impact.py",
-        "tests/test_physics_statics.py"], inert=["house_sim/kernel/phys/*.py"], extras=["physics"]),
-    "PHYS-FLUIDS": _pkg("A", [
-        "house_sim/kernel/phys/liquids.py", "house_sim/kernel/phys/thermal.py", "house_sim/kernel/phys/environment.py",
-        "house_sim/kernel/phys/processes.py", "tests/test_physics_fluids.py", "tests/test_physics_thermal.py"],
-        inert=["house_sim/kernel/phys/*.py"], extras=["physics"]),
-    "CAM-SIGHT": _pkg("A", [
-        "house_sim/kernel/sight.py", "house_sim/kernel/registry.py", "house_sim/data/types/core.json",
-        "tests/test_sight.py"], inert=["house_sim/kernel/sight.py"], extras=["camera"]),
-    "BODY-MODEL": _pkg("A", [
-        "house_sim/kernel/body.py", "house_sim/kernel/body_faults.py", "house_sim/kernel/proprio.py",
-        "house_sim/data/robot/profiles.json", "tools/body_audit.py", "tests/test_body_model.py"],
-        inert=["house_sim/kernel/body.py", "house_sim/kernel/body_faults.py", "house_sim/kernel/proprio.py"],
-        extras=["body"]),
-    "GEN": _pkg("A", [
-        "house_sim/generator/profile.py", "house_sim/generator/belongings.py", "house_sim/generator/furnishings.py",
-        "house_sim/generator/climate.py", "house_sim/data/generator/households.json",
-        "house_sim/data/generator/belongings.json", "house_sim/data/generator/furnishings.json",
-        "house_sim/data/generator/climate_normals.json", "house_sim/generator/__init__.py",
-        "house_sim/generator/layout.py", "house_sim/generator/place.py", "house_sim/generator/repair.py",
-        "tools/layout_audit.py", "tools/show_house.py", "tests/test_generator_gen2.py",
-        "tests/test_generator_compat.py", "docs/GENERATOR.md"], extras=["gen"],
-        bench=(1.05, "prev"), note="furnishers registered but returning at once for gen 1 are allowed (1.16)"),
-    "TIME-EVAL-LIB": _pkg("A", [
-        "house_sim/kernel/monitor.py", "house_sim/kernel/phases.py", "house_sim/data/calendar/*.json",
-        "tests/test_monitor.py", "tests/test_phases.py"],
-        inert=["house_sim/kernel/monitor.py", "house_sim/kernel/phases.py"],
-        note="TIME-EVAL's new library files during stages A/B (2.5); hand-over happens once, in stage C"),
-    "PEOPLE-IO-LIB": _pkg("A", [
-        "house_sim/kernel/dialogue.py", "house_sim/kernel/reports.py", "house_sim/kernel/mind.py",
-        "house_sim/data/vocab/*.json", "tools/vocab.py", "tests/test_dialogue.py", "tests/test_reports.py",
-        "tests/test_mind.py"],
-        inert=["house_sim/kernel/dialogue.py", "house_sim/kernel/reports.py", "house_sim/kernel/mind.py"],
-        note="PEOPLE-IO's new library files during stages A/B (2.5); hand-over happens once, in stage C"),
-    # ---- stage B (integration, merge order)
-    "B0": _pkg("B0", [], note="main session: must equal A0 except benchmark noise"),
-    "PHYS-INT": _pkg("B1", [
-        "house_sim/kernel/world.py", "house_sim/kernel/engine.py", "house_sim/kernel/actions.py",
-        "house_sim/kernel/physics.py", "house_sim/kernel/phys/*", "house_sim/systems/core.py",
-        "house_sim/tasks/setup.py", "house_sim/tasks/verify.py", "house_sim/data/types/core.json",
-        "house_sim/data/physics/*.json", "tools/physics_audit.py", "tools/golden.py", "tools/perception_audit.py",
-        "tests/test_physics_settle.py", "tests/test_physics_setup.py", "tests/test_room_golden.py",
-        "tests/data/room_golden.json", "docs/KERNEL_API.md", "docs/PHYSICS.md", "docs/CONVENTIONS.md",
-        "docs/AUTHORING_GUIDE.md", "docs/PERCEPTION.md", "docs/KNOWN_LIMITS.md"],
-        allow=["state", "obs", "verdict"], codes=["R%d" % i for i in range(1, 11)], extras=["physics"],
-        bench=(1.0, "A0"), requires=["golden", "kernel_core"],
-        note="R1-R10; whole engine must not exceed A0 at all (3.4)"),
-    "CAM-RUNTIME": _pkg("B2", [
-        "house_sim/kernel/camera.py", "house_sim/kernel/engine.py", "house_sim/kernel/perception.py",
-        "house_sim/kernel/actions.py", "house_sim/kernel/sight.py", "house_sim/kernel/phys/observe.py",
-        "tests/test_camera.py", "docs/KERNEL_API.md"], bench=(1.05, "prev"),
-        note="nothing may change in room mode"),
-    "CAM-ACTIONS": _pkg("B3", [
-        "house_sim/systems/core.py", "house_sim/kernel/camera.py", "house_sim/kernel/sight.py",
-        "house_sim/kernel/actions.py", "house_sim/tasks/setup.py", "house_sim/tasks/spec.py",
-        "house_sim/tasks/runner.py", "house_sim/tasks/verify.py", "house_sim/tasks/skills.py", "house_sim/cli.py",
-        "tests/test_camera_actions.py", "docs/ACTION_API.md", "docs/TASK_SPEC.md", "docs/AUTHORING_GUIDE.md"],
-        allow=["fingerprint"]),
-    "CAM-RENDER": _pkg("B3", [
-        "house_sim/kernel/realism.py", "house_sim/kernel/engine.py", "house_sim/kernel/perception.py",
-        "house_sim/agent.py", "house_sim/eval/run.py", "house_sim/eval/agents.py", "house_sim/eval/llm.py",
-        "house_sim/eval/dataset.py", "house_sim/eval/viewer.py", "house_sim/eval/viewer_template.html",
-        "house_sim/eval/leaderboard.py", "tools/perception_audit.py", "tools/fuzz.py", "tools/bench_systems.py",
-        "tests/test_camera_realism.py", "docs/PERCEPTION.md", "docs/VIEWER.md", "docs/EVAL_HARNESS.md",
-        "docs/KNOWN_LIMITS.md"], extras=["camera"], requires=["camera_tools"]),
-    "BODY-ENGINE": _pkg("B4", [
-        "house_sim/kernel/engine.py", "house_sim/kernel/actions.py", "house_sim/kernel/schema.py",
-        "house_sim/kernel/timeline.py", "house_sim/kernel/body.py", "house_sim/kernel/body_faults.py",
-        "house_sim/kernel/phys/forces.py", "house_sim/kernel/phys/support.py", "house_sim/data/robot/profiles.json",
-        "house_sim/systems/core.py", "tests/test_body_engine.py", "tests/test_kernel.py",
-        "tests/data/room_golden.json", "docs/KERNEL_API.md", "docs/CONVENTIONS.md", "docs/KNOWN_LIMITS.md"],
-        allow=["state", "obs", "verdict"], codes=["B-R%d" % i for i in range(1, 7)], extras=["body"],
-        note="must merge together with NAV-M2 (--package BODY-ENGINE+NAV-M2)"),
-    "NAV-M2": _pkg("B4", [
-        "house_sim/systems/navigation_robot/traverse.py", "house_sim/systems/navigation_robot/robot.py",
-        "house_sim/systems/navigation_robot/paths.py", "house_sim/systems/navigation_robot/world.py",
-        "tests/test_navigation_robot.py"], allow=["state", "obs", "verdict"],
-        codes=["B-R%d" % i for i in range(1, 7)], note="navigation_robot domain agent, paired with BODY-ENGINE"),
-    "BODY-CORE": _pkg("B5", [
-        "house_sim/systems/core.py", "house_sim/kernel/engine.py", "house_sim/kernel/body.py",
-        "house_sim/data/robot/profiles.json", "house_sim/tasks/setup.py", "house_sim/tasks/skills.py",
-        "tests/test_body_core.py", "tests/test_kernel.py", "docs/AUTHORING_GUIDE.md", "docs/ACTION_API.md",
-        "tasks/authored/*.json"],
-        allow=["state", "obs", "verdict"], codes=["B-R%d" % i for i in range(7, 12)], extras=["body"],
-        note="specs re-authored for B-R7/B-R9 are edited by their owners (listed in the handoff); "
-             "must merge together with NAV-M5"),
-    "NAV-M5": _pkg("B5", [
-        "house_sim/systems/navigation_robot/paths.py", "house_sim/systems/navigation_robot/follow.py"],
-        allow=["state", "obs", "verdict"], codes=["B-R%d" % i for i in range(7, 12)]),
-    "BODY-FAULTS": _pkg("B5", [
-        "house_sim/kernel/perception.py", "house_sim/kernel/realism.py", "house_sim/kernel/body_faults.py",
-        "house_sim/kernel/proprio.py", "tools/perception_audit.py", "tools/fuzz.py", "tests/test_body_faults.py",
-        "tests/test_body_perception.py", "tests/test_perception.py", "tests/data/room_golden.json",
-        "docs/PERCEPTION.md", "docs/EVAL_HARNESS.md"],
-        allow=["obs"], codes=["B-R%d" % i for i in range(12, 16)], extras=["body"], requires=["fuzz_battery"]),
-    "B-CLOSE": _pkg("B6", [
-        "house_sim/eval/viewer.py", "house_sim/eval/viewer_template.html", "house_sim/eval/dataset.py",
-        "docs/DATASET.md", "docs/VIEWER.md", "docs/KNOWN_LIMITS.md", "house_sim/data/types/core.json",
-        "demos/replays/*", "demos/manifest.json", "reports/*", "tests/data/spec_baseline.json"] + list(VERIFY_OUTPUTS),
-        aka=["B6"], note="main session; regenerated evidence only, no verdict or digest of an existing spec changes"),
-    # ---- stage C
-    "TIME-EVAL": _pkg("C", [
-        "house_sim/kernel/monitor.py", "house_sim/kernel/phases.py", "house_sim/data/calendar/*.json",
-        "house_sim/kernel/timeline.py", "house_sim/kernel/engine.py", "house_sim/kernel/world.py",
-        "house_sim/kernel/evaluation.py", "house_sim/kernel/predicates.py", "house_sim/kernel/clock.py",
-        "house_sim/kernel/plugins.py", "house_sim/kernel/actions.py", "house_sim/kernel/physics.py",
-        "house_sim/kernel/camera.py", "house_sim/kernel/phys/observe.py", "house_sim/tasks/spec.py",
-        "house_sim/tasks/runner.py", "house_sim/tasks/verify.py", "house_sim/eval/run.py", "house_sim/eval/agents.py",
-        "house_sim/cli.py", "tools/verify.py", "tools/bench_systems.py", "tools/sweep_bench.py",
-        "tests/test_timeline.py", "tests/test_world_savepoint.py", "tests/test_monitor.py", "tests/test_phases.py",
-        "tests/test_clock.py", "tests/test_predicates_v3.py", "docs/TASK_SPEC.md", "docs/EVALUATION.md",
-        "docs/KERNEL_API.md", "docs/EVAL_CONTRACTS.md"],
-        allow=["fingerprint", "verdict"], codes=["S-R1", "S-R2", "S-R3", "S-R4"], extras=["sweep"],
-        requires=["bench_day"], note="merges first in stage C"),
-    "PEOPLE-IO": _pkg("C", [
-        "house_sim/kernel/dialogue.py", "house_sim/kernel/reports.py", "house_sim/kernel/mind.py",
-        "house_sim/data/vocab/*.json", "tools/vocab.py", "house_sim/systems/core.py", "house_sim/kernel/realism.py",
-        "house_sim/kernel/perception.py", "house_sim/tasks/setup.py", "house_sim/tasks/skills.py",
-        "house_sim/eval/llm.py", "tools/perception_audit.py", "tests/test_dialogue.py", "tests/test_reports.py",
-        "tests/test_mind.py", "tests/test_requests_obs.py", "tests/test_perception.py", "docs/DIALOGUE.md",
-        "docs/PERCEPTION.md", "docs/EVAL_HARNESS.md", "docs/AUTHORING_GUIDE.md", "docs/CONVENTIONS.md"],
-        allow=["fingerprint", "obs"], codes=["S-R5", "S-R6", "S-R7"], extras=["sweep"]),
-    "C-CLOSE": _pkg("C1", [
-        "demos/replays/*", "demos/manifest.json", "reports/*", "datasets/*", "tests/data/spec_baseline.json"] +
-        list(VERIFY_OUTPUTS), aka=["C1"], note="main session; regenerated evidence only"),
-    # ---- stage D (after the adoption round; TIER1_INTEGRATION 2.6 and 4)
-    "PHYS-FLIP": _pkg("D1", ["house_sim/data/physics/laws.json", "docs/PHYSICS.md"],
-                      allow=["state", "obs", "verdict"], codes=["D1"], aka=["D1"], extras=["physics"],
-                      note="per-spec triage rows cite D1; spec fixes are made by their owners"),
-    "M-GEN2": _pkg("D2", ["tasks/authored/*.json", "catalog/analysis/gen2_migration.json"],
-                   allow=["state", "obs", "verdict"], codes=["D2"], aka=["D2"], extras=["gen"]),
-    "CAM-FLIP": _pkg("D3", [
-        "house_sim/kernel/camera.py", "docs/PERCEPTION.md", "docs/EVAL_HARNESS.md", "docs/AUTHORING_GUIDE.md",
-        "docs/KNOWN_LIMITS.md", "tasks/authored/*.json"],
-        allow=["state", "obs", "verdict"], codes=["D3"], aka=["D3"], extras=["camera"]),
-}
-for _d in DOMAINS:
-    PACKAGES["ADOPT:" + _d] = _pkg("ADOPT", [
-        "house_sim/systems/{}/*".format(_d), "house_sim/data/types/{}.json".format(_d), "tests/test_{}.py".format(_d),
-        "docs/domains/{}.md".format(_d), "tasks/authored/{}__*.json".format(_d)] + list(COMPILED_SPECS),
-        allow=["state", "obs", "verdict", "fingerprint"], codes=["ADOPT"],
-        note="domain adoption round (section 6): the domain's own files (and the compiled specs its spec edits "
-             "rewrite)")
-# the adoption round's two kernel follow-up agents (tools/orchestration/tier1_adopt.js): K-EVAL owns the evaluation
-# side (eval, audit, verify, predicates, engine, mind, tools) and may change no verdict or digest; K-CAM owns the
-# camera side and may change behaviour behind reviewed rows (code ADOPT), like the domain packages it runs beside
-PACKAGES["K-EVAL"] = _pkg("ADOPT", [
-    "house_sim/eval/*", "house_sim/audit.py", "house_sim/cli.py", "house_sim/tasks/verify.py",
-    "house_sim/kernel/predicates.py", "house_sim/kernel/engine.py", "house_sim/kernel/mind.py",
-    "house_sim/kernel/replays.py", "tools/*", "tests/test_eval_*.py", "tests/test_kernel*.py", "tests/test_mind.py",
-    "tests/test_predicates_v3.py", "tests/test_monitor.py", "tests/test_phases.py", "tests/test_body_audit.py",
-    "tests/test_camera_realism.py", "docs/KERNEL_API.md", "docs/VIEWER.md", "docs/DATASET.md",
-    "docs/EVAL_HARNESS.md", "docs/EVAL_CONTRACTS.md", "docs/KNOWN_LIMITS.md", "docs/TASK_SPEC.md",
-    "docs/design/TIER1_INTEGRATION.md",
-    ".gitignore", "demos/replays/*", "demos/manifest.json", "catalog/analysis/tier1/handoff_TIER1-GATE.md",
-    "reports/unit_tests.txt", "reports/unit_test_summary.json", "reports/cli_checks.json",
-    "reports/package_checks.json", "reports/package_build.txt", "reports/compilation_summary.json"],
-    note="adoption-round kernel follow-ups (evaluation side): no verdict, digest or fingerprint may change (its "
-         "gate runs on an isolated copy, `isolate --package K-EVAL`, against a pristine one)")
-PACKAGES["K-CAM"] = _pkg("ADOPT", [
-    "house_sim/kernel/sight.py", "house_sim/kernel/camera.py", "house_sim/kernel/perception.py",
-    "house_sim/kernel/realism.py", "house_sim/kernel/timeline.py", "house_sim/tasks/setup.py", "house_sim/agent.py",
-    "house_sim/tasks/skills.py",
-    "tests/test_camera*.py", "tests/test_sight.py", "tests/test_perception.py", "tests/test_timeline.py",
-    "tests/test_kernel.py", "docs/PERCEPTION.md", "docs/KERNEL_API.md", "docs/KNOWN_LIMITS.md", "docs/TASK_SPEC.md"],
-    allow=["state", "obs", "verdict", "fingerprint"], codes=["ADOPT"], extras=["camera"],
-    note="adoption-round kernel follow-ups (camera side)")
-# the adoption integrator (tools/orchestration/tier1_adopt.js, phase Integrate): the kernel-side fixes and kernel
-# requests of the round (with regression tests), the round's re-records (generation-1 digests, room golden, the
-# compiled specs) and the regenerated evidence; may change generation-1 digests (domain type data, reviewed)
-PACKAGES["ADOPT-INT"] = _pkg("ADOPT", [
-    "house_sim/kernel/*", "house_sim/systems/core.py", "house_sim/tasks/*", "house_sim/generator/*",
-    "house_sim/eval/*", "house_sim/audit.py", "house_sim/cli.py", "house_sim/agent.py",
-    "house_sim/data/types/core.json", "house_sim/data/physics/*", "house_sim/data/robot/*", "house_sim/data/vocab/*",
-    "house_sim/data/generator/*", "house_sim/data/calendar/*",
-    "tests/test_kernel*.py", "tests/test_physics_*.py", "tests/test_camera*.py", "tests/test_body_*.py",
-    "tests/test_sight.py", "tests/test_generator*.py", "tests/test_clock.py", "tests/test_reports.py",
-    "tests/test_dialogue.py", "tests/test_mind.py", "tests/test_timeline.py", "tests/test_room_golden.py",
-    "tests/test_perception.py", "tests/test_eval_*.py", "tests/test_requests_obs.py", "tests/test_world_savepoint.py",
-    "tests/test_monitor.py", "tests/test_phases.py", "tests/test_predicates_v3.py", "tests/data/*", "tools/*",
-    "docs/[A-Z]*.md", "docs/design/TIER1_INTEGRATION.md", "catalog/analysis/tier1/adopt_status.json",
-    "reports/*", "demos/*", "datasets/*", "coverage.csv", "catalog/entries.jsonl", "catalog/manifest.json"]
-    + list(COMPILED_SPECS),
-    allow=["state", "obs", "verdict", "fingerprint", "gen1"], codes=["ADOPT"],
-    extras=["physics", "camera", "body", "sweep", "gen"],
-    note="the adoption round's integrator: kernel-side fixes, re-records and evidence (docs/domains/* and the "
-         "domains' files stay the domains')")
-# the adoption integrator's union (`record --id ADOPT`): every adoption package at once
-PACKAGES["ADOPT-ALL"] = _pkg("ADOPT", sorted({f for pid, pkg in PACKAGES.items() if pkg["stage"] == "ADOPT"
-                                              for f in pkg["files"]}),
-                             allow=["state", "obs", "verdict", "fingerprint", "gen1"], codes=["ADOPT"], aka=["ADOPT"],
-                             extras=["physics", "camera", "body", "sweep", "gen"],
-                             note="the merged adoption round (16 domains, K-EVAL, K-CAM)")
-# phase 1 of the stabilisation after the independent review (REVIEW_REPORT top-10 item 3): the gate and process
-# tooling. Its verify.py change (a wrong plan that raises is not evidence) changes verdicts of specs it does not own:
-# each one needs a reviewed row (code P1) and the main session's signature like any other package's
-PACKAGES["K-GATE"] = _pkg("P1", [
-    "tools/orchestration/*", "tools/fuzz.py", "house_sim/tasks/verify.py", "house_sim/eval/run.py",
-    ".github/workflows/ci.yml", "tests/test_gate_tool.py", "tests/test_verify_records.py", "docs/EVAL_HARNESS.md",
-    "catalog/analysis/phase1/K-GATE.json", "catalog/analysis/tier1/handoff_K-GATE.md"],
-    allow=["verdict"], codes=["P1"], policy=True,
-    note="phase-1 kernel agent: gate and process tooling; may write the policy files' format (the main session "
-         "commits them)")
-# the phase-1 kernel agents K-FIX and K-LEAK and the phase-1 integrator (INT: kernel requests of the round, the
-# re-records, the phase reports in catalog/analysis/phase1/): the kernel side (ADOPT-INT's files) plus the files those
-# packages add outside it -- K-LEAK's tests/test_leaks_review.py, the integrator's results and folder keepers, the
-# embodiment design note on the felt load and the verifier-hardening decision record committed with this phase
-PACKAGES["P1-INT"] = _pkg("P1", sorted(set(PACKAGES["ADOPT-INT"]["files"]) | {
-    "tests/test_leaks_review.py", "catalog/analysis/phase1/*", "docs/design/TIER1_EMBODIMENT.md",
-    "docs/design/VERIFY_HARDENING_DECISIONS.md", "tasks/templates/.gitkeep", "house_sim/data/actions/.gitkeep"}),
-    allow=["state", "obs", "verdict", "fingerprint", "gen1"], codes=["P1"],
-    extras=["physics", "camera", "body", "sweep", "gen"],
-    note="phase-1 kernel agents (K-FIX, K-LEAK) and the phase-1 integrator: kernel-side fixes and requests, re-records")
-# the phase-1 red team's fix pass on the non-domain files (FIX2: catalog/analysis/phase1/FIX2.json): the kernel side
-# (P1-INT's files), the gate and process tooling it hardened (K-GATE's), the CI workflow and the one factual update of
-# the verifier-hardening design (the hidden seed range)
-PACKAGES["P1-FIX2"] = _pkg("P1", sorted(set(PACKAGES["P1-INT"]["files"]) | set(PACKAGES["K-GATE"]["files"]) | {
-    "docs/design/VERIFY_HARDENING.md"}),
-    allow=["state", "obs", "verdict", "fingerprint", "gen1"], codes=["P1"],
-    extras=["physics", "camera", "body", "sweep", "gen"],
-    note="phase-1 red-team fix pass (non-domain files): kernel leaks, gate honesty, verifier interim rule, CI, tools")
-# the main session's phase-1 integration record (`record --id P1 --package P1 --prev ADOPT`): the domains' fixes
-# (their ADOPT:<domain> files), the kernel side (ADOPT-INT's, P1-INT's and P1-FIX2's files) and K-GATE's; it may change
-# the policy files (the main session signs) and, like every package, needs reviewed rows plus signatures for each
-# verdict change and edit
-PACKAGES["P1-ALL"] = _pkg("P1", sorted(set(PACKAGES["ADOPT-ALL"]["files"]) | set(PACKAGES["K-GATE"]["files"])
-                                       | set(PACKAGES["P1-INT"]["files"]) | set(PACKAGES["P1-FIX2"]["files"])),
-                          allow=["state", "obs", "verdict", "fingerprint", "gen1"], codes=["ADOPT", "P1"], aka=["P1"],
-                          extras=["physics", "camera", "body", "sweep", "gen"], policy=True,
-                          note="phase 1 of the stabilisation, merged (16 domains' fixes, kernel agents, K-GATE)")
-# the phase-1 red team's second gate pass (K-GATE2: catalog/analysis/phase1/finish_K-GATE2.json): the gate and process
-# tooling, the verifier's interim never-acted rule, the golden policy, the auditor's hazard-order probe and CI. Its
-# verify.py change fails wrong plans that never act (verdict changes of specs it does not own: reviewed rows, code P1,
-# and the main session's signatures like any other package's)
-PACKAGES["K-GATE2"] = _pkg("P1", sorted(set(PACKAGES["K-GATE"]["files"]) | {
-    "tools/golden.py", "tools/perception_audit.py", "house_sim/kernel/reports.py", "house_sim/kernel/realism.py",
-    ".github/workflows/*", "tests/test_perception.py", "catalog/analysis/phase1/finish_K-GATE2.json"}),
-    allow=["verdict"], codes=["P1"], policy=True,
-    note="phase-1 red team, second gate pass: hand-over bases, perf job, never-acted wrong plans, golden policy")
-PACKAGES["P1-ALL"]["files"] = sorted(set(PACKAGES["P1-ALL"]["files"]) | set(PACKAGES["K-GATE2"]["files"]))
-STAGE_ORDER = ("A0", "A", "B0", "B1", "B2", "B3", "B4", "B5", "B6", "C", "C1", "ADOPT", "P1", "D1", "D2", "D3")
-DEFAULT_PREV = {"A": "A0", "B0": "A0", "B1": "B0", "ADOPT": "C1", "P1": "ADOPT"}
-# the record every package of a sub-stage hands over against (K-GATE2): a package's hand-over base is its stage's
-# default previous gate or the base of a sub-stage it runs in -- phase 1's domain owners record ADOPT:<domain> (stage
-# ADOPT) against ADOPT. A comparison with any other record (an agent's own earlier record, a copy of the record) is an
-# iteration aid, never a hand-over: the delta rules passed against a record nobody accepted
-SUBSTAGE_BASE = {"A": "A0", "ADOPT": "C1", "P1": "ADOPT"}
-# packages that run in parallel inside one sub-stage (G10 --shared-tree attributes their files instead of failing)
-SUBSTAGES = {"A": ("PHYS-DATA", "PHYS-STATICS", "PHYS-FLUIDS", "CAM-SIGHT", "BODY-MODEL", "GEN", "TIME-EVAL-LIB",
-                   "PEOPLE-IO-LIB"),
-             "B3": ("CAM-ACTIONS", "CAM-RENDER"), "B4": ("BODY-ENGINE", "NAV-M2"),
-             "B5": ("BODY-CORE", "NAV-M5", "BODY-FAULTS"), "C": ("TIME-EVAL", "PEOPLE-IO"),
-             "ADOPT": tuple(["ADOPT:" + _d for _d in DOMAINS] + ["K-EVAL", "K-CAM", "ADOPT-INT"]),
-             # phase 1: the 16 domain owners fix their own files (their ADOPT:<domain> packages) beside K-GATE
-             "P1": tuple(["ADOPT:" + _d for _d in DOMAINS] + ["K-GATE", "K-GATE2"])}
+def _validate_rules(data):
+    """The problems of a rules file's data ([] when it is well-formed)."""
+    if not isinstance(data, dict) or data.get("format") != RULES_FORMAT:
+        return ["not a {} file".format(RULES_FORMAT)]
+    problems = ["missing key " + k for k in RULE_KEYS if k not in data]
+    if problems:
+        return problems
+    stages = data["stage_order"]
+    packages = data["packages"]
+    for pid, pkg in sorted(packages.items()):
+        missing = [k for k in PACKAGE_FIELDS if k not in pkg]
+        if missing:
+            problems.append("package {}: missing {}".format(pid, ", ".join(missing)))
+            continue
+        if pkg["stage"] not in stages:
+            problems.append("package {}: stage {} is not in stage_order".format(pid, pkg["stage"]))
+        bad = [a for a in pkg["allow"] if a not in ALLOW_CLASSES]
+        if bad:
+            problems.append("package {}: unknown difference class(es) {}".format(pid, ", ".join(bad)))
+        bench = pkg["bench"]
+        if not (isinstance(bench, list) and len(bench) == 2 and isinstance(bench[0], (int, float)) and
+                isinstance(bench[1], str)):
+            problems.append("package {}: bench must be [factor, reference]".format(pid))
+        for member in pkg.get("members") or []:
+            if member not in packages:
+                problems.append("package {}: unknown member {}".format(pid, member))
+    for sub, members in sorted(data["substages"].items()):
+        problems += ["substage {}: unknown package {}".format(sub, m) for m in members if m not in packages]
+    for sub in data["running_substages"]:
+        if sub not in data["substages"]:
+            problems.append("running sub-stage {} is not a sub-stage".format(sub))
+    for name, feature in sorted(data["features"].items()):
+        if feature.get("stage") not in stages or feature.get("introducer") not in packages:
+            problems.append("feature {}: unknown stage or introducer".format(name))
+    default = (data.get("bench") or {}).get("default")
+    if not (isinstance(default, list) and len(default) == 2):
+        problems.append("bench.default must be [factor, reference]")
+    return problems
+
+
+def _compile_rules(data):
+    """The rules as the gate uses them (tuples, the review-code pattern)."""
+    packages = {}
+    for pid, pkg in data["packages"].items():
+        entry = {k: (list(v) if isinstance(v, list) else v) for k, v in pkg.items()}
+        entry.setdefault("gate_tool", False)
+        packages[pid] = entry
+    literal = sorted({c for pkg in packages.values() for c in pkg["codes"]
+                      if not re.fullmatch(r"(?:[A-Z]-)?R\d+", c)}, key=lambda c: (-len(c), c))
+    code = r"(?<![\w-])(?:[A-Z]-)?R\d+(?![\w-])"
+    if literal:
+        code += r"|(?<![\w-])(?:" + "|".join(re.escape(c) for c in literal) + r")(?![\w-])"
+    bench = data["bench"]
+    return {
+        "packages": packages,
+        "substages": {k: tuple(v) for k, v in data["substages"].items()},
+        "running": tuple(data["running_substages"]),
+        "stage_order": tuple(data["stage_order"]),
+        "default_prev": dict(data["default_prev"]),
+        "substage_base": dict(data["substage_base"]),
+        "domains": tuple(data["domains"]),
+        "seeds": tuple(int(s) for s in data["seeds"]),
+        "kernel_tests": tuple(data["kernel_tests"]),
+        "features": {k: (v["stage"], v["introducer"], v.get("what", "")) for k, v in data["features"].items()},
+        "extra_tools": {k: (v["tool"], v["introducer"]) for k, v in data["extra_tools"].items()},
+        "bench_default": list(bench["default"]),
+        "bench_budgeted": tuple(bench.get("budgeted") or ("substep_ms", "wait_1h_s")),
+        "bench_reported": tuple(bench.get("reported") or ()),
+        "bench_tolerance": float(bench.get("tolerance", 1e-9)),
+        "perf_attempts": int(data["perf"]["attempts"]),
+        "gen2_max_ratio": float(data["gen2_timing"]["max_ratio"]),
+        "protected": tuple(data["scope"]["protected"]),
+        "policy_files": tuple(data["scope"]["policy_files"]),
+        "code": re.compile(code),
+    }
+
+
+def _policy_file(rel):
+    """(data or None, note, committed) of a policy file as the gate reads it: the committed version (trusted_json,
+    from policy_root()). Bootstrap: before the main session first commits a policy file, the working-tree draft of the
+    project (never of an isolated copy) is read with committed False -- every record and comparison made with it is
+    INCOMPLETE (no hand-over), so the draft decides nothing until committed."""
+    data, note = trusted_json(policy_root(), rel)
+    if data is not None:
+        return data, note, True
+    if note == "not committed":
+        try:
+            with open(policy_root() / rel, encoding="utf-8") as f:
+                return json.load(f), "NOT COMMITTED: the working-tree draft is read (no record made with it is a " \
+                                     "hand-over until the main session commits it)", False
+        except (OSError, ValueError):
+            pass
+    return None, note, False
+
+
+def rules():
+    """The gate's rules (RULES_FILE as committed; _policy_file), compiled, with "_note", "_committed" and "_sha256" (of
+    the canonical JSON read). Read once per policy source; a missing or malformed rules file stops the gate (fail
+    closed: no package table, no verdict)."""
+    key = (trusted_json, str(policy_root()))
+    cached = _RULES.get("value")
+    if cached is not None and _RULES.get("key") == key:
+        return cached
+    data, note, committed = _policy_file(RULES_FILE)
+    if data is None:
+        raise SystemExit("tier1_gate: no gate rules: {} ({}); the gate cannot decide anything without them".format(
+            RULES_FILE, note))
+    problems = _validate_rules(data)
+    if problems:
+        raise SystemExit("tier1_gate: the gate rules {} are malformed: {}".format(RULES_FILE, "; ".join(problems[:10])))
+    import hashlib
+    compiled = _compile_rules(data)
+    compiled.update(_note=note, _committed=committed,
+                    _sha256=hashlib.sha256(json.dumps(data, sort_keys=True).encode("utf-8")).hexdigest())
+    _RULES.clear()
+    _RULES.update(key=key, value=compiled)
+    return compiled
+
+
+def packages():
+    return rules()["packages"]
+
+
+def substages():
+    return rules()["substages"]
+
+
+def stage_order():
+    return rules()["stage_order"]
+
+
+def seeds():
+    return rules()["seeds"]
+
+
+def domains():
+    return rules()["domains"]
+
+
+_EXPORTS = {"PACKAGES": "packages", "SUBSTAGES": "substages", "STAGE_ORDER": "stage_order",
+            "DEFAULT_PREV": "default_prev", "SUBSTAGE_BASE": "substage_base", "RUNNING_SUBSTAGES": "running",
+            "DOMAINS": "domains", "SEEDS": "seeds", "KERNEL_TESTS": "kernel_tests", "FEATURES": "features",
+            "EXTRA_TOOLS": "extra_tools", "PROTECTED": "protected", "POLICY_FILES": "policy_files",
+            "PERF_ATTEMPTS": "perf_attempts", "CODE": "code"}
+
+
+def __getattr__(name):
+    """The committed rules under their former module-level names (PACKAGES, SUBSTAGES, DOMAINS, SEEDS, ...) for
+    callers outside this script (PEP 562); the script itself reads them through rules()."""
+    if name in _EXPORTS:
+        return rules()[_EXPORTS[name]]
+    raise AttributeError("module {!r} has no attribute {!r}".format(__name__, name))
 
 
 def gate_dirname(name):
     """A gate id as a folder name (package ids like ADOPT:cleaning carry a colon, which Windows paths forbid)."""
     return str(name).replace(":", "_")
-# feature -> (stage that introduces it, introducing package, what it is); required for later stages
-FEATURES = {
-    "golden": ("B1", "PHYS-INT", "tests/test_room_golden.py (G8)"),
-    "kernel_core": ("B1", "PHYS-INT", "kernel test files green with HOUSE_SIM_DOMAINS=core (G1b)"),
-    "camera_tools": ("B3", "CAM-RENDER", "--camera geometric in tools/perception_audit.py and tools/fuzz.py (G4, G6)"),
-    "fuzz_battery": ("B5", "BODY-FAULTS", "--battery N --faults random in tools/fuzz.py (G6)"),
-    "bench_day": ("C", "TIME-EVAL", "--day in tools/bench_systems.py (G7)"),
-}
-EXTRA_TOOLS = {"physics": ("tools/physics_audit.py", "PHYS-INT"), "body": ("tools/body_audit.py", "BODY-MODEL"),
-               "gen": ("tests/test_generator_compat.py", "GEN"), "sweep": ("tools/sweep_bench.py", "TIME-EVAL"),
-               "camera": ("tools/perception_audit.py", "CAM-RENDER")}
 
 
 def stage_index(stage):
-    return STAGE_ORDER.index(stage) if stage in STAGE_ORDER else -1
+    order = stage_order()
+    return order.index(stage) if stage in order else -1
 
 
 def resolve_package(name):
@@ -522,32 +415,37 @@ def resolve_package(name):
     if not name:
         return None
     upper = name.strip()
-    for pid, pkg in PACKAGES.items():
+    for pid, pkg in packages().items():
         if upper == pid or upper in pkg["aka"]:
             return pid
     return None
 
 
 def policy_for(names, stage=None):
-    """Union policy of one or more packages ("BODY-ENGINE+NAV-M2"). names: list of canonical ids (may be empty)."""
+    """Union policy of one or more packages ("BODY-ENGINE+NAV-M2"). names: list of canonical ids (may be empty). The
+    G7 budget is the package's own; of several packages the strictest (the smallest factor, a fixed reference over
+    "prev"); with none, the rules' default."""
     pol = {"packages": list(names), "files": [], "allow": set(), "codes": set(), "extras": [], "inert": [],
-           "bench": [1.05, "prev"], "requires": set(), "stage": stage or "A0", "policy": False}
+           "bench": None, "requires": set(), "stage": stage or "A0", "policy": False, "gate_tool": False}
     stages = []
     for pid in names:
-        pkg = PACKAGES[pid]
+        pkg = packages()[pid]
         pol["files"] += pkg["files"]
         pol["policy"] = pol["policy"] or pkg.get("policy", False)
+        pol["gate_tool"] = pol["gate_tool"] or pkg.get("gate_tool", False)
         pol["allow"] |= set(pkg["allow"])
         pol["codes"] |= set(pkg["codes"])
         pol["extras"] += [e for e in pkg["extras"] if e not in pol["extras"]]
         pol["inert"] += pkg["inert"]
         pol["requires"] |= set(pkg["requires"])
-        if pkg["bench"][0] < pol["bench"][0] or pkg["bench"][1] != "prev":
+        if pol["bench"] is None or pkg["bench"][0] < pol["bench"][0] or pkg["bench"][1] != "prev":
             pol["bench"] = list(pkg["bench"])
         stages.append(pkg["stage"])
+    if pol["bench"] is None:
+        pol["bench"] = list(rules()["bench_default"])
     if stages and not stage:
         pol["stage"] = max(stages, key=stage_index)
-    for feature, (fstage, introducer, _) in FEATURES.items():
+    for feature, (fstage, introducer, _) in rules()["features"].items():
         if stage_index(pol["stage"]) > stage_index(fstage) or introducer in names:
             pol["requires"].add(feature)
     return pol
@@ -625,17 +523,28 @@ def match_any(path, patterns):
 
 
 _GREEN = []
+_WALLCLOCK = []
+
+
+def _beside(name, label, cache):
+    if not cache:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(label, str(HERE / name))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        cache.append(module)
+    return cache[0]
 
 
 def _green_tests():
     """tools/orchestration/green_tests.py (its perf job: perf_tests, run_perf), loaded once from beside this script."""
-    if not _GREEN:
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("green_tests_for_gate", str(HERE / "green_tests.py"))
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        _GREEN.append(module)
-    return _GREEN[0]
+    return _beside("green_tests.py", "green_tests_for_gate", _GREEN)
+
+
+def _wallclock():
+    """tools/orchestration/wallclock.py (perf marks, the bound registry, the relax plan), loaded once from beside this
+    script."""
+    return _beside("wallclock.py", "wallclock_for_gate", _WALLCLOCK)
 
 
 def source_has(root, rel, needle):
@@ -777,11 +686,14 @@ def spec_allowed(allow, catalog_id, seed, mode):
 
 def load_signoff(root, gate_id):
     """The second signatures of one gate record (SIGNOFF_DIR/<gate id>.json) as committed: {"verdict": {(key, seed,
-    mode): digest}, "edit": {key: spec_hash}, "coverage": set(actions), "tests": set((test id, mode or None)), "note",
-    "by"}."""
+    mode): digest}, "edit": {key: spec_hash}, "coverage": set(actions), "tests": set((test id, mode or None)),
+    "golden": {entry key: digest}, "gate": set(gate-code digests), "note", "by"}. K-GATE3 added the kinds "golden" (a
+    re-recorded entry of tests/data/room_golden.json: {"kind": "golden", "key": "specs/<id>", "digest"}) and
+    "gate-change" (the gate code a gate-tool package's record was made with: {"kind": "gate-change", "digest"})."""
     rel = "{}/{}.json".format(SIGNOFF_DIR, gate_dirname(gate_id))
     data, note = trusted_json(root, rel)
-    out = {"verdict": {}, "edit": {}, "coverage": set(), "tests": set(), "note": "{}: {}".format(rel, note), "by": None}
+    out = {"verdict": {}, "edit": {}, "coverage": set(), "tests": set(), "golden": {}, "gate": set(),
+           "note": "{}: {}".format(rel, note), "by": None}
     if not isinstance(data, dict) or data.get("format") != SIGNOFF_FORMAT:
         if data is not None:
             out["note"] = "{}: not a {} file (ignored)".format(rel, SIGNOFF_FORMAT)
@@ -799,7 +711,208 @@ def load_signoff(root, gate_id):
             out["coverage"].add(row["action"])
         elif kind == "test-removal" and row.get("test"):
             out["tests"].add((str(row["test"]), row.get("mode")))     # FIX2: a test removed or skipped on purpose
+        elif kind == "golden" and row.get("key") and row.get("digest"):
+            out["golden"][str(row["key"])] = str(row["digest"])
+        elif kind == "gate-change" and row.get("digest"):
+            out["gate"].add(str(row["digest"]))
     return out
+
+
+def perf_registry(today=None):
+    """The wall-clock bound registry (PERF_REGISTRY) as the gate reads it (_policy_file: committed, or the bootstrap
+    draft): {"bounds": {test id: entry}, "invalid", "note", "committed"} (wallclock.registry_entries)."""
+    data, note, committed = _policy_file(PERF_REGISTRY)
+    out = _wallclock().registry_entries(data, today)
+    out.update(note=note, committed=committed)
+    return out
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# the gate's own code (K-GATE3): a record made by a gate script that differs from the committed one is no hand-over
+
+def _blob_lf(data):
+    """The git blob id of a file's LF-normalised content (what `git add` stores with core.autocrlf=input)."""
+    import hashlib
+    data = data.replace(b"\r\n", b"\n")
+    return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()
+
+
+def _is_gate_code(rel):
+    return (rel.startswith(GATE_CODE_DIR + "/") and rel.endswith(".py") and
+            not rel.startswith(POLICY_DIR + "/")) or rel in GATE_CODE_EXTRA
+
+
+def code_digest(code):
+    """sha256 over the sorted (path, blob) of the gate's code files: the digest a "gate-change" signature names."""
+    import hashlib
+    text = "".join("{}\0{}\n".format(rel, blob) for rel, blob in sorted(code.items()))
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def running_gate():
+    """The gate as it runs: {"script": the running script's path (relative to its project), "files": {path: blob} of
+    every file under tools/orchestration/ beside it (caches and ignored files excluded), "code": {path: blob} of the
+    gate's code (every .py file there and GATE_CODE_EXTRA), "digest": code_digest(code)}. Blobs are of the
+    LF-normalised content."""
+    project = HERE.parent.parent
+    rules_ = _ignore_rules(project)
+    files = {}
+    for folder, dirs, names in os.walk(str(HERE)):
+        dirs[:] = sorted(d for d in dirs if d not in ISOLATE_SKIP_DIRS)
+        for name in sorted(names):
+            path = Path(folder) / name
+            rel = path.relative_to(project).as_posix()
+            if name.endswith(".pyc") or _ignored(rel, rules_):
+                continue
+            try:
+                files[rel] = _blob_lf(path.read_bytes())
+            except OSError:
+                files[rel] = "unreadable"
+    code = {rel: blob for rel, blob in files.items() if _is_gate_code(rel)}
+    for rel in GATE_CODE_EXTRA:
+        try:
+            code[rel] = _blob_lf((project / rel).read_bytes())
+        except OSError:
+            pass
+    try:
+        script = Path(__file__).resolve().relative_to(project).as_posix()
+    except ValueError:
+        script = str(Path(__file__).resolve())
+    return {"script": script, "files": files, "code": code, "digest": code_digest(code)}
+
+
+def committed_gate(commit="HEAD"):
+    """{path: blob} of the gate's files (tools/orchestration/** and GATE_CODE_EXTRA) at `commit` of the project
+    (policy_root()), from its own object store; None when git or the commit is unavailable."""
+    try:
+        listing = subprocess.run(["git", "-C", str(policy_root()), "ls-tree", "-r", "-z", "--full-tree", str(commit),
+                                  "--", GATE_CODE_DIR] + list(GATE_CODE_EXTRA), capture_output=True)
+    except OSError:
+        return None
+    if listing.returncode != 0:
+        return None
+    out = {}
+    for item in listing.stdout.decode("utf-8", "replace").split("\0"):
+        head, _, rel = item.partition("\t")
+        parts = head.split()
+        if len(parts) == 3 and parts[1] == "blob" and rel:
+            out[rel] = parts[2]
+    return out
+
+
+def head_commit():
+    try:
+        head = subprocess.run(["git", "-C", str(policy_root()), "rev-parse", "HEAD"], capture_output=True, text=True)
+    except OSError:
+        return None
+    return head.stdout.strip() if head.returncode == 0 else None
+
+
+def gate_differs(code, committed):
+    """The gate-code files whose running blob is not the committed one (added, edited or deleted .py files)."""
+    if committed is None:
+        return ["(the committed gate code cannot be read: git unavailable or not a commit of the project)"]
+    want = {rel: blob for rel, blob in committed.items() if _is_gate_code(rel)}
+    return sorted(rel for rel in set(want) | set(code) if want.get(rel) != code.get(rel))
+
+
+def gate_check(gate_meta, policy, signoff):
+    """(status, lines) of the GATE check of a record (K-GATE3): PASS when the gate code the record was made with
+    (meta "gate") equals the code committed at the commit it names; a gate-tool package's record made with other code
+    passes only with the main session's signoff row {"kind": "gate-change", "digest"} naming that code; FAIL
+    otherwise. N/R when the record carries no gate code (made before K-GATE3: cannot be verified)."""
+    if not isinstance(gate_meta, dict) or not isinstance(gate_meta.get("code"), dict):
+        return "N/R", ["the record carries no gate-code digest (made before K-GATE3): cannot be verified"]
+    committed = committed_gate(gate_meta.get("commit") or "HEAD")
+    differs = gate_differs(gate_meta["code"], committed)
+    digest = gate_meta.get("digest") or code_digest(gate_meta["code"])
+    if gate_meta.get("changed_during_run"):
+        return "FAIL", ["the gate's code changed while the record was made (STALE)"]
+    if not differs:
+        return "PASS", ["made by the committed gate code (commit {}, code {})".format(
+            str(gate_meta.get("commit"))[:12], digest[:12])]
+    lines = ["made by a gate script that differs from the one committed at {}: {}".format(
+        str(gate_meta.get("commit"))[:12], ", ".join(differs[:12]))]
+    if not policy.get("gate_tool"):
+        return "FAIL", lines + ["  not a hand-over: only the gate tool's own package may record with changed gate code "
+                                "(and then with the main session's gate-change signature)"]
+    if digest in (signoff or {}).get("gate", set()):
+        return "PASS", lines + ["  the gate tool's own package; gate code {} signed (gate-change)".format(digest[:12])]
+    return "FAIL", lines + ["  the gate tool's own package: needs the main session's signoff row {{\"kind\": "
+                            "\"gate-change\", \"digest\": \"{}\"}}".format(digest)]
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# the room golden's entries (K-GATE3): every entry changed against the base is a re-record needing two signatures
+
+def golden_entries(data):
+    """{entry key: digest} of a room golden file's data: "runs/<seed>/<mode>", "specs/<key>" and "meta/<field>" for its
+    other fields (the scripts, the fixed specs, ...; the history is no entry). Digest: 16 hex of the canonical JSON."""
+    import hashlib
+    out = {}
+    if not isinstance(data, dict):
+        return out
+
+    def dig(value):
+        return hashlib.sha256(json.dumps(value, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+    for section in ("runs", "specs"):
+        for key, value in sorted((data.get(section) or {}).items()):
+            out["{}/{}".format(section, key)] = dig(value)
+    for field, value in sorted(data.items()):
+        if field not in ("runs", "specs", "history"):
+            out["meta/" + field] = dig(value)
+    return out
+
+
+def golden_at(commit):
+    """The golden's entries at `commit` of the project (policy_root()), or None."""
+    if not commit:
+        return None
+    try:
+        show = subprocess.run(["git", "-C", str(policy_root()), "show", "{}:{}".format(commit, GOLDEN_FILE)],
+                              capture_output=True)
+    except OSError:
+        return None
+    if show.returncode != 0:
+        return None
+    try:
+        return golden_entries(json.loads(show.stdout.decode("utf-8")))
+    except ValueError:
+        return None
+
+
+def golden_changes(base, cur):
+    """[{"key", "change": "edited" | "added" | "removed", "digest"}] of the golden entries that differ."""
+    out = []
+    for key in sorted(set(base or {}) | set(cur or {})):
+        a, b = (base or {}).get(key), (cur or {}).get(key)
+        if a != b:
+            out.append({"key": key, "change": "added" if a is None else ("removed" if b is None else "edited"),
+                        "digest": b or "removed"})
+    return out
+
+
+def golden_review(changes, reviewed, policy, signoff):
+    """(unreviewed, unsigned) golden changes: each re-recorded entry needs a reviewed row {"kind": "golden", "key"
+    (a glob), "code"} of a package that owns the golden file and cites one of the policy's codes (the first signature),
+    and the main session's committed row {"kind": "golden", "key", "digest"} naming its new digest (the second)."""
+    owners = [pid for pid in policy["packages"] if match_any(GOLDEN_FILE, packages()[pid]["files"])]
+    rows = [r for r in reviewed or [] if r.get("kind") == "golden"]
+    unreviewed, unsigned = [], []
+    for change in changes:
+        ok = any(fnmatch.fnmatchcase(change["key"], str(r.get("key") or "")) and
+                 any(c in policy["codes"] for c in r.get("codes") or []) and
+                 any(pid in owners for pid in r.get("packages") or []) for r in rows)
+        if not ok:
+            unreviewed.append(change)
+        if (signoff or {}).get("golden", {}).get(change["key"]) != change["digest"]:
+            unsigned.append(change)
+    return unreviewed, unsigned
+
+
+def describe_golden(changes, n=8):
+    return ", ".join("{} ({})".format(c["key"], c["change"]) for c in changes[:n]) + (", ..." if len(changes) > n
+                                                                                       else "")
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -886,11 +999,12 @@ GEN1_FILE = "tests/data/gen1_digests.json"
 GEN1_DEFAULT_SEEDS = tuple(range(20))
 
 
-def gen1_entries_from_specs(root, seeds=SEEDS):
+def gen1_entries_from_specs(root, seeds=None):
     """TIER1_SWEEP 14.1: seeds 0-19 with default options, and every distinct generation-1 house block of the authored
     specs on the verification seeds (a block with "gen" 2 or more is a generation-2 house, which this file does not
     pin: the adoption round moved most specs there). Returns [{"house", "seed", "specs"}] (defaults first, then sorted
     by house json and seed)."""
+    seeds = seeds or rules()["seeds"]
     sys.path.insert(0, str(root))
     from house_sim.tasks.spec import choose_variant, expand
     groups = defaultdict(list)
@@ -1043,13 +1157,25 @@ def worker_unittest(out_path, *targets):
     """Run test targets exactly as `python -m unittest <target> ...` does (the same report on stderr, exit status 0 /
     1, and 5 when no test ran) and write every test's outcome to out_path: {"tests": {test id: "ok" | "skip" | "perf"
     | "xfail" | "xpass" | "fail" | "error"}, "ran"} (FIX2: the gate only read exit codes, so a failing test skipped
-    with @unittest.skip, or a deleted test file, passed). "perf" is a wall-clock bound skipped because
-    HOUSE_SIM_PERF_TESTS=0 (its skip message starts with PERF_SKIP_REASON): moved to G7's perf job, not skipped
-    (K-GATE2). Returns the exit status."""
+    with @unittest.skip, or a deleted test file, passed). "perf" is a test skipped with the wall-clock bound's message
+    (PERF_SKIP_REASON): it never ran its body (K-GATE2 moved bounds to G7's perf job; K-GATE3 runs their bodies).
+    Returns the exit status.
+
+    In a correctness run (HOUSE_SIM_PERF_TESTS=0) every perf-marked test runs relaxed (wallclock.relax: its body runs,
+    its timing cannot fail), following the plan the caller wrote to HOUSE_SIM_PERF_PLAN ({test id: "count" | "helper" |
+    "skip"}); without one, every perf mark of the target files is relaxed (none keeps its skip)."""
     import unittest
     sys.path[:] = [p for p in sys.path if p and Path(p).resolve() != HERE]
     sys.path.insert(0, os.getcwd())          # like `python -m unittest`: the project (cwd) first, not this folder
     outcomes = {}
+    plan, undo = {}, {}
+    if os.environ.get(PERF_ENV) == "0":
+        # every perf mark of the target files is relaxed; the caller's plan decides their modes (its "skip" entries:
+        # the registry's exceptions), so a mark the plan does not list (a test folder it did not scan) is relaxed too
+        wc = _wallclock()
+        plan = wc.perf_plan(wc.flat_marks(wc.perf_marks(wc.target_files(targets, os.getcwd()))), {})
+        if os.environ.get(wc.PLAN_ENV):
+            plan.update(wc.load_plan(os.environ[wc.PLAN_ENV]))
 
     def note(test, outcome):
         tid = test.id() if hasattr(test, "id") else str(test)
@@ -1057,6 +1183,18 @@ def worker_unittest(out_path, *targets):
             outcomes[tid] = outcome
 
     class Result(unittest.TextTestResult):
+        def startTest(self, test):
+            mode = plan.get(test.id()) if hasattr(test, "id") else None
+            if mode:
+                undo[test.id()] = _wallclock().relax(test, mode)
+            super().startTest(test)
+
+        def stopTest(self, test):
+            super().stopTest(test)
+            restore = undo.pop(test.id(), None) if hasattr(test, "id") else None
+            if restore:
+                restore()
+
         def addSuccess(self, test):
             super().addSuccess(test)
             note(test, "ok")
@@ -1218,10 +1356,11 @@ FAILED_TEST = re.compile(r"^(?:FAIL|ERROR): (\S+) \(([^)]+)\)", re.M)
 def test_row(job):
     res = job.result
     text = (res["stderr"] or "") + (res["stdout"] or "")
-    m = RAN.search(res["stderr"] or "") or RAN.search(text)
+    # the run's own report is the last "Ran N tests" (a failing test's message may quote another run's report first)
+    ran = RAN.findall(res["stderr"] or "") or RAN.findall(text)
     verdicts = VERDICT_LINE.findall(res["stderr"] or "")
     s = SKIPPED.search(verdicts[-1]) if verdicts else None
-    row = {"file": job.meta["file"], "mode": job.meta["mode"], "rc": res["rc"], "ran": int(m.group(1)) if m else 0,
+    row = {"file": job.meta["file"], "mode": job.meta["mode"], "rc": res["rc"], "ran": int(ran[-1]) if ran else 0,
            "skipped": int(s.group(1)) if s else 0, "secs": res["secs"]}
     # per-test outcomes written by the _unittest worker (FIX2): every test id, and the ids of each outcome that is not
     # "ok"; absent when the process died before writing them (then only the counts are compared)
@@ -1267,20 +1406,37 @@ def perf_failures(tests):
             for tid in r.get("failed") or []]
 
 
-def test_regressions(prev, cur, allow=None, signoff=None, checks=("G1", "G1b", "G8")):
+def test_regressions(prev, cur, allow=None, signoff=None, checks=("G1", "G1b", "G8"), perf_ok=None):
     """Tests that went quiet between two tests.json records (FIX2: a failing test skipped with @unittest.skip, or a
     test file deleted, passed both record and compare): ([(check, file, mode, test, what)] not excused, [...] excused).
     With per-test ids on both sides: every id of the previous record that is gone, or that became skipped or an
     expected failure; otherwise the counts: a file that is gone, ran fewer tests or skipped more -- and once the
     previous record has per-test ids, a file reporting counts only is itself a regression (K-GATE2: a deleted test
-    and an added one kept the count). A wall-clock bound skipped as outcome "perf" (HOUSE_SIM_PERF_TESTS=0) moved to
-    G7's perf job: excused when that job ran it (tests.json "perf"; pass or fail is G7's), a regression when it ran
-    nowhere. Excused by an allowlist entry of kind "skip" or a committed signoff row {"kind": "test-removal", "test",
-    "mode"?} naming the test, its class or its module. A check missing from `cur` is not compared here (missing data
-    is reported)."""
+    and an added one kept the count). Excused by an allowlist entry of kind "skip" or a committed signoff row {"kind":
+    "test-removal", "test", "mode"?} naming the test, its class or its module. A check missing from `cur` is not
+    compared here (missing data is reported).
+
+    A test skipped with the wall-clock bound's message (outcome "perf") never ran its body. perf_ok None (a record from
+    before K-GATE3): a bound moved to G7's perf job, excused when that job ran it (tests.json "perf"; pass or fail is
+    G7's), a regression when it ran nowhere. perf_ok a set (K-GATE3: the correctness runs relax every bound, so its
+    body runs): only the ids in it (the registry's dated, source-pinned skip exceptions) are such moved bounds; any
+    other "perf" outcome counts as a skip -- a regression whatever the previous record ran."""
     signed = (signoff or {}).get("tests") or set()
     in_perf = perf_ran(cur)
     bad, excused = [], []
+
+    def judge(check, file, mode, test, what):
+        ok = skip_allowed(allow, test, mode) is not None or _named(test, [t for t, m in signed if m in (None, mode)])
+        (excused if ok else bad).append((check, file, mode, test, what))
+    if perf_ok is not None:
+        for check in checks:
+            for r in (cur or {}).get(check) or []:
+                for t in sorted((r.get("outcomes") or {}).get("perf", [])):
+                    if t not in perf_ok:
+                        judge(check, r.get("file"), r.get("mode"), t, "a perf-marked test that skipped its body in a "
+                              "correctness run (counted as a skip: wall-clock bounds run relaxed, only their timing is "
+                              "not asserted)")
+    moved_ok = (lambda t: True) if perf_ok is None else (lambda t: t in perf_ok)
     for check in checks:
         a_rows, b_rows = (prev or {}).get(check) or [], (cur or {}).get(check)
         if not a_rows or not b_rows:
@@ -1301,23 +1457,22 @@ def test_regressions(prev, cur, allow=None, signoff=None, checks=("G1", "G1b", "
                 found += [(t, "now skipped or an expected failure") for t in sorted(quiet_new - quiet_old)
                           if t in before]
                 # a wall-clock bound skipped here (outcome "perf") moved to G7's perf job: fine when that job ran it
+                # (K-GATE3: only a bound with a registry skip exception; any other one is judged above)
                 found += [(t, "a wall-clock bound skipped here (HOUSE_SIM_PERF_TESTS=0) that G7's perf job did not "
                               "run") for t in sorted(set((new.get("outcomes") or {}).get("perf", [])) & before)
-                          if t not in in_perf]
+                          if moved_ok(t) and t not in in_perf]
             else:
                 if old.get("ids") is not None and new.get("ids") is None and not new.get("rc"):
                     found.append((_module_of(file), "per-test outcomes missing (the previous record has them; a "
                                                     "count alone hides a deleted test replaced by another)"))
-                moved = [t for t in (new.get("outcomes") or {}).get("perf", []) if t in in_perf]
+                moved = [t for t in (new.get("outcomes") or {}).get("perf", []) if moved_ok(t) and t in in_perf]
                 skipped_now = int(new.get("skipped") or 0) - len(moved)     # bounds G7's perf job ran are no skips
                 if int(new.get("ran") or 0) < int(old.get("ran") or 0):
                     found.append((_module_of(file), "ran {} -> {} test(s)".format(old.get("ran"), new.get("ran"))))
                 if skipped_now > int(old.get("skipped") or 0):
                     found.append((_module_of(file), "skipped {} -> {}".format(old.get("skipped"), skipped_now)))
             for test, what in found:
-                ok = skip_allowed(allow, test, mode) is not None or \
-                    _named(test, [t for t, m in signed if m in (None, mode)])
-                (excused if ok else bad).append((check, file, mode, test, what))
+                judge(check, file, mode, test, what)
     # a row whose counts disagree with its own per-test outcomes was not written by one unittest run (K-GATE2: a record
     # with "skipped" raised or "ran" lowered but its ids untouched passed, the ids being compared instead of counts)
     for check in checks:
@@ -1426,7 +1581,7 @@ def parse_reviewed_markdown(text):
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         ids = CATALOG_ID.findall(line)
-        codes = CODE.findall(line)
+        codes = rules()["code"].findall(line)
         if not ids or not codes:
             continue
         seeds, mode = "all", "both"
@@ -1448,10 +1603,12 @@ def parse_reviewed_markdown(text):
 def load_reviewed(root, gate_dir, packages, extra_file=None):
     """Reviewed rows (the first signature): the rows of each package's handoff table (bound to that package), of
     gate/<ID>/reviewed.json and of --reviewed FILE (bound to the row's "package" when it names one of `packages`,
-    else to all of them). Every reviewed difference also needs the main session's second signature (load_signoff)."""
+    else to all of them). Every reviewed difference also needs the main session's second signature (load_signoff).
+    A JSON row {"kind": "golden", "key": "<entry glob>", "code"} reviews re-recorded room-golden entries (K-GATE3)."""
     rows = []
+    table = rules()["packages"]
     for pid in packages:
-        for name in [pid] + PACKAGES[pid]["aka"]:
+        for name in [pid] + table[pid]["aka"]:
             path = Path(root) / HANDOFF_DIR / "handoff_{}.md".format(name.replace(":", "_"))
             if path.exists():
                 rows += [dict(row, packages=[pid]) for row in parse_reviewed_markdown(path.read_text(encoding="utf-8"))]
@@ -1462,16 +1619,18 @@ def load_reviewed(root, gate_dir, packages, extra_file=None):
                 continue
             code = item.get("code") or item.get("codes") or []
             named = resolve_package(item.get("package")) if item.get("package") else None
-            rows.append({"catalog_id": item.get("catalog_id"), "seeds": item.get("seeds", item.get("seed", "all")),
-                         "mode": item.get("mode", "both"), "codes": code if isinstance(code, list) else [code],
-                         "source": str(path.name),
-                         "packages": [named] if named in packages else list(packages)})
+            row = {"catalog_id": item.get("catalog_id"), "seeds": item.get("seeds", item.get("seed", "all")),
+                   "mode": item.get("mode", "both"), "codes": code if isinstance(code, list) else [code],
+                   "source": str(path.name), "packages": [named] if named in packages else list(packages)}
+            if item.get("kind") == "golden":
+                row.update(kind="golden", key=item.get("key"), catalog_id=None)
+            rows.append(row)
     return rows
 
 
 def spec_globs(pid):
     """The tasks/authored globs a package owns ([] for a package that owns no spec file: a kernel package)."""
-    return [g for g in PACKAGES[pid]["files"] if g.startswith("tasks/authored/")]
+    return [g for g in packages()[pid]["files"] if g.startswith("tasks/authored/")]
 
 
 def package_covers_spec(pid, spec_file):
@@ -1496,7 +1655,7 @@ def reviewed_covers(rows, cid, seed, mode, codes, spec_file=None):
         if not any(c in codes for c in row["codes"]):
             continue
         if spec_file is not None and row.get("packages") and \
-                not any(pid in PACKAGES and package_covers_spec(pid, spec_file) for pid in row["packages"]):
+                not any(pid in packages() and package_covers_spec(pid, spec_file) for pid in row["packages"]):
             continue
         return row
     return None
@@ -1943,13 +2102,14 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=Non
     rb, cb = read_json(Path(ref_dir) / "bench.json", {}), read_json(cur_dir / "bench.json", {})
     if rb.get("G7") and cb.get("G7"):
         lines, bad = [], False
-        for metric in ("substep_ms", "wait_1h_s", "day_s"):
+        budgeted, tolerance = rules()["bench_budgeted"], rules()["bench_tolerance"]
+        for metric in tuple(budgeted) + tuple(m for m in rules()["bench_reported"] if m not in budgeted):
             x, y = rb["G7"].get(metric), cb["G7"].get(metric)
             if x is None or y is None:
                 continue
             limit = x * factor
-            over = y > limit + 1e-9
-            if metric in ("substep_ms", "wait_1h_s") and over:
+            over = y > limit + tolerance
+            if metric in budgeted and over:
                 bad = True
             lines.append("{}: {} -> {} ({:+.1%}; limit {:.4g} = {} x {}){}".format(
                 metric, x, y, (y - x) / x if x else 0.0, limit, ref_name, factor, "  OVER BUDGET" if over else ""))
@@ -1986,7 +2146,24 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=Non
                 bad = True
                 lines.append("no {} results in this record although it lists {} as recorded (SKIP counts as "
                              "FAIL)".format(check, check))
-        quiet, quiet_ok = test_regressions(pt, ct, allow, signoff)
+        # wall-clock bounds (K-GATE3): every perf mark registered (the committed registry, now) and none skipped its
+        # body without the registry's dated skip exception; a record made by this gate carries its scan
+        new_style = isinstance(cm.get("gate"), dict)
+        perf_ok = None
+        bounds = ct.get("bounds")
+        if isinstance(bounds, dict) and isinstance(bounds.get("marks"), dict):
+            registry = perf_registry()
+            plan = _wallclock().perf_plan(bounds["marks"], registry["bounds"])
+            perf_ok = {t for t, m in plan.items() if m == "skip"}
+            unregistered = _wallclock().unregistered(bounds["marks"], registry["bounds"])
+            if unregistered:
+                bad = True
+                lines.append("{} unregistered wall-clock bound(s) (perf marks the committed registry {} does not "
+                             "list): {}".format(len(unregistered), PERF_REGISTRY, short(unregistered, 400)))
+        elif explicit and new_style and "G1" in recorded:
+            bad, perf_ok = True, set()
+            lines.append("no wall-clock bound scan in this record (tests.json bounds; SKIP counts as FAIL)")
+        quiet, quiet_ok = test_regressions(pt, ct, allow, signoff, perf_ok=perf_ok)
         if quiet:
             bad = True
             lines.append("{} test(s) removed, skipped or turned into expected failures vs {} without an allowlist "
@@ -2016,8 +2193,43 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=Non
                 elif a["ran"] != b["ran"] or a.get("skipped") != b.get("skipped"):
                     lines.append("{} ({}): ran {} -> {}, skipped {} -> {}".format(k[0], k[1], a["ran"], b["ran"],
                                                                                  a.get("skipped"), b.get("skipped")))
+        # the Python 3.9 lint (K-GATE3, part of G1)
+        lint = ct.get("py39")
+        if isinstance(lint, dict):
+            if lint.get("count") or lint.get("rc") not in (0, None):
+                bad = True
+                lines.append("Python 3.9 lint: {} violation(s){}: {}".format(
+                    lint.get("count"), "" if lint.get("rc") in (0, 1) else " (lint exit status {})".format(
+                        lint.get("rc")), short(lint.get("violations") or lint.get("tail") or [], 400)))
+            else:
+                lines.append("Python 3.9 lint: {} file(s), 0 violations".format(lint.get("files")))
+        elif explicit and new_style and "G1" in recorded:
+            bad = True
+            lines.append("no Python 3.9 lint result in this record (tests.json py39; SKIP counts as FAIL)")
         status = "FAIL" if bad else ("N/R" if not rows and "G1" not in recorded else "PASS")
         add("G1", status, lines or ["every test passes; test counts unchanged"])
+    # G8's golden re-records (K-GATE3): every entry of tests/data/room_golden.json that differs from the previous
+    # record's (or, against a record without them, from the base commit's) needs a reviewed and a signed row
+    cg = ct.get("golden")
+    if isinstance(cg, dict) and isinstance(cg.get("entries"), dict):
+        pg = (pt.get("golden") or {}).get("entries") if isinstance(pt.get("golden"), dict) else None
+        changes = golden_changes(pg, cg["entries"]) if isinstance(pg, dict) else list(cg.get("changes") or [])
+        base = "the previous record {}".format(prev_dir.name) if isinstance(pg, dict) else cg.get("base", "?")
+        unreviewed, unsigned = golden_review(changes, reviewed, policy, signoff)
+        lines = ["room golden: {} entr(ies) re-recorded vs {}{}".format(len(changes), base, (
+            ": " + describe_golden(changes)) if changes else "")]
+        if unreviewed:
+            lines.append("  {} without the package's reviewed golden row: {}".format(len(unreviewed),
+                                                                                     describe_golden(unreviewed)))
+        if unsigned:
+            lines.append("  {} without the main session's signed golden row: {}".format(len(unsigned),
+                                                                                        describe_golden(unsigned)))
+        add("GOLD", "FAIL" if unreviewed or unsigned else "PASS", lines)
+    elif explicit and isinstance(cm.get("gate"), dict) and "G8" in recorded and ct.get("G8"):
+        add("GOLD", "SKIP", ["no golden entries in this record (tests.json golden; SKIP counts as FAIL)"])
+    # the gate code the record was made with (K-GATE3)
+    status, lines = gate_check(cm.get("gate"), policy, signoff)
+    add("GATE", status, lines)
     # the record's own statuses that count (OWN_STATUS: G1c, G9 and G10 are not recomputed at all; G0, G4, G5 and G7
     # are, from the same data) -- G10 unless checked live
     own = cm.get("checks") or {}
@@ -2040,13 +2252,13 @@ def record_incomplete(meta):
     if meta.get("spec_files"):
         why.append("specs limited to " + meta["spec_files"])
     seeds = meta.get("seeds")
-    if isinstance(seeds, list) and set(SEEDS) - set(seeds):
+    if isinstance(seeds, list) and set(rules()["seeds"]) - set(seeds):
         # K-GATE2: `--seeds 0` ran a fifth of the trials and passed G2-ABS on them
         why.append("seeds limited to " + " ".join(map(str, seeds)))
-    packages = [p for p in meta.get("packages") or [] if p in PACKAGES]
-    if "extras" in meta and packages:
+    names = [p for p in meta.get("packages") or [] if p in packages()]
+    if "extras" in meta and names:
         # K-GATE2: `--extras ''` left G9 N/A (no extra ran)
-        lacking = [e for e in policy_for(packages)["extras"] if e not in (meta.get("extras") or [])]
+        lacking = [e for e in policy_for(names)["extras"] if e not in (meta.get("extras") or [])]
         if lacking:
             why.append("extras without " + ",".join(lacking))
     return "; ".join(why) or None
@@ -2060,8 +2272,8 @@ def handover_bases(policy, gates_root, exclude=None):
     first = default_prev_dir(gates_root, policy["stage"], exclude=exclude)
     if first is not None:
         out.append(Path(first).resolve())
-    for sub, base in sorted(SUBSTAGE_BASE.items()):
-        if any(p in SUBSTAGES.get(sub, ()) for p in policy["packages"]):
+    for sub, base in sorted(rules()["substage_base"].items()):
+        if any(p in substages().get(sub, ()) for p in policy["packages"]):
             path = gates_root / gate_dirname(base)
             if (path / "meta.json").exists() and path.resolve() not in out and \
                     (exclude is None or path.resolve() != Path(exclude).resolve()):
@@ -2331,11 +2543,46 @@ def changed_files(root):
     return sorted(f for f in files if not match_any(f, TRANSIENT)), None
 
 
+def package_members(pid):
+    """The packages whose handoffs and gate records are a union package's own: its "members" (rules), else, for a
+    package outside the sub-stage of its own stage (ADOPT-ALL, P1-ALL), that sub-stage's packages."""
+    pkg = packages()[pid]
+    if pkg.get("members") is not None:
+        return list(pkg["members"])
+    members = substages().get(pkg["stage"], ())
+    return list(members) if members and pid not in members else []
+
+
+def own_scope(pid):
+    """A package's own scope: its file globs, and its (and its aliases') handoff and gate folder."""
+    pkg = packages()[pid]
+    names = [pid] + pkg["aka"]
+    return pkg["files"] + ["{}/handoff_{}.md".format(HANDOFF_DIR, gate_dirname(n)) for n in names] + \
+        ["{}/{}/*".format(GATE_DIR, gate_dirname(n)) for n in names]
+
+
+def scope_peers(names):
+    """(peers, sub-stages) of --shared-tree (K-GATE3): the other packages of the running sub-stages (rules
+    "running_substages") that contain one of `names`; for a package in no running sub-stage, those of every sub-stage
+    containing it (re-checking an earlier round's record), reported so that an attribution there is no hand-over."""
+    containing = [k for k, members in sorted(substages().items()) if any(p in members for p in names)]
+    live = [k for k in containing if k in rules()["running"]]
+    peers = []
+    for sub in live or containing:
+        peers += [m for m in substages()[sub] if m not in names and m not in peers]
+    return peers, ([] if live else containing)
+
+
 def scope_check(root, policy, gate_id, shared_tree=False):
-    """G10: every changed file in the package's list, its handoff or its gate folder (with --shared-tree, files of
-    the packages running beside it are attributed to them). Without git (and outside an isolated copy) the scope
-    cannot be checked: FAIL, never a silent skip. The gate's policy files (PROTECTED) are the main session's: a
-    package that changes them fails, whatever its globs say (K-GATE, which defines their format, excepted)."""
+    """G10: every changed file in the package's list, its handoff or its gate folder. Without git (and outside an
+    isolated copy) the scope cannot be checked: FAIL, never a silent skip. The gate's policy files are the main
+    session's: a package that changes them fails, whatever its globs say (a policy package excepted).
+
+    --shared-tree (K-GATE3) attributes a changed file outside the package to a peer only when the peer's own scope
+    contains it (own_scope) and the file is not protected (rules scope.protected: the gate tool tools/orchestration/**
+    with its policy, .github/**, the room golden and the generation-1 digests): a protected file outside the package
+    always fails it. Peers are the packages of the running sub-stages (scope_peers); every attribution is listed in the
+    note for review, and one made in a sub-stage that is not running ("historical") makes the record no hand-over."""
     if not policy["packages"]:
         return {"status": "N/A", "note": "no --package given (main-session gate: no package scope to check)"}
     files, error = changed_files(root)
@@ -2344,46 +2591,45 @@ def scope_check(root, policy, gate_id, shared_tree=False):
                                           "SKIP counts as FAIL)".format(error)}
     allowed = list(policy["files"])
     for pid in policy["packages"]:
-        names = [pid] + PACKAGES[pid]["aka"]
-        members = SUBSTAGES.get(PACKAGES[pid]["stage"], ())
-        if members and pid not in members:
-            # a union package (ADOPT-ALL): its member packages' handoffs and gate records are its own
-            for member in members:
-                names += [member] + PACKAGES[member]["aka"]
+        names = [pid] + packages()[pid]["aka"]
+        for member in package_members(pid):
+            names += [member] + packages()[member]["aka"]
         for name in names:
             allowed.append("{}/handoff_{}.md".format(HANDOFF_DIR, gate_dirname(name)))
             allowed.append("{}/{}/*".format(GATE_DIR, gate_dirname(name)))     # a package's own gate records
     allowed.append("{}/{}/*".format(GATE_DIR, gate_dirname(gate_id)))
-    outside, attributed = [], {}
-    peers = []
-    if shared_tree:
-        for members in SUBSTAGES.values():
-            if any(p in members for p in policy["packages"]):
-                peers += [m for m in members if m not in policy["packages"] and m not in peers]
-    protected = []
+    outside, attributed, protected, policy_files = [], {}, [], []
+    peers, historical = scope_peers(policy["packages"]) if shared_tree else ([], [])
     for f in files:
-        guarded = match_any(f, PROTECTED)
-        if match_any(f, allowed) and (not guarded or policy.get("policy")):
+        is_policy = match_any(f, rules()["policy_files"])
+        guarded = is_policy or match_any(f, rules()["protected"])
+        if match_any(f, allowed) and (not is_policy or policy.get("policy")):
             continue
-        # a concurrent package's files, handoff and gate folder (its own gate record) are attributed to it (a policy
-        # file only to a package that may write them)
-        owner = next((p for p in peers if (not guarded or PACKAGES[p].get("policy")) and match_any(f, PACKAGES[p]["files"] + [
-            "{}/handoff_{}.md".format(HANDOFF_DIR, gate_dirname(name)) for name in [p] + PACKAGES[p]["aka"]] + [
-            "{}/{}/*".format(GATE_DIR, gate_dirname(name)) for name in [p] + PACKAGES[p]["aka"]])), None)
+        owner = None if guarded else next((p for p in peers if match_any(f, own_scope(p))), None)
         if owner:
             attributed[f] = owner
-        else:
-            outside.append(f)
-            if guarded:
-                protected.append(f)
+            continue
+        outside.append(f)
+        if guarded:
+            protected.append(f)
+        if is_policy:
+            policy_files.append(f)
+    historical = historical if attributed else []
     status = "FAIL" if outside else "PASS"
     note = "{} changed file(s); {} outside the list of {}".format(len(files), len(outside), "+".join(policy["packages"]))
+    if policy_files:
+        note += "; {} of the gate's policy files changed (main session only: {})".format(len(policy_files), POLICY_DIR)
     if protected:
-        note += "; {} of the gate's policy files changed (main session only: {})".format(len(protected), POLICY_DIR)
+        note += "; {} protected file(s) outside the package (never attributed to a peer: {})".format(
+            len(protected), ", ".join(protected[:8]))
     if attributed:
-        note += "; {} attributed to concurrent packages (--shared-tree)".format(len(attributed))
+        note += "; {} attributed to concurrent packages (--shared-tree; for review: {})".format(
+            len(attributed), ", ".join("{} -> {}".format(f, p) for f, p in sorted(attributed.items())))
+    if historical:
+        note += "; attributed to peers of sub-stage(s) {} that are not running (not a hand-over)".format(
+            ", ".join(historical))
     return {"status": status, "note": note, "changed": files, "outside": outside, "attributed": attributed,
-            "protected": protected}
+            "protected": protected, "historical": historical}
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -2412,10 +2658,10 @@ class Gate:
             # stages (golden, kernel_core, camera tools); a package's stage is its own
             raise SystemExit("--stage {} contradicts the stage of {} ({}); --stage is for main-session gate ids "
                              "without a package".format(args.stage, "+".join(names), policy_for(names)["stage"]))
-        stage = args.stage or (None if names else (self.id if self.id in STAGE_ORDER else "A0"))
+        stage = args.stage or (None if names else (self.id if self.id in stage_order() else "A0"))
         self.policy = policy_for(names, stage)
         self.selected = self._selected(args.only, args.skip)
-        self.seeds = tuple(args.seeds) if args.seeds else SEEDS
+        self.seeds = tuple(args.seeds) if args.seeds else tuple(seeds())
         self.jobs_n = max(1, args.jobs or max(1, (os.cpu_count() or 2) - 1))
         self.results = {}       # check -> {"status", "note", ...}
         self.data = {"tests": {}, "audits": {}, "bench": {}, "extras": {}, "scope": {}}
@@ -2494,6 +2740,28 @@ class Gate:
                     est[(r["file"], r["mode"])] = r.get("secs", 30.0)
         return est
 
+    def bound_plan(self):
+        """The wall-clock bounds of this tree (K-GATE3): their perf marks (wallclock.perf_marks, with the sha256 of each
+        method's source), the committed registry and the relax plan every correctness job follows (HOUSE_SIM_PERF_PLAN;
+        written once to the work folder). Kept in tests.json "bounds" so compare can recompute it."""
+        if getattr(self, "_bounds", None) is None:
+            wc = _wallclock()
+            marks = wc.flat_marks(wc.perf_marks(glob.glob(str(self.root / "tests" / "test_*.py"))))
+            registry = perf_registry()
+            plan = wc.perf_plan(marks, registry["bounds"])
+            path = self.work / "perf_plan.json"
+            write_json(path, plan)
+            self._bounds = {"marks": marks, "plan": plan, "plan_path": str(path), "registry": registry["note"],
+                            "unregistered": wc.unregistered(marks, registry["bounds"]),
+                            "registry_committed": registry["committed"]}
+        return self._bounds
+
+    def correctness_env(self, extra=None):
+        """A correctness run's environment: the wall-clock bounds relaxed (HOUSE_SIM_PERF_TESTS=0 and the plan)."""
+        env = dict(PERF_OFF, **(extra or {}))
+        env[_wallclock().PLAN_ENV] = self.bound_plan()["plan_path"]
+        return self.env(env)
+
     def test_jobs(self):
         tests = sorted(Path(p).name for p in glob.glob(str(self.root / "tests" / "test_*.py")))
         est = self.test_estimates()
@@ -2509,31 +2777,36 @@ class Gate:
         if "G1" in self.selected:
             for name in tests:
                 for mode in ("normal", "strict"):
-                    extra = dict(PERF_OFF, **({"HOUSE_SIM_STRICT": "1"} if mode == "strict" else {}))
+                    extra = {"HOUSE_SIM_STRICT": "1"} if mode == "strict" else {}
                     cmd, meta = unit("G1", "tests/" + name, name, mode)
-                    jobs.append(Job("G1 {} {}".format(name, mode), "G1", cmd, self.env(extra),
+                    jobs.append(Job("G1 {} {}".format(name, mode), "G1", cmd, self.correctness_env(extra),
                                     est=est.get((name, mode), est.get((name, "normal"), 30.0)) * 1.1,
                                     timeout=self.args.test_timeout, meta=meta))
+            # the Python 3.9 lint (K-GATE3), run from the gate's own project (its copy is gate code) over the tree
+            lint = self.work / "py39_lint.json"
+            jobs.append(Job("G1 py39_lint", "G1", self.py(str(HERE.parent / "py39_lint.py"), "--root", str(self.root),
+                                                          "--json", str(lint), "--quiet"), self.env(), est=30.0,
+                            timeout=self.args.test_timeout, meta={"lint": str(lint)}))
         if "G1b" in self.selected:
-            for d in DOMAINS:
+            for d in domains():
                 name = "test_{}.py".format(d)
                 if name in tests:
                     cmd, meta = unit("G1b", "tests.test_" + d, name, "isolated")
                     jobs.append(Job("G1b {} isolated".format(name), "G1b", cmd,
-                                    self.env(dict(PERF_OFF, HOUSE_SIM_DOMAINS=d)),
+                                    self.correctness_env({"HOUSE_SIM_DOMAINS": d}),
                                     est=est.get((name, "isolated"), est.get((name, "normal"), 30.0) * 0.7),
                                     timeout=self.args.test_timeout, meta=meta))
             for name in tests:
-                if any(fnmatch.fnmatchcase(name, p) for p in KERNEL_TESTS):
+                if any(fnmatch.fnmatchcase(name, p) for p in rules()["kernel_tests"]):
                     cmd, meta = unit("G1b", "tests/" + name, name, "core")
                     jobs.append(Job("G1b {} core".format(name), "G1b", cmd,
-                                    self.env(dict(PERF_OFF, HOUSE_SIM_DOMAINS="core")),
+                                    self.correctness_env({"HOUSE_SIM_DOMAINS": "core"}),
                                     est=est.get((name, "core"), est.get((name, "normal"), 30.0) * 0.5),
                                     timeout=self.args.test_timeout, meta=meta))
         if "G8" in self.selected and (self.root / "tests" / "test_room_golden.py").exists():
-            for mode, extra in (("golden", PERF_OFF), ("golden_all", dict(PERF_OFF, HOUSE_SIM_GOLDEN_ALL="1"))):
+            for mode, extra in (("golden", {}), ("golden_all", {"HOUSE_SIM_GOLDEN_ALL": "1"})):
                 cmd, meta = unit("G8", "tests.test_room_golden", "test_room_golden.py", mode)
-                jobs.append(Job("G8 test_room_golden.py {}".format(mode), "G8", cmd, self.env(extra),
+                jobs.append(Job("G8 test_room_golden.py {}".format(mode), "G8", cmd, self.correctness_env(extra),
                                 est=est.get(("test_room_golden.py", mode), 60.0), timeout=self.args.test_timeout,
                                 meta=meta))
         return jobs
@@ -2666,9 +2939,11 @@ class Gate:
             elif extra == "gen" and not quiet:
                 for name in ("test_generator_compat", "test_generator_gen2"):
                     if (self.root / "tests" / (name + ".py")).exists():
-                        # correctness only: its wall-clock bounds run in G7's perf job (K-GATE2)
-                        jobs.append(Job("G9 {}".format(name), "G9", self.py("-m", "unittest", "tests." + name),
-                                        self.env(PERF_OFF), est=60.0, meta={"extra": "gen", "test": name}))
+                        # correctness only: its wall-clock bounds run relaxed (K-GATE3), asserted in G7's perf job
+                        out = self.work / "tests" / "G9_{}.json".format(name)
+                        jobs.append(Job("G9 {}".format(name), "G9", self.py(self.script, "_unittest", str(out),
+                                                                             "tests." + name),
+                                        self.correctness_env(), est=60.0, meta={"extra": "gen", "test": name}))
                 if source_has(self.root, "tools/layout_audit.py", "--gen"):
                     jobs.append(Job("G9 layout_audit gen 2", "G9", self.py("tools/layout_audit.py", "40", "--gen", "2",
                                     "--json", str(audit / "g9_layout_gen2.json")), self.env(), est=150.0,
@@ -2687,11 +2962,26 @@ class Gate:
         """The tests.json rows of G1, G1b and G8 (evaluate_tests judges them once G7's perf job has run)."""
         rows = defaultdict(list)
         for job in jobs:
-            if job.check in ("G1", "G1b", "G8"):
+            if job.meta.get("lint"):
+                data = read_json(job.meta["lint"])
+                lint = {"rc": job.result["rc"], "secs": job.result["secs"]}
+                if isinstance(data, dict):
+                    found = data.get("violations") or []
+                    lint.update(files=data.get("files"), count=len(found),
+                                violations=["{}:{}: {}".format(v.get("path"), v.get("line"), v.get("message"))
+                                            for v in found[:200]])
+                else:
+                    lint.update(count=None, tail=tail(job.result["stderr"] + job.result["stdout"], 1500))
+                self.data["tests"]["py39"] = lint
+            elif job.check in ("G1", "G1b", "G8"):
                 rows[job.check].append(test_row(job))
         for check in rows:
             rows[check].sort(key=lambda r: (r["file"], r["mode"]))
         self.data["tests"].update(rows)
+        if any(c in self.selected for c in ("G1", "G1b", "G8")):
+            bounds = self.bound_plan()
+            self.data["tests"]["bounds"] = {"marks": bounds["marks"], "plan": bounds["plan"],
+                                            "registry": bounds["registry"]}
 
     def evaluate_tests(self, prev=None):
         """G1, G1b, G8: every test passes (absolute) except entries of the dated allowlist; a new failure against the
@@ -2708,7 +2998,10 @@ class Gate:
             perf = (read_json(self.out / "tests.json", {}) or {}).get("perf")
         if perf is not None:
             cur_tests["perf"] = perf
-        quiet, quiet_ok = test_regressions(prev_tests, cur_tests, allow, self.signoff)
+        # K-GATE3: every bound ran relaxed; only the registry's dated skip exceptions may skip their body
+        bounds = self.bound_plan() if rows else None
+        perf_ok = {t for t, m in bounds["plan"].items() if m == "skip"} if bounds else None
+        quiet, quiet_ok = test_regressions(prev_tests, cur_tests, allow, self.signoff, perf_ok=perf_ok)
         quiet_by = defaultdict(list)
         for item in quiet:
             quiet_by[item[0]].append(item)
@@ -2718,7 +3011,7 @@ class Gate:
             if not items:
                 return ""
             return "; {} test(s) removed or quiet vs {} without an allowlist 'skip' entry or a signature: {}".format(
-                len(items), prev.name, describe_regressions(items, 400))
+                len(items), prev.name if prev else "(no previous record)", describe_regressions(items, 400))
 
         def excused_note(excused):
             return "; {} allowlisted failing test(s) ({})".format(len(excused), short(
@@ -2729,13 +3022,25 @@ class Gate:
             bad = [r for r in g1 if r["rc"]]
             unexplained, excused = unexplained_test_failures(g1, allow)
             files = len({r["file"] for r in g1})
-            self.set("G1", "FAIL" if unexplained or not g1 or quiet_by.get("G1") else "PASS",
-                     "{} test files x normal+strict: {} tests (normal), {} failing run(s){}{}{}{}".format(
+            unregistered = bounds["unregistered"] if bounds else []
+            lint = self.data["tests"].get("py39") or {}
+            lint_bad = bool(lint.get("count")) or lint.get("rc") not in (0,)
+            self.set("G1", "FAIL" if unexplained or not g1 or quiet_by.get("G1") or unregistered or lint_bad else "PASS",
+                     "{} test files x normal+strict: {} tests (normal), {} failing run(s){}{}{}{}{}{}".format(
                          files, sum(r["ran"] for r in g1 if r["mode"] == "normal"), len(bad),
                          (": " + ", ".join("{} ({})".format(r["file"], r["mode"]) for r in bad[:8])) if bad else "",
                          "; NOT on the allowlist: {}".format(short(["{} ({})".format(t, m) for _, m, t in unexplained],
                                                                    400)) if unexplained else "",
-                         excused_note(excused), quiet_note("G1")))
+                         excused_note(excused), quiet_note("G1"),
+                         "; wall-clock bounds: {} relaxed, {} with a skip exception{}".format(
+                             len(bounds["plan"]) - len(perf_ok), len(perf_ok), "; UNREGISTERED (the committed registry "
+                             "{} does not list them): {}".format(PERF_REGISTRY, short(unregistered, 300))
+                             if unregistered else "") if bounds else "",
+                         "; Python 3.9 lint: {}".format(
+                             "{} file(s), 0 violations".format(lint.get("files")) if not lint_bad else
+                             "{} violation(s) ({})".format(lint.get("count"), short(lint.get("violations") or
+                                                                                    lint.get("tail") or "did not run",
+                                                                                    300)))))
         if "G1b" in self.selected:
             g1b = rows.get("G1b", [])
             iso = [r for r in g1b if r["mode"] == "isolated"]
@@ -2775,9 +3080,41 @@ class Gate:
                              "required from B1 on" if required else "PHYS-INT creates it in B1"))
             else:
                 unexplained, excused = unexplained_test_failures(g8, allow)
-                self.set("G8", "FAIL" if unexplained or quiet_by.get("G8") else "PASS", "room golden: {}{}{}".format(
-                    ", ".join("{} {}".format(r["mode"], "FAIL" if r["rc"] else "ok") for r in g8),
-                    excused_note(excused), quiet_note("G8")))
+                golden = self.golden_record(prev)
+                self.data["tests"]["golden"] = golden
+                unreviewed, unsigned = golden_review(golden["changes"], getattr(self, "reviewed", None) or
+                                                     load_reviewed(self.root, self.out, self.policy["packages"],
+                                                                   self.args.reviewed), self.policy, self.signoff)
+                problems = []
+                if golden["changes"]:
+                    problems.append("{} entr(ies) re-recorded vs {}: {}".format(
+                        len(golden["changes"]), golden["base"], describe_golden(golden["changes"])))
+                if unreviewed:
+                    problems.append("{} without the package's reviewed golden row".format(len(unreviewed)))
+                if unsigned:
+                    problems.append("{} without the main session's signed golden row".format(len(unsigned)))
+                self.set("G8", "FAIL" if unexplained or quiet_by.get("G8") or unreviewed or unsigned else "PASS",
+                         "room golden: {}{}{}{}".format(
+                             ", ".join("{} {}".format(r["mode"], "FAIL" if r["rc"] else "ok") for r in g8),
+                             excused_note(excused), quiet_note("G8"), "; " + "; ".join(problems) if problems else
+                             "; no entry re-recorded vs {}".format(golden["base"])))
+
+    def golden_record(self, prev):
+        """The room golden's entries in this tree and the ones re-recorded against the base (K-GATE3): the previous
+        record's entries when it carries them, else the golden at the tree's base commit (an isolated copy's base,
+        else HEAD). {"entries", "base", "changes"}."""
+        data = read_json(self.root / GOLDEN_FILE)
+        entries = golden_entries(data)
+        prev_golden = ((read_json(prev / "tests.json", {}) or {}).get("golden") if prev else None) or {}
+        if isinstance(prev_golden.get("entries"), dict):
+            base, label = prev_golden["entries"], "the previous record {}".format(prev.name)
+        else:
+            isolated = read_json(self.root / ISOLATE_MANIFEST)
+            commit = isolated.get("base") if isinstance(isolated, dict) and isolated.get("base") else head_commit()
+            base, label = golden_at(commit), "commit {}".format(str(commit)[:12])
+            if base is None:
+                label += " (no golden there: every entry counts as re-recorded)"
+        return {"entries": entries, "base": label, "changes": golden_changes(base, entries)}
 
     def gather_specs(self, jobs):
         rows = {"own": [], "realistic": []}
@@ -3004,10 +3341,11 @@ class Gate:
             self.set("G9", "N/A", "no extras for this package")
             return
         notes, bad = [], False
+        table, max_ratio = packages(), rules()["gen2_max_ratio"]
         for extra in extras:
-            tool, introducer = EXTRA_TOOLS.get(extra, (None, None))
+            tool, introducer = rules()["extra_tools"].get(extra, (None, None))
             required = introducer in self.policy["packages"] or (
-                introducer in PACKAGES and stage_index(self.policy["stage"]) > stage_index(PACKAGES[introducer]["stage"]))
+                introducer in table and stage_index(self.policy["stage"]) > stage_index(table[introducer]["stage"]))
             ran = {k: v for k, v in self.data["extras"].items() if self._extra_of(k) == extra}
             if extra == "camera":
                 ok = self.results.get("G4", {}).get("status") != "FAIL" and self.results.get("G6", {}).get("status") != "FAIL"
@@ -3031,8 +3369,9 @@ class Gate:
                     status = "skipped ({})".format(entry["json"]["skipped"])
                 elif name == "gen-2 timing" and isinstance(entry.get("json"), dict) and entry["json"].get("ratio"):
                     ratio = entry["json"]["ratio"]
-                    status = "gen2/gen1 time {:.2f} {}".format(ratio, "ok" if ratio <= 1.2 else "OVER 1.20")
-                    if ratio > 1.2:
+                    status = "gen2/gen1 time {:.2f} {}".format(ratio, "ok" if ratio <= max_ratio else
+                                                               "OVER {:.2f}".format(max_ratio))
+                    if ratio > max_ratio:
                         bad = True
                 notes.append("{}: {}".format(name, status))
                 bad = bad or entry["rc"] != 0
@@ -3085,8 +3424,9 @@ class Gate:
             bench["substep_ms"], repeats, bench["wait_1h_s"] or -1, repeats)
         if ref:
             over = []
-            for metric in ("substep_ms", "wait_1h_s"):
-                if ref.get(metric) and bench.get(metric) and bench[metric] > ref[metric] * factor + 1e-9:
+            for metric in rules()["bench_budgeted"]:
+                if ref.get(metric) and bench.get(metric) and \
+                        bench[metric] > ref[metric] * factor + rules()["bench_tolerance"]:
                     over.append("{} {:.4g} > {} x {} = {:.4g}".format(metric, bench[metric], ref_name, factor,
                                                                       ref[metric] * factor))
             note += "; vs {} ({}x): {}".format(ref_name if ref_name != "prev" else Path(ref_dir).name, factor,
@@ -3097,8 +3437,9 @@ class Gate:
             self.set("G7", "INFO", note + " (baseline recorded)")
 
     def perf_bounds(self):
-        """{test file: [test ids]} of the wall-clock bounds G7's perf job runs: every test method reading
-        HOUSE_SIM_PERF_TESTS (green_tests.perf_tests) and every test this run's G1 reported as outcome "perf"."""
+        """{test file: [test ids]} of the wall-clock bounds G7's perf job runs: every perf mark (green_tests.perf_tests:
+        a test method reading HOUSE_SIM_PERF_TESTS or calling wall_clock_bound) and every test this run's G1 reported
+        as outcome "perf"."""
         bounds = {name: set(ids) for name, ids in
                   _green_tests().perf_tests(glob.glob(str(self.root / "tests" / "test_*.py"))).items()}
         for r in self.data["tests"].get("G1") or []:
@@ -3108,18 +3449,19 @@ class Gate:
 
     def run_perf_job(self):
         """G7's perf job (K-GATE2; phase-1 red team: wall-clock bounds failed under the parallel load of G1 and of CI):
-        every bound alone, after the benchmarks, normal and HOUSE_SIM_STRICT=1, best of PERF_ATTEMPTS
+        every bound alone, after the benchmarks, normal and HOUSE_SIM_STRICT=1, best of the rules' perf attempts
         (green_tests.run_perf) into tests.json "perf". A bound that fails every attempt fails G7."""
         bounds = self.perf_bounds()
+        attempts = rules()["perf_attempts"]
         self.log("phase 3: wall-clock bounds alone ({} in {} files, normal + strict, best of {})".format(
-            sum(len(v) for v in bounds.values()), len(bounds), PERF_ATTEMPTS))
-        rows = _green_tests().run_perf(bounds, ("normal", "strict"), PERF_ATTEMPTS, str(self.root),
+            sum(len(v) for v in bounds.values()), len(bounds), attempts))
+        rows = _green_tests().run_perf(bounds, ("normal", "strict"), attempts, str(self.root),
                                        str(self.work / "perf"), base_env=self.env())
         self.data["tests"]["perf"] = rows
         failed = perf_failures({"perf": rows})
         retried = sum(1 for r in rows for n in (r.get("attempts") or {}).values() if n > 1)
         note = "; wall-clock bounds alone: {} x 2 modes, {} failing every one of {} attempts{}{}".format(
-            sum(len(v) for v in bounds.values()), len(failed), PERF_ATTEMPTS,
+            sum(len(v) for v in bounds.values()), len(failed), attempts,
             " ({})".format(short(["{} ({})".format(t, m) for _, m, t in failed], 300)) if failed else "",
             ", {} passed on a retry".format(retried) if retried else "")
         current = self.results.get("G7") or {"status": "INFO", "note": "benchmarks did not run"}
@@ -3156,6 +3498,12 @@ class Gate:
         # the tree the checks run on (FIX2): compared with the tree when the record is written; any change between
         # (another owner's edit, a test writing into the project) makes this run's results STALE
         self.tree_start = tree_fingerprint(self.root)
+        # the gate code this run executes and the commit it is judged against (K-GATE3)
+        self.gate_start, self.gate_commit = running_gate(), head_commit()
+        self.log("gate code {} ({}; rules {}; bound registry {})".format(
+            self.gate_start["digest"][:12], "committed" if not gate_differs(
+                self.gate_start["code"], committed_gate(self.gate_commit or "HEAD")) else "DIFFERS from the commit",
+            rules()["_note"], perf_registry()["note"]))
         self.run_info()
         if "G0" in self.selected and prev and "G0" in self.results and self.results["G0"]["status"] == "PASS":
             pf = (read_json(prev / "meta.json", {}) or {}).get("fingerprints", {}).get("actions_fingerprint")
@@ -3251,9 +3599,22 @@ class Gate:
         tree_now = tree_fingerprint(self.root)
         tree = tree_now if tree_now == getattr(self, "tree_start", tree_now) else None
         prev_name = str(prev) if prev else None
+        # the gate code that ran (K-GATE3): recorded with its blobs; code that changed during the run is STALE
+        gate_now = running_gate()
+        gate_start = getattr(self, "gate_start", None) or gate_now
+        commit = getattr(self, "gate_commit", None) or head_commit()
+        registry = perf_registry()
+        gate_meta = {"script": gate_now["script"], "commit": commit, "code": gate_start["code"],
+                     "digest": gate_start["digest"], "files": gate_now["files"],
+                     "differs": gate_differs(gate_start["code"], committed_gate(commit or "HEAD")),
+                     "changed_during_run": gate_now["digest"] != gate_start["digest"],
+                     "rules": {"sha256": rules()["_sha256"], "committed": rules()["_committed"],
+                               "note": rules()["_note"]},
+                     "perf_registry": {"committed": registry["committed"], "note": registry["note"]}}
         for result in self.results.values():
             result["tree"] = tree           # None: the tree changed while this run's checks ran
             result["prev"] = prev_name      # the previous record this run's checks were judged against (K-GATE2)
+            result["gate"] = gate_start["digest"]       # the gate code that judged it (K-GATE3)
         checks = dict(old_meta.get("checks", {})) if partial else {}
         checks.update(self.results)
         statuses = {c: checks[c]["status"] for c in CHECKS if c in checks}
@@ -3262,9 +3623,14 @@ class Gate:
         # FIX2: every check of a hand-over ran on the tree the record describes (a partial re-run merged with an
         # earlier run on another tree, or edits while the gate ran, are STALE); K-GATE2: and was judged against this
         # run's previous record (a full run against the package's own earlier record, then `--only G10 --prev ADOPT`,
-        # merged into a record whose deltas no check ran against ADOPT)
+        # merged into a record whose deltas no check ran against ADOPT); K-GATE3: and by this run's gate code
         stale = [c for c in recorded if c in checks and (checks[c].get("tree") != tree_now or
-                                                         checks[c].get("prev", prev_name) != prev_name)]
+                                                         checks[c].get("prev", prev_name) != prev_name or
+                                                         checks[c].get("gate") != gate_start["digest"])]
+        gate_status, gate_lines = gate_check(gate_meta, self.policy, self.signoff)
+        gate_meta.update(status=gate_status, note=" ".join(gate_lines))
+        if gate_status in FAILING:
+            failing.append("GATE")
         incomplete = record_incomplete({"recorded": recorded, "spec_files": self.args.spec_files,
                                         "seeds": list(self.seeds), "extras": self.extras,
                                         "packages": self.policy["packages"]})
@@ -3275,6 +3641,17 @@ class Gate:
         not_base = base_problem(prev, self.policy, self.gates_root, exclude=self.out)
         if not_base:
             incomplete = "; ".join(x for x in (incomplete, not_base) if x)
+        # K-GATE3: the rules and the bound registry as committed (a bootstrap draft decides nothing), and no --shared-tree
+        # attribution to a sub-stage that is not running
+        for what, committed in (("the gate's rules", rules()["_committed"]),
+                                ("the wall-clock bound registry", registry["committed"])):
+            if not committed:
+                incomplete = "; ".join(x for x in (incomplete, "not committed: {} (the working-tree draft was "
+                                                               "read)".format(what)) if x)
+        historical = ((self.data.get("scope") or {}).get("G10") or {}).get("historical")
+        if historical:
+            incomplete = "; ".join(x for x in (incomplete, "--shared-tree attributed files to sub-stage(s) {} that are "
+                                                           "not running".format(", ".join(historical))) if x)
         files, _ = changed_files(self.root)
         isolated = read_json(self.root / ISOLATE_MANIFEST)
         head = subprocess.run(["git", "-C", str(self.root), "rev-parse", "HEAD"], capture_output=True, text=True)
@@ -3299,7 +3676,8 @@ class Gate:
                            "allowlist_entries": len(self.allow["entries"]),
                            "allowlist_expired": len(self.allow["expired"]),
                            "allowlist_invalid": len(self.allow["invalid"]), "signoff": self.signoff["note"],
-                           "signed_by": self.signoff["by"]},
+                           "signed_by": self.signoff["by"], "rules": rules()["_note"], "perf_registry": registry["note"]},
+                "gate": gate_meta,
                 "human_check": "python -m house_sim --check {} --workers 4{}".format(
                     (self.work / "all_specs.json").as_posix(), "")}
         write_json(out / "meta.json", meta)            # compare_dirs reads it (the record's own statuses)
@@ -3309,9 +3687,11 @@ class Gate:
                      " ".join(map(str, self.seeds)), self.jobs_n),
                  "allowed differences: {}   reviewed codes: {}".format(
                      ", ".join(meta["allowed"]) or "none", ", ".join(meta["codes"]) or "none"),
-                 "policy: allowlist {} ({} entries, {} expired, {} invalid); second signatures {}".format(
-                     self.allow["note"], len(self.allow["entries"]), len(self.allow["expired"]),
-                     len(self.allow["invalid"]), self.signoff["note"]), ""]
+                 "policy: rules {} ({}); allowlist {} ({} entries, {} expired, {} invalid); bound registry {}; "
+                 "second signatures {}".format(
+                     rules()["_note"], rules()["_sha256"][:12], self.allow["note"], len(self.allow["entries"]),
+                     len(self.allow["expired"]), len(self.allow["invalid"]), registry["note"], self.signoff["note"]),
+                 "GATE {:5} {}".format(gate_status, " ".join(gate_lines)), ""]
         for check in CHECKS:
             if check in checks:
                 lines.append("{:4} {:5} {}".format(check, checks[check]["status"], checks[check]["note"]))
@@ -3328,6 +3708,8 @@ class Gate:
             lines += ["", text]
         self.passed = not failing and compare_ok and not stale
         word = "FAIL" if failing or not compare_ok else ("STALE" if stale else ("INCOMPLETE" if incomplete else "PASS"))
+        if word == "PASS" and gate_status != "PASS":
+            word, incomplete = "INCOMPLETE", "the gate code cannot be verified"
         summary = "TIER1-GATE {}{}{}: {} ({})".format(
             self.id, " [{}]".format("+".join(self.policy["packages"])) if self.policy["packages"] else "",
             " vs {}".format(prev.name) if prev else " (no previous gate)", word,
@@ -3364,7 +3746,7 @@ def default_prev_dir(gates_root, stage, exclude=None):
     """The default previous gate of a stage (TIER1_INTEGRATION 2.4, 3.1): A / B0 -> A0, B1 -> B0, the adoption round
     -> C1; otherwise the latest complete, unnarrowed gate of an earlier stage."""
     gates_root = Path(gates_root)
-    fixed = DEFAULT_PREV.get(stage)
+    fixed = rules()["default_prev"].get(stage)
     if fixed and (gates_root / fixed / "meta.json").exists():
         return (gates_root / fixed).resolve()
     best = None
@@ -3401,7 +3783,7 @@ def resolve_records(args, verb="compare"):
     if args.cur:
         cur = locate(args.cur)
     else:
-        candidates = [gates_root / gate_dirname(n) for pid in names for n in [pid] + PACKAGES[pid]["aka"]]
+        candidates = [gates_root / gate_dirname(n) for pid in names for n in [pid] + packages()[pid]["aka"]]
         cur = next((c.resolve() for c in candidates if (c / "meta.json").exists()), None)
         if cur is None:
             pid = names[0] if names else None
@@ -3470,15 +3852,39 @@ def cmd_compare(args):
             "the record was made for {}; compare it with its own package's rules, not {}".format(
                 "+".join(recorded_for), "+".join(names))]})
         ok = False
+    historical = (((read_json(cur / "scope.json", {}) or {}).get("G10") or {}).get("historical")
+                  if not args.shared_tree else None)
     if args.shared_tree:
         scope = scope_check(root, policy, cur.name, True)
         lines = [scope["note"]] + ["outside: " + f for f in scope.get("outside", [])[:40]]
         if scope.get("attributed"):
             owners = Counter(scope["attributed"].values())
             lines.append("attributed: " + ", ".join("{} {}".format(k, v) for k, v in sorted(owners.items())))
+            lines += ["  {} -> {}".format(f, p) for f, p in sorted(scope["attributed"].items())[:60]]
         sections.append({"check": "G10", "status": scope["status"], "lines": lines})
         ok = ok and scope["status"] not in FAILING
+        historical = scope.get("historical")
     incomplete = record_incomplete(meta)
+    # K-GATE3: what makes a comparison no hand-over beyond the record itself -- the gate code (a record without its
+    # digest cannot be verified; this comparison's own script differing from the committed one), the rules and the
+    # bound registry read as committed, a --shared-tree attribution in a sub-stage that is not running
+    gate_section = next((s for s in sections if s["check"] == "GATE"), None)
+    if gate_section is not None and gate_section["status"] == "N/R":
+        incomplete = "; ".join(x for x in (incomplete, "no gate-code digest in the record") if x)
+    own_differs = gate_differs(running_gate()["code"], committed_gate("HEAD"))
+    if own_differs:
+        sections.append({"check": "SELF", "status": "N/R", "lines": [
+            "this comparison runs a gate script that differs from the committed one ({}): an iteration aid, not a "
+            "hand-over".format(", ".join(own_differs[:8]))]})
+        incomplete = "; ".join(x for x in (incomplete, "the comparing gate script differs from the committed one")
+                               if x)
+    for what, committed in (("the gate's rules", rules()["_committed"]),
+                            ("the wall-clock bound registry", perf_registry()["committed"])):
+        if not committed:
+            incomplete = "; ".join(x for x in (incomplete, "not committed: {}".format(what)) if x)
+    if historical:
+        incomplete = "; ".join(x for x in (incomplete, "--shared-tree attributed files to sub-stage(s) {} that are not "
+                                                       "running".format(", ".join(historical))) if x)
     if args.spec_files:
         incomplete = "; ".join(x for x in (incomplete, "compared on spec files " + args.spec_files) if x)
     prev_narrow = record_incomplete(read_json(Path(prev) / "meta.json", {}))
@@ -3519,6 +3925,22 @@ def signoff_draft(prev, cur, policy, reviewed, by=None, root=None):
     pa, ca = read_json(Path(prev) / "audits.json", {}), read_json(Path(cur) / "audits.json", {})
     unsigned, _ = coverage_loss(pa.get("G6"), ca.get("G6"), empty)
     rows += [{"kind": "coverage", "action": action} for action in unsigned]
+    # K-GATE3: the room golden's re-recorded entries and the gate code of a gate-tool package's record
+    pt, ct = read_json(Path(prev) / "tests.json", {}), read_json(Path(cur) / "tests.json", {})
+    cg, pg = ct.get("golden") or {}, pt.get("golden") or {}
+    if isinstance(cg.get("entries"), dict):
+        changes = golden_changes(pg["entries"], cg["entries"]) if isinstance(pg.get("entries"), dict) else \
+            list(cg.get("changes") or [])
+        unreviewed, _ = golden_review(changes, reviewed, policy, empty)
+        missed = {c["key"] for c in unreviewed}
+        rows += [{"kind": "golden", "key": c["key"], "digest": c["digest"], "change": c["change"],
+                  "reviewed_by_package": c["key"] not in missed} for c in changes]
+    gate_meta = cm.get("gate") or {}
+    if isinstance(gate_meta.get("code"), dict) and gate_differs(gate_meta["code"],
+                                                                committed_gate(gate_meta.get("commit") or "HEAD")):
+        rows.append({"kind": "gate-change", "digest": gate_meta.get("digest") or code_digest(gate_meta["code"]),
+                     "files": gate_differs(gate_meta["code"], committed_gate(gate_meta.get("commit") or "HEAD")),
+                     "gate_tool_package": bool(policy.get("gate_tool"))})
     return {"format": SIGNOFF_FORMAT, "gate": Path(cur).name, "prev": Path(prev).name, "signed_by": by,
             "date": _today(),
             "about": "Second signatures of gate record {} (tools/orchestration/tier1_gate.py). Drafted by `signoff`: "
@@ -3545,20 +3967,36 @@ def cmd_signoff(args):
     else:
         write_json(target, draft)
         counts = Counter(r["kind"] for r in draft["rows"])
-        print("wrote {} ({} verdict, {} edit, {} coverage row(s); review, then commit it)".format(
-            target, counts["verdict"], counts["edit"], counts["coverage"]))
+        print("wrote {} ({} verdict, {} edit, {} coverage, {} golden, {} gate-change row(s); review, then commit "
+              "it)".format(target, counts["verdict"], counts["edit"], counts["coverage"], counts["golden"],
+                           counts["gate-change"]))
     return 0
 
 
 def cmd_policy(args):
-    """policy: the allowlist and the second-signature files as the gate reads them (committed versions only, from
-    policy_root(): never from --root)."""
+    """policy: the rules, the allowlist, the bound registry and the second-signature files as the gate reads them
+    (committed versions only, from policy_root(): never from --root), and whether the working tree differs from them
+    (an edit there counts for nothing until the main session commits it)."""
     root = policy_root()
     if Path(args.root).resolve() != root:
         print("note: --root {} is ignored; policy files are read from the project {}".format(
             Path(args.root).resolve(), root))
     allow = load_known_failing(root)
     print("policy root: {}".format(root))
+    table = rules()
+    print("rules {}: {} (sha256 {}); {} packages; running sub-stage(s): {}".format(
+        RULES_FILE, table["_note"], table["_sha256"][:12], len(table["packages"]), ", ".join(table["running"]) or
+        "none"))
+    registry = perf_registry()
+    print("wall-clock bound registry {}: {}; {} bound(s), {} with a skip exception{}".format(
+        PERF_REGISTRY, registry["note"], len(registry["bounds"]),
+        sum(1 for e in registry["bounds"].values() if e.get("skip")),
+        "; INVALID: {}".format(short(registry["invalid"], 300)) if registry["invalid"] else ""))
+    gate = running_gate()
+    differs = gate_differs(gate["code"], committed_gate("HEAD"))
+    print("gate code {}: {}".format(gate["digest"][:12], "as committed" if not differs else
+                                    "DIFFERS from HEAD ({}): no record it makes is a hand-over, except a gate-tool "
+                                    "package's with a gate-change signature".format(", ".join(differs))))
     print("allowlist {}: {}".format(KNOWN_FAILING, allow["note"]))
     for entry in allow["entries"]:
         print("  {} {} owner {} expires {}: {}".format(entry["kind"], entry.get("test") or entry.get("catalog_id"),
@@ -3670,17 +4108,23 @@ def cmd_scope(args):
 
 
 def cmd_packages(args):
-    names = [resolve_package(p) for p in args.names] if args.names else list(PACKAGES)
+    """packages [PKG ...]: the package table as the gate reads it (the committed rules; rules()["_note"] says so)."""
+    print("rules {}: {}".format(RULES_FILE, rules()["_note"]))
+    names = [resolve_package(p) for p in args.names] if args.names else list(packages())
     for pid in names:
         if pid is None:
             raise SystemExit("unknown package")
-        pkg = PACKAGES[pid]
+        pkg = packages()[pid]
         pol = policy_for([pid])
         print("{} (stage {}{})".format(pid, pkg["stage"], "; also " + ", ".join(pkg["aka"]) if pkg["aka"] else ""))
         print("  may change: {}{}".format(", ".join(pkg["allow"]) or "nothing",
                                           "  (codes: {})".format(", ".join(pkg["codes"])) if pkg["codes"] else ""))
         print("  bench: <= {} x {}   extras: {}   requires: {}".format(
             pkg["bench"][0], pkg["bench"][1], ", ".join(pkg["extras"]) or "-", ", ".join(sorted(pol["requires"])) or "-"))
+        flags = [f for f in ("policy", "gate_tool") if pkg.get(f)]
+        if flags or pkg.get("members"):
+            print("  {}{}".format(" ".join(flags), ("  members: " + ", ".join(pkg["members"])) if pkg.get("members")
+                                  else ""))
         if pkg["inert"]:
             print("  import-inert: " + ", ".join(pkg["inert"]))
         if pkg["note"]:
@@ -3734,7 +4178,7 @@ def cmd_gen1(args):
                       "with every domain loaded (HOUSE_SIM_DOMAINS unset) and the default registry; defaults: seeds "
                       "0-19 with house {}; spec_houses: every distinct `house` block of tasks/authored/*.json after "
                       "spec.expand and spec.choose_variant(spec, seed), on seeds 0, 1, 2, 41 and 97",
-            "seeds": list(SEEDS), "defaults": defaults, "spec_houses": houses, "history": history}
+            "seeds": list(seeds()), "defaults": defaults, "spec_houses": houses, "history": history}
     write_json(root / GEN1_FILE, data)
     print("wrote {}: {} default and {} spec-house digests".format(GEN1_FILE, len(defaults), len(houses)))
     return 0

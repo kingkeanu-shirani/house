@@ -42,7 +42,7 @@ def _tags(rec):
 
 @action("attach", params={"target": "entity", "destination": "entity", "force_n": {"type": "number", "default": 30.0, "min": 0.0, "max": 300.0},
                           "orientation": "?str", "where": "?str", "points": "?int", "layer": "?str:inner|outer"},
-        duration=4.0, energy=0.01, category="physical",
+        duration=4.0, energy=0.01, category="physical", operates=True,
         inverse=lambda ctx, before: {"action": "detach", "target": ctx.args["target"], "release": True},
         doc="Join a held part to its mate with the designed connector (bayonet, click, hook, magnet, key ring, hose coupling, "
             "felt pads or sliders under furniture legs). Needs the right mate and keying; too little force leaves it unlatched.")
@@ -146,7 +146,7 @@ def _attach_pads(ctx, eid, dest, rec, drec):
 
 @action("detach", params={"target": "entity", "release": {"type": "bool", "default": False}, "force_n": {"type": "number", "default": 30.0, "min": 0.0, "max": 300.0},
                           "hand": "?str:left|right"},
-        duration=3.0, energy=0.01, category="physical",
+        duration=3.0, energy=0.01, category="physical", operates=True,
         doc="Separate an attached part using its release (release=true presses the button / twists the bayonet / squeezes the clip). "
             "Yanking a latched joint snaps its tab; a pressurised hose sprays.")
 def detach(ctx):
@@ -237,7 +237,7 @@ def _fastener(rec, which):
 
 @action("fasten", params={"target": "entity", "which": "?str", "start": {"type": "int", "default": 0, "min": 0, "max": 20},
                           "destination": "?entity", "where": "?str:handle|zipper_pull|strap|ring|loop", "force_n": {"type": "number", "default": 25.0, "min": 0, "max": 200}},
-        duration=lambda ctx: ctx.data.get("manip_s", 4.0), energy=0.005, category="physical",
+        duration=lambda ctx: ctx.data.get("manip_s", 4.0), energy=0.005, category="physical", operates=True,
         inverse=lambda ctx, before: {"action": "unfasten", "target": ctx.args["target"], "which": ctx.args.get("which")},
         doc="Close a garment's or item's fasteners (buttons in order starting from hole 'start', buckle until it clicks, clasp, strap), "
             "or strap a held tag/strap to destination (where=handle is secure; a zipper pull is not).")
@@ -278,7 +278,7 @@ def fasten(ctx):
 
 
 @action("unfasten", params={"target": "entity", "which": "?str", "method": {"type": "str", "default": "gentle", "choices": ["gentle", "yank"]}},
-        duration=4.0, energy=0.005, category="physical",
+        duration=4.0, energy=0.005, category="physical", operates=True,
         doc="Open buttons/buckles/clasps/straps fully and gently before the next step; yanking tears buttons off or rips fabric.")
 def unfasten(ctx):
     w = ctx.w
@@ -465,7 +465,7 @@ def _loosen(ctx, part, turns, press, vent):
 @action("twist", params={"target": "entity", "destination": "?entity", "direction": {"type": "str", "default": "cw", "choices": ["cw", "ccw"]},
                          "turns": {"type": "number", "default": 1.0, "min": 0.05, "max": 30.0}, "torque_nm": "?number",
                          "press": {"type": "bool", "default": False}, "aligned": {"type": "bool", "default": True}, "vent": {"type": "bool", "default": False}},
-        duration=lambda ctx: 2.0 + 1.5 * C.num(ctx.args.get("turns"), 1.0), energy=0.005, category="physical",
+        duration=lambda ctx: 2.0 + 1.5 * C.num(ctx.args.get("turns"), 1.0), energy=0.005, category="physical", operates=True,
         doc="Turn a threaded cap, lid or part: cw tightens right-hand threads, ccw loosens. With destination, start a held cap/part on "
             "its mate (aligned=false cross-threads). torque_nm caps the tightening torque (overtightening cracks plastic). "
             "Child-resistant caps need press=true; vent=true opens carbonated drinks slowly.")
@@ -504,7 +504,7 @@ def _is_live_bulb(w, part, base):
 
 @action("untwist", params={"target": "entity", "hand": "?str:left|right", "press": {"type": "bool", "default": False},
                            "vent": {"type": "bool", "default": False}},
-        duration=5.0, energy=0.005, category="physical",
+        duration=5.0, energy=0.005, category="physical", operates=True,
         doc="Unscrew a cap/lid/part completely and lift it off into a free hand (target = the cap or its container). The container must "
             "stand on a surface or be held. Child-resistant caps need press=true; vent=true releases carbonation slowly.")
 def untwist(ctx):
@@ -527,7 +527,7 @@ def untwist(ctx):
 
 @action("screw_together", params={"target": "entity", "destination": "entity", "turns": {"type": "number", "default": 4.0, "min": 0.1, "max": 40.0},
                                   "torque_nm": "?number", "aligned": {"type": "bool", "default": True}},
-        duration=lambda ctx: 4.0 + 1.5 * C.num(ctx.args.get("turns"), 4.0), energy=0.01, category="physical",
+        duration=lambda ctx: 4.0 + 1.5 * C.num(ctx.args.get("turns"), 4.0), energy=0.01, category="physical", operates=True,
         inverse=lambda ctx, before: {"action": "unscrew_apart", "target": ctx.args["target"]},
         doc="Join two threaded parts (blender blade base onto a jar, filter-housing halves, a furniture leg into its insert, a hose onto a spigot). "
             "Start aligned and turn until seated, to spec torque; cross-threaded joints wobble and leak, overtightening cracks plastic.")
@@ -552,7 +552,7 @@ def screw_together(ctx):
 
 
 @action("unscrew_apart", params={"target": "entity", "support": {"type": "bool", "default": True}, "hand": "?str:left|right"},
-        duration=6.0, energy=0.01, category="physical",
+        duration=6.0, energy=0.01, category="physical", operates=True,
         doc="Separate threaded parts: hold/brace the other part (support=true) and turn the right way; the freed part goes into a free hand "
             "(with no free hand it drops). Live or hot bulbs are refused.")
 def unscrew_apart(ctx):
@@ -593,7 +593,7 @@ def _clip_spec(rec):
     return spec
 
 
-@action("clip", params={"target": "entity", "destination": "entity"}, duration=3.0, energy=0.005, category="physical",
+@action("clip", params={"target": "entity", "destination": "entity"}, duration=3.0, energy=0.005, category="physical", operates=True,
         inverse=lambda ctx, before: {"action": "unclip", "target": ctx.args["target"]},
         doc="Close a held spring clip across something: a rolled bag opening (coverage = jaw width / opening width; roll the top first), "
             "a stack of papers (within the jaw capacity), a garment on a line or a ring.")
@@ -638,7 +638,7 @@ def clip(ctx):
     return "Clipped {} on {}".format(eid, dest)
 
 
-@action("unclip", params={"target": "entity", "hand": "?str:left|right"}, duration=2.5, energy=0.005, category="physical",
+@action("unclip", params={"target": "entity", "hand": "?str:left|right"}, duration=2.5, energy=0.005, category="physical", operates=True,
         doc="Release a clip (target = the clip or the clipped item) into a free hand. Unclipping papers you are holding in the air scatters them.")
 def unclip(ctx):
     w = ctx.w
@@ -686,7 +686,7 @@ def _fill_frac(w, eid):
 @action("zip", params={"target": "entity", "to_frac": {"type": "number", "default": 1.0, "min": 0.0, "max": 1.0},
                        "taut": {"type": "bool", "default": True}, "insert_pin": {"type": "bool", "default": True},
                        "compress": {"type": "bool", "default": False}, "force": {"type": "bool", "default": False}},
-        duration=lambda ctx: 3.0 + 6.0 * C.num(ctx.args.get("to_frac"), 1.0), energy=0.005, category="physical",
+        duration=lambda ctx: 3.0 + 6.0 * C.num(ctx.args.get("to_frac"), 1.0), energy=0.005, category="physical", operates=True,
         inverse=lambda ctx, before: {"action": "unzip", "target": ctx.args["target"]},
         doc="Close a zipper to to_frac, holding the fabric taut so nothing snags (separating zippers need the pin in the box first). "
             "An overfull bag needs compress=true (presses the contents; fragile items inside may crush); forcing an overfull or snagged "
@@ -743,7 +743,7 @@ def zip_(ctx):
 
 @action("unzip", params={"target": "entity", "to_frac": {"type": "number", "default": 0.0, "min": 0.0, "max": 1.0},
                          "taut": {"type": "bool", "default": True}, "compartment": "?entity"},
-        duration=4.0, energy=0.005, category="physical",
+        duration=4.0, energy=0.005, category="physical", operates=True,
         doc="Open a zipper to to_frac (0 = fully open), holding the fabric taut so the slider stays on track. Opening someone's private "
             "compartment needs their permission.")
 def unzip(ctx):
@@ -770,7 +770,7 @@ def unzip(ctx):
 
 @action("snap", params={"target": "entity", "destination": "?entity", "stud": "?int", "socket": "?int",
                         "force_n": {"type": "number", "default": 40.0, "min": 0.0, "max": 300.0}, "corners": "?int"},
-        duration=3.0, energy=0.005, category="physical",
+        duration=3.0, energy=0.005, category="physical", operates=True,
         inverse=lambda ctx, before: {"action": "unsnap", "target": ctx.args["target"]},
         doc="Press a snap closed: a stud into its socket on a garment/cover (stud i belongs in socket i), a held snap lid or marker cap "
             "onto its container (press all corners; only the matching lid seals). Too little force does not engage; off-axis "
@@ -824,7 +824,7 @@ def snap(ctx):
 
 @action("unsnap", params={"target": "entity", "stud": "?int", "method": {"type": "str", "default": "near_base", "choices": ["near_base", "pull_fabric", "flex_tab", "pry"]},
                           "hand": "?str:left|right"},
-        duration=2.5, energy=0.005, category="physical",
+        duration=2.5, energy=0.005, category="physical", operates=True,
         doc="Release snaps by pulling right at the snap base (fabric) or flexing the lid's tab (plastic). Pulling fabric far from the snap "
             "tears it; prying a tab snaps it off. For snap lids/caps the lid goes into a free hand.")
 def unsnap(ctx):
@@ -870,7 +870,7 @@ def unsnap(ctx):
 
 @action("velcro", params={"target": "entity", "overlap_frac": {"type": "number", "default": 1.0, "min": 0.0, "max": 1.0},
                           "tension": {"type": "str", "default": "snug", "choices": ["loose", "snug", "tight"]}, "aligned": {"type": "bool", "default": True}},
-        duration=2.5, energy=0.002, category="physical",
+        duration=2.5, energy=0.002, category="physical", operates=True,
         inverse=lambda ctx, before: {"action": "unvelcro", "target": ctx.args["target"]},
         doc="Fasten a hook-and-loop strap (shoe strap, cable tie, cuff, coiled-cable strap) with full aligned overlap at snug tension. "
             "Under 60% overlap it pops open on a tug; a tight strap on someone's foot is uncomfortable.")
@@ -900,7 +900,7 @@ def velcro(ctx):
 
 @action("unvelcro", params={"target": "entity", "method": {"type": "str", "default": "peel", "choices": ["peel", "shear"]},
                             "speed": {"type": "str", "default": "slow", "choices": ["slow", "fast"]}},
-        duration=lambda ctx: 4.0 if ctx.args.get("speed") == "slow" else 1.0, energy=0.002, category="physical",
+        duration=lambda ctx: 4.0 if ctx.args.get("speed") == "slow" else 1.0, energy=0.002, category="physical", operates=True,
         doc="Separate hook-and-loop by peeling from one end (slow is quiet, ~45 dB; fast rips at ~70 dB). Pulling in shear rips the stitching.")
 def unvelcro(ctx):
     w = ctx.w
@@ -934,7 +934,7 @@ def unvelcro(ctx):
 @action("tie", params={"target": "entity", "knot": {"type": "str", "default": "double", "choices": sorted(KNOTS)},
                        "destination": "?entity", "tool": "?entity", "tightness": {"type": "str", "default": "snug", "choices": ["loose", "snug", "tight"]},
                        "press_air": {"type": "bool", "default": False}, "force": {"type": "bool", "default": False}},
-        duration=lambda ctx: ctx.data.get("manip_s", 10.0), energy=0.005, category="physical",
+        duration=lambda ctx: ctx.data.get("manip_s", 10.0), energy=0.005, category="physical", operates=True,
         inverse=lambda ctx, before: {"action": "untie", "target": ctx.args["target"], "method": "pick_apart"},
         doc="Tie a knot: close a trash/bread bag with its drawstring or flaps (needs headroom), bow laces or a ribbon, bundle papers "
             "with held twine (tool), or tie a plant to a stake (destination; loose figure_eight). Knot strength by type: twist 0.3 kg, "
@@ -1009,7 +1009,7 @@ def tie(ctx):
 
 @action("untie", params={"target": "entity", "method": {"type": "str", "default": "pick_apart", "choices": ["pick_apart", "pull_tail", "pull_ends", "cut"]},
                          "tool": "?entity"},
-        duration=lambda ctx: ctx.data.get("manip_s", 10.0), energy=0.005, category="physical",
+        duration=lambda ctx: ctx.data.get("manip_s", 10.0), energy=0.005, category="physical", operates=True,
         doc="Undo a knot, tie or tangle: pick_apart works slack into it (slow but safe; tangled cables/chains lose crossings), pull_tail "
             "releases bows and slip knots, pull_ends tightens everything else (bows become hard knots), cut needs a held blade and ruins "
             "cords that must not be cut (ask first).")
@@ -1128,7 +1128,7 @@ def _untangle(ctx, eid, rec, tangle, method):
 
 @action("seal", params={"target": "entity", "clear_track": {"type": "bool", "default": True}, "press_air": {"type": "bool", "default": True},
                         "tool": "?entity", "full_length": {"type": "bool", "default": True}},
-        duration=5.0, energy=0.003, category="physical",
+        duration=5.0, energy=0.003, category="physical", operates=True,
         inverse=lambda ctx, before: {"action": "unseal", "target": ctx.args["target"]},
         doc="Seal a closure: press a zip-top bag's track closed along its full length (clear crumbs from the track, press out air), "
             "seal a peel-and-seal or gummed envelope flap (gum needs a damp sponge/moistener tool; a soaked flap warps), or close a "
@@ -1170,7 +1170,7 @@ def seal(ctx):
     return "Sealed {}".format(eid)
 
 
-@action("unseal", params={"target": "entity", "tool": "?entity"}, duration=4.0, energy=0.003, category="physical",
+@action("unseal", params={"target": "entity", "tool": "?entity"}, duration=4.0, energy=0.003, category="physical", operates=True,
         doc="Open a sealed bag, envelope (with a letter opener tool to avoid tearing contents) or resealable package.")
 def unseal(ctx):
     w = ctx.w

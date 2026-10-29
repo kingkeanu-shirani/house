@@ -135,8 +135,11 @@ def give_pet_medication(ctx):
     method = ctx.args.get("method", "in_treat")
     require(pid in state.get("pets", {}), "No such pet", "argument")
     approvals = state.get("approvals", [])
+    # (worded without "pet medication", the medicine bottle's own label: the kernel rewrites a look-alike's true names
+    # in a message, so the old wording came back as "amber pill bottle is owner-directed")
     require("give_pet_medication:" + pid in approvals or "give_pet_medication:" + med in approvals,
-            "Pet medication is owner-directed: ask an adult for permission give_pet_medication:{}".format(pid), "authority")
+            "Medicine for a pet is given only as its owner directs: ask an adult for permission give_pet_medication:{}".format(pid),
+            "authority")
     require(ctx.holding(med), "Hold the medication first", "precondition")
     # realistic perception: amber pill bottles look alike (kernel pill_bottle group). Whatever is inside, an unread
     # bottle gets the same answer, so a refusal cannot tell the dog's pills from a person's prescription.

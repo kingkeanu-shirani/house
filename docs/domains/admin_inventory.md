@@ -9,10 +9,10 @@ stored goods are safe (load ratings, child reach, chemical segregation, clearanc
 
 Code: `house_sim/systems/admin_inventory/` (package, ~20 modules). Types: `house_sim/data/types/admin_inventory.json`
 (132 types; 66 with `perception` blocks, 9 with camera `view` blocks, 20 look-alike groups, file-level `field_tiers`).
-Tests: `tests/test_admin_inventory.py` (153 tests with every domain loaded, also with `HOUSE_SIM_STRICT=1` and with
+Tests: `tests/test_admin_inventory.py` (162 tests with every domain loaded, also with `HOUSE_SIM_STRICT=1` and with
 `HOUSE_SIM_DOMAINS=core,admin_inventory`; `RealisticPerceptionTests` and `RedTeamRoundTests` cover realistic mode,
 `Tier1AdoptionTests` the kernel v3.0-v3.1 adoption, section 17, `StabiliseTests` the phase-1 fixes after the
-independent review, section 18). Examples:
+independent review, its finish and its close-out, sections 18-20). Examples:
 `tasks/authored/admin_inventory__examples.json` (12 specs, all pass `--check` on seeds 0, 1, 2, 41, 97 with every domain loaded;
 11 on generation-2 houses) and `tasks/authored/admin_inventory__perception.json` (3 realistic-perception specs with the
 geometric camera, generation 2; sections 15 and 17).
@@ -43,7 +43,7 @@ Dev loop (all domains loaded; the tests and examples must hold with every other 
 | Fastening | `stapler` (20 sheets, slot `magazine` for `staple_strip` of 210), `heavy_duty_stapler` (60), `staple_box` (24 strips), `staple_remover`, `loose_staple` (sharp, choking), `hole_punch` (us_3, 12 sheets, chad tray), `hole_punch_iso`, `paper_chad`, `paper_clip` (10 sheets), `binder_clip` (60), `binder_clip_large` (120), `ring_binder` (`ring_pattern`, 250 sheets), `ring_binder_iso` | |
 | Filing | `file_folder` (100 sheets, `order` front-to-back), `hanging_folder`, `accordion_file`, `filing_cabinet` (2 drawers = shelf 0/1), `inbox_tray` (`designated_for`, `owner`), `mail_organizer` | the core furnisher's office "filing cabinet" (a core `cabinet`) is used too |
 | Mail | `envelope` (#10, 5.5 g; open flap; closing seals), `flat_envelope` (9x12), `window_envelope`, `square_envelope` (non-machinable), `mail_piece` (sealed incoming), `periodical` (magazine/catalog, `poly_wrapped`), `stamp_sheet` (20 x 78 c), `letter_opener` (2 mm, dull), `postal_scale` (5 kg x 1 g, `display`), `curbside_mailbox` (flag setting), `apartment_mailbox` (keyed), `outgoing_mail_slot` | printed: `recipient`, `address`, `sender`, `postage_class`, `markings`, `to_text`, `from_text`, `postage_cents`, `stamp_position`; hidden: `_addressee`, `_mail_class`, `_doc_important`, `_pii` |
-| Stationery | `pen`, `click_pen`, `fountain_pen` (value 120), `marker_pen` (permanent, dries in 6 h uncapped), `washable_marker`, `pencil`, `pencil_sharpener`, `pen_cup`, `notebook`, `label_maker` (60 labels, battery), `box_cutter` (settings `blade` retracted/extended, `depth_mm` 3-25; extended = `hazards` ["sharp"] with `safe_grips` ["handle"], derived at `episode_start` and on `setting_changed`; the kernel remembers `held_grip`, and extending a held cutter sets it to the handle) | `settings.cap` on/off; `uncapped_s`, `dried_out` |
+| Stationery | `pen`, `click_pen`, `fountain_pen` (value 120), `marker_pen` (permanent, dries in 6 h uncapped), `washable_marker` (barrel print `permanent` false, dries in 2 h), `pencil`, `pencil_sharpener`, `pen_cup`, `notebook`, `label_maker` (60 labels, battery), `box_cutter` (settings `blade` retracted/extended, `depth_mm` 3-25; extended = `hazards` ["sharp"] with `safe_grips` ["handle"], derived at `episode_start` and on `setting_changed`; the kernel remembers `held_grip`, and extending a held cutter sets it to the handle) | `settings.cap` on/off; `uncapped_s`, `dried_out` |
 | Packages | `package_box` (`crush_kg` 15: stacking load before it crushes, `tape_sealed`, `recipient`, `address`, `order_id`, `markings`, `this_side_up`, `perishable`, `cold_pack_s`, `gift_note`, `outgoing`, `content_clearance_mm` 30; hidden `_addressee`, `gift_for`), `poly_mailer` (2 mm clearance), `packing_fill` (kraft paper, recycling), `air_pillows`, `bubble_wrap_fill` (film), `packing_peanuts` (EPS, trash, scatter), `foam_insert`, `desiccant_packet` (ingestion hazard), `hardware_bag` (`keep_with_item`), `protective_wrap` | fill is openable: `open` it (unfold) to see hidden parts |
 | Consumables | `toilet_paper_roll` (250 sheets, `remaining`), `kitchen_paper_roll` (part/sku `paper_towel_roll`), `multipack` / `toilet_paper_pack` / `paper_towel_pack` (sealed, transparent, real unit entities inside), `tissue_box` (160, opening pulls a tissue up), `counted_stock` / `napkin_pack` (250) / `foil_box` / `plastic_wrap_box` / `storage_bag_box` / `trash_bag_box` (40 x 13 gal, unit `drawstring_liner`), `napkin_stack`, `bar_soap` (113 g, wrapped), `soap_dish`, `soap_dispenser` (350 ml, 22 mm neck, `product_tag`), `foaming_dispenser`, `refill_bottle` (1 L), `refill_funnel` | `sku`, `units_count`, `pack_count`, `unit_type`, `liquid`, `liquid_l`, `capacity_l`, `fill_line_l`, `refill_threshold` |
 | Holders | `roll_holder`, `toilet_paper_holder`, `paper_towel_holder` (slot `roll`, `roll_orientation` over/under), `tissue_box_cover` (slot `box`), `napkin_holder` (80 dispensable, `overstuffed`, `dispensable`), `spare_roll_basket` | |
@@ -55,6 +55,8 @@ Props-based mechanics (work on any domain's entities): `wheeled_cart` + `waste_s
 ## 2. Actions
 
 All refusals roll back; categories in brackets. Safety/privacy/authority refusals fail a spec by default (strict_blocks).
+Realistic perception: an unfamiliar (novel) thing in any entity parameter of these verbs gets the kernel's one
+identify-first refusal first (`perceive.unfamiliar_first`, section 20).
 
 | Verb | Params | Preconditions (refusal) | Effects | Duration |
 |---|---|---|---|---|
@@ -73,12 +75,12 @@ All refusals roll back; categories in brackets. Safety/privacy/authority refusal
 | `open_mail` | target envelope, tool? | addressed to the requester (state.requester), household mail for an adult requester, or approval `open_mail:<id>` [privacy; realistic: refused only once the robot read the envelope, else opened and counted as `privacy_violations`] | letter opener: clean slit; blade deeper than `contents_clearance_mm` cuts contents; by hand tears (snug contents torn) | 4 s |
 | `address_envelope` | target, to, sender?, tool? | held pen/marker, readable | `to_text`, `from_text`, `addressed` | 20 s |
 | `affix_postage` | target, stamps, source? booklet, position? | held stamps, enough left [resource] | `postage_cents`, `stamps`, `stamp_position`; booklet decremented | 3 + 2 s/stamp |
-| `verify_label` | target package/mail | readable; label not underneath / soaked [perception] | facts.admin.last_verify: verdict household / resident:<pid> / wrong_address / unknown_name / former_occupant | 4 s |
+| `verify_label` | target package/mail | readable; label not underneath / soaked / blank [perception] | facts.admin.last_verify: verdict household / resident:<pid> / wrong_address / unknown_name / former_occupant | 4 s |
 | `open_package` | target, tool? | addressed to requester/household (adult) or approval `open_package:<id>`; never wrong address/former occupant; gift notes for others stay sealed [privacy; realistic: refused, generically, only once the label was read (`verify_label`/`read`), else cut open and counted as `privacy_violations`]; blade extended | tape cut; `depth_mm` > `content_clearance_mm` cuts the nearest contents (fragile break, stat damage); no tool tears flaps (`reusable_box` false) | 6 s (15 s by hand) |
 | `remove_packing` | target package (open) or product, destination?, search? | fill present / packaging present | fill moved to destination (bin stream checked [safety]; floor: peanuts scatter, slip hazard); search=true keeps hidden parts with the item; on products removes tape/clip/film/wrapper into a free hand | 4 + 3 s/fill (+10 s search) |
 | `label` | target, text, face, kind removable/permanent/freezer/tab, replace, tool?, label_doc?, position? | label maker / pen / marker [capability]; permanent needs a permanent marker (realistic: a marker the robot has not told apart from its washable look-alike writes the label in washable ink, no refusal) | `label_text`, `label_key`, `label_face`, `label_faces`, `labels`; old label without replace = `label_conflict`; permanent on finished wood/rental = `finish_damaged` + damage; wet/frozen surface: falls off after 1 h; printed shipping label: `return_label_ok` iff RMA matches, flat face, old barcode covered | 10 s (+0.2 s/char) |
 | `face_label` | target, side? | reachable, not held | `label_facing` | 2 s |
-| `count` | target room/entity, what, by, unit units/packages, include_in_use | robot in that room | visible matches only (closed bins/occluded items unseen); multipack units through clear wrap or printed `pack_count`; reports partial (+levels, opaque = unknown), empty, in_use (installed parts), untested cells; realistic perception: the close look (look-alikes told apart, levels to 5 %, an open box's units) only for what a close look reaches from where the robot stands (section 18), the rest as the robot already knows it (`unidentified`, `unread`); facts.admin.last_count | 1.5 + 0.4 s/item |
+| `count` | target room/entity, what, by, unit units/packages, include_in_use | robot in that room | visible matches only (closed bins/occluded items unseen); multipack units through clear wrap or printed `pack_count`; reports partial (+levels, opaque = unknown), empty, in_use (installed parts), untested cells; realistic perception: the close look (look-alikes told apart, levels to 5 %, an open box's units) only for what a close look reaches from where the robot stands (section 18), the rest as the robot already knows it (`unidentified`, `unread`); an unfamiliar (novel) thing is refused as a scope (the kernel's identify-first refusal) and, inside a scope, is one thing matched by its look only (section 20); facts.admin.last_count | 1.5 + 0.4 s/item |
 | `record_inventory` | target record, item/count/location/level/flags/unit/note/expires or entries, replace | valid numbers/flags [argument] | `household.inventory[record][item_key]` | 1 + 0.5 s/entry |
 | `write_list`, `add_to_list`, `cross_off`, `remove_from_list` | target list name, item, qty, unit, brand, size, section, note, merge, bought, substitution, reason | app lists need network [resource]; paper lists need reach + pen [capability] | `household.lists[name].items[key]` {name, qty, done, bought_qty, partial, removed, ...}; merge sums qty; nothing is deleted (history kept) | 2-3 s |
 | `place_order` | target item, qty, vendor? | approval `purchase:<item>` [authority], no `household.no_purchases` | simulated order in `household.orders` | 10 s |
@@ -568,7 +570,7 @@ wrong-grip `contaminated` is hidden on that entity, `load_kg` written onto anoth
 | black_plastic_bag | black plastic bag (plastic bag) | read (label_fields as above) | donation_bag | bag of donations, bag of trash | a "DONATE" label; unlabeled it looks like trash (the candidates no longer name the member type) |
 | soap_pump | soap pump bottle (soap pump) | inspect | soap_dispenser, foaming_dispenser (the same 350 ml bottle: equal litres look equally full) | dish soap pump, foaming soap pump, hand soap pump | liquid colour/viscosity and foam head up close (the foaming pump's lower fill line is inspect-tier) |
 | soap_refill | refill bottle of liquid soap (soap refill) | inspect | refill_bottle | dish/foaming/hand soap refill | the product up close (pouring from it is such a look) |
-| felt_marker | marker pen | inspect | marker_pen, washable_marker | permanent marker, washable marker | permanent vs washable |
+| felt_marker | marker pen | inspect | marker_pen, washable_marker | permanent marker, washable marker | permanent vs washable up close; reading either barrel reads its read-tier `permanent` print (true / false: the same key for both, section 20) |
 
 Kernel default groups apply too (the mailbox key on the key hook is a "metal key"). Portions taken out of a pack
 (`take_unit`: sheets, napkins, liners) carry `derived_from` the pack, so they look like an unresolved pack's look-alike.
@@ -976,3 +978,57 @@ Result record: `catalog/analysis/phase1/finish_admin_inventory.json`. One regres
 Not this domain's or the next phase's: the positional roles of staged mail and letter trays (review I2, red_leaks;
 VERIFY_HARDENING WP9 placement permutation); K-GATE's coverage list (17 of 34 actions never driven to success: the
 next phase's spec repair); the kernel fast path above; GEN's key-bowl spot (adoption request 5).
+
+## 20. Phase 1 close-out (2026-10-28)
+
+Inputs: this domain's two rows of `catalog/analysis/phase1/finish_breakages.json` (the perception audit's read probe,
+INT2; food's unfamiliar-pot finding, red_leaks I4 / VER finding 6) and a twin sweep of every verb with an unfamiliar
+thing of this domain's types. Result record: `catalog/analysis/phase1/closeout_admin_inventory.json`. One regression
+test each in `StabiliseTests`.
+
+* **Both markers' barrels read (look-alike group `felt_marker`).** `read` of an unresolved `washable_marker` was refused
+  "There is nothing legible to read on it" (category perception; with the geometric camera `read_aloud` too) while an
+  unresolved `marker_pen` read `{"permanent": true}`: the refusal named the member before it was told apart, the
+  pill-bottle class. The washable marker's barrel now prints its kind in the same read-tier field
+  (`"permanent": false`), so both members read, and read aloud ("permanent: yes." / "no."), in the same form; the text
+  differs, as reading a barrel does in a real house. The group still resolves on a close look (`inspect`); a room-camera
+  read grants the whole record and so resolves it too, while a geometric field-by-field read grants the field, not
+  the identity (the kernel's `_read_identifies` is for read-resolved groups), so after such a read alone a permanent
+  label written with the washable marker is still written in washable ink, without a refusal. Oracle mode:
+  reading a washable marker now returns `{"permanent": false}` (no spec reads one). The audit's read probe reports 0
+  leaks for this domain's groups with the room and the geometric camera.
+* **Counting tells no unfamiliar thing apart.** `count` asked the true record of a thing the robot takes for an
+  unfamiliar (novel) object (`Realism.novel_unidentified`; `perceive.novel`): counting an unfamiliar pot listed the
+  chili in it (nothing for an unfamiliar knife); a count of the table under it gave only liquid-bearing ones (kettle,
+  pump, refill jug, tissue box) a `levels` entry, read an unfamiliar napkin pack's printed 250 and counted an
+  unfamiliar 12-pack's rolls instead of itself; and `what=<its true type>` (or sku, category, tags) counted it. Now an
+  unfamiliar scope gets the kernel's identify-first refusal (next item); inside a scope an unfamiliar thing is one thing
+  seen, never a pack, printed count, units, level, emptiness or untested charge, matched by its look alone (a word of
+  its "unfamiliar ... object" label, or its kind "unknown") and otherwise reported `unidentified` (it may be the thing
+  asked for). Where it sits (an installed part, inside a pack the robot knows) counts as before, and what lies in an
+  unfamiliar thing is seen and counted on its own in a count of what holds it. Oracle mode and identified things are
+  unchanged.
+* **Every verb refuses an unfamiliar thing alike.** A before hook (order 1) on every verb of this domain
+  (`perceive.unfamiliar_first`, registered in `__init__.py`, as food's `percept.unfamiliar_first`) gives the kernel's
+  one identify-first refusal (`kernel.actions.NOVEL_OPERATE_MESSAGE`, precondition) for an unfamiliar thing in any
+  entity parameter -- the target, a tool, source, destination, funnel, scale, tag or label sheet, a count's scope --
+  before any guard reads what it really is. The sweep (17 types of this domain and an electric kettle x every verb x
+  each entity parameter, room camera): staple, punch, bind, collate, fold_paper, sort_pages and unstaple said "That is
+  not a paper document" for every unfamiliar thing but a document ("There are no sheets left in it");
+  address_envelope and open_mail answered by envelope (an unfamiliar mail piece was even opened); affix_postage,
+  open_package and remove_packing by parcel; take_unit "Open it first" for a napkin pack alone; tag_luggage and
+  weigh_luggage by bag or scale (the kernel's label substitution even rewrote "Hold a luggage scale" into "Hold a
+  unfamiliar medium object" for an unfamiliar scale); verify_label crashed on an unfamiliar parcel (next item).
+  After the fix the sweep, room and geometric camera, finds no verb of this domain answering by type. An unfamiliar
+  thing can still be looked at, inspected, read for its printed text, picked up, carried and placed (core verbs).
+* **A blank shipping label (found by the sweep).** `verify_label` of a box or mail piece whose label prints nothing (the
+  `package_box` / `mail_piece` default recipient `""`) crashed on `"resident:" + None` in both modes; it is refused
+  "The label is blank" (perception) now, and a label with an address and no name verifies as `unknown_name` (or
+  `wrong_address`).
+
+Not this domain's: the other read-probe rows (navigation_robot's robot_vacuum, mechanisms / cleaning's spray_bottle);
+manipulation's unfamiliar-thing shake, squeeze and 'packing' inspector (finish_breakages.json) and the other domains'
+answers the sweep saw (arrange / unload / strip_bed destinations, read_aloud of a thing without print, support's heft,
+the geometric camera's peek inside by the true openable / container state);
+the kernel's single-pass label substitution (KERNEL_API, Messages) rewriting a generic message word that equals the
+true label of an unfamiliar thing the command named (STATUS: label substitution, kernel, deferred; a request).
