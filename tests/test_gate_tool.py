@@ -1096,7 +1096,7 @@ class SecondPassGateTests(GateCase):
         plan = json.loads(Path(units[0].env[gate._wallclock().PLAN_ENV]).read_text(encoding="utf-8"))
         self.assertEqual(plan["tests.test_mind.BudgetTests.test_update_budget_on_a_generated_house"], "count")
         self.assertEqual(plan["tests.test_physics_thermal.ThermalStepTests."
-                              "test_faster_than_the_kernel_thermal_system_on_a_settled_house"], "skip")
+                              "test_faster_than_the_kernel_thermal_system_on_a_settled_house"], "helper")
         self.assertEqual({j.check for j in jobs}, {"G1", "G1b", "G8"})
         self.assertEqual([j.name for j in jobs if j.meta.get("lint")], ["G1 py39_lint"])      # K-GATE3: in G1
         bounds = g.perf_bounds()
@@ -1573,7 +1573,9 @@ class CloseOutGateTests(GateCase):
         to K-EVAL), planting an allowlist entry (to K-GATE) or loosening another owner's test (to K-CAM)."""
         protected = ["tools/orchestration/tier1_gate.py", gate.KNOWN_FAILING, ".github/workflows/ci.yml",
                      "tests/data/room_golden.json", "tests/data/gen1_digests.json", gate.RULES_FILE]
-        with mock.patch.object(gate, "trusted_json", policy_files()):
+        running = copy.deepcopy(RULES_DATA)
+        running["running_substages"] = ["P1C"]              # the close-out round, while it ran (not the live policy)
+        with mock.patch.object(gate, "trusted_json", policy_files(rules=running)):
             for pkg in ("ADOPT:cleaning", "P1C:pets"):
                 for f in protected:
                     with mock.patch.object(gate, "changed_files", lambda root, f=f: ([f], None)):
@@ -1590,7 +1592,6 @@ class CloseOutGateTests(GateCase):
         self.assertEqual(sorted(result["outside"]), ["house_sim/systems/food/model.py", "tests/test_perception.py"])
         self.assertIn("tests/test_cleaning.py -> P1C:mechanisms", result["note"])        # listed for review
         self.assertEqual(result["historical"], [])
-        self.assertEqual(RULES_DATA["running_substages"], ["P1C"])
 
     def test_an_attribution_in_a_sub_stage_that_is_not_running_is_no_hand_over(self):
         out = Path(tempfile.mkdtemp(prefix="gate_hist_"))
@@ -1778,10 +1779,8 @@ class CloseOutGateTests(GateCase):
         self.assertEqual(wc.unregistered(marks, bounds), [])
         self.assertEqual(sorted(bounds), sorted(marks))
         self.assertEqual(wc.registry_entries(REGISTRY_DATA)["invalid"], [])
-        skips = [t for t, e in bounds.items() if e.get("skip")]
-        self.assertEqual(skips, ["tests.test_physics_thermal.ThermalStepTests."
-                                 "test_faster_than_the_kernel_thermal_system_on_a_settled_house"])
-        self.assertTrue(wc.skip_excused(bounds[skips[0]], marks[skips[0]], today="2026-10-28"))
+        # the thermal bound's dated skip exception went with its conversion to wall_clock_bound (P1C countersign)
+        self.assertEqual([t for t, e in bounds.items() if e.get("skip")], [])
 
     # ---- 5. the phase-2 packages (docs/design/VERIFY_HARDENING.md section 25)
     def test_the_phase_2_packages(self):

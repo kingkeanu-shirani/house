@@ -57,3 +57,18 @@ P1_signoff_draft.json to review.
 Next: run the P1 repair step for the domains in breakages.json (tools/orchestration workflow phase1_stabilize.js,
 resumable), sign the P1 gate, then start P2 (VERIFY_HARDENING WP order in its section 25).
 Owner decisions pending: create the split key (private gate stages); approve the paid LLM pilot.
+
+## State on 2026-10-28 (owner deadline: about 2026-11-02)
+
+- Phase 1 closed: gate records P1F (2c5765c) and P1C (df21279) countersigned (gate_policy/signoffs/). 4,884 tests
+  per mode green, 243/243 specs, 0 perception leaks; status in catalog/analysis/phase1/STATUS.md.
+- First CI runs (GitHub Actions, private repo) found what only a real Python 3.9 / Linux / Windows runner shows:
+  `Path.write_text(newline=)` (3.10+; now a py39_lint rule), Ubuntu 26.04 without Python 3.9 (pinned 24.04), the
+  throwaway CI home dropping `core.autocrlf false` on Windows, one unregistered wall-clock bound (now registered).
+- Phase 2 (VERIFY_HARDENING) runs in three workflow runs instead of six: A = WP1-4/7/9/11 + WP5/8 (record P2-S2,
+  `--package P2-S1+P2-S2 --prev P1C`), B = WP6 + 16 WP-D + WP10 (record P2-S4, `--package P2-S3+P2-S4`, gate-change
+  row), C = R0 audit + exit test, then S6 fixes (record P2-S6). The main session countersigns and commits between
+  runs and moves rules.json running_substages.
+- Then WP12 (re-harden the 243) and the authoring wave; with the deadline, every spec is labelled by the
+  verification level it actually reached (quick / standard / full) - the owner decides on Oct 31 from R0's measured
+  costs. The real split key is created only when the owner is present; the paid LLM pilot is optional.

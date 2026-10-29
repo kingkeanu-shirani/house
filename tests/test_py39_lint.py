@@ -127,12 +127,17 @@ class StdlibTests(unittest.TestCase):
 
             async def g(it):
                 return await anext(it)
+
+            def h(path):
+                path.write_text("x", encoding="utf-8", newline="\\n")
+                return path.read_text(encoding="utf-8", newline="")
             """)
         messages = [m for _, m in found]
         for needle in ("tomllib is 3.11+", "dataclasses.KW_ONLY is 3.10+", "itertools.pairwise is 3.10+",
                        "typing.Self is 3.11+", "zip(strict=) is 3.10+", "int.bit_count is 3.10+",
                        "math.cbrt is 3.11+", "dataclass(slots=) is 3.10+", "dataclass(kw_only=) is 3.10+",
-                       "dataclasses.field(kw_only=) is 3.10+", "anext is 3.10+"):
+                       "dataclasses.field(kw_only=) is 3.10+", "anext is 3.10+",
+                       "Path.write_text(newline=) is 3.10+", "Path.read_text(newline=) is 3.13+"):
             self.assertIn(needle, messages)
         self.assertEqual(found[0][0], 4)
 

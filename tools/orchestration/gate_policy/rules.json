@@ -2711,6 +2711,7 @@
     "tests/test_perceive.py",
     "tests/test_pets*.py",
     "tests/test_plumbing_liquids*.py",
+    "tests/test_py39_lint.py",
     "tests/test_report_truth.py",
     "tests/test_review_cheats.py",
     "tests/test_review_tools.py",
@@ -2725,11 +2726,15 @@
     "tools/battery_review.py",
     "tools/evidence_replay.py",
     "tools/field_census.py",
+    "tools/golden.py",
     "tools/harden_audit.py",
     "tools/orchestration/README.md",
+    "tools/orchestration/green_tests.py",
     "tools/orchestration/tier1_gate.py",
+    "tools/orchestration/wallclock.py",
     "tools/perception_audit.py",
     "tools/protect_map.py",
+    "tools/py39_lint.py",
     "tools/seed_features.py",
     "tools/show_entries.py",
     "tools/verify.py"
@@ -3127,20 +3132,25 @@
     "tests/data/review_cheats/*",
     "tests/test_critique_cases.py",
     "tests/test_gate_tool.py",
+    "tests/test_py39_lint.py",
     "tests/test_review_cheats.py",
     "tests/test_review_tools.py",
     "tools/battery_review.py",
     "tools/evidence_replay.py",
+    "tools/golden.py",
     "tools/harden_audit.py",
     "tools/orchestration/README.md",
-    "tools/orchestration/tier1_gate.py"
+    "tools/orchestration/green_tests.py",
+    "tools/orchestration/tier1_gate.py",
+    "tools/orchestration/wallclock.py",
+    "tools/py39_lint.py"
    ],
    "gate_tool": true,
    "inert": [],
    "members": [
     "P2-WP10"
    ],
-   "note": "phase 2 stage 4: WP10",
+   "note": "phase 2 stage 4: WP10, plus the phase-1 close-out's gate-tool carry-over (closeout_REV / closeout_VER2 findings in wallclock.py, green_tests.py, golden.py, py39_lint.py)",
    "policy": true,
    "requires": [],
    "stage": "P2-S4"
@@ -4584,7 +4594,8 @@
   "attempts": 3
  },
  "running_substages": [
-  "P1C"
+  "P2-S1",
+  "P2-S2"
  ],
  "scope": {
   "policy_files": [

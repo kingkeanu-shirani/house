@@ -24,7 +24,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # ubuntu-latest became Ubuntu 26.04 (October 2026), which has no Python 3.9 build: pinned to 24.04
+        os: [ubuntu-24.04, windows-latest]
         python: ["3.9", "3.14"]
     env:
       HOUSE_AI_FORBID_NETWORK: "1"
@@ -49,6 +50,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/home"
           echo "HOME=$RUNNER_TEMP/home" >> "$GITHUB_ENV"
           echo "USERPROFILE=$RUNNER_TEMP/home" >> "$GITHUB_ENV"
+          # the global git config lives in the home being replaced: keep "no line-ending conversion" there too, or
+          # Git for Windows' system default (core.autocrlf=true) applies to every checkout a test makes
+          git config --file "$RUNNER_TEMP/home/.gitconfig" core.autocrlf false
 
       - name: empty folders git does not carry
         run: mkdir -p tasks/templates house_sim/data/actions
@@ -108,7 +112,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-24.04, windows-latest]
     env:
       HOUSE_AI_FORBID_NETWORK: "1"
       PYTHONIOENCODING: utf-8
@@ -131,6 +135,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/home"
           echo "HOME=$RUNNER_TEMP/home" >> "$GITHUB_ENV"
           echo "USERPROFILE=$RUNNER_TEMP/home" >> "$GITHUB_ENV"
+          # the global git config lives in the home being replaced: keep "no line-ending conversion" there too, or
+          # Git for Windows' system default (core.autocrlf=true) applies to every checkout a test makes
+          git config --file "$RUNNER_TEMP/home/.gitconfig" core.autocrlf false
 
       - name: empty folders git does not carry
         run: mkdir -p tasks/templates house_sim/data/actions

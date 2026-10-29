@@ -921,7 +921,10 @@ class PerformanceTests(BodyTestCase):
         ctx = Ctx(env, ACTIONS["look"], {}, None)
         per_leaf = best_of(lambda: body.settle_energy(env.world, ctx, 1.0), number=100)
         env.world.rollback()
-        self.assertLess(per_leaf, 3 * 0.1e-3, per_leaf)
+        # a wall-clock bound: asserted in the perf job, recorded in the correctness runs (CI's shared runners measured
+        # 0.40-0.59 ms here; tools/orchestration/wallclock.py)
+        from tools.orchestration.wallclock import wall_clock_bound
+        wall_clock_bound(self, per_leaf, 3 * 0.1e-3, "settlement per leaf while carrying (s)")
 
 
 if __name__ == "__main__":

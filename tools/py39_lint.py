@@ -85,6 +85,9 @@ NEWER_KEYWORDS = {
                            "delete": "TemporaryDirectory(delete=) is 3.12+"},
     "NamedTemporaryFile": {"delete_on_close": "NamedTemporaryFile(delete_on_close=) is 3.12+"},
     "rmtree": {"onexc": "shutil.rmtree(onexc=) is 3.12+"},
+    # pathlib (first CI run on a real 3.9: house_sim/eval/viewer.py and tools/vocab.py)
+    "write_text": {"newline": "Path.write_text(newline=) is 3.10+"},
+    "read_text": {"newline": "Path.read_text(newline=) is 3.13+"},
 }
 # names that are certainly types: a `|` with one of them (or None) outside an annotation is a run-time PEP 604 union
 TYPE_NAMES = {"int", "float", "complex", "str", "bytes", "bytearray", "bool", "list", "dict", "set", "frozenset",

@@ -120,14 +120,16 @@ def main(argv):
         i = argv.index("--markdown")
         out = argv[i + 1] if i + 1 < len(argv) and not argv[i + 1].startswith("--") else None
         if out:
-            Path(out).write_text(text, encoding="utf-8", newline="\n")
+            with open(out, "w", encoding="utf-8", newline="\n") as f:     # Path.write_text(newline=) is 3.10+
+                f.write(text)
         else:
             sys.stdout.write(text)
         return 0
     if "--json" in argv:
         out = argv[argv.index("--json") + 1]
         data = {k: v for k, v in vocab.items() if not k.startswith("_")}
-        Path(out).write_text(json.dumps(data, indent=1, sort_keys=True), encoding="utf-8", newline="\n")
+        with open(out, "w", encoding="utf-8", newline="\n") as f:
+            f.write(json.dumps(data, indent=1, sort_keys=True))
         return 0
     if "--words" in argv:
         from house_sim.kernel import reports

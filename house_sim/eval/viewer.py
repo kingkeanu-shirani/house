@@ -1983,7 +1983,8 @@ def export_viewer(source, out_path=None, view="both", private=False, verify_spec
             out_path = Path.home() / ".house_ai" / "private_results" / run_id / "viewer" / Path(out_path).name
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(render_html(data), encoding="utf-8", newline="\n")
+    with open(out, "w", encoding="utf-8", newline="\n") as f:      # Path.write_text(newline=) is 3.10+
+        f.write(render_html(data))
     return out
 
 

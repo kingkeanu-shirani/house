@@ -12,6 +12,11 @@
    "test": "tests.test_body_engine.PerformanceTests.test_body_system_settlement_and_motion_prefix_budgets"
   },
   {
+   "file": "test_body_engine.py",
+   "owner": "kernel: robot body (BODY-*)",
+   "test": "tests.test_body_engine.PerformanceTests.test_settlement_per_leaf_budget_while_carrying"
+  },
+  {
    "file": "test_body_model.py",
    "owner": "kernel: robot body (BODY-*)",
    "test": "tests.test_body_model.DeterminismAndBudget.test_hot_paths_stay_within_three_times_their_budget"
@@ -119,11 +124,6 @@
   {
    "file": "test_physics_thermal.py",
    "owner": "kernel: physics (PHYS-*)",
-   "skip": {
-    "expires": "2026-11-30",
-    "reason": "a relative bound (assertLess(step_ms, legacy_ms): the new thermal step is faster than the legacy system) that a counting clock cannot keep (both sides measure one tick); convert its two timing assertions to tools/orchestration/wallclock.wall_clock_bound (the body then runs in the correctness runs) and drop this exception",
-    "source_sha256": "4f59c955dfcae46360cd98d0e3d595f67e44e444b2a2f3bf94a77807c883f0e6"
-   },
    "test": "tests.test_physics_thermal.ThermalStepTests.test_faster_than_the_kernel_thermal_system_on_a_settled_house"
   },
   {
