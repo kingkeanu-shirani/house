@@ -72,3 +72,13 @@ Owner decisions pending: create the split key (private gate stages); approve the
 - Then WP12 (re-harden the 243) and the authoring wave; with the deadline, every spec is labelled by the
   verification level it actually reached (quick / standard / full) - the owner decides on Oct 31 from R0's measured
   costs. The real split key is created only when the owner is present; the paid LLM pilot is optional.
+
+## State on 2026-10-29
+
+- Phase 2 run A landed (fc9eba1): WP1-4, WP7, WP9, WP11, WP5, WP8 with handoffs in catalog/analysis/phase2/; 32
+  confirmed review findings fixed; gate record P2-S2 vs P1C PASS on the committed tree (signoffs/P2-S2.json: 14
+  room-golden rows from WP2's logs.gone). No schema 2/3 outcome changed. 5,413 tests per mode green.
+- GitHub Actions does not start jobs (account billing / spending limit, the owner's decision); verification meanwhile
+  is the local gate (full suite on 3.14 + py39_lint).
+- Run B (record P2-S4, `--package P2-S3+P2-S4 --prev P2-S2`, gate-change row) is next: WP6 battery, 16 WP-D, WP10
+  (also run_check.py for schema-4 levels: the authoring wave's orchestrator check).
