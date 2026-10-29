@@ -3994,9 +3994,7 @@
    "test": "tests.test_safety",
    "mode": "isolated",
    "evidence": "G1b isolated run: skipped 2 -> 3 (counts only: ADOPT's tests.json has no per-test ids); every test skipped now that is not in tests/test_safety.py at 42533e2 (ADOPT's base) is new in phase 1 and skips because it needs other domains loaded: Phase1Stabilise.test_the_alert_verb_warns_only_whom_it_reaches_of_what_it_names; the tests skipped that existed then: CrossDomainRound.test_safety_does_not_override_a_mechanisms_latch_that_failed, PeopleCare.test_moving_injured_person_hook; skip reasons in that run (verified): test_the_alert_verb_warns_only_whom_it_reaches_of_what_it_names: 'the alert verb is the people domain's'"
-  }
- ],
- "rejected": [
+  },
   {
    "kind": "verdict",
    "key": "T-dda4e199f3f5b0-01",
@@ -4004,9 +4002,10 @@
    "mode": "realistic",
    "digest": "d31b4c8327091f0d",
    "class": "both-fail",
-   "why": "claimed class holds (fails on both sides) but not signed: signing accepts a failing trial. Forced realistic only (G3): ADOPT ran variant 1 on this seed, P1F runs variant 0 (K-LEAK's hashed variant rule); both fail because the reference's report (reports.dog_1.urgency 'urgent') is a judgement, not a perceived value (pets' not_fixed; VERIFY_HARDENING typed reports / judgement fields). Own mode passes 5/5. To accept it as a known forced-realistic failure, add this row to rows (and a reviewed row with code P1 to gate/P1F/reviewed.json): {\"kind\": \"verdict\", \"key\": \"T-dda4e199f3f5b0-01\", \"seed\": 1, \"mode\": \"realistic\", \"digest\": \"d31b4c8327091f0d\"}"
+   "evidence": "Main session: accepted as a known failure, not as a pass -- fails on both sides (forced realistic only, own mode 5/5); covered by the dated known_failing entry (expires 2026-11-30, VERIFY_HARDENING typed reports / judgement fields). INT2's note: claimed class holds (fails on both sides) but not signed: signing accepts a failing trial. Forced realistic only (G3): ADOPT ran variant 1 on this seed, P1F runs variant 0 (K-LEAK's hashed variant rule); both fail because the reference's report (reports.dog_1.urgency 'urgent') is a judgement, not a perceived value (pets' not_fixed; VERIFY_HARDENING typed reports / judgement fields). Own mode passes 5/5. To accept it as a known forced-realistic failure, add this row to rows (and a reviewed row with code P1 to gate/P1F/reviewed.json): {\"kind\": \"verdict\", \"key\": \"T-dda4e199f3f5b0-01\", \"seed\": 1, \"mode\": \"realistic\", \"digest\": \"d31b4c8327091f0d\"}"
   }
  ],
+ "rejected": [],
  "summary": {
   "signed": {
    "verdict:wrong-list:own": 206,
@@ -4015,9 +4014,10 @@
    "verdict:fix:realistic": 14,
    "edit:edit:": 14,
    "test-removal:test-removal:isolated": 7,
-   "test-removal:test-removal:core": 1
+   "test-removal:test-removal:core": 1,
+   "verdict:both-fail:realistic": 1
   },
-  "rejected": 1,
+  "rejected": 0,
   "p1_claims": {
    "holds": 410,
    "class holds, verdict digest changed since P1": 2,
