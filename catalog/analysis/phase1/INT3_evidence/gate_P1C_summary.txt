@@ -1,0 +1,114 @@
+tier-1 gate P1C  (2026-10-29T06:23:47+00:00)
+packages: P1C+P1C-INT   stage: P1C   previous gate: P1F   seeds: 0 1 2 41 97   jobs: 7
+allowed differences: fingerprint, gen1, obs, state, verdict   reviewed codes: P1C
+policy: rules committed at HEAD (b3d775e0c728); allowlist committed at HEAD (1 entries, 0 expired, 0 invalid); bound registry committed at HEAD; second signatures tools/orchestration/gate_policy/signoffs/P1C.json: not committed
+GATE PASS  made by the committed gate code (commit 1dbc6db59d89, code 59fabe996412)
+
+G0   PASS  action fingerprint 0eec7120d723 (427 actions, 117 systems); unchanged vs P1F
+G1   FAIL  66 test files x normal+strict: 4884 tests (normal), 0 failing run(s); 4 test(s) removed or quiet vs P1F without an allowlist 'skip' entry or a signature: ["tests.test_gate_tool.SecondPassGateTests.test_the_gates_correctness_runs_turn_the_bounds_off (G1 normal): removed", "tests.test_gate_tool.SecondPassGateTests.test_the_worker_marks_bounds_and_the_perf_job_retries_them (G1 normal): removed", "tests.test_gate_tool.SecondPassGateTests.test_the_gates_correctness_runs_turn_the_bounds_off (G1 strict): removed", "tests.test_gate_tool.SecondPassGateTests...; wall-clock bounds: 25 relaxed, 1 with a skip exception; Python 3.9 lint: 480 file(s), 0 violations
+G1b  PASS  isolated domains 16/16 files ok; kernel files with HOUSE_SIM_DOMAINS=core 33/33 ok
+G1c  N/A   no import-inert modules listed for this package
+G2   PASS  own mode: 243/243 specs pass (1215 trials); vs P1F: 0 verdict change(s) (0 reviewed, 0 signed), 466 state-digest change(s), 145 observation-digest change(s)
+G3   PASS  forced realistic: 242/243 specs pass (1215 trials); vs P1F: 0 verdict change(s) (0 reviewed, 0 signed), 466 state-digest change(s), 463 observation-digest change(s); 255 realistic-spec trials identical in G2 and G3
+G4   PASS  perception audit geometric: 0 leaks, 0 crashes; room: 0 leaks, 0 crashes
+G5   PASS  layout: 240 houses, 0 problems; counts equal to P1F; generation-1 digests 60/60 equal to tests/data/gen1_digests.json
+G6   PASS  fuzz battery: 1800 commands, 0 defects, 0 nondeterministic, 38 of 427 actions succeed; coverage: 44295 commands, 0 defects, 0 nondeterministic, 278 of 427 actions succeed; geometric: 1800 commands, 0 defects, 0 nondeterministic, 39 of 427 actions succeed; room: 1800 commands, 0 defects, 0 nondeterministic, 41 of 427 actions succeed; per-action success coverage (all variants): 281 of 427 registered actions succeed at least once; never: address_envelope, aerate, assist_sit, bag_leaves, bind, blend, brew, brush_pet, call, cancel_watch, carve, catch, caulk, change_aquarium_water, change_litter, change_tire, check_calendar, clean_camera, clear_gutter, collect_eggs, condition, connect_charger, connect_hose, copy, crate, cross_off, crush, cube, cut_with, deadhead, decline_visitor, defrost, depill, descale, diff, dig, disassemble, drag, dress_assist, drill, drive_to, edge, fertilize, fillet, forget, free_stuck_robot, get_up, grate, g...
+G7   PASS  2.79 ms/substep (best of 5), 1 h wait 1.029 s (seeds 0-3, best of 5); vs P1F (1.05x): within budget; wall-clock bounds alone: 26 x 2 modes, 0 failing every one of 3 attempts
+G8   FAIL  room golden: golden ok, golden_all ok; 8 entr(ies) re-recorded vs commit 1dbc6db59d89: runs/1/oracle (edited), runs/1/realistic (edited), runs/2/oracle (edited), runs/2/realistic (edited), specs/T-7673a125fe70cd-01 (edited), specs/T-89530941a65283-01 (edited), specs/T-fffb3941b40c87-01 (edited), specs/X-f05f58a6388176-01 (edited); 8 without the main session's signed golden row
+G9   PASS  physics_audit: ok; camera: geometric tool runs in G4/G6 ok; body_audit: ok; sweep_bench: ok; gen-2 timing: gen2/gen1 time 1.04 ok; layout_audit gen 2: ok; test_generator_compat: ok; test_generator_gen2: ok
+G10  PASS  36 changed file(s); 0 outside the list of P1C+P1C-INT
+
+compare P1F -> P1C (packages: P1C+P1C-INT; allowed: fingerprint,gen1,obs,state,verdict; codes: P1C)
+G0   PASS  action fingerprint unchanged (0eec7120d723)
+G2   PASS  1215 trials vs 1215: 0 verdict change(s) (0 reviewed, 0 signed), 466 with changed state digests (allowed), 145 with a changed observation digest (allowed)
+G3   PASS  1215 trials vs 1215: 0 verdict change(s) (0 reviewed, 0 signed), 466 with changed state digests (allowed), 463 with a changed observation digest (allowed)
+G5   PASS  layout counts equal (0 problems)
+           generation-1 digests vs previous gate: 40/60 equal
+             changed: {"bedrooms": 3, "pets": "none", "residents": [{"age": 41, "id": "resident_1", "label": "Jordan", "role": "adult"}, {"age": 9, "id": "child_1", "label": "Max", "
+             changed: {"bedrooms": 3, "pets": "none", "residents": [{"age": 41, "id": "resident_1", "label": "Jordan", "role": "adult"}, {"age": 9, "id": "child_1", "label": "Max", "
+             changed: {"dwelling": "house", "pets": "none", "require": ["shed"], "residents": "minimal"}|0
+             changed: {"dwelling": "house", "pets": "none", "require": ["shed"], "residents": "minimal"}|2
+             changed: {"dwelling": "house", "pets": "none", "residents": "minimal", "start": "2026-10-09T09:30:00"}|2
+             changed: {"dwelling": "house", "pets": "none", "residents": "minimal", "start": "2026-10-09T11:00:00"}|2
+             changed: {"dwelling": "house", "pets": "none", "residents": "minimal"}|2
+             changed: {"pets": "none", "require": ["garage"], "residents": "minimal"}|0
+             changed: {"pets": "none", "require": ["garage"], "residents": "minimal"}|2
+             changed: {"pets": "none", "require": ["garage"], "residents": "minimal"}|41
+G4   PASS  perception audit: geometric: leaks 5 -> 0, errors 0 -> 0
+           room: leaks 3 -> 0, errors 0 -> 0
+G6   PASS  fuzz: battery: defects 0 -> 0, nondeterministic 0 -> 0, commands 1800 -> 1800, succeeded 294 -> 294, actions succeeding 38 -> 38 of 427
+           coverage: defects 0 -> 0, nondeterministic 0 -> 0, commands 44295 -> 44295, succeeded 30437 -> 30437, actions succeeding 278 -> 278 of 427
+           geometric: defects 0 -> 0, nondeterministic 0 -> 0, commands 1800 -> 1800, succeeded 560 -> 560, actions succeeding 39 -> 39 of 427
+           room: defects 0 -> 0, nondeterministic 0 -> 0, commands 1800 -> 1800, succeeded 440 -> 440, actions succeeding 41 -> 41 of 427
+           union: defects None -> None, nondeterministic None -> None, commands None -> None, succeeded 281 -> 281
+           coverage: 278 of 427 registered actions succeed at least once; never: address_envelope, aerate, align, assist_sit, bag_leaves, bind, blend, brew, brush_pet, call, cancel_watch, carve, catch, caulk, change_aquarium_water, change_litter, change_tire, check_calendar, clean_camera, clear_gutter, collect_eggs, condition, connect_charger, connect_hose, copy, crate, cross_off, crush, cube, cut_with, deadhead, decline_visitor, defrost, depill, descale, diff, dig, disassemble, drag, dress_assist, drill, drive_to, edge, fertilize, fillet, forget, free_stuck_robot, get_up, grate, grind, grind_coffee, harvest, hold_steady, insert, juice, jump_start, knead, lace_shoes, light...
+G7   PASS  substep_ms: 2.69 -> 2.79 (+3.7%; limit 2.825 = prev x 1.05)
+           wait_1h_s: 1.0201 -> 1.0291 (+0.9%; limit 1.071 = prev x 1.05)
+           day_s: 5.513 -> 5.7 (+3.4%; limit 5.789 = prev x 1.05)
+           largest per-system increases: climate.house +0.017 ms
+PERF PASS  wall-clock bounds alone: 36 run(s) of 26 bound(s), 0 failing every attempt
+G1   FAIL  4 test(s) removed, skipped or turned into expected failures vs P1F without an allowlist 'skip' entry or a signature: ["tests.test_gate_tool.SecondPassGateTests.test_the_gates_correctness_runs_turn_the_bounds_off (G1 normal): removed", "tests.test_gate_tool.SecondPassGateTests.test_the_worker_marks_bounds_and_the_perf_job_retries_them (G1 normal): removed", "tests.test_gate_tool.SecondPassGateTests.test_the_gates_correctness_runs_turn_the_bounds_off (G1 strict): removed", "tests.test_gate_tool.SecondPassGateTests.test_the_worker_marks_bounds_and_the_perf_job_retries_them (G1 strict): removed"]
+           test_admin_inventory.py (normal): ran 158 -> 162, skipped 0 -> 0
+           test_admin_inventory.py (strict): ran 158 -> 162, skipped 0 -> 0
+           test_body_core.py (normal): ran 40 -> 40, skipped 1 -> 0
+           test_body_core.py (strict): ran 40 -> 40, skipped 1 -> 0
+           test_body_engine.py (normal): ran 50 -> 50, skipped 1 -> 0
+           test_body_engine.py (strict): ran 50 -> 50, skipped 1 -> 0
+           test_body_model.py (normal): ran 93 -> 93, skipped 1 -> 0
+           test_body_model.py (strict): ran 93 -> 93, skipped 1 -> 0
+           test_body_perception.py (normal): ran 24 -> 24, skipped 1 -> 0
+           test_body_perception.py (strict): ran 24 -> 24, skipped 1 -> 0
+           test_camera.py (normal): ran 110 -> 110, skipped 3 -> 0
+           test_camera.py (strict): ran 110 -> 110, skipped 3 -> 0
+           test_camera_actions.py (normal): ran 62 -> 62, skipped 1 -> 0
+           test_camera_actions.py (strict): ran 62 -> 62, skipped 1 -> 0
+           test_camera_realism.py (normal): ran 50 -> 50, skipped 1 -> 0
+           test_camera_realism.py (strict): ran 50 -> 50, skipped 1 -> 0
+           test_cleaning.py (normal): ran 216 -> 217, skipped 0 -> 0
+           test_cleaning.py (strict): ran 216 -> 217, skipped 0 -> 0
+           test_dialogue.py (normal): ran 72 -> 74, skipped 2 -> 0
+           test_dialogue.py (strict): ran 72 -> 74, skipped 2 -> 0
+           test_electrical.py (normal): ran 179 -> 184, skipped 4 -> 4
+           test_electrical.py (strict): ran 179 -> 184, skipped 4 -> 4
+           test_gate_tool.py (normal): ran 65 -> 78, skipped 0 -> 0
+           test_gate_tool.py (strict): ran 65 -> 78, skipped 0 -> 0
+           test_generator_gen2.py (normal): ran 52 -> 52, skipped 1 -> 0
+           test_generator_gen2.py (strict): ran 52 -> 52, skipped 1 -> 0
+           test_kernel_redteam.py (normal): ran 16 -> 22, skipped 0 -> 0
+           test_kernel_redteam.py (strict): ran 16 -> 22, skipped 0 -> 0
+           test_manipulation.py (normal): ran 226 -> 232, skipped 0 -> 0
+           test_manipulation.py (strict): ran 226 -> 232, skipped 0 -> 0
+           test_mechanisms.py (normal): ran 221 -> 223, skipped 0 -> 0
+           test_mechanisms.py (strict): ran 221 -> 223, skipped 0 -> 0
+           test_mind.py (normal): ran 26 -> 26, skipped 1 -> 0
+           test_mind.py (strict): ran 26 -> 26, skipped 1 -> 0
+           test_navigation_robot.py (normal): ran 228 -> 232, skipped 1 -> 1
+           test_navigation_robot.py (strict): ran 228 -> 232, skipped 1 -> 1
+           test_perception.py (normal): ran 59 -> 60, skipped 1 -> 0
+           test_perception.py (strict): ran 59 -> 60, skipped 1 -> 0
+           test_pets.py (normal): ran 274 -> 283, skipped 0 -> 0
+           test_pets.py (strict): ran 274 -> 283, skipped 0 -> 0
+           test_physics_data.py (normal): ran 67 -> 67, skipped 2 -> 0
+           test_physics_data.py (strict): ran 67 -> 67, skipped 2 -> 0
+           test_physics_fluids.py (normal): ran 79 -> 80, skipped 2 -> 0
+           test_physics_fluids.py (strict): ran 79 -> 80, skipped 2 -> 0
+           test_physics_settle.py (normal): ran 52 -> 52, skipped 3 -> 0
+           test_physics_settle.py (strict): ran 52 -> 52, skipped 3 -> 0
+           test_physics_statics.py (normal): ran 81 -> 81, skipped 2 -> 0
+           test_physics_statics.py (strict): ran 81 -> 81, skipped 2 -> 0
+           new test file test_py39_lint.py (normal): 9 tests
+           new test file test_py39_lint.py (strict): 9 tests
+           test_reports.py (normal): ran 29 -> 29, skipped 1 -> 0
+           test_reports.py (strict): ran 29 -> 29, skipped 1 -> 0
+           test_room_golden.py (normal): ran 7 -> 9, skipped 0 -> 0
+           test_room_golden.py (strict): ran 7 -> 9, skipped 0 -> 0
+           test_sight.py (normal): ran 65 -> 65, skipped 1 -> 0
+           test_sight.py (strict): ran 65 -> 65, skipped 1 -> 0
+           Python 3.9 lint: 480 file(s), 0 violations
+GOLD FAIL  room golden: 8 entr(ies) re-recorded vs commit 1dbc6db59d89: runs/1/oracle (edited), runs/1/realistic (edited), runs/2/oracle (edited), runs/2/realistic (edited), specs/T-7673a125fe70cd-01 (edited), specs/T-89530941a65283-01 (edited), specs/T-fffb3941b40c87-01 (edited), specs/X-f05f58a6388176-01 (edited)
+             8 without the main session's signed golden row: runs/1/oracle (edited), runs/1/realistic (edited), runs/2/oracle (edited), runs/2/realistic (edited), specs/T-7673a125fe70cd-01 (edited), specs/T-89530941a65283-01 (edited), specs/T-fffb3941b40c87-01 (edited), specs/X-f05f58a6388176-01 (edited)
+GATE PASS  made by the committed gate code (commit 1dbc6db59d89, code 59fabe996412)
+REC  PASS  this record's own G0, G1c, G4, G5, G7, G9, G10: G0 PASS, G1c N/A, G4 PASS, G5 PASS, G7 PASS, G9 PASS, G10 PASS
+compare result: FAIL
+
+TIER1-GATE P1C [P1C+P1C-INT] vs P1F: FAIL (10 pass, 2 fail, 1 n/a; failing: G1,G8; compare FAIL)

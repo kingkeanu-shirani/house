@@ -535,7 +535,8 @@ def wet_contact_due(w, item, args):
     severity = round(min(1.0, current + (WET_MARK_FIRST if current <= 0 else WET_MARK_STEP)), 4)
     impact.damage(w, sid, kind, severity, detail="wet item rested on it", by=args.get("by"))
     if kind == "water_damage":
-        run_hooks("phys.wetted", w, sid, CONTACT_SEEP_L, state["entities"][item].get("liquid") or "water", item)
+        liquids.run_wetted(w, sid, CONTACT_SEEP_L, state["entities"][item].get("liquid") or "water", item,
+                           num(state["entities"][sid].get("wetness")))
     if current <= 0:
         processes.consequence(w, "phys.ring", sid, blame(w, sid, args.get("by")), "{} got a water mark".format(sid),
                               ids=[sid, item], item=item, damage=kind, room=processes.floor_cell(state, sid)[0])

@@ -1,0 +1,35 @@
+--- tree_head/tests/test_physics_thermal.py	2026-10-28 20:55:23.000000000 -0700
++++ tree_work/tests/test_physics_thermal.py	2026-10-28 21:13:16.478918700 -0700
+@@ -7,7 +7,6 @@
+ record fields and the material rows of section 4.3).
+ """
+ import math
+-import os
+ import time
+ import unittest
+ 
+@@ -539,9 +538,10 @@
+         settled = World(clone(HouseEnv(seed=2).world.s))
+         for tick in range(120):
+             physics.thermal_system(settled, 120.0, tick)
++        # a relative bound: asserted in the perf job, recorded in the correctness runs (whose real clock it reads;
++        # tools/orchestration/wallclock.py, phase-1 close-out: the body runs there too)
++        from tools.orchestration.wallclock import wall_clock_bound
+ 
+-        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+-            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
+         def best(fn):
+             times = []
+             for _ in range(7):
+@@ -553,8 +553,9 @@
+             return min(times) / 5 * 1000.0
+ 
+         legacy_ms, step_ms = best(physics.thermal_system), best(thermal.thermal_step)
+-        self.assertLess(step_ms, legacy_ms)
+-        self.assertLess(step_ms / 4, 3 * 0.5)            # amortized over the four 30 s substeps of its 120 s period
++        wall_clock_bound(self, step_ms, legacy_ms, "thermal_step vs legacy (ms)")
++        # amortized over the four 30 s substeps of its 120 s period
++        wall_clock_bound(self, step_ms / 4, 1.5, "amortized thermal step (ms)")
+ 
+     def test_owned_entities_and_the_quiet_writer(self):
+         w = world({"pot": item("kitchen", pos=[0, 0], temperature_c=90.0, thermal_owner="food"),

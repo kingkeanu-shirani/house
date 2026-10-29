@@ -1,0 +1,6 @@
+      40  gen2 no room for diaper_bag (household)
+      29  gen2 no spot for key_bowl
+      26  gen2 no room for stroller (household)
+       5  gen2 no room for a high chair
+       4  gen2 no room for lunch_box (lunch_box)
+rc=0 secs=135

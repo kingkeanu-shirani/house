@@ -1,0 +1,3 @@
+initial state changed False  household robot in the house False: 752 trials
+initial state changed True   household robot in the house True : 463 trials
+trials where the two disagree: []

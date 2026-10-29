@@ -1,0 +1,58 @@
+[
+ {
+  "kind": "golden",
+  "key": "runs/1/oracle",
+  "code": "P1C",
+  "package": "P1C-INT",
+  "decision": "accepted (INT3): re-recorded by INT3 after attribution: navigation_robot's phase-1 close-out type data (robot_vacuum, robot_vacuum_mop and robot_mower carry their own printed label_text; the read probe's robot_vacuum row). A/B on frozen trees: tools/golden.py dump --all of HEAD 1dbc6db with house_sim/data/types/navigation_robot.json reverted to P1F's is identical to P1F's dump (275 files), HEAD's differs in 18 files / 8 path patterns (entities.*.label_text, obs.visible_entities.*.label_text, and the realistic runs' handles re-salted by the initial-house digest); the close-out's code changes and INT3's kernel changes alone change no golden file. only the reset / step state and observation digests changed; every step's action, ok flag and seconds unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "runs/1/realistic",
+  "code": "P1C",
+  "package": "P1C-INT",
+  "decision": "accepted (INT3): re-recorded by INT3 after attribution: navigation_robot's phase-1 close-out type data (robot_vacuum, robot_vacuum_mop and robot_mower carry their own printed label_text; the read probe's robot_vacuum row). A/B on frozen trees: tools/golden.py dump --all of HEAD 1dbc6db with house_sim/data/types/navigation_robot.json reverted to P1F's is identical to P1F's dump (275 files), HEAD's differs in 18 files / 8 path patterns (entities.*.label_text, obs.visible_entities.*.label_text, and the realistic runs' handles re-salted by the initial-house digest); the close-out's code changes and INT3's kernel changes alone change no golden file. only the reset / step state and observation digests changed; every step's action, ok flag and seconds unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "runs/2/oracle",
+  "code": "P1C",
+  "package": "P1C-INT",
+  "decision": "accepted (INT3): re-recorded by INT3 after attribution: navigation_robot's phase-1 close-out type data (robot_vacuum, robot_vacuum_mop and robot_mower carry their own printed label_text; the read probe's robot_vacuum row). A/B on frozen trees: tools/golden.py dump --all of HEAD 1dbc6db with house_sim/data/types/navigation_robot.json reverted to P1F's is identical to P1F's dump (275 files), HEAD's differs in 18 files / 8 path patterns (entities.*.label_text, obs.visible_entities.*.label_text, and the realistic runs' handles re-salted by the initial-house digest); the close-out's code changes and INT3's kernel changes alone change no golden file. only the reset / step state and observation digests changed; every step's action, ok flag and seconds unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "runs/2/realistic",
+  "code": "P1C",
+  "package": "P1C-INT",
+  "decision": "accepted (INT3): re-recorded by INT3 after attribution: navigation_robot's phase-1 close-out type data (robot_vacuum, robot_vacuum_mop and robot_mower carry their own printed label_text; the read probe's robot_vacuum row). A/B on frozen trees: tools/golden.py dump --all of HEAD 1dbc6db with house_sim/data/types/navigation_robot.json reverted to P1F's is identical to P1F's dump (275 files), HEAD's differs in 18 files / 8 path patterns (entities.*.label_text, obs.visible_entities.*.label_text, and the realistic runs' handles re-salted by the initial-house digest); the close-out's code changes and INT3's kernel changes alone change no golden file. only the reset / step state and observation digests changed; every step's action, ok flag and seconds unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-7673a125fe70cd-01",
+  "code": "P1C",
+  "package": "P1C-INT",
+  "decision": "accepted (INT3): re-recorded by INT3 after attribution: navigation_robot's phase-1 close-out type data (robot_vacuum, robot_vacuum_mop and robot_mower carry their own printed label_text; the read probe's robot_vacuum row). A/B on frozen trees: tools/golden.py dump --all of HEAD 1dbc6db with house_sim/data/types/navigation_robot.json reverted to P1F's is identical to P1F's dump (275 files), HEAD's differs in 18 files / 8 path patterns (entities.*.label_text, obs.visible_entities.*.label_text, and the realistic runs' handles re-salted by the initial-house digest); the close-out's code changes and INT3's kernel changes alone change no golden file. only the reference's final state digest changed (label_text of a household robot); passes, steps, time and evaluation unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-89530941a65283-01",
+  "code": "P1C",
+  "package": "P1C-INT",
+  "decision": "accepted (INT3): re-recorded by INT3 after attribution: navigation_robot's phase-1 close-out type data (robot_vacuum, robot_vacuum_mop and robot_mower carry their own printed label_text; the read probe's robot_vacuum row). A/B on frozen trees: tools/golden.py dump --all of HEAD 1dbc6db with house_sim/data/types/navigation_robot.json reverted to P1F's is identical to P1F's dump (275 files), HEAD's differs in 18 files / 8 path patterns (entities.*.label_text, obs.visible_entities.*.label_text, and the realistic runs' handles re-salted by the initial-house digest); the close-out's code changes and INT3's kernel changes alone change no golden file. only the reference's final state digest changed (label_text of a household robot); passes, steps, time and evaluation unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-fffb3941b40c87-01",
+  "code": "P1C",
+  "package": "P1C-INT",
+  "decision": "accepted (INT3): re-recorded by INT3 after attribution: navigation_robot's phase-1 close-out type data (robot_vacuum, robot_vacuum_mop and robot_mower carry their own printed label_text; the read probe's robot_vacuum row). A/B on frozen trees: tools/golden.py dump --all of HEAD 1dbc6db with house_sim/data/types/navigation_robot.json reverted to P1F's is identical to P1F's dump (275 files), HEAD's differs in 18 files / 8 path patterns (entities.*.label_text, obs.visible_entities.*.label_text, and the realistic runs' handles re-salted by the initial-house digest); the close-out's code changes and INT3's kernel changes alone change no golden file. only the reference's final state digest changed (label_text of a household robot); passes, steps, time and evaluation unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/X-f05f58a6388176-01",
+  "code": "P1C",
+  "package": "P1C-INT",
+  "decision": "accepted (INT3): re-recorded by INT3 after attribution: navigation_robot's phase-1 close-out type data (robot_vacuum, robot_vacuum_mop and robot_mower carry their own printed label_text; the read probe's robot_vacuum row). A/B on frozen trees: tools/golden.py dump --all of HEAD 1dbc6db with house_sim/data/types/navigation_robot.json reverted to P1F's is identical to P1F's dump (275 files), HEAD's differs in 18 files / 8 path patterns (entities.*.label_text, obs.visible_entities.*.label_text, and the realistic runs' handles re-salted by the initial-house digest); the close-out's code changes and INT3's kernel changes alone change no golden file. only the reference's final state digest changed (label_text of a household robot); passes, steps, time and evaluation unchanged"
+ }
+]

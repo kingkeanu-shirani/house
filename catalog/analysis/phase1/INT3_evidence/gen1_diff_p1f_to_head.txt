@@ -1,0 +1,22 @@
+seed 1 house {}: 009679f9d5a7 -> dc9d68c54a69; entities.<robot_vacuum>.label_text
+seed 2 house {}: de900f4e11bf -> 80f50eb3128f; entities.<robot_vacuum>.label_text
+seed 4 house {}: 086b800e684c -> bb64b859b3da; entities.<robot_vacuum>.label_text
+seed 6 house {}: 4f94ae527b42 -> 3b052e0f73e2; entities.<robot_mower>.label_text, entities.<robot_vacuum>.label_text
+seed 9 house {}: bb086fdc3ffb -> 0fa730581584; entities.<robot_mower>.label_text, entities.<robot_vacuum_mop>.label_text
+seed 14 house {}: ad955b22ef7c -> 074eace2bdb2; entities.<robot_vacuum>.label_text
+seed 18 house {}: 0efcb3bf942f -> bdf0e2182911; entities.<robot_vacuum_mop>.label_text
+seed 1 house {"bedrooms": 3, "pets": "none", "residents": [{"age": 41, "id": "resident_1", "label": "Jordan", "role": "adult"}, {"age": 9, "id": "child_1", "label": "Max", "role": "child"}, {"age": 9, "id": "child_2", "label": "Leo", "role": "child"}], "start": "2026-10-09T16:00:00"}: 4cfc45f98944 -> 5742500fd455; entities.<robot_mower>.label_text, entities.<robot_vacuum>.label_text
+seed 2 house {"bedrooms": 3, "pets": "none", "residents": [{"age": 41, "id": "resident_1", "label": "Jordan", "role": "adult"}, {"age": 9, "id": "child_1", "label": "Max", "role": "child"}, {"age": 9, "id": "child_2", "label": "Leo", "role": "child"}], "start": "2026-10-09T16:00:00"}: 2a4c5e8fc9cc -> febf3897a2ce; entities.<robot_vacuum>.label_text
+seed 0 house {"dwelling": "house", "pets": "none", "require": ["shed"], "residents": "minimal"}: 9674ac8b5712 -> 6be684e8a581; entities.<robot_mower>.label_text
+seed 2 house {"dwelling": "house", "pets": "none", "require": ["shed"], "residents": "minimal"}: fcd41a0afd5b -> f921e4d9fd6c; entities.<robot_vacuum>.label_text
+seed 2 house {"dwelling": "house", "pets": "none", "residents": "minimal", "start": "2026-10-09T09:30:00"}: 3057b4212cd8 -> 5c80093d38bb; entities.<robot_vacuum>.label_text
+seed 2 house {"dwelling": "house", "pets": "none", "residents": "minimal", "start": "2026-10-09T11:00:00"}: dd2aeeb6cd79 -> b97bc16358f7; entities.<robot_vacuum>.label_text
+seed 2 house {"dwelling": "house", "pets": "none", "residents": "minimal"}: fcd41a0afd5b -> f921e4d9fd6c; entities.<robot_vacuum>.label_text
+seed 0 house {"pets": "none", "require": ["garage"], "residents": "minimal"}: fd3dd194ebea -> 6aa5b825d0d0; entities.<robot_vacuum_mop>.label_text
+seed 2 house {"pets": "none", "require": ["garage"], "residents": "minimal"}: 1f59adfc5049 -> c992b53223ff; entities.<robot_mower>.label_text, entities.<robot_vacuum>.label_text
+seed 41 house {"pets": "none", "require": ["garage"], "residents": "minimal"}: c4ac4b0ad84a -> 20bd82e73a67; entities.<robot_mower>.label_text
+seed 2 house {"pets": "none", "require": ["pool"], "residents": "minimal"}: 564a1eed3d3d -> 76a88a311984; entities.<robot_vacuum>.label_text
+seed 0 house {"pets": "none", "require": ["shed"], "residents": "minimal"}: 9674ac8b5712 -> 6be684e8a581; entities.<robot_mower>.label_text
+seed 2 house {"pets": "none", "require": ["shed"], "residents": "minimal"}: fcd41a0afd5b -> f921e4d9fd6c; entities.<robot_vacuum>.label_text
+
+20 of 60 entries changed; leaf paths: {'entities.<robot_vacuum>.label_text': 14, 'entities.<robot_mower>.label_text': 7, 'entities.<robot_vacuum_mop>.label_text': 3}

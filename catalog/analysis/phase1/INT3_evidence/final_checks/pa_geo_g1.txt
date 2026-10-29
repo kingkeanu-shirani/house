@@ -1,0 +1,2 @@
+houses 60  steps 4800  probes 83  leaks 0  crashes 0  camera geometric
+rc=0 secs=56

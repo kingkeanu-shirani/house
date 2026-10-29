@@ -1,0 +1,4 @@
+houses 243  commands 44295  succeeded 30437 (69%)  distinct defects 0  nondeterministic 0  coverage mode (specs 243, explore 60)
+actions: 278 of 427 registered actions succeeded at least once; 149 never succeeded (0 never tried)
+  succeeded only without changing anything (not counted): clean_camera (14x), hold_steady (13x), loosen (12x), open_valve (33x), squeeze (21x), steady (1x), support (18x)
+rc=0 secs=801

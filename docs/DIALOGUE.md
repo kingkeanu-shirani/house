@@ -158,7 +158,11 @@ question about the clothes dryer).
 
 ## Routes (legacy answerers)
 
-`dialogue.route(name, aspects, fn)` registers `fn(state, pid, subject, aspect, detail, act) -> legacy topic or None`.
+`dialogue.route(name, aspects, fn)` registers `fn(state, pid, subject, aspect, detail, act) -> legacy topic or None`;
+with `takes_env=True` the route is also given `env=` (the env, or None), so it can route a thing destroyed out of view
+like one merely out of view: `dialogue.known_record(env, state, eid)` is the record the household knows (the current
+one, else the episode-start one, `{}` for a thing the robot saw that was made and has gone again, None for an id that
+never was; phase-1 close-out, manipulation's request -- people and manipulation each kept a copy of this rule).
 Routes are tried in registration order; a route counts only if an answerer exists for its topic (or it is a
 `permission:` topic). A word subject no route takes is retried as the thing it names when it names exactly one
 household thing (several: a clarify-back). The kernel registers the people prefixes and the permission route:

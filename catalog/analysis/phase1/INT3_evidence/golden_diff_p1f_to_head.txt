@@ -1,0 +1,25 @@
+275 file(s) compared, 18 changed, 8 path pattern(s)
+   554  obs.visible_entities.*
+          runs/1_realistic_final_obs.json:obs.visible_entities.obj_0091f4ac: null -> {"accepts_items": false, "color": null, "kind": "food", "label": "bunch of bananas", "l...
+          runs/1_realistic_final_obs.json:obs.visible_entities.obj_0549319c: null -> {"accepts_items": false, "aid_kind": "step_stool", "climbable": true, "color": null, "k...
+    40  obs.grid.hazards.*.source
+          runs/1_realistic_final_obs.json:obs.grid.hazards.0.source: "obj_5bbd7241" -> "obj_0549319c"
+          runs/1_realistic_reset_obs.json:obs.grid.hazards.0.source: "obj_7884e6bf" -> "obj_415d6db0"
+    12  entities.*.label_text
+          runs/1_oracle_final_state.json:entities.robot_vacuum_1.label_text: null -> "Empty the bin after every run. Pick up cords, socks and small objects before cleaning....
+          runs/1_oracle_reset_state.json:entities.robot_vacuum_1.label_text: null -> "Empty the bin after every run. Pick up cords, socks and small objects before cleaning....
+     4  obs.nav.dock
+          runs/1_realistic_final_obs.json:obs.nav.dock: "obj_a23594bc" -> "obj_092a93af"
+          runs/1_realistic_reset_obs.json:obs.nav.dock: "obj_a23594bc" -> "obj_092a93af"
+     4  obs.robot.home
+          runs/1_realistic_final_obs.json:obs.robot.home: "obj_a23594bc" -> "obj_092a93af"
+          runs/1_realistic_reset_obs.json:obs.robot.home: "obj_a23594bc" -> "obj_092a93af"
+     3  obs.climate.sunlit_windows.*
+          runs/1_realistic_final_obs.json:obs.climate.sunlit_windows.0: "obj_e3548831" -> "obj_1b611528"
+          runs/1_realistic_reset_obs.json:obs.climate.sunlit_windows.0: "obj_39eb58b5" -> "obj_d9fcce32"
+     2  obs.connections.*.door
+          runs/1_realistic_final_obs.json:obs.connections.2.door: "obj_3f084df9" -> "obj_cd400512"
+          runs/2_realistic_reset_obs.json:obs.connections.0.door: "obj_5d32d3b7" -> "obj_df0949c4"
+     2  obs.visible_entities.*.label_text
+          runs/1_oracle_reset_obs.json:obs.visible_entities.robot_vacuum_1.label_text: null -> "Empty the bin after every run. Pick up cords, socks and small objects before cleaning....
+          runs/2_oracle_reset_obs.json:obs.visible_entities.robot_vacuum_1.label_text: null -> "Empty the bin after every run. Pick up cords, socks and small objects before cleaning....

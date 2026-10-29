@@ -512,6 +512,34 @@ class PourTests(PhysTest):
         self.assertEqual(puddles(w), [])
         self.assertEqual(liquids.arrives(w, "table", 1.0, "water"), 0.0)          # not the hook's: 0, nothing taken
 
+    def test_a_wetted_hook_sees_the_wetness_before_the_arrival(self):
+        """Phase-1 close-out (electrical's request): the kernel writes the new wetness before phys.wetted runs, so a
+        hook adding up arrivals since a thing was last dry could not tell that it had dried in between.
+        liquids.wetness_before(w, eid) is the wetness before the arrival, inside the hook (nested calls too), for
+        every kernel arrival (wet, rain, a wet item's seep); None outside one."""
+        seen = []
+
+        def gear(w, eid, liters, liquid, source):
+            seen.append((eid, liquids.wetness_before(w, eid), w.s["entities"][eid].get("wetness")))
+            if eid == "plate":
+                liquids.wet(w, "jar", 0.0001, liquid)           # an arrival inside an arrival
+                seen.append(("plate after", liquids.wetness_before(w, "plate"), liquids.wetness_before(w, "jar")))
+        self.hooks.add("phys.wetted", gear)
+        w = world({"table": table(), "plate": item("table", size_m=[0.25, 0.25, 0.02], wetness=0.2),
+                   "jar": item("table", size_m=[0.1, 0.1, 0.15], wetness=0.0)})
+        liquids.wet(w, "plate", 0.005, "water")
+        new = w.s["entities"]["plate"]["wetness"]
+        self.assertGreater(new, 0.2)
+        self.assertEqual(seen[0], ("plate", 0.2, new))
+        self.assertEqual(seen[1][0], "jar")
+        self.assertEqual(seen[2], ("plate after", 0.2, None))          # the inner call is over: the outer one again
+        self.assertIsNone(liquids.wetness_before(w, "plate"))
+        seen[:] = []
+        w = yard({"letter": item("patio", pos=[1, 1], material="paper", mass_kg=0.005, size_m=[0.21, 0.297, 0.0001],
+                                 wetness=0.9)})
+        environment.rain_wet(w, "letter", 5.0, 30.0)
+        self.assertEqual(seen, [("letter", 0.9, 1.0)])
+
     def test_pouring_from_a_half_frozen_bottle_leaves_the_ice_behind(self):
         """Adoption-round request (plumbing_liquids 1): _drain lowered liquid_l but kept ice_frac, so pouring the
         free half of a half-frozen bottle turned half of its ice into liquid."""

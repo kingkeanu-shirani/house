@@ -1489,7 +1489,12 @@ perceived of a thing it had a handle for when a step destroyed it.
 **Actions and engine.** `@action(..., operates=True)` / `ActionSpec.operates` (not part of `describe()`, so not of the
 fingerprint): the action works its target as a device or mechanism; with realistic perception a target the robot
 takes for an unfamiliar thing is refused before any domain hook with `actions.NOVEL_OPERATE_MESSAGE` (core: open,
-close, open_cover, close_cover, lock, unlock, switch_on, switch_off, set, start, pause, cancel, set_mode).
+close, open_cover, close_cover, lock, unlock, switch_on, switch_off, set, start, pause, cancel, set_mode), in a step
+and in a nested leaf (`env.perform`) alike. `ctx.unfamiliar(eid)` (realism.novel_unidentified with realistic
+perception; False in oracle mode and for unknown ids) and `ctx.refuse_unfamiliar(*eids)` (that refusal for any of
+them) are the kernel's helpers for a domain's other parameters (a tool, a destination, a source); core uses them in
+`place_item` (an unfamiliar destination), `require_tool` (named: refused; unnamed: an unfamiliar held thing is passed
+over) and the wrist look inside a thing (phase-1 close-out; PERCEPTION.md).
 `HouseEnv.last_step_malformed` is True after a step refused for its form (an unknown action or `ActionSpec.validate`:
 a parameter the action does not take, a missing, mistyped or out-of-range argument); it is not in the step result.
 `HouseEnv.track_effect = True` (tools/fuzz.py) makes `HouseEnv.last_step_effect` list the world paths the action and

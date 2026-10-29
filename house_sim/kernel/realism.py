@@ -1470,8 +1470,9 @@ class Realism:
             # an unresolved look-alike (or unfamiliar thing) shows only what every member of its group shows, so
             # the set of fields cannot give its identity away -- plus what the robot itself felt or measured
             felt = {k for k in out if has_knowledge and self.knowledge.level(eid, record, k) >= TOUCH and self.tier(record, k) == "measure"}
-            shown = NOVEL_FIELDS if group is None and _novel_identity(ident) else LOOKALIKE_FIELDS
-            out = {k: v for k, v in out.items() if k in shown or k in felt}
+            novel = group is None and _novel_identity(ident)
+            shown = NOVEL_FIELDS if novel else LOOKALIKE_FIELDS
+            out = {k: v for k, v in out.items() if (k in shown or k in felt) and not (novel and _blank_print(k, v))}
             if group is not None and not portion:
                 self._group_values(eid, record, out, gname, group, ctx, felt, always=True)
         return dict(sorted(out.items()))     # field order must not reveal the type
@@ -1553,8 +1554,11 @@ class Realism:
             # what an action let the robot learn about it (an inspection, a reading, a measurement) and still holds
             keep |= {k for k in full if k not in IDENTITY_KEYS and self.knowledge.level(eid, record, k) >= INSPECT}
         if unresolved:
-            shown = NOVEL_FIELDS if group is None and _novel_identity(ident) else LOOKALIKE_FIELDS
+            novel = group is None and _novel_identity(ident)
+            shown = NOVEL_FIELDS if novel else LOOKALIKE_FIELDS
             keep &= shown | {k for k in full if self.knowledge.level(eid, record, k) >= TOUCH}
+            if novel:
+                keep = {k for k in keep if not _blank_print(k, full.get(k))}
         for key in sorted(keep):
             if key in full and key not in out:
                 out[key] = full[key]
@@ -1893,6 +1897,16 @@ class Realism:
         self._held_before = {v for v in (state["robot"].get("hands") or {}).values() if v}
         self._ever.update(state["entities"])      # ids of things this step destroys still get translated
         self._step_gone = {}
+        self._printed = set()           # print of an unfamiliar thing read this step (keep_print)
+
+    def keep_print(self, values):
+        """The step's result shows these strings as printed on an unfamiliar thing (core read): outbound_message leaves
+        the thing's own true names in them as they are (like the agent's own words), so the print never comes back
+        with its name rewritten at the spot where it is printed (phase-1 close-out, pets' request)."""
+        printed = getattr(self, "_printed", None)
+        if printed is None:
+            printed = self._printed = set()
+        printed.update(v for v in values if isinstance(v, str) and v.strip())
 
     def _step_changes(self, ok):
         """From the world journal of the step in progress (before it is committed): remember ids created and
@@ -2322,7 +2336,7 @@ class Realism:
                 # an unfamiliar thing: a fixed key set whatever it is (review I4: a kettle's fill, a lamp's bulb_hot or a
                 # detector's battery_indicator told the types apart), plus the instrument readings passed as exact
                 keep = NOVEL_FIELDS | {"object", "under", "behind"} | exact
-                out = {k: v for k, v in out.items() if k in keep}
+                out = {k: v for k, v in out.items() if k in keep and not _blank_print(k, v)}
             else:
                 keep = LOOKALIKE_FIELDS | {"object", "contents", "under", "behind"} | exact
                 out = {k: v for k, v in out.items()
@@ -2375,10 +2389,12 @@ class Realism:
             return "something"
 
         said = set(getattr(self, "_agent_said", None) or ()) if sub is not None else set()
+        printed = set(getattr(self, "_printed", None) or ()) if sub is not None else set()
 
         def substitute(text, key):
-            if text in said:
-                return sub(text, key, protected=True)       # a whole text the agent wrote earlier (a label it wrote)
+            if text in said or text in printed:
+                # a whole text the agent wrote earlier (a label it wrote), or the print of an unfamiliar thing it read
+                return sub(text, key, protected=True)
             if span_re is None:
                 return sub(text, key)
             out, pos = [], 0
@@ -3291,6 +3307,13 @@ def _fraction_field(field):
 def _novel_identity(ident):
     """An identity the kernel renders for an unfamiliar thing (Realism._novel): kind "unknown" with a shape word."""
     return ident.get("kind") == "unknown" and "shape" in ident
+
+
+def _blank_print(field, value):
+    """A printed field (label_text, text) of an unfamiliar thing that prints nothing (blank or absent): left out, so a
+    type's blank label shows like no label at all (phase-1 close-out, mechanisms' request: an unfamiliar plain spray
+    bottle listed label_text where an unfamiliar kettle listed none -- a field whose presence came from its type)."""
+    return field in ("label_text", "text") and not (value.strip() if isinstance(value, str) else value)
 
 
 def _unidentified(ident, record):

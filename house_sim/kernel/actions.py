@@ -771,6 +771,25 @@ class Ctx:
         if self.unresolved(eid):
             raise ActionError(message or UNIDENTIFIED_MESSAGE, "precondition")
 
+    def unfamiliar(self, eid):
+        """True when, with realistic perception, the robot takes eid for an unfamiliar (novel) thing, whatever it is
+        (Realism.novel_unidentified; an unresolved look-alike is not one: the robot knows what kind of thing it is).
+        Always False in oracle mode and for unknown ids."""
+        realism = getattr(self.env, "realism", None)
+        record = self.w.s["entities"].get(eid) if realism is not None and isinstance(eid, str) else None
+        if record is None:
+            return False
+        novel = getattr(realism, "novel_unidentified", None)
+        return bool(novel(eid, record) if callable(novel) else record.get("novel"))
+
+    def refuse_unfamiliar(self, *eids):
+        """Refuse with the kernel's one identify-first message (NOVEL_OPERATE_MESSAGE) when the robot takes any of eids
+        for an unfamiliar thing: an unfamiliar thing is handled as an object but serves as no tool, receptacle or
+        support the robot knows of (review I4; phase-1 close-out). Call it before any guard whose outcome depends on
+        what the thing really is. No-op in oracle mode and for anything else (None and unknown ids included)."""
+        if any(self.unfamiliar(eid) for eid in eids):
+            raise ActionError(NOVEL_OPERATE_MESSAGE, "precondition")
+
     # ----- permissions --------------------------------------------------
     def check_permission(self, eid, record, action):
         """Privacy (off_limits, private) and approval (requires_approval, risk >= 3) rules for touching eid.

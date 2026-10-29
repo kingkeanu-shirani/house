@@ -1021,6 +1021,24 @@ class AuditorProbeTests(unittest.TestCase):
         self.assertTrue(any("at read" in f[2] and members[-1] in f[2] for f in found), found)
         self.assertIn(("probe", "read", 0, None, ("pill_bottle", members)), pa.probe_jobs(0, None))
 
+    def test_the_unfamiliar_twins_include_a_blank_label(self):
+        """Phase-1 close-out (mechanisms' report): an unfamiliar plain spray bottle read {"label_text": ""} where an
+        unfamiliar kettle had nothing legible, and no unfamiliar twin of the probe carried a blank label, so G4 could
+        not see it. The twins now include the two blank-labelled bottles; their read answers alike (core read: a blank
+        label prints nothing), and the probe sees it if a blank label reads again."""
+        pa = _auditor()
+        reg = registry_module.default_registry()
+        blank = [t for t in pa.NOVEL_TWINS if reg.known(t) and reg.resolve(t).get("label_text") == ""]
+        if len(blank) < 1 or not reg.known("electric_kettle"):
+            self.skipTest("the blank-labelled spray bottles are cleaning's and mechanisms' types")
+        types = ["electric_kettle"] + blank
+        found, errors = pa._probe_twins(0, None, "novel", types, True)
+        self.assertEqual((found, errors), ([], []))
+        from house_sim.systems import core
+        with mock.patch.object(core, "printed_value", lambda value: True):
+            found, _ = pa._probe_twins(0, None, "novel", types, True)
+        self.assertTrue(any("at read" in f[2] for f in found), found)
+
 
 if __name__ == "__main__":
     unittest.main()

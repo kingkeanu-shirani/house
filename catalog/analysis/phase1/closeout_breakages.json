@@ -1,0 +1,72 @@
+[
+ {
+  "domain": "people",
+  "source": "admin_inventory (closeout_admin_inventory.json request; its twin sweep finding sweep:read_aloud:target)",
+  "problem": "read_aloud of an unfamiliar (novel) thing reads its true type's read-tier fields: an unfamiliar tissue box, napkin pack, toilet roll, document or mail piece is read aloud ({\"read\": ..., \"seconds\": 10}) while an unfamiliar kettle, soap pump, label maker or suitcase is refused 'There is nothing legible to read on it'.",
+  "cause": "house_sim/systems/people/care.py _printed_fields has no novel filter; core read keeps only core.NOVEL_PRINT (text, label_text) of an unfamiliar thing, and since the close-out only non-blank print (core.printed_value).",
+  "change": "Read aloud an unfamiliar thing (ctx.unfamiliar(eid), the kernel helper added in the close-out) from its printed text alone, as core read does: core.NOVEL_PRINT fields with core.printed_value, else the one refusal. Repro: a realistic scene with {'op': 'spawn', 'type': 'tissue_box', 'props': {'novel': True, 'size_m': [0.2, 0.15, 0.25]}} vs type electric_kettle, robot near, a resident present, read_aloud <handle> (scratch p1c_admin_inventory/twins_generic.py novel_admin out.json --sweep)."
+ },
+ {
+  "domain": "people",
+  "source": "mechanisms (closeout_mechanisms.json request)",
+  "problem": "read_aloud before read tells the spray_bottle look-alikes apart: an unread all_purpose_cleaner is read out (True, '') while an unread spray_bottle or trigger_bottle (blank label) is refused 'There is nothing legible to read on it' (perception), room and geometric camera. The perception audit's read probe reads before it reads aloud, and read resolves the labelled members, so it never compares this.",
+  "cause": "house_sim/systems/people/care.py _printed_fields returns [] for a blank label, where core read answers a blank label {\"label_text\": \"\"} ok (a look-alike member; an unfamiliar thing's blank label reads like no label since the close-out).",
+  "change": "Answer a blank label of a look-alike member as core read does (ok, nothing read out, e.g. 'The label is blank'), or decide and pin why the refusal is the right form; optionally add a read_aloud-first twin to tools/perception_audit.py's read probe (a kernel tool: phase 2). Repro: tests/test_mechanisms.py House(); h.add('bottle', T, 'table'); h.person('adult_1', 'living', [1, 5]); HouseEnv(h.env(room='living', pos=(3, 5))._initial, None, 0, perception='realistic', camera=C); approach; read_aloud for T in all_purpose_cleaner / spray_bottle / trigger_bottle (scratch p1c_mechanisms/aloud_first.py)."
+ },
+ {
+  "domain": "appliances_cooking, textiles_laundry",
+  "source": "admin_inventory (closeout_admin_inventory.json request; sweep findings sweep:unload:destination, sweep:strip_bed:into)",
+  "problem": "Destination parameters answer an unfamiliar (novel) thing by its true type: unload (appliances_cooking.dishwasher) says 'Open it first' for an unfamiliar mail piece / parcel / 12-pack / suitcase, 'It does not fit inside' for an unfamiliar envelope, 'That cannot hold items' for the rest and succeeds onto an unfamiliar postal scale; strip_bed into= (textiles_laundry.bedding) says 'Open the hamper first' / 'Nothing to strip there' / 'Strip into a basket, hamper or laundry bag' by type.",
+  "cause": "The verbs check the destination's container / openable / capacity before anything refuses an unfamiliar thing. Since the close-out core.place_item refuses an unfamiliar destination (ctx.refuse_unfamiliar) -- but these verbs' own checks run before it.",
+  "change": "ctx.refuse_unfamiliar(destination) (kernel helper since the close-out; actions.NOVEL_OPERATE_MESSAGE) before the domain's destination checks, as manipulation's novel_guard, admin_inventory's and pets' unfamiliar_first and navigation_robot's refuse_unfamiliar do. Manipulation's arrange was fixed in the close-out."
+ },
+ {
+  "domain": "cleaning",
+  "source": "pets (closeout_pets.json request; repro p1c_pets/repro_novel_cleaning.py, re-run on the integrated tree: unchanged)",
+  "problem": "Cleaning verbs tell held unfamiliar things apart: dust / scrub (and degrease, treat_upholstery) work with a held unfamiliar slicker brush ('Dusted ... (main: no change)') and refuse every other unfamiliar thing ('Hold a duster, cloth or soft brush'); absorb answers 'Pour it out only over a spill' (argument) for an unfamiliar kettle or pet water bowl and 'Hold an absorbent towel, ...' (capability) otherwise.",
+  "cause": "Cleaning's held-tool pickers read the held thing's true affordances / liquid without the unfamiliar rule (they do not go through core.require_tool, which passes an unfamiliar held thing over since the close-out); cleaning.state.refuse_unfamiliar exists but is not applied to the held tool.",
+  "change": "Pass over an unfamiliar held thing when picking the tool (ctx.unfamiliar) and refuse a named one with ctx.refuse_unfamiliar, as core.require_tool now does. Repro: tests/test_pets.py House(); h.add('thing', T, 'living', pos=[6, 8], novel=True, label='thing', size_m=[0.2, 0.15, 0.25], color='gray', material='plastic', mass_kg=0.6); env = h.env('living', [6, 8], hold={'right': 'thing'}, perception='realistic'); dust/scrub H('table'), absorb H('thing') for T in slicker_brush / pet_water_bowl / electric_kettle / dog_kibble_bag."
+ },
+ {
+  "domain": "people, safety, pets",
+  "source": "pets (closeout_pets.json request; repro p1c_pets/repro_pill_pour.py)",
+  "problem": "pill_bottle look-alikes: pouring a held unresolved bottle answers by member: people's prescription_bottle (medication_container, sealed: true) 'Open it first' (precondition), the pet medicine and safety's expired bottle 'It is empty' (resource).",
+  "cause": "Three owners' type data disagree on sealed (house_sim/data/types/people.json medication_container; safety.json expired_medication; pets.json pet_medication).",
+  "change": "One rule for every member (pets proposes sealed: true on every capped amber bottle, pets adding it to pet_medication in the same change; X-fee35ef3aac659-01's golden reference state is then re-recorded with the reviewed and signed golden rows). Repro: tests/test_pets.py House(); h.add('med', <type>, 'kitchen', pos=[4, 3]); h.add('mug', 'mug', 'counter'); env = h.env('kitchen', [2, 1], hold={'right': 'med'}, perception='realistic'); env.step('pour', H('med'), H('mug'))."
+ },
+ {
+  "domain": "mechanisms",
+  "source": "pets (closeout_pets.json request; repro p1c_pets/exp_trapped.py)",
+  "problem": "A pull test of a door that opens by pushing from the robot's side swings it open: pull_handle door_bed -> 'It doesn't move: this one opens by pushing from this side', but pull_handle door_bed test=True -> 'It moves: the door was not latched (it swung open a little)', open_frac 0.1. The same for push_handle test=True on a pull door.",
+  "cause": "house_sim/systems/mechanisms/handles.py _test calls apply_open(0.1) without _direction_ok.",
+  "change": "A test swing obeys the door's direction as the full pull / push does (a door cannot swing toward its stop). Repro: tests/test_pets.py House(); door_bed open=False, latched=False; robot in the hall at (2, 2): step('pull_handle', 'door_bed', test=True)."
+ },
+ {
+  "domain": "electrical, plumbing_liquids, cleaning, mechanisms (main session decides; phase 2)",
+  "source": "electrical (closeout_electrical.json not_fixed and request)",
+  "problem": "71 electrical gear types (lamps, bulbs, chargers, power strips, outlets, switches, smoke / CO alarms, remotes, clocks, NiMH cells, tool packs) inherit core water_safe: true and are not 'electronic', so plumbing's leaks.drip_onto takes a plugged wireless_charging_pad under a dripping pot for a waterproof drip catcher (20 ml pooled in 2 min, phys.wetted never runs: no ingress, no GFCI trip); cleaning's wet-wipe / rinse_item and mechanisms' dispense damage read the same flag.",
+  "cause": "house_sim/data/types/electrical.json gear types keep registry BASE_PROPS water_safe: true; the readers ask 'electronic or water_safe is False'.",
+  "change": "Either electrical marks its gear water_safe: false (a generation-1 re-record -- an allowed class only for a package with gen1 -- and the owners' A/B of cleaning, drip and dispense outcomes), or the readers ask one shared predicate (electrical's physical.electrical_gear, or a kernel props water-sensitivity class for electronics). Repro: scratch p1c_electrical repro_plumbing_catcher.py (a pot with drip_lpm 0.02 on a plugged wireless_charging_pad on a bathroom GFCI receptacle, wait 120 s)."
+ },
+ {
+  "domain": "electrical",
+  "source": "INT3 (electrical's kernel request, applied)",
+  "problem": "Known gap of electrical's ingress gathering (docs/domains/electrical.md section 15): a device dried by a system ordered before 77 (outdoor_plants' weather, 45-46) and dripped on by the kernel's drip law (48) in the same substep still counts the litres it gathered before it dried.",
+  "cause": "The hook saw only the wetness after the arrival; the kernel now passes what it needs.",
+  "change": "In house_sim/systems/electrical/physical.py _gathers read house_sim.kernel.phys.liquids.wetness_before(w, eid) (the wetness before this arrival, inside a phys.wetted hook; every kernel arrival runs through liquids.run_wetted) and forget the gathered litres when it is at most GATHER_DRY. Kernel side: tests/test_physics_fluids.py PourTests.test_a_wetted_hook_sees_the_wetness_before_the_arrival."
+ },
+ {
+  "domain": "manipulation, people",
+  "source": "INT3 (manipulation's kernel request, applied)",
+  "problem": "manipulation.items stays a weak (fallback) route for a destroyed thing that carried hidden truth (_keep, _ask_<key>...), where the same thing out of view gets a plain topic (closeout_manipulation.json not_fixed); people knowledge._known_record and manipulation world._known_record keep two copies of one rule.",
+  "cause": "Dialogue routes got no env, so a route could not read the record the household knew (env._baseline) for a gone id.",
+  "change": "Register manipulation.items with dialogue.route(..., takes_env=True) (the route is then given env=) and route a gone id through dialogue.known_record(env, state, eid); people and manipulation may replace their _known_record copies with dialogue.known_record (same rule). Kernel side: tests/test_dialogue.py KnownRecordTests; tests/test_kernel_redteam.py RememberedSubjectTests now also asks keep / intended / how / status."
+ },
+ {
+  "domain": "navigation_robot, food, manipulation (optional)",
+  "source": "INT3 (navigation_robot's kernel request, applied)",
+  "problem": "Domain copies of the unfamiliar-tool rule: navigation_robot common.tool_candidates / known_tool, food common.held_known / tool, and several domains' own unfamiliar / refuse_unfamiliar helpers (electrical percept, cleaning state, admin_inventory perceive, pets common, manipulation common).",
+  "cause": "core.require_tool took a held unfamiliar thing by its true affordances until the close-out; the kernel had no shared helper.",
+  "change": "Optional clean-up: core.require_tool now refuses a named unfamiliar tool (identify-first) and passes an unnamed one over, and Ctx.unfamiliar(eid) / Ctx.refuse_unfamiliar(*eids) are the kernel's helpers; the domain copies can call them (behaviour identical: tests/test_kernel_redteam.py UnfamiliarCloseOutTests)."
+ }
+]

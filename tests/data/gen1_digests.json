@@ -6,11 +6,11 @@
    "seed": 0
   },
   {
-   "digest": "009679f9d5a72032f336c2a4ae26c28e7413335b0dbd6c4cab06763ab9a7ed85",
+   "digest": "dc9d68c54a6913bb4d4144d310139dd4318b52074a58241c0984a5fbba12d6b8",
    "seed": 1
   },
   {
-   "digest": "de900f4e11bf9d5d5226bdbe25e72da1acae8d6026e69b6722cca449b9dd764f",
+   "digest": "80f50eb3128fd8563f5ba1961f770934bb81addaf644d487b97d1371bdc5780f",
    "seed": 2
   },
   {
@@ -18,7 +18,7 @@
    "seed": 3
   },
   {
-   "digest": "086b800e684c80abf3360ec2bbd6a89c37a1412dc63186d814fa43cc6d51c961",
+   "digest": "bb64b859b3da2b36941c38fb2204b721964c0168d3ea519102337737b16c4568",
    "seed": 4
   },
   {
@@ -26,7 +26,7 @@
    "seed": 5
   },
   {
-   "digest": "4f94ae527b42922536d340d3d2bf9d1fb8dc16fa38f20f6956183b3b9581c496",
+   "digest": "3b052e0f73e2bffb57655e26f3c3bde39a2893af2eb66e5d90d8404d246d3843",
    "seed": 6
   },
   {
@@ -38,7 +38,7 @@
    "seed": 8
   },
   {
-   "digest": "bb086fdc3ffbe79e1f0f28a7cdb3699984831ee59f1cafbff1f5f7f90a952522",
+   "digest": "0fa73058158441c9d02b70525d01b67e1c1fdc94335f938975818cea6acc2787",
    "seed": 9
   },
   {
@@ -58,7 +58,7 @@
    "seed": 13
   },
   {
-   "digest": "ad955b22ef7c6958cbe37e809ac0b9b7b0e8dc108d974349abae791444670c8a",
+   "digest": "074eace2bdb26944685d4c0716c0ac87de38fac54d7866a054e7be4e420547e6",
    "seed": 14
   },
   {
@@ -74,7 +74,7 @@
    "seed": 17
   },
   {
-   "digest": "0efcb3bf942f12a0fb8899b2d10712695b4af6bbf9b2f5a74914aa5b30c9a4a3",
+   "digest": "bdf0e2182911feae57bb17851388f3a9e654d5b17070d7425274ab478bb6ad96",
    "seed": 18
   },
   {
@@ -103,6 +103,11 @@
    "by": "INT2",
    "date": "2026-10-28",
    "reason": "phase-1 finish: record fields from domain type data only, no placement change (watertight false: admin_inventory mail/office trays and mailboxes, appliances_cooking toaster, textiles_laundry dryer_sheet_box, plumbing_liquids garbage_disposal, tools_vehicles hardware_organizer; holes_mm: appliances_cooking baskets and portafilter, outdoor_plants skimmer_basket; size_m: plumbing_liquids cup/flange plungers, tools_vehicles flathead screwdrivers and automotive jugs). Attribution: HEAD vs the domains' finished tree, 60 houses, 3 field classes, no other leaf"
+  },
+  {
+   "by": "INT3",
+   "date": "2026-10-29",
+   "reason": "phase-1 close-out: navigation_robot's household robots carry their own printed label_text (robot_vacuum, robot_vacuum_mop, robot_mower records; the read probe's robot_vacuum row); 20 of 60 entries change only entities.<robot>.label_text (robot_vacuum 14, robot_mower 7, robot_vacuum_mop 3), no placement change; attributed by A/B on frozen trees (HEAD with navigation_robot.json reverted to P1F gives P1F's 60 digests)"
   }
  ],
  "method": "digest = house_sim.kernel.predicates.digest(house_sim.generator.generate_house(seed, **house)) with every domain loaded (HOUSE_SIM_DOMAINS unset) and the default registry; defaults: seeds 0-19 with house {}; spec_houses: every distinct `house` block of tasks/authored/*.json after spec.expand and spec.choose_variant(spec, seed), on seeds 0, 1, 2, 41 and 97",
@@ -148,7 +153,7 @@
    ]
   },
   {
-   "digest": "4cfc45f98944d67d4c39ac2020cfa932a6f3e4b4e304ec7a69f95e9cad4dabe2",
+   "digest": "5742500fd4552356037874e29d39ff1c0b4d6e506f8301ec751e0a4c7a3e6f08",
    "house": {
     "bedrooms": 3,
     "pets": "none",
@@ -181,7 +186,7 @@
    ]
   },
   {
-   "digest": "2a4c5e8fc9cc3313218c8b951a567b8101031c2c52b58f4c8dd208d234bfdab0",
+   "digest": "febf3897a2cedc8a6df8c124053889457108255fdd7fa017b6658904c9711ff8",
    "house": {
     "bedrooms": 3,
     "pets": "none",
@@ -280,7 +285,7 @@
    ]
   },
   {
-   "digest": "9674ac8b57122fcf2c77cf749ec1951d551690c2a4b0493bf1ce3b001f27595c",
+   "digest": "6be684e8a5811dd98acb81e9a2ec3e9be6ac0a84a28a7fb1b8e562038a2c9af7",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -310,7 +315,7 @@
    ]
   },
   {
-   "digest": "fcd41a0afd5bbb333ba2eb1cad61477bb8f91388e59a4cf75c94fb7d90a030df",
+   "digest": "f921e4d9fd6c5cbad009021807d7bdeff556f09ef80645fc3747b04b2967971a",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -381,7 +386,7 @@
    ]
   },
   {
-   "digest": "3057b4212cd8da359cd6f40e72fd4991657bdfcf2be033ebece76d8491e2a8a8",
+   "digest": "5c80093d38bb8dd4838dbde0975604fed79d8861ceb0f62509718682b239d2e7",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -446,7 +451,7 @@
    ]
   },
   {
-   "digest": "dd2aeeb6cd7967a218c34683fdf0f735bf9fe94e6b5a48922985254310b7d473",
+   "digest": "b97bc16358f79796c36ecf0acc180edfd528123528598002809d742a2694be30",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -511,7 +516,7 @@
    ]
   },
   {
-   "digest": "fcd41a0afd5bbb333ba2eb1cad61477bb8f91388e59a4cf75c94fb7d90a030df",
+   "digest": "f921e4d9fd6c5cbad009021807d7bdeff556f09ef80645fc3747b04b2967971a",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -550,7 +555,7 @@
    ]
   },
   {
-   "digest": "fd3dd194ebea59d3bd2114c8bde4bcb4d445ff864d91b2f29f98171c9073accc",
+   "digest": "6aa5b825d0d0333467cfcb75b434e3d9a6a98a9192350d27b70109ab0430280e",
    "house": {
     "pets": "none",
     "require": [
@@ -578,7 +583,7 @@
    ]
   },
   {
-   "digest": "1f59adfc5049948bb04b132d115f03d2f8dd0e712063ed04dc981468f814298c",
+   "digest": "c992b53223ff7cac3015a2ab69d0ebb30f7869a42d4ff2d45ba9d58b6f579314",
    "house": {
     "pets": "none",
     "require": [
@@ -592,7 +597,7 @@
    ]
   },
   {
-   "digest": "c4ac4b0ad84a8efdd1ea249ed758872cd448f0e4c46c2f0fa6d537483825c367",
+   "digest": "20bd82e73a6756497f4adbc2469ecf2f6569781a36b7591c9a57d06794c40b1f",
    "house": {
     "pets": "none",
     "require": [
@@ -648,7 +653,7 @@
    ]
   },
   {
-   "digest": "564a1eed3d3d38ff3632799af58be5922f0d5a19686dd80da4a4394e080ff3ea",
+   "digest": "76a88a311984ddd76ce2a8aea5a9eccea0e192e75d4e34ae14e1d8537dfda59e",
    "house": {
     "pets": "none",
     "require": [
@@ -690,7 +695,7 @@
    ]
   },
   {
-   "digest": "9674ac8b57122fcf2c77cf749ec1951d551690c2a4b0493bf1ce3b001f27595c",
+   "digest": "6be684e8a5811dd98acb81e9a2ec3e9be6ac0a84a28a7fb1b8e562038a2c9af7",
    "house": {
     "pets": "none",
     "require": [
@@ -718,7 +723,7 @@
    ]
   },
   {
-   "digest": "fcd41a0afd5bbb333ba2eb1cad61477bb8f91388e59a4cf75c94fb7d90a030df",
+   "digest": "f921e4d9fd6c5cbad009021807d7bdeff556f09ef80645fc3747b04b2967971a",
    "house": {
     "pets": "none",
     "require": [

@@ -898,6 +898,23 @@ def remembered_ids(env):
     return frozenset(found)
 
 
+def known_record(env, state, eid):
+    """eid's record as the household knows it: the current one, or for a thing that has gone since (eaten, thrown out,
+    merged) the one it had when the episode began (env._baseline); {} for a thing the robot saw that was made during
+    the episode and has gone again (remembered_ids); None for an id that never was. A question about a thing destroyed
+    out of view is answered like one about a thing merely out of view (red_leaks 6: "Which one?" / "I'm not sure what
+    you mean." for a destroyed thing was an existence oracle). The kernel's copy of the rule people
+    (knowledge._known_record) and manipulation (world._known_record) each kept (phase-1 close-out, manipulation's
+    request); a route that needs it registers with route(..., takes_env=True)."""
+    rec = (state.get("entities") or {}).get(eid)
+    if rec is not None:
+        return rec
+    baseline = (getattr(env, "_baseline", None) or {}).get("entities") or {}
+    if eid in baseline:
+        return baseline[eid]
+    return {} if env is not None and eid in remembered_ids(env) else None
+
+
 def evidence_known(env, item):
     """Whether one observable_via item ({"entity", "field", "tier"}) is known to the robot: realistic perception
     compares realism knowledge with the tier (glance: perceived once); oracle: perceived once and, for the
@@ -982,6 +999,7 @@ def necessary(env, pid, fact, subject):
 
 ROUTES = []          # [(name, aspects frozenset or None, fn)] in registration order
 _ROUTE_NAMES = {}
+_ROUTE_ENV = set()   # names of routes registered with takes_env=True (find_route passes env=)
 
 
 class WeakTopic(str):
@@ -998,18 +1016,22 @@ def weak(topic):
     return WeakTopic(topic) if topic else topic
 
 
-def route(name, aspects, fn):
+def route(name, aspects, fn, takes_env=False):
     """Register a route from canonical questions to a legacy answerer topic: fn(state, pid, subject, aspect, detail,
     act) -> topic or None, offered only for `aspects` (None: every aspect). Routes are tried in registration order;
     the first topic whose answerer exists (or a permission:) wins, except that a weak(topic) is only a fallback: the
     first of those answers when no route gives a plain topic. Registering a name twice with another function is an
-    error."""
+    error. takes_env=True: fn is also given env=<the env, or None> (keyword), so a route can route a thing destroyed
+    out of view like one merely out of view (known_record; phase-1 close-out, manipulation's request: a route sees
+    only the current state, where the gone thing's record is no more)."""
     if name in _ROUTE_NAMES:
         if _ROUTE_NAMES[name] is not fn:
             raise ValueError("dialogue route {!r} registered twice".format(name))
         return fn
     _ROUTE_NAMES[name] = fn
     ROUTES.append((name, frozenset(aspects) if aspects is not None else None, fn))
+    if takes_env:
+        _ROUTE_ENV.add(name)
     return fn
 
 
@@ -1244,7 +1266,10 @@ def find_route(state, pid, subject, aspect, detail, act, env=None):
     for name, aspects, fn in ROUTES:
         if aspects is not None and aspect not in aspects:
             continue
-        topic = fn(state, pid, subject, aspect, detail, act)
+        if name in _ROUTE_ENV:
+            topic = fn(state, pid, subject, aspect, detail, act, env=env)
+        else:
+            topic = fn(state, pid, subject, aspect, detail, act)
         if not topic:
             continue
         vet = VETTED_ROUTES.get(name)

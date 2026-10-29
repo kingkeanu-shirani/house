@@ -154,6 +154,15 @@
     "manipulation contact-claim fix: T-7d4006bda247ba-01 passes on seed 0 (no ironing-board scorch; the known-failing pin is dropped)"
    ],
    "date": "2026-10-28"
+  },
+  {
+   "by": "INT3",
+   "classes": [
+    "navigation_robot type data (phase-1 close-out): entities.*.label_text and obs.visible_entities.*.label_text of the household robots (robot_vacuum / robot_vacuum_mop / robot_mower) in runs 1 and 2 and the final states of T-7673a125fe70cd-01 T-89530941a65283-01 T-fffb3941b40c87-01 X-f05f58a6388176-01",
+    "realistic handles of runs 1 and 2 re-salted by the initial-house digest (obs.visible_entities keys; grid.hazards sources; nav.dock; robot.home; climate.sunlit_windows; connections doors)",
+    "attributed by A/B: HEAD with navigation_robot.json reverted to P1F dumps identical to P1F (275 files); every step's action ok and seconds unchanged"
+   ],
+   "date": "2026-10-28"
   }
  ],
  "modes": [
@@ -350,372 +359,372 @@
   "1/oracle": {
    "problems": [],
    "reset": {
-    "obs": "74e11450e5e03709ebec33a7e2caf53c63b9dc7d19c0afed3217cbd6620cf523",
-    "state": "c49a3c521241bfc13f7bb1610b94094859288f0e401cfc10dbd33db69a9f3f5b"
+    "obs": "d0319ae0d606010b6701ca6ba1ee5a59ce3dccb6d6af5a430178bf05d6545c92",
+    "state": "d10f228218958b5d24c31529c393459adc47b657438b225395fba10c3feeec20"
    },
    "steps": [
     {
      "action": "look",
-     "obs": "eb60015de267f2e99fd75631be4b4a940a36b4047f4d3e6252a4a39e176b8d97",
+     "obs": "a525d0cc1592b834e58b1a978cf29413822ef5a30dc0a558296d651d23c723b5",
      "ok": true,
      "seconds": 1.0,
-     "state": "478009a2f22531fa8b5ef4c0d5f17ed31e048b14225cd775f85af3e39d5436da"
+     "state": "6f471655b10fdf4ddc6deb61bdd09b380e7930e60517d837b25c2b44333e1834"
     },
     {
      "action": "approach",
-     "obs": "0c162bf7774be761a4dae722b3481c1585187c9dcb80293d6d16c140239d8fb2",
+     "obs": "6de89cad0447ac4c1173f4bbfb39a4f824ea539ad2aea20de61a002c4aba4b0a",
      "ok": true,
      "seconds": 4.05,
-     "state": "ed7e5d988f935f5b74e1a77eb63bcd7098acede78b5b1636aee0167200407f7e"
+     "state": "bcefa64a2655eb42a3c3ffb1a43e2e1cd441402ebba24975267f28adcdd952a2"
     },
     {
      "action": "pick_up",
-     "obs": "bddf6e2d46419c77cde6be6f78f3d6bc7ee96e9b4831465cfb40431bdd14cd2c",
+     "obs": "de8dc1ca199b425faa70c314eea6447b32bdf771ebc98f4c7cb2200645a7c985",
      "ok": true,
      "seconds": 2.0,
-     "state": "cbc74d11f7057498f9f3a0dc95a2c27586a9741ded3b97f200bfb97844aa3523"
+     "state": "38a54078f8132e42aa59a559e74c5d98e548379951f596850997d44d4c5fc5e3"
     },
     {
      "action": "move",
      "obs": "f2f2eb57376207d17c2337ca102a69b3197ca89f3ab8a62be5822ec9a1bc0211",
      "ok": true,
      "seconds": 13.106,
-     "state": "29d194844f70e0a2fbf5ab65db5d16f0858d61d0f7ee7918787006b21f3519d3"
+     "state": "d3970cfe2c23576865a57c63c3dfce1c85cb8e3b770667702ffe0b81b37a4cd5"
     },
     {
      "action": "approach",
      "obs": "c2b33ae611f1d859a955a7d45fa1c096715c36dde792048f2960166aa56ac7cb",
      "ok": true,
      "seconds": 5.193,
-     "state": "d105c4432ff0db6d47c61745a24789bc6aec40887acb70716b63810daba6f064"
+     "state": "e1d5b7630275358d8ec4ebab5749e43cdee7ab14e11dd84d0641ebd9220a6898"
     },
     {
      "action": "place",
      "obs": "d0854df50602711b622a6c78eed4e56c5dbb3b3bc5a7d401e2b9a94f84357e44",
      "ok": true,
      "seconds": 2.0,
-     "state": "9f99cf1541a6f7c6847b3e45178832aaf7ab79b4fb77541248b25fda03920db5"
+     "state": "b6bb3d7ae33a512806fc7eca0c065d6b60f80edf781c7a1e13e40e0a64112e8b"
     },
     {
      "action": "open",
      "obs": "f93698154e9285c25c1d652cb1f2b71ba4506c6c095a205cebda55c3f0ca1e2b",
      "ok": true,
      "seconds": 2.0,
-     "state": "9eb5ef85afe13a3a7676e1f6799aef7826ef00dc3a717f82855a8c59cb376873"
+     "state": "17d11843d7c995047d934dacf7aef222426326c2caca7bf6fa2311c6afc3d67a"
     },
     {
      "action": "close",
      "obs": "7ff7afc2df18399495ba921fb41aa6011e27336fbdcce504d930d643afb86089",
      "ok": true,
      "seconds": 2.0,
-     "state": "f925a47c43ce4bf236c43c4e2509ce9b5413ddf3e1717e192dacbf8b1578c6ef"
+     "state": "5338ab3edc8fbb71c17701e8c685483c7dbc359d677d06d2ee519770cb519838"
     },
     {
      "action": "inspect",
      "obs": "ba99ddc07b62596043c314260affc9a3b655aad8fa432098e75494d5199cdf55",
      "ok": true,
      "seconds": 3.0,
-     "state": "f08017a5351443831d7d35feccbf057e6e7d8e11797f3772d86b5db9a8d13f3d"
+     "state": "6c9116e5b3a0af67338bc7ccd299ecadfc3a6b5734a98cde44fefc84baeb6e96"
     },
     {
      "action": "read",
      "obs": "f765a9d84c343824fc813c8a81baa0da39a9b45319c582ed8931f4bcd2f1c88a",
      "ok": true,
      "seconds": 4.0,
-     "state": "10aa62c448004ae47c6bdd06aaf869ac6f2754588a1b170a0ceef9fd960d6659"
+     "state": "c54781dda977164acedbee52a6a340ec7aeb9f842ff299a3288428e5f61b47d3"
     },
     {
      "action": "wait",
      "obs": "a1eb5968d241c821bdcddb79d18b160bbf3f9eb3a7f9a9bda6d1ae0cf4b0cf15",
      "ok": true,
      "seconds": 600.0,
-     "state": "e7ac006ab4f47bb96f35c073a134060701db87d12768fc1a8cab993904d27f08"
+     "state": "5eeb5419a108203cd00cf4e6b7d786c6e25f93333c99b1fd325e91e9de3a07eb"
     },
     {
      "action": "wait",
      "obs": "59eef6b533fb97ec5465ad4e09797eb6db11b6075a90107847c8805a01f5dbdd",
      "ok": true,
      "seconds": 3600.0,
-     "state": "5a8c8b8f4db7d3258f0e6685094d116f66757e5f8cb0fad09a4ecb9c42983abc"
+     "state": "07c7ed51eaf4ef20459ccaa44b11919fee9522202901b4dd1bc7234aa3ce9ba4"
     }
    ]
   },
   "1/realistic": {
    "problems": [],
    "reset": {
-    "obs": "3d95c412ac82587d42bab3e837999405a0dffe0becfe585b5fd4f521b0e6726d",
-    "state": "c49a3c521241bfc13f7bb1610b94094859288f0e401cfc10dbd33db69a9f3f5b"
+    "obs": "80dbd147a96911e43071af8fefd8772db1ff9e6ab13182cabe59c0aae13b1bf1",
+    "state": "d10f228218958b5d24c31529c393459adc47b657438b225395fba10c3feeec20"
    },
    "steps": [
     {
      "action": "look",
-     "obs": "b265f8c11bed802b854a8581fb1302e645ec8842308359505ec4b6da15214a96",
+     "obs": "3969ff3a7ae0b66735d2fc33593faddb1945125d25a66e95c0a813969500ae96",
      "ok": true,
      "seconds": 1.0,
-     "state": "478009a2f22531fa8b5ef4c0d5f17ed31e048b14225cd775f85af3e39d5436da"
+     "state": "6f471655b10fdf4ddc6deb61bdd09b380e7930e60517d837b25c2b44333e1834"
     },
     {
      "action": "approach",
-     "obs": "d6a8f4912d08df8d9aa5be1b597867433b9a70ff5037805732bc4e703708cde1",
+     "obs": "1639f6db3febac88e96e451926c45f759d557dc3a2ca93a4e57321aef20cd0b5",
      "ok": true,
      "seconds": 4.0,
-     "state": "12c088c624c2f3ba461e7635248003d0ee0eb51ff35dbdaaa9c16f81a0a2e515"
+     "state": "e23745bd790cd94f286409f27682af92bd645c8c39e191b4ff5c9a18ab8c2a14"
     },
     {
      "action": "pick_up",
-     "obs": "eea8dd8a0c9b993b4391842778a98febabf01f3ce5853fb8add029e00d945441",
+     "obs": "c62669c9635643f7682af8f4ae9efb3cb0cb84b4073ae1eee1a3eb73b82c26f8",
      "ok": true,
      "seconds": 2.0,
-     "state": "3c40a8995f896edaa9ee97fc4e1d50c95374b7a1b96a8a425ee7edade3001fa1"
+     "state": "b97c61294f4a0af198d4e1e70a55131108dedd12b4b96f6314550a1fba667450"
     },
     {
      "action": "move",
-     "obs": "76746b6565571aeefca3efe46b967123dd0c62e837d4154505d4c554855043f5",
+     "obs": "edf0dc79c04e28fdb6096ec4cdc0ce0563178cb677971fed4a996507a930f1c8",
      "ok": true,
      "seconds": 13.0,
-     "state": "086588a0810bd9f26faebddc6cc423254e7bbd76604ddefdd8efcb87a537a33c"
+     "state": "c3cacd541beb591c6d451735808efb7e900aa90ec980313eff0e08bc89a86a9f"
     },
     {
      "action": "approach",
-     "obs": "9e73091a2cdc62cb18a9b5bc228ff921fb97522625585fdabd9bba3cc2188bd1",
+     "obs": "baa9efa606ca18a7b2caf9b381ce732a8fcef0ae69e168e7ba93521a8c90d6ae",
      "ok": true,
      "seconds": 5.0,
-     "state": "cb971e0d145390b4ed8169be959783ba377ee663c28f062825833bd4c7702e57"
+     "state": "c1e06e525f2b6efe7844d9dabc995b9210acd2da2fc07731939ac160f224e1e2"
     },
     {
      "action": "place",
-     "obs": "88701d07870ddbbdaee217d15944e3156faa50988f1562fa4d7453c2b1f79268",
+     "obs": "bf88124acee1df59fd18d4c7ea51ecd32014e5c8e4b08300bf134d5f20a31ce4",
      "ok": true,
      "seconds": 2.0,
-     "state": "0d38c72cba5d5ef6a3b3615b301d84e5354c302a76ec2da161e2a4110c6e7095"
+     "state": "b3e326b31ace8ec24906785779047565e086e6595b4f0efe792a2fa842894b2f"
     },
     {
      "action": "open",
-     "obs": "f40cb699f687b6aa4eda74c139947629dd2cd806f53522444b82fe44d31001a5",
+     "obs": "8e9f5814a399ef9cd31c7c2465f42ec5da3115012c7fb18b1c6df668061cff19",
      "ok": true,
      "seconds": 2.0,
-     "state": "4dbd2498ac00b27662f8a63f348126cbc19a2b264bef420cf8eeeed46fa3a126"
+     "state": "187e85d9fafb3fbf7cd5291b691ad97c888620541b6a7f927ad765113f32a325"
     },
     {
      "action": "close",
-     "obs": "a81f42132275ebf7756bbfb22a49dd12f4ca51dabf87073a945ea1623df19791",
+     "obs": "788d421e756b2457cc0bfe3a82003a2d78458fad572ab329d075b023fd5250ea",
      "ok": true,
      "seconds": 2.0,
-     "state": "4add1b080a58f4368829a62233ac368676a15a8b39efc880d959966c4c523fa7"
+     "state": "53b753b582ddb69cd5a843b0d2b732e101035c1107a477844c3afffa292c8ad0"
     },
     {
      "action": "inspect",
-     "obs": "251775d74de508e9e681d18a7c246f2d254137b567e80d859b4454069f7254a5",
+     "obs": "61bd3e93d74f4e709b44b1022c0492bf1045dc8b1d1f8d08729923fd9c62ce08",
      "ok": true,
      "seconds": 3.0,
-     "state": "acec9b123eb7602babb08d65dc06bd8ce8923b9f152b6e185cf7e323db2bafd9"
+     "state": "cccf7b28747e1152438e9dc63609af8cbf6568e196e0cb52112fc75eaae9b0ef"
     },
     {
      "action": "read",
-     "obs": "30c96b68c10c4f07f2badbbfd33a1bbd4baeeb83dfa4d955ec1f46de2b43b361",
+     "obs": "8761cbeb4880be45de1ee07a3ec3ef3b3fdb6dac1e36f963828bc9f27295b27c",
      "ok": true,
      "seconds": 4.0,
-     "state": "1ae9527ba7bea21ec6c84a4b8a0b210bc1154677c005cadea738da33e7262b69"
+     "state": "98420e3d8e77cc8f919c1ae8cb55029a7fb2caa011eb939373e6a531e4361ac2"
     },
     {
      "action": "wait",
-     "obs": "824139bdf4a3d4ea7f0605d3db2171dcb20949124fdb5993bb40bcf23bc9137d",
+     "obs": "58dbe61036f8bdf2b191459d04330f0476f269614962c77b5a6c26d424dd3a88",
      "ok": true,
      "seconds": 600.0,
-     "state": "26f3014fd7368904291c464fe0d671f59bf4d61eac0675ff4df3bd3f78ef5555"
+     "state": "6b8309ea757be7548114e890550946b29c0d0fca53a1996975a6a5815d5775ed"
     },
     {
      "action": "wait",
-     "obs": "60a3f8df8e774f5a45b9c9842a1a74d94ba0a12dc2f0f06388dfb945fd766172",
+     "obs": "059385dc010543abd955a0d1c875909de50aeaf3979d12594cb3c4a191bd021f",
      "ok": true,
      "seconds": 3600.0,
-     "state": "92b5eb68dbd17249a618a104d0dc11d241d1dd1fb9d457b0305f305466121421"
+     "state": "007d17905786023a4f53c9499b2ca63174dffd842ee3abbfbd08e62aea82d1df"
     }
    ]
   },
   "2/oracle": {
    "problems": [],
    "reset": {
-    "obs": "f594f9d00f444e365bcad5df6a7fb70b6f22b8b1a81f2784453d014c9e1215ab",
-    "state": "748c44f09ddafe23996839e0459a19239554631f6e8a09083f3b8558ca65b14f"
+    "obs": "353135a100a92f1c16bd318c239dafdc4261e44f4f7a83ce48f96b7136e72641",
+    "state": "d008bfa590721dd2bca640122fba072e374a967220c98bd4ce014d8c769372e1"
    },
    "steps": [
     {
      "action": "look",
-     "obs": "116c1d69a9446dc5b1f1763e35268bc56baa12518da61384194f20298ba7c22d",
+     "obs": "67077894db52386a65e197d4ca31ecb22d99008aba40565024e30fe555906722",
      "ok": true,
      "seconds": 1.0,
-     "state": "46f3ceda203a3e88b94e4d9b3a6c7260e5c6b5c19a4cba30ad1dec08b0d32828"
+     "state": "42e1facb788d6112579cafeeda2d42e3be66b24aa2841acca9af820f3082d4c1"
     },
     {
      "action": "approach",
-     "obs": "33d6f2fdb8bcf480308e1bdbca27451d0d94be0ad4e740b3d04530facdb2e996",
+     "obs": "4662d35275a7d535a8d9146056000c0049f0484070baaf1cf413ad09fd330179",
      "ok": true,
      "seconds": 2.068,
-     "state": "9ac72acf890ac1755a77c20d8c219a1b637204d5441e2747f31dbe5f00007148"
+     "state": "213672a2b5523c6dea98ca23846c48e378c258458347352c6682fe12af4f2fbd"
     },
     {
      "action": "pick_up",
-     "obs": "33acb72ddaeb7f30838251d94fab17f6fbd67d7282826fe677ff63d19850c4cc",
+     "obs": "926083e94737e9a2b1e9c49c8d4f64fcd898090e9d038aa96651456c5e3d0b81",
      "ok": true,
      "seconds": 2.0,
-     "state": "43667b5504b2384e5e645c3891a46f60d3c7f69bd7cc9375d85741be6fc6501a"
+     "state": "973204f23d281dc54c48bc05873b0c77402a5c1202f4cb8ea1f7e4fdca72f2b7"
     },
     {
      "action": "move",
      "obs": "d009b386ff0eb0677c736342f5ef52db2f28c3dd637157c71a8154a68d9a852d",
      "ok": true,
      "seconds": 18.624,
-     "state": "ec1776d42ab3b2ce7de775e49beba06cb6e6b3a7ba46d797cc95a7b2659a6f8c"
+     "state": "7bc60f1a95305118ced08fa1e5e677ed1e163bca453a0d239c7676f0ef2f529f"
     },
     {
      "action": "approach",
      "obs": "cb64d4a69c575fcd3e1f5890e3e11533171faa350da8023dbfe816ec28bf7252",
      "ok": true,
      "seconds": 5.559,
-     "state": "65094a8b75d4800bb043a542aab4cc5ff3d1d7d78c03de803ebb845b73d7c222"
+     "state": "4d27303a95b38cc552030212e3cf67db11fa8aac9f5145de49831c9fbb2214b3"
     },
     {
      "action": "place",
      "obs": "628fa79a547a96adc48006160985f5d9ae89e54a4e877ca7df3bfc3baff11d49",
      "ok": true,
      "seconds": 2.0,
-     "state": "c90f8e12928d17847a2b73f2f1a31479ae440986ea28a046a3009e0164ceac86"
+     "state": "bacccac0969451217e03c34640eb5df29ce2b811571fc564893a6ef058ea1037"
     },
     {
      "action": "open",
      "obs": "605eaaaa5a2c522929d2fcf597c120e3f53876e6f72724b4b2e50b3236071c94",
      "ok": true,
      "seconds": 2.0,
-     "state": "0381b579626b5bd8a41841eee4131d315af24541d169f74b76387f7c3e537f16"
+     "state": "91f6104b2b92826dda2ef822fe3f4885c701c2fb0685ecd3b4252d6a5166bafc"
     },
     {
      "action": "close",
      "obs": "3301c174aee2c44b18813ce47edea071fad93068c884a6d66e558c65a5118b60",
      "ok": true,
      "seconds": 2.0,
-     "state": "221d4124ae57842388b71756dab4411a922d74f030b7f9d7f08cdea70fbf5b14"
+     "state": "c8e7156e1ab364ac9c45f1c3a877c27458b04aa9360f23a6d7bae1e78d6376aa"
     },
     {
      "action": "inspect",
      "obs": "46acbc154fe2dd0ee08e07d20eb0ea00e880bb6efc1188f6302377b6df6e9f6c",
      "ok": true,
      "seconds": 3.0,
-     "state": "4984cdbd7066aed1cf5f454e398d0e60da39db7f9c2471201f4ff23f4a2709c3"
+     "state": "285f24ab3268a5e9cb77704f516c95cfd6b71416b9b15b76486c9c1caf4c106c"
     },
     {
      "action": "read",
      "obs": "cfd16c8b086e36b4f99df4ec68cff2849b3691aae1e5b1b3d095b890d539a0c6",
      "ok": true,
      "seconds": 4.0,
-     "state": "f2babf0f2686010e667666701e171caa566c100b58fe2b9e4c9f3ae4eda69275"
+     "state": "f82c1a895797db6921ea53247c2a437e2c0020968324e75d40d28a27d1f48aa7"
     },
     {
      "action": "wait",
      "obs": "212eb7ac9a5370fdee60a72414758b759ed89e7c5f04c1a154be863f1a0187ac",
      "ok": true,
      "seconds": 600.0,
-     "state": "4b8ede699f51d9df77294602c3c16e7f5db206ade9078bc661c172504a5268a6"
+     "state": "ee26420c6ada3d020566ee7b12ca4b165fa0113a09611294af3c8b6009a9a119"
     },
     {
      "action": "wait",
      "obs": "aca051331cfdf671f74070da97a8601b429ca551a87faaa4a762e4106e727095",
      "ok": true,
      "seconds": 3600.0,
-     "state": "26883354a3d3bf0c2e07ef41f6885a77dd92a256fad27ca1a00219bd1695c8d4"
+     "state": "b426e6b81fc8f02a29262090165de1ffdab6199fe66fce04f981af6b6c97460f"
     }
    ]
   },
   "2/realistic": {
    "problems": [],
    "reset": {
-    "obs": "78218a57165a88960fdf09d65d26e62260409bdbf095b3d02bd83fd2205101fa",
-    "state": "748c44f09ddafe23996839e0459a19239554631f6e8a09083f3b8558ca65b14f"
+    "obs": "de99435a019a147e2601ede8afdd7575f03f93624dca458f89d7a711d4d8281f",
+    "state": "d008bfa590721dd2bca640122fba072e374a967220c98bd4ce014d8c769372e1"
    },
    "steps": [
     {
      "action": "look",
-     "obs": "c1ba9d44f135be57e5605acd8daa8ad38dc1d7d32d477911d1eb8685f35c1858",
+     "obs": "f87cb51d0c23bd51d60647aa97d4d49c3394100b1e9ec0ac0908bd25cd3b3acc",
      "ok": true,
      "seconds": 1.0,
-     "state": "46f3ceda203a3e88b94e4d9b3a6c7260e5c6b5c19a4cba30ad1dec08b0d32828"
+     "state": "42e1facb788d6112579cafeeda2d42e3be66b24aa2841acca9af820f3082d4c1"
     },
     {
      "action": "approach",
-     "obs": "c838f1ed48bbe43d7fe40bfcb052109ac1e428a9e80a32c8160fcc8392acbd18",
+     "obs": "3fdea4a31c8dda7c738b5d0875b7c10e3879249cf43b09d244c44e58d2cb9201",
      "ok": true,
      "seconds": 2.0,
-     "state": "97704dd32456d1e60527ce7aba831b9951306b7b655434a3bbfb9307721ab45b"
+     "state": "7747631d151a32b8646daef3dcbb9b8ebf370dafa64fa3e80db1aeda869e80c0"
     },
     {
      "action": "pick_up",
-     "obs": "641ad6e361af8445c5c1b323f8f7bf502d9425717d49114d9bb38a7f75397ac6",
+     "obs": "f9dcc453fbe7a0b8f1954bf06db6ac417714e665aff92806459c7b4f499f5177",
      "ok": true,
      "seconds": 2.0,
-     "state": "755b31723ca74c69213cbda3a353001efbbf2838fabf9c3ce4ced2afa71ddbd4"
+     "state": "f5a56de5d5ca3be99c7f717b307e42943fe54d587adc638775ea5dda7fae6376"
     },
     {
      "action": "move",
-     "obs": "773dd424274710d9655a2b7dcaff979fdb5f2fe8c225e05073b9b5e2a02cca92",
+     "obs": "5b0221fe62fd8c8faa9fd6073f3a906f14c2f8e8ba22f20c491b2f1cd730a66b",
      "ok": true,
      "seconds": 19.0,
-     "state": "6ac6d31639dbc706aff859f9e7423315cb92bce731ac5fc4fb38b97117ac8b58"
+     "state": "7a3372221b5b1406411e170472db31c33105b184b77f68f1bc6cc30da5bc1218"
     },
     {
      "action": "approach",
-     "obs": "dab3c65ff443f8ec7d441d2aaa726c5dc3ff19a8b23dc6c0b3202ccfb65fe5a1",
+     "obs": "17e356c20cfd53840dfc2409863dea45db1525954f2a9a14abcc85306480af93",
      "ok": true,
      "seconds": 6.0,
-     "state": "4f0f7ee5a6aa31be2ed371b62cd576f7e69affd6be92c69fc3d2fc05f47f074b"
+     "state": "717e8f93f28286ed08112230f5ea31ae0be1719ff6a43208ba65433196b9f95f"
     },
     {
      "action": "place",
-     "obs": "077447644e5da3fd7121370f2f2e31e5ea28dd90c3d33050d931823e57149b42",
+     "obs": "c6361fd8b65ef5bc480e35df80cfb3cfb898ffd8911f4b84f6bc79c592158db2",
      "ok": true,
      "seconds": 2.0,
-     "state": "022850427684bb2f4ebe2a3135063515af6f5fdb87415af43dd2dc9851cac295"
+     "state": "10a4b6f4f592da6b2ae66967e246b4816a197035a8f4cc62794b16967471030e"
     },
     {
      "action": "open",
-     "obs": "76386db146047363bcee555e4cfe9b0de6996dbdae367bbd1e356a4092aff3fe",
+     "obs": "701984fa8a0704d1ef2dfbc2d19e72be35fa002c8bb43a7160cc60f451d6193e",
      "ok": true,
      "seconds": 2.0,
-     "state": "99fcc07d86010b89f9672a6018e12bdee8ef24976256119eb2c35c322cbf412e"
+     "state": "be7cf59cd9a4e0684981bdf99ca89262a80ca1a54661dc8f5d994ce48b264f4d"
     },
     {
      "action": "close",
-     "obs": "37c33805a47eaa65148c2f6a0434c665f41685adc39ee54efdb3adc3dcdc0918",
+     "obs": "8c6c63aacd106297e02f533682652f955b08aa65844eca61f7649755d32881b1",
      "ok": true,
      "seconds": 2.0,
-     "state": "267c520b8a73e107d25838895be09e1df284165ba45f6efd6aec903d7ad65c52"
+     "state": "74ec9d86f19b67d8c516d70be5eccc9962a3c646a57a1d6cb7dfe5479c315a15"
     },
     {
      "action": "inspect",
-     "obs": "4c91c2e191a06d6d1c763a306cdb3f41e70be2c161f3e6971eab8d6f08732490",
+     "obs": "519405ffcc2f4b93b947e19697f72193828a32f19cb16e866b81962e19db049b",
      "ok": true,
      "seconds": 3.0,
-     "state": "7dd079e96856a82114211c68c73c7bc2e40d5a8f4889d7c026cdcb55b1517997"
+     "state": "95bd279bc9bd5223140a66dc4753dc84e85d78df7b4ddf9bc4d83493e2030335"
     },
     {
      "action": "read",
-     "obs": "8ce1332deaae66898f4000340a2b09f27dc3e84c6689a68363ff40a0fb7ac1a9",
+     "obs": "b7692b3058f6c9c37f31816c30d768a0dfd5ca0613c1597cc03de96894a1151a",
      "ok": true,
      "seconds": 4.0,
-     "state": "82c71eb5666655ba35804284bf73b5cddfbdbd479f1a59b808dc8fecb23c0a77"
+     "state": "cc61d359155933f15bb82acc47546d4ebcfa7c56f419c2b54d7c61ad234102dc"
     },
     {
      "action": "wait",
-     "obs": "9c1a89cd3410dd3f5111c2c70a87b08b2c13cebdd78d8bad3bc18e439f9a1c2a",
+     "obs": "7ada91cae10e79713c97da292dcfb8a42e869dcc6018ee358daff8c2fc2582ac",
      "ok": true,
      "seconds": 600.0,
-     "state": "cfc890515ae09eede550401e5e4d8cf0a379ad9e931f99d4018cf20f3e1a266b"
+     "state": "f1ee8cb087f88ec4f6c6c98c259eafba3f45164d8034f67e9ec4e291df521624"
     },
     {
      "action": "wait",
-     "obs": "267f4e98bb2e0f78da63f3d5528242e403445658ef9130a09f63814706416d6d",
+     "obs": "e5bbb7438d8a383ab5a7dc03dc953bf8606e625869fc00ad12568064db8da17b",
      "ok": true,
      "seconds": 3600.0,
-     "state": "60dc8722a4320b9f0e171575d24529ab9432919b89283cbfd5897ffb7fe87fb0"
+     "state": "2fe1563d55aca8f41ab28963f80e70e61c9cc9d73d0911fffedf5f5b6dd53e3b"
     }
    ]
   },
@@ -2297,7 +2306,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "94d52c65a3b5a5144702eb8eb4cf3795d04c4997c996469c881c61bf700f2edf",
+   "state": "7ca0ed93a550a8ab1439981a4f05da99ba65fb4182ea70a2956da46f41fcc147",
    "steps": 24,
    "time_s": 121.698
   },
@@ -2437,7 +2446,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "9df468a37f3a2177e4f41774f749c4fd9dd614d45d58e4f656404d8443f605dd",
+   "state": "39632e89c512499ac4abae1530475d2dd1420f07efe4298d76ea451c655fad97",
    "steps": 52,
    "time_s": 307.869
   },
@@ -3422,7 +3431,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "381ffa5fc1823e1961aefc53a2c109ef635fab9a5ade402c9645ae46b34d4ecf",
+   "state": "556aa5c8ca369a3e7ccfb7f39e5ceff5b9f774fe51df6bb9fc52672fe9b24878",
    "steps": 19,
    "time_s": 259.822
   },
@@ -3562,7 +3571,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "187c56465473512c7fb9a3cd9fc1d167c828f11405d2b2eb93349754fdd4f9c5",
+   "state": "8968bf16a7f7320fbf6f717e86f1d7faf73e07fff72e1f1d852de49318e67866",
    "steps": 19,
    "time_s": 196.86
   },

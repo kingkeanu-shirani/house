@@ -144,15 +144,28 @@ controls: a regression over a few distances recovered the true size to millimetr
   fill and a lamp's `bulb_hot` told the types apart). Instrument readings a domain passes as exact stay. `read` of
   one shows its printed text alone (`core.NOVEL_PRINT`: text, label_text), else "There is nothing legible to read on
   it", whatever it is (phase-1 finish, food's request: an unfamiliar flour bag read out its allergens and net weight).
+  A blank label prints nothing: it reads, and is shown, like no label at all (phase-1 close-out, mechanisms' request:
+  an unfamiliar plain spray bottle read `{"label_text": ""}` where an unfamiliar kettle had nothing legible), and the
+  print comes back as printed -- the message's rewrite of the thing's true name (below) is not applied inside the print
+  it read (pets' request: "unfamiliar medium object - floating food ..." told it the print named the thing there).
 * An unfamiliar thing is handled as an object -- looked at, inspected, moved, carried, placed -- but not operated:
   an action registered with `operates=True` (core: open, close, open_cover, close_cover, lock, unlock, switch_on,
   switch_off, set, start, pause, cancel, set_mode) on one is refused before any domain hook with one message for
   every unfamiliar thing (`actions.NOVEL_OPERATE_MESSAGE`, the kernel's identify-first refusal that
   `ctx.refuse_unidentified` gives; engine.step). Before, switch_on answered "That does not
   work on it", "No power" or "It has no supported switch" by its type. Domains declare `operates=True` on their own
-  device verbs (catalog/analysis/phase1/breakages.json lists take_photo, pull_handle, push_handle, press, ...).
+  device verbs (catalog/analysis/phase1/breakages.json lists take_photo, pull_handle, push_handle, press, ...). A
+  nested leaf (`env.perform`: domain chains, undo) is refused alike (phase-1 close-out, manipulation's request).
   Oracle mode operates it as before. (Kernel decision of phase 1; the owner may revisit it: physical trials whose
   outcomes name no class would be the alternative.)
+* Nor is it a tool, receptacle or support the robot knows of (phase-1 close-out, the domains' requests): core
+  `place` (and every domain verb placing through `core.place_item`: stack, load, hang, dispose, ...) onto or into an
+  unfamiliar destination, `core.require_tool` with an unfamiliar thing named as the tool, and a wrist look inside one
+  (`peek` / geometric `inspect` where=inside) get the same identify-first refusal whatever it is; an unfamiliar thing
+  in hand is passed over when no tool is named ("Hold a tool that can ..."). Before, "Placed ... in" a novel bowl,
+  "That cannot hold items" a novel knife, a novel reacher "Retrieved ... with the reacher" and "It is closed; open it
+  first" a novel kettle. Domains give the same refusal for their own parameters with `ctx.refuse_unfamiliar(*ids)`
+  (`ctx.unfamiliar(eid)`: realism.novel_unidentified in realistic mode, False in oracle mode).
 * Group keys: `descriptor`, `resolve`, `kind`, `candidates`, `label_fields`, and (round 5) `portion_descriptor`,
   `color`, `size_m`, `size_class`. An unresolved member shows the group's color and size instead of the ones its
   type gives it: the group's keys, else the most common member color and the typical (per-dimension median) member
@@ -288,7 +301,8 @@ whole rooms for it), and each run adds differential probes in its camera mode (`
 (wait / watch answers on twins whose true values differ but render alike), `twin` (look-alike members of different
 true size and unfamiliar things with the same visual props: rendering, listing, and what the view's pixels imply
 about the size; `--twin-fields` compares every field of look-alike twins; unfamiliar twins -- electric kettle,
-smartphone, hair dryer, remote control, all required with every domain loaded -- are always compared on every field
+smartphone, hair dryer, remote control and the two blank-labelled plain spray bottles (spray_bottle, trigger_bottle;
+phase-1 close-out), all required with every domain loaded -- are always compared on every field
 and on what operating them and reading them answers), `read` (every member of every look-alike group in turn, read
 and read aloud to a resident while unresolved: the same outcome form, ok and category, for every member -- the printed
 text may differ, it is how a read-resolved look-alike is told apart; phase-1 finish, people's request: the pill-bottle
@@ -391,7 +405,13 @@ wrist (a grant of the field keeps it).
 only when a current frame saw that face, unless a grant of it still holds. Things without declared faces are never
 gated. The geometric `read` follows the same rule: a type-mapped face the thing does not declare gates nothing (the
 head reads such a field like wrap-around text), and neither camera reads an `"up"` face half covered by things
-standing on it (a box stacked on a parcel's top label) until they are taken off.
+standing on it (a box stacked on a parcel's top label) until they are taken off. The geometric read grants the fields
+it made out, field by field: it raises the thing's identity level only when it read the label of a read-resolved
+look-alike (`Realism._read_identifies`, people K-READ-LEVEL). An inspect-resolved look-alike whose label it read
+(navigation_robot's vacuum-mop tank rules) shows that print and stays unresolved until a close look; room mode's read
+grants the whole record at the read level and so also resolves it. Intended (confirmed in the phase-1 close-out,
+navigation_robot's question): both members of such a group read alike either way, and a head-camera read of a label
+is not the close look an inspect-resolved group asks for.
 
 **Tracked identity.** Knowledge entries gain `"ident": [level, placement signature]`: the best view level the thing
 was seen at since it last moved (an inspection that still holds counts as identify). While it has not moved, a later,

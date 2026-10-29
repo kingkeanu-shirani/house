@@ -421,7 +421,7 @@ def rain_wet(w, eid, mm_h, dt):
     if wetness < 1.0:
         w.mut(eid)["wetness"] = round(min(1.0, wetness + dt / RAIN_WET_S), 4)
         if wetness + dt / RAIN_WET_S >= 1.0:
-            run_hooks("phys.wetted", w, eid, round(liters, 4), "water", None)
+            liquids.run_wetted(w, eid, round(liters, 4), "water", None, wetness)
     cap = liquids.absorb_capacity_l(p)
     if cap > 0:
         moisture = num(rec.get("moisture"))
@@ -433,7 +433,7 @@ def rain_wet(w, eid, mm_h, dt):
             m["soaked"] = True
             kind = soak_damage_kind(p.cls)
             impact.damage(w, eid, kind, round(after, 4), detail="soaked by rain")
-            run_hooks("phys.wetted", w, eid, round(liters, 4), "water", None)
+            liquids.run_wetted(w, eid, round(liters, 4), "water", None, wetness)
     elif liquids.holds_liquid(state, eid, p):
         mouth = top_area_m2(rec) * liquids.mouth_frac(rec, p.mouth_frac)
         caught = mm_h * mouth * dt / 3600.0

@@ -105,7 +105,11 @@ Statistics: `phys_falls`, `phys_breaks`, `phys_spills`, `phys_tips`, `phys_colla
 `phys_budget_hits`. Hooks a domain may register: `phys.props`, `phys.spill_sink`, `phys.wetted`, `phys.broke`,
 `phys.fell`, `phys.tipped`, `phys.collapsed`, `phys.contact_heat`, `phys.carry_motion`, `phys.tip_loads`,
 `phys.items_above`, `phys.exposed`, `phys.settle_extra` (signatures in TIER1_PHYSICS 7.3), `phys.uncontained`
-(`fn(w, eid, info)`, below), `phys.liquid_arrives` (`fn(w, eid, liters, liquid, source, by)`, section 5).
+(`fn(w, eid, info)`, below), `phys.liquid_arrives` (`fn(w, eid, liters, liquid, source, by)`, section 5). Inside a
+`phys.wetted` hook `liquids.wetness_before(w, eid)` is the wetness the thing had before the arrival the hook sees (the
+kernel writes the new wetness first; every kernel arrival -- `liquids.wet`, rain, a wet item's seep -- runs the hooks
+through `liquids.run_wetted`), so a domain adding up arrivals since a thing was last dry can tell it dried in between
+(phase-1 close-out, electrical's request); None outside such a call.
 
 **Wrap containment (a contract for every domain).** A break inside a full wrap (`wrapped.coverage` >= 0.95, any
 material, or a plain `wrapped` flag) or inside intact packaging (`packaged`) is *contained*:

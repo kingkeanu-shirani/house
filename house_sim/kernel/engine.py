@@ -469,6 +469,19 @@ class HouseEnv:
         enclosing step's (TIER1_INTEGRATION 1.9)."""
         return self._leaf(command, parent_ctx)[0]
 
+    def _refuse_novel_operate(self, spec, args):
+        """An unfamiliar thing is not operated (review I4): an action declared operates=True on a target the robot
+        takes for an unfamiliar thing is refused with one message for every one (NOVEL_OPERATE_MESSAGE), before any
+        domain hook -- in a step and in a nested leaf alike (phase-1 close-out, manipulation's request: perform's
+        chains skipped the check, so a nested open answered "It does not open" for a novel knife and "Opened" for a
+        novel kettle). Realistic perception only."""
+        if self.realism is None or not spec.operates:
+            return
+        target_id = args.get("target")
+        record = self.world.s["entities"].get(target_id) if isinstance(target_id, str) else None
+        if record is not None and self.realism.novel_unidentified(target_id, record):
+            raise ActionError(NOVEL_OPERATE_MESSAGE, "precondition")
+
     def _leaf(self, command, parent_ctx=None):
         """perform's body: returns (result, the leaf's Ctx, the seconds it took)."""
         command = dict(command)
@@ -481,6 +494,7 @@ class HouseEnv:
         body.power_guard(w.s, spec)
         body.quiet_guard(w.s, spec)
         ctx = Ctx(self, spec, args, random.Random("{}:{}:nested:{}".format(self.seed, w.s["steps"], name)))
+        self._refuse_novel_operate(spec, args)      # as step() does: a domain chain operates no unfamiliar thing either
         for _, _, fn in BEFORE.get(name, []):
             fn(ctx)
         result = spec.fn(ctx)
@@ -583,12 +597,7 @@ class HouseEnv:
             body.power_guard(state, spec)           # PowerOff unless the action may run powered down (wait)
             body.quiet_guard(state, spec)           # quiet mode: a declared noise_db over the quiet limit
             ctx = Ctx(self, spec, args, rng)
-            if self.realism is not None and spec.operates:
-                # an unfamiliar thing is not operated (review I4): one refusal for every one, before any domain hook
-                target_id = args.get("target")
-                record = state["entities"].get(target_id) if isinstance(target_id, str) else None
-                if record is not None and self.realism.novel_unidentified(target_id, record):
-                    raise ActionError(NOVEL_OPERATE_MESSAGE, "precondition")
+            self._refuse_novel_operate(spec, args)
             before_state = None
             if spec.reversible or spec.inverse:
                 before_state = {"robot": clone(state["robot"])}

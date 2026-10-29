@@ -1,0 +1,142 @@
+{
+ "id": "INT3",
+ "fixed": [
+  {
+   "item": "Re-records pending since the close-out's domain round (K-GATE3 not_fixed, navigation_robot requests 0-1): tests/test_generator_compat.py and tests/test_room_golden.py failed on the committed tree (4 failing runs of 4,874 x 2; gen-1 digests 40/60, room golden 56 digest differences in 8 entries)",
+   "how": "Attribution first, on frozen trees (git archive of P1F's e5e8727 and HEAD 1dbc6db, and HEAD with house_sim/data/types/navigation_robot.json reverted to P1F's): golden.py dump --all P1F vs HEAD = 18 files, 8 path patterns (entities.*.label_text 12, obs.visible_entities.*.label_text 2, and the realistic runs' handles re-salted by the initial-house digest: obs.visible_entities.* 554, obs.grid.hazards.*.source 40, obs.nav.dock 4, obs.robot.home 4, obs.climate.sunlit_windows.* 3, obs.connections.*.door 2), exactly navigation_robot's reported classes; P1F vs HEAD-with-nav-types-reverted = 0 of 275 files. Gen-1 (gen1_dump.py): P1F 60/60 pinned, HEAD 40/60, nav-reverted 60/60; the 20 changed houses differ only in entities.<robot_vacuum>.label_text (14), <robot_mower> (7), <robot_vacuum_mop> (3). So every change is navigation_robot's type data; the other five domains' and K-GATE3's changes and INT3's kernel changes change no golden file and no generation-1 house (A/B: INT3's work tree vs HEAD 0 of 275). Re-recorded: `tier1_gate.py gen1-digests --write --by INT3` (60 digests, 20 changed, equal to the attributed HEAD dump 60/60; no placement change) and `golden.py record --by INT3` (8 entries changed: runs/1/oracle, runs/1/realistic, runs/2/oracle, runs/2/realistic -- only reset/step state and obs digests, every step's action, ok and seconds unchanged -- and specs/T-7673a125fe70cd-01, T-89530941a65283-01, T-fffb3941b40c87-01, X-f05f58a6388176-01 -- only the final state digest; passes, steps, time, evaluation unchanged). The package's reviewed golden rows (code P1C, package P1C-INT) are in gate/P1C/reviewed.json; their signed rows in P1C_signoff_verified.json. Evidence: catalog/analysis/phase1/INT3_evidence/ (gen1_diff_*.txt, golden_diff_*.txt, golden_entries_rerecorded.txt).",
+   "test": "tests/test_generator_compat.py and tests/test_room_golden.py (also HOUSE_SIM_GOLDEN_ALL=1) pass; golden.py check --all: equal"
+  },
+  {
+   "item": "mechanisms' kernel request: an unfamiliar (novel) thing with a blank label read ok {\"label_text\": \"\"} (core read's NOVEL_PRINT filter kept a blank value) and an observation could list the blank field, where an unfamiliar kettle had nothing legible -- a field whose presence came from its type (cleaning's spray_bottle and, since the close-out, mechanisms' trigger_bottle)",
+   "how": "house_sim/systems/core.py read: an unfamiliar thing shows only non-blank print (new core.printed_value: a non-blank string or a non-empty value), so a blank label answers 'There is nothing legible to read on it' like no label; house_sim/kernel/realism.py: the unfamiliar-thing filters of the glance (perceive_record), the view below identify (_perceive_below) and the inspect details drop a blank label_text / text (_blank_print). A labelled unfamiliar thing still reads its print. docs/PERCEPTION.md",
+   "test": "tests/test_kernel_redteam.py UnfamiliarCloseOutTests.test_a_blank_label_reads_like_no_label (no label / blank label_text / blank text / both: glance keys, inspect keys and read identical; fails on HEAD: the blank label read ok); tests/test_perception.py AuditorProbeTests.test_the_unfamiliar_twins_include_a_blank_label (below)"
+  },
+  {
+   "item": "pets' kernel request: an unfamiliar thing's own label was rewritten inside its printed text on read (novel fish food: 'unfamiliar medium object - floating food for surface and mid-water fish ...'), telling the agent the print named the thing at that spot",
+   "how": "core read registers the print of an unfamiliar thing it shows (realism.keep_print, reset each step); realism.outbound_message treats those strings like the agent's own words (protected: the thing's true names are not rewritten in them; look-alike group names still are). The thing stays unidentified; every other message still substitutes its name. docs/PERCEPTION.md",
+   "test": "tests/test_kernel_redteam.py UnfamiliarCloseOutTests.test_the_print_of_an_unfamiliar_thing_reads_as_printed (fails on HEAD: the print came back rewritten)"
+  },
+  {
+   "item": "manipulation's kernel request: core place (and every domain verb placing through core.place_item: stack, load, hang, dispose, charging docks, folding onto ...) told an unfamiliar destination's type apart ('That cannot hold items' for a novel knife, 'Placed ... in' for a novel bowl, 'Open it first' for a novel lidded box, 'That cannot be stacked on' / 'Put it on that, not in it' by type)",
+   "how": "house_sim/systems/core.py place_item: an unfamiliar destination gets the kernel's identify-first refusal (ctx.refuse_unfamiliar) right after the type-agnostic visibility / reach check of ctx.obj, before any check that reads what it is, for every relation; rooms and familiar destinations unchanged, oracle mode unchanged. New kernel helpers house_sim/kernel/actions.py Ctx.unfamiliar(eid) (realism.novel_unidentified in realistic mode, False in oracle mode and for unknown ids) and Ctx.refuse_unfamiliar(*eids) -- the rule six domains keep their own copies of. docs/PERCEPTION.md, KERNEL_API.md",
+   "test": "tests/test_kernel_redteam.py UnfamiliarCloseOutTests.test_an_unfamiliar_destination_is_no_receptacle_or_support (plain / bowl / lidded / tray x relation none / in / on: one refusal, the cup still held; oracle control: the bowl holds it; fails on HEAD)"
+  },
+  {
+   "item": "navigation_robot's kernel request: core require_tool took a held unfamiliar thing by its true affordances, so a novel knife cut, a novel reacher 'Retrieved ... with the reacher' and a novel tape measured in other domains' verbs (manipulation tool_of, food's named-tool path) while any other novel thing was no tool",
+   "how": "house_sim/systems/core.py require_tool: a named unfamiliar tool gets the identify-first refusal (ctx.refuse_unfamiliar); unnamed, an unfamiliar held thing is passed over ('Hold a tool that can ...'): navigation_robot's common.known_tool rule, now the kernel's. Oracle mode unchanged.",
+   "test": "tests/test_kernel_redteam.py UnfamiliarCloseOutTests.test_an_unfamiliar_held_thing_is_no_tool (novel knife vs novel plain thing, named / unnamed: identical; oracle: the knife; fails on HEAD)"
+  },
+  {
+   "item": "manipulation's kernel request: Env.perform / _leaf (nested leaves: domain chains, undo) skipped the engine's operates=True refusal of an unfamiliar target, so a nested open answered 'It does not open' for a novel knife and 'Opened' for a novel kettle or flour bag",
+   "how": "house_sim/kernel/engine.py _refuse_novel_operate (the step's check moved into one method) runs in step() and in _leaf() before any domain hook. docs/PERCEPTION.md, KERNEL_API.md",
+   "test": "tests/test_kernel_redteam.py UnfamiliarCloseOutTests.test_a_nested_leaf_operates_no_unfamiliar_thing (lidded vs plain: one refusal; fails on HEAD)"
+  },
+  {
+   "item": "admin_inventory's and pets' kernel request (geometric camera): peek where=inside and inspect where=inside of an unfamiliar thing answered by its true openable / container flags ('It is closed; open it first' for a novel kettle, 'There is nothing to look inside' for a novel brush or bowl, a look inside a novel open box)",
+   "how": "house_sim/systems/core.py wrist_peek (shared by peek and geometric inspect where=under/behind/inside): a look inside an unfamiliar thing gets the identify-first refusal after the arm, imaging, visibility, reach and privacy checks (all type-agnostic) and before camera.peek_access. Room mode's inspect keeps the fixed key set it already showed.",
+   "test": "tests/test_kernel_redteam.py UnfamiliarCloseOutTests.test_a_look_inside_an_unfamiliar_thing_is_refused_alike (lidded / open bowl / plain, peek and inspect: one refusal; fails on HEAD)"
+  },
+  {
+   "item": "electrical's kernel request: phys.wetted hooks saw only the wetness after an arrival (the kernel writes it first), so electrical's ingress gathering could not tell that a device dried in between (a device dried by a system ordered before 77 and dripped on by the kernel's drip law in the same substep kept its old litres)",
+   "how": "house_sim/kernel/phys/liquids.py run_wetted(w, eid, liters, liquid, source, wet_before) runs every phys.wetted hook and, while they run, liquids.wetness_before(w, eid) is the wetness before the arrival (a stack: nested arrivals too; None outside); every kernel arrival goes through it (liquids.wet, environment.rain_wet twice, thermal.wet_contact_due's seep). The hook signature is unchanged (no domain breaks); electrical adopts it on its side (closeout_breakages.json). No state written: golden identical. docs/PHYSICS.md",
+   "test": "tests/test_physics_fluids.py PourTests.test_a_wetted_hook_sees_the_wetness_before_the_arrival (wet with a nested arrival, rain; errors on HEAD: no wetness_before)"
+  },
+  {
+   "item": "manipulation's kernel request: dialogue routes got no env, so a route could not route a thing destroyed out of view like one merely out of view (manipulation.items stays weak for a gone thing with hidden truth), and people and manipulation kept two copies of the household-record rule; tests/test_kernel_redteam.py RememberedSubjectTests did not ask keep / intended / how / status (finish_breakages asked for it once fixed)",
+   "how": "house_sim/kernel/dialogue.py known_record(env, state, eid) (current record, else env._baseline's, {} for remembered_ids, None for an id that never was) and route(name, aspects, fn, takes_env=False): a route registered with takes_env=True is given env= by find_route (registration and the ROUTES tuples unchanged for every existing route). RememberedSubjectTests asks keep / intended / how / status too (same answer for the thing out of view and the destroyed one, whichever domain answers; with HOUSE_SIM_DOMAINS=core too). docs/DIALOGUE.md",
+   "test": "tests/test_dialogue.py KnownRecordTests (2 tests; error on HEAD); tests/test_kernel_redteam.py RememberedSubjectTests.test_a_destroyed_thing_is_reported_and_asked_about_like_one_out_of_view (fails on P1F's tree, 'I'm not sure what you mean.' for the destroyed thing; passes on HEAD after manipulation's fix and on the final tree, normal / strict / core)"
+  },
+  {
+   "item": "The perception auditor's unfamiliar-twin battery had no blank-labelled twin, so G4 could not see the blank-label read (mechanisms: 'Not a gate leak (NOVEL_TWINS has no blank-labelled type)')",
+   "how": "tools/perception_audit.py NOVEL_TWINS += spray_bottle, trigger_bottle (the two plain spray bottles, blank label_text). On HEAD's kernel the extended battery finds 2-4 leaks per camera (read: (False, perception) vs (True, '{\"label_text\": \"\"}'); glance after read); on the final tree 0. docs/PERCEPTION.md",
+   "test": "tests/test_perception.py AuditorProbeTests.test_the_unfamiliar_twins_include_a_blank_label (the battery with the blank-labelled twins finds nothing; with core.printed_value patched to keep a blank label it reports the read; fails on HEAD's kernel)"
+  },
+  {
+   "item": "navigation_robot's question: does a geometric-camera read of an inspect-resolved look-alike whose label tells the members apart leave it unresolved (room mode's read resolves it)?",
+   "how": "Confirmed intended and documented (docs/PERCEPTION.md, face gating): the geometric read grants field by field and raises the identity level only for a read-resolved group (Realism._read_identifies, people K-READ-LEVEL); an inspect-resolved group waits for a close look; room mode's read grants the whole record at the read level. Both members read alike either way.",
+   "test": "docs only"
+  },
+  {
+   "item": "Sign-off of the close-out record P1C (`signoff P1F P1C --package P1C+P1C-INT`) verified row by row",
+   "how": "P1C recorded on the quiet final tree (3,212 s, tree unchanged, committed gate code 59fabe996412): FAIL only on the main session's signatures (G1: 4 test-removal rows; G8: 8 golden rows). The draft had 8 golden rows and no verdict, edit, coverage or gate-change row (G2 / G3: 0 verdict changes vs P1F). Each golden row verified (INT3_evidence/verify_signoff_p1c.py: the entry is attributed by the A/B, its digest is the re-recorded file's, only the attributed digests changed); the 4 test-removal rows (two tests of tests/test_gate_tool.py K-GATE3 renamed, normal + strict) verified against git (present at P1F e5e8727, gone at HEAD) and the record (each replacement ran and passed in G1 in that mode; INT3_evidence/finish_signoff_p1c.py). Rejected: none. Written catalog/analysis/phase1/P1C_signoff_verified.json (12 rows, signed_by INT3-verified) and the package's first signature catalog/analysis/phase1/P1C_reviewed.json = gate/P1C/reviewed.json (8 golden rows, code P1C, package P1C-INT). With the sign-off read as committed, compare P1F P1C --package P1C+P1C-INT is PASS on every check (INT3_evidence/compare_P1C_signed_simulated.txt).",
+   "test": "tier1_gate.py compare P1F P1C --package P1C+P1C-INT (unsigned: FAIL on G1 / G8 signatures only, INT3_evidence/compare_P1C_unsigned.txt; signed, simulated: PASS)"
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "K-GATE3's request: convert tests/test_physics_thermal.py's relative bound to wall_clock_bound",
+   "why": "Done and reverted: it fails two pins of K-GATE3's own tests/test_gate_tool.py (CloseOutGateTests.test_the_registry_lists_every_bound_of_the_project requires the registry's thermal skip exception to match the live source; SecondPassGateTests.test_the_gates_correctness_runs_relax_the_bounds requires the relax plan 'skip'), a gate-tool test outside INT3's scope that belongs with the main session's removal of the skip block from gate_policy/perf_tests.json. The patch is INT3_evidence/thermal_bound_conversion.patch (verified: the bound becomes a helper-kind mark, runs relaxed with the real clock); the dated exception holds until 2026-11-30."
+  },
+  {
+   "item": "admin_inventory's kernel request (and REV's latch / mark finding): the single-pass label substitution rewrites a generic message word that equals an unfamiliar thing's true label ('Hold a luggage scale' -> 'Hold a unfamiliar medium object' for an unfamiliar luggage scale alone)",
+   "why": "Not precise enough for the kernel: the kernel cannot tell a domain's generic wording from a reference to the thing, and any type-independent rewrite garbles every message naming a type. Domains refuse an unfamiliar thing identify-first before such messages (admin_inventory, food, pets, manipulation, navigation_robot; the new Ctx.refuse_unfamiliar); REV's two remaining verbs (mechanisms latch, navigation_robot mark) are in closeout_REV.json for their owners. The suggested audit check would need the twin sweep of every verb in G4 (about 400 s per run): phase 2."
+  },
+  {
+   "item": "REV's gate-tool findings (closeout_REV.json: code in a git-ignored folder imported as a domain, an isolated copy's own .gitignore hiding edits, unchecked-hash .pyc files, a stale isolate base, a module-level perf switch, py39_lint gaps)",
+   "why": "Gate code (tools/orchestration/*.py, tools/py39_lint.py): a P1C record made by changed gate code needs the main session's gate-change signature, and the fixes are the gate tool's package's (K-GATE3 / phase-2 P2-WP10); REV wrote them for the main session. INT3 changed no gate code, so P1C is judged by the committed gate (GATE PASS)."
+  },
+  {
+   "item": "K-GATE3's optional requests: tests/test_eval_tier1_gate.py serving fake committed rules so historical attribution can fail outright; converting the other 25 legacy-guarded bounds to wall_clock_bound",
+   "why": "The first needs a gate-code change too (fail instead of INCOMPLETE) -- the gate tool's package's, phase 2. The second is optional: the counting clock already runs those bounds' functional assertions in every correctness run (G1: 25 relaxed, 0 failing)."
+  },
+  {
+   "item": "Domain-side rows (closeout_breakages.json, 10 rows): people read_aloud of unfamiliar things and of a blank label before read; appliances_cooking unload / textiles_laundry strip_bed destinations; cleaning's held-tool pickers; the pill-bottle pour (people, safety, pets); mechanisms' test swing direction; water sensitivity of electrical gear; electrical adopting liquids.wetness_before; manipulation / people adopting dialogue.known_record and takes_env; optional domain copies of the unfamiliar-tool rule",
+   "why": "Domain files (INT3 may not edit them); each row names the cause, the change and a repro."
+  },
+  {
+   "item": "The setup's placement reads true never-tier props: the unfamiliar-twin probe on seed 1 (the audit runs seed 0) puts a novel electric kettle and a novel smartphone with the same look on different floor cells ([5, 0] vs [6, 0]), because geometry.free_floor_cell keeps a clearance ring for a fragile record (the smartphone's fragile: true)",
+   "why": "Changing where setup and the generator place fragile things moves things in many spec houses and generated houses (golden, gen-1 and verdict re-verification); it is VERIFY_HARDENING WP9's (seeded arrangements: look-alike roles by position, review I2), not a close-out change. INT3_evidence/novel_twins_head_vs_final.txt."
+  },
+  {
+   "item": "Kernel items deferred in the phase-1 finish (finish_INT2.json not_fixed): microphone captures in room mode, two-handed lifts on slippery surfaces, the wrist depth under a lifted cover, puddle kinds of unresolved sources, touch-log cursors, label substitution / size-spread resolution, a record of destroyed entities and the capability registry, generation-2 key bowl / sofa cushions / indoor mat",
+   "why": "Unchanged reasons (VERIFY_HARDENING ledger, behaviour changes needing their own re-verification, optional performance, generation-2 re-verification); none was asked for again in the close-out."
+  },
+  {
+   "item": "Record P1C's verdict is FAIL (G1, G8) until the main session commits the sign-off",
+   "why": "Second signatures are the main session's (gate_policy/signoffs/P1C.json, committed only); simulated as committed, compare passes on every check."
+  }
+ ],
+ "specs_changed_outcome": [
+  "None: record P1C vs P1F has 0 verdict changes in own mode and in forced realistic mode (1,215 trials each); own mode 243/243, forced realistic 242/243 (T-dda4e199f3f5b0-01 seed 1, allowlisted, unchanged); the 51 realistic specs with --camera geometric 51/51.",
+  "State digests (allowed class 'state'): 466 own-mode trials. 463 are exactly the trials whose house holds a household robot (robot_vacuum, robot_vacuum_mop, robot_mower: navigation_robot's new label_text) -- initial state changed in 463 trials, a robot in the house in the same 463, 0 disagreeing (INT3_evidence/state_change_attribution.txt); the other 3 are T-686df131c7c736-01's two splashing wrong plans on seeds 0, 41 and 97 (electrical's 'gathering' section, as electrical reported). Observation digests: 145 own, 463 forced realistic (the realistic handles re-salted by the initial-house digest).",
+  "INT3's own changes change no outcome: golden dump of all 243 references and the 8 scripted runs identical with and without them (275 files); they only concern unfamiliar things, which no spec, setup or generated house holds."
+ ],
+ "perf": "G7 of P1C (quiet machine, alone): 2.79 ms per substep (best of 5; P1F 2.69, limit 2.825 = P1F x 1.05), 1 h wait 1.029 s (P1F 1.020, limit 1.071), day 5.70 s (limit 5.79); largest per-system increase climate.house +0.017 ms; the 26 wall-clock bounds alone, normal and strict: 0 failing every attempt. The close-out adds electrical.wet_gear (idle probe); INT3's kernel changes add no per-substep work (unfamiliar-thing checks on commands only).",
+ "tests": {
+  "count": 4884,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 243
+ },
+ "requests": [
+  {
+   "owner": "main session",
+   "request": "Review and commit catalog/analysis/phase1/P1C_signoff_verified.json as tools/orchestration/gate_policy/signoffs/P1C.json (12 rows: 8 golden, 4 test-removal; signed_by INT3-verified; rejected none). The package's first signature is gate/P1C/reviewed.json (tracked copy catalog/analysis/phase1/P1C_reviewed.json; pass it with --reviewed when re-recording). After that commit `compare P1F P1C --package P1C+P1C-INT` passes on every check (simulated: INT3_evidence/simulate_signed_p1c.py). Then commit the integration (20 modified files, catalog/analysis/phase1/INT3_evidence/, closeout_INT3.json, closeout_breakages.json, closeout_REV.json, P1C_*.json)."
+  },
+  {
+   "owner": "main session",
+   "request": "Thermal bound (K-GATE3's request): apply catalog/analysis/phase1/INT3_evidence/thermal_bound_conversion.patch (tests/test_physics_thermal.py: wall_clock_bound, no HOUSE_SIM_PERF_TESTS guard) together with removing the thermal entry's skip block from gate_policy/perf_tests.json and updating the two pins of tests/test_gate_tool.py (CloseOutGateTests.test_the_registry_lists_every_bound_of_the_project: no skip exception left; SecondPassGateTests.test_the_gates_correctness_runs_relax_the_bounds: plan 'helper' for the thermal bound) -- one change, or the exception lapses on 2026-11-30."
+  },
+  {
+   "owner": "main session",
+   "request": "Triage catalog/analysis/phase1/closeout_REV.json (written by REV during this round; INT3 read it): four gate-tool holes (git-ignored domain folders, an isolated copy's own .gitignore, unchecked-hash .pyc files, a stale isolate base), a perf-switch disguise, py39_lint gaps, a rules question for phase 2's WP-D packages, and domain-side tells (cleaning absorb / mop with the robot vacuum-mop; spray-bottle look-alikes by read_aloud, apply_cleaner, disinfect, descale, discharge; mechanisms latch and navigation_robot mark messages rewritten for an unfamiliar padlock / pencil)."
+  },
+  {
+   "owner": "main session",
+   "request": "When phase 2 starts set rules.json running_substages to ['P2-S1'] (K-GATE3's request, restated); push for the first CI run (Linux / Python 3.9 still unverified here)."
+  },
+  {
+   "owner": "people, appliances_cooking, textiles_laundry, cleaning, safety, pets, mechanisms, electrical, plumbing_liquids, manipulation, navigation_robot, food",
+   "request": "The 10 domain-side rows of catalog/analysis/phase1/closeout_breakages.json (each with cause, change and repro). New kernel helpers to use: Ctx.unfamiliar(eid) / Ctx.refuse_unfamiliar(*eids), core.require_tool's unfamiliar rule, liquids.wetness_before(w, eid), dialogue.known_record(env, state, eid) and dialogue.route(..., takes_env=True)."
+  },
+  {
+   "owner": "VERIFY_HARDENING WP9 owner (phase 2)",
+   "request": "Placement by a never-tier prop: geometry.free_floor_cell keeps a clearance ring for a fragile record (house_sim/kernel/geometry.py), so setup and generation put a fragile thing elsewhere than a sturdy one with the same look (the unfamiliar-twin probe, seed 1: novel smartphone vs novel kettle). Decide it with the seeded arrangements (look-alike roles by position)."
+  }
+ ],
+ "notes": "INT3 = the phase-1 close-out integrator. Inputs read: STATUS.md, finish_INT2.json, finish_VER.json, all seven closeout_*.json (admin_inventory, electrical, manipulation, mechanisms, navigation_robot, pets, K-GATE3), gate_policy/README.md and the committed policy; closeout_REV.json appeared during the round and was read. BASELINE on the committed tree 1dbc6db: green_tests.py 5 -> 4,874 tests per mode, 66 files, 4 failing runs (test_generator_compat and test_room_golden, normal + strict: the pending re-records); py39_lint 480 files 0 violations; own mode 243/243; 51 realistic --camera geometric 51/51. FINAL tree (1dbc6db + INT3): green_tests.py 5 -> 4,884 tests per mode, 66 files, 0 failing runs normal and strict; py39_lint 480 / 0; own mode 243/243 (combined file, --check --workers 4); 51/51 geometric; perception_audit 60 80 room gen 1 / geometric gen 1 / room gen 2 / geometric gen 2: 0 leaks 0 crashes each (83 probes; read probe 0 leaks over 78 groups); layout_audit 30: gen 1 180 houses 0 problems, gen 2 330 houses 0 problems 0 domain follow-ups 709 notes; fuzz 12 300: 3,600 commands 0 defects 0 nondeterministic 46 actions succeed; fuzz 8 300 --gen 2: 2,400 / 0 / 0 / 41; fuzz --coverage: 44,295 commands 0 defects 0 nondeterministic 278 of 427 actions, no-op only clean_camera hold_steady loosen open_valve squeeze steady support. Gate record P1C (`record --id P1C --package P1C+P1C-INT --prev P1F --reviewed catalog/analysis/phase1/P1C_reviewed.json`, 3,212 s, quiet machine, tree unchanged during the run, committed gate code 59fabe996412): FAIL 10 pass / 2 fail / 1 n/a -- GATE, G0 (fingerprint unchanged, 117 systems), G1b, G2 (243/243, 0 verdict changes), G3 (242/243 allowlisted, 0 verdict changes), G4 (5 -> 0 / 3 -> 0 leaks), G5, G6, G7 (2.79 ms/substep vs limit 2.825; 1 h wait 1.029 s vs 1.071; day 5.70 s vs 5.79), G9, G10 (36 files, 0 outside) PASS; G1 FAIL only on 4 test-removal signatures; G8 FAIL only on 8 golden signatures. Files changed by INT3: house_sim/kernel/actions.py, dialogue.py, engine.py, realism.py, phys/environment.py, phys/liquids.py, phys/thermal.py, house_sim/systems/core.py, tools/perception_audit.py, tests/test_kernel_redteam.py, test_dialogue.py, test_perception.py, test_physics_fluids.py, tests/data/gen1_digests.json, tests/data/room_golden.json, docs/PERCEPTION.md, KERNEL_API.md, DIALOGUE.md, PHYSICS.md; catalog/analysis/phase1/STATUS.md, closeout_INT3.json, closeout_breakages.json, P1C_signoff_verified.json, P1C_reviewed.json, INT3_evidence/; gate record catalog/analysis/tier1/gate/P1C/ (git-ignored, with reviewed.json). Every new regression test fails on HEAD's code (checked in a frozen copy) and passes normal, strict and with HOUSE_SIM_DOMAINS=core. INCIDENT: two `--help` probes of tools/fuzz.py and tools/layout_audit.py (they take no --help) ran their default runs on the live tree while the baseline was being taken -- fuzz 12 x 300 0 defects, layout 240 houses 0 problems; nothing was written. Nothing committed, staged, stashed or branched; nothing under %USERPROFILE%/.house_ai; no network or paid calls; files LF. docs/design/VERIFY_HARDENING.md not implemented and not contradicted. Scratch: <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1c_INT3 (frozen trees tree_p1f / tree_head / tree_c (nav types reverted) / tree_work, golden dumps gold_A / B / C / W, gen-1 dumps gen1_A / B / C, logs/, final/)."
+}

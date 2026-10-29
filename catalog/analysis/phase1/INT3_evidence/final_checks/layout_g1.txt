@@ -1,0 +1,3 @@
+houses: 180  (0.39 s/house)  problems: 0
+by kind and furnisher:
+rc=0 secs=70

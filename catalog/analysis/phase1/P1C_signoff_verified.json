@@ -1,0 +1,91 @@
+{
+ "format": "house-gate-signoff-v1",
+ "gate": "P1C",
+ "prev": "P1F",
+ "signed_by": "INT3-verified",
+ "date": "2026-10-29",
+ "about": "Second signatures of gate record P1C (the phase-1 close-out: packages P1C+P1C-INT) vs P1F, drafted by `tier1_gate.py signoff P1F P1C --package P1C+P1C-INT` (8 golden rows; 0 verdict, 0 edit, 0 coverage, 0 gate-change rows: G2 and G3 have no verdict change vs P1F, no spec was edited, coverage 278 -> 278, the record was made by the committed gate code) and verified row by row by INT3: every golden row's entry is one the A/B on frozen trees attributed to navigation_robot's close-out type data, its digest is the re-recorded entry's and only the attributed digests changed in it (INT3_evidence/verify_signoff_p1c.py); the 4 test-removal rows are the G1 regressions the record lists -- two tests of tests/test_gate_tool.py K-GATE3 renamed, each replacement run and passed in the record (INT3_evidence/finish_signoff_p1c.py). Rejected: none. The forced-realistic both-fail trial T-dda4e199f3f5b0-01 seed 1 is unchanged vs P1F and excused by the committed allowlist (expires 2026-11-30): nothing to sign. The main session reviews this file and commits it as tools/orchestration/gate_policy/signoffs/P1C.json (only the committed version counts).",
+ "rows": [
+  {
+   "kind": "golden",
+   "key": "runs/1/oracle",
+   "digest": "a944370700bd8ece",
+   "evidence": "run: only reset/step obs/state digests changed (12 steps; actions, ok flags and seconds unchanged); attributed by A/B on frozen trees to navigation_robot's close-out type data (robot label_text): HEAD 1dbc6db with house_sim/data/types/navigation_robot.json reverted to P1F's dumps identical to P1F (golden.py dump --all, 275 files); INT3_evidence/golden_diff_*.txt"
+  },
+  {
+   "kind": "golden",
+   "key": "runs/1/realistic",
+   "digest": "4d3ed89c0e3e07fe",
+   "evidence": "run: only reset/step obs/state digests changed (12 steps; actions, ok flags and seconds unchanged); attributed by A/B on frozen trees to navigation_robot's close-out type data (robot label_text): HEAD 1dbc6db with house_sim/data/types/navigation_robot.json reverted to P1F's dumps identical to P1F (golden.py dump --all, 275 files); INT3_evidence/golden_diff_*.txt"
+  },
+  {
+   "kind": "golden",
+   "key": "runs/2/oracle",
+   "digest": "ea004c9aeff4799d",
+   "evidence": "run: only reset/step obs/state digests changed (12 steps; actions, ok flags and seconds unchanged); attributed by A/B on frozen trees to navigation_robot's close-out type data (robot label_text): HEAD 1dbc6db with house_sim/data/types/navigation_robot.json reverted to P1F's dumps identical to P1F (golden.py dump --all, 275 files); INT3_evidence/golden_diff_*.txt"
+  },
+  {
+   "kind": "golden",
+   "key": "runs/2/realistic",
+   "digest": "f5c55d5f8fe53193",
+   "evidence": "run: only reset/step obs/state digests changed (12 steps; actions, ok flags and seconds unchanged); attributed by A/B on frozen trees to navigation_robot's close-out type data (robot label_text): HEAD 1dbc6db with house_sim/data/types/navigation_robot.json reverted to P1F's dumps identical to P1F (golden.py dump --all, 275 files); INT3_evidence/golden_diff_*.txt"
+  },
+  {
+   "kind": "golden",
+   "key": "specs/T-7673a125fe70cd-01",
+   "digest": "c3e8c89f6c64311d",
+   "evidence": "spec: only the final state digest changed (passes, steps 24, time 121.698 s, evaluation unchanged); attributed by A/B on frozen trees to navigation_robot's close-out type data (robot label_text): HEAD 1dbc6db with house_sim/data/types/navigation_robot.json reverted to P1F's dumps identical to P1F (golden.py dump --all, 275 files); INT3_evidence/golden_diff_*.txt"
+  },
+  {
+   "kind": "golden",
+   "key": "specs/T-89530941a65283-01",
+   "digest": "aa9a27f95303008e",
+   "evidence": "spec: only the final state digest changed (passes, steps 52, time 307.869 s, evaluation unchanged); attributed by A/B on frozen trees to navigation_robot's close-out type data (robot label_text): HEAD 1dbc6db with house_sim/data/types/navigation_robot.json reverted to P1F's dumps identical to P1F (golden.py dump --all, 275 files); INT3_evidence/golden_diff_*.txt"
+  },
+  {
+   "kind": "golden",
+   "key": "specs/T-fffb3941b40c87-01",
+   "digest": "c20379976be2daea",
+   "evidence": "spec: only the final state digest changed (passes, steps 19, time 259.822 s, evaluation unchanged); attributed by A/B on frozen trees to navigation_robot's close-out type data (robot label_text): HEAD 1dbc6db with house_sim/data/types/navigation_robot.json reverted to P1F's dumps identical to P1F (golden.py dump --all, 275 files); INT3_evidence/golden_diff_*.txt"
+  },
+  {
+   "kind": "golden",
+   "key": "specs/X-f05f58a6388176-01",
+   "digest": "3559666b096f7007",
+   "evidence": "spec: only the final state digest changed (passes, steps 19, time 196.86 s, evaluation unchanged); attributed by A/B on frozen trees to navigation_robot's close-out type data (robot label_text): HEAD 1dbc6db with house_sim/data/types/navigation_robot.json reverted to P1F's dumps identical to P1F (golden.py dump --all, 275 files); INT3_evidence/golden_diff_*.txt"
+  },
+  {
+   "kind": "test-removal",
+   "test": "tests.test_gate_tool.SecondPassGateTests.test_the_gates_correctness_runs_turn_the_bounds_off",
+   "mode": "normal",
+   "evidence": "G1 removed: K-GATE3 replaced 'the gate's correctness runs turn the bounds off' by 'relax the bounds' (the same setup; it now also checks the relax plan -- count for a guarded bound, skip for the registry's dated exception -- and the py39 lint job in G1) (renamed); removed at e5e8727 -> HEAD (in tests/test_gate_tool.py at e5e8727, not at HEAD), the replacement test_the_gates_correctness_runs_relax_the_bounds ran and passed in this record's G1 normal run (78 tests, rc 0)"
+  },
+  {
+   "kind": "test-removal",
+   "test": "tests.test_gate_tool.SecondPassGateTests.test_the_worker_marks_bounds_and_the_perf_job_retries_them",
+   "mode": "normal",
+   "evidence": "G1 removed: K-GATE3 replaced 'the worker marks bounds (outcome perf) and the perf job retries them' by 'the worker relaxes bounds (their bodies run under a counting clock) and the perf job retries them' (the same fixture file of bounds) (renamed); removed at e5e8727 -> HEAD (in tests/test_gate_tool.py at e5e8727, not at HEAD), the replacement test_the_worker_relaxes_bounds_and_the_perf_job_retries_them ran and passed in this record's G1 normal run (78 tests, rc 0)"
+  },
+  {
+   "kind": "test-removal",
+   "test": "tests.test_gate_tool.SecondPassGateTests.test_the_gates_correctness_runs_turn_the_bounds_off",
+   "mode": "strict",
+   "evidence": "G1 removed: K-GATE3 replaced 'the gate's correctness runs turn the bounds off' by 'relax the bounds' (the same setup; it now also checks the relax plan -- count for a guarded bound, skip for the registry's dated exception -- and the py39 lint job in G1) (renamed); removed at e5e8727 -> HEAD (in tests/test_gate_tool.py at e5e8727, not at HEAD), the replacement test_the_gates_correctness_runs_relax_the_bounds ran and passed in this record's G1 strict run (78 tests, rc 0)"
+  },
+  {
+   "kind": "test-removal",
+   "test": "tests.test_gate_tool.SecondPassGateTests.test_the_worker_marks_bounds_and_the_perf_job_retries_them",
+   "mode": "strict",
+   "evidence": "G1 removed: K-GATE3 replaced 'the worker marks bounds (outcome perf) and the perf job retries them' by 'the worker relaxes bounds (their bodies run under a counting clock) and the perf job retries them' (the same fixture file of bounds) (renamed); removed at e5e8727 -> HEAD (in tests/test_gate_tool.py at e5e8727, not at HEAD), the replacement test_the_worker_relaxes_bounds_and_the_perf_job_retries_them ran and passed in this record's G1 strict run (78 tests, rc 0)"
+  }
+ ],
+ "rejected": [],
+ "summary": {
+  "signed": {
+   "golden:golden:": 8,
+   "test-removal:test-removal:normal": 2,
+   "test-removal:test-removal:strict": 2
+  },
+  "rejected": 0
+ }
+}

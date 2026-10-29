@@ -1,0 +1,66 @@
+{
+ "about": "Second signatures of gate record P1C (tools/orchestration/tier1_gate.py). Drafted by `signoff`: the main session reviews every row, deletes the rows it does not accept and commits this file; only the committed version counts.",
+ "date": "2026-10-29",
+ "format": "house-gate-signoff-v1",
+ "gate": "P1C",
+ "prev": "P1F",
+ "rows": [
+  {
+   "change": "edited",
+   "digest": "a944370700bd8ece",
+   "key": "runs/1/oracle",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "4d3ed89c0e3e07fe",
+   "key": "runs/1/realistic",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "ea004c9aeff4799d",
+   "key": "runs/2/oracle",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "f5c55d5f8fe53193",
+   "key": "runs/2/realistic",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "c3e8c89f6c64311d",
+   "key": "specs/T-7673a125fe70cd-01",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "aa9a27f95303008e",
+   "key": "specs/T-89530941a65283-01",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "c20379976be2daea",
+   "key": "specs/T-fffb3941b40c87-01",
+   "kind": "golden",
+   "reviewed_by_package": true
+  },
+  {
+   "change": "edited",
+   "digest": "3559666b096f7007",
+   "key": "specs/X-f05f58a6388176-01",
+   "kind": "golden",
+   "reviewed_by_package": true
+  }
+ ],
+ "signed_by": "INT3"
+}

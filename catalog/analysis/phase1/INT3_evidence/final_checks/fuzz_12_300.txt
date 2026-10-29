@@ -1,0 +1,5 @@
+houses 12  commands 3600  succeeded 813 (23%)  distinct defects 0  nondeterministic 0
+actions: 46 of 427 registered actions succeeded at least once; 381 never succeeded (4 never tried)
+  never succeeded: absorb (3 tried), address_envelope (4 tried), adjust_flapper (6 tried), aerate (2 tried), affix_postage (9 tried), aim (3 tried), align (7 tried), answer_door (2 tried), apply_cleaner (7 tried), apply_label (5 tried), arrange (5 tried), ask (5 tried), assemble (7 tried), assist_sit (2 tried), assist_stand (6 tried), attach (12 tried), attach_leash (5 tried), bag_leaves (13 tried), bag_waste (1 tried), bathe_pet (4 tried), bind (6 tried), bleed_radiator (5 tried), blend (6 tried), brew (5 tried), brush_pet (10 tried), ...
+  succeeded only without changing anything (not counted): squeeze (1x)
+rc=0 secs=54

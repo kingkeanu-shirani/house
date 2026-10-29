@@ -465,10 +465,36 @@ def overflow(w, eid, by=None):
 
 # ----- wetting and absorbing ----------------------------------------------------------------------------------------
 
+_WETTED = []        # (eid, its wetness before the arrival) of the phys.wetted calls running now, innermost last
+
+
+def run_wetted(w, eid, liters, liquid, source, wet_before):
+    """Run every ``phys.wetted`` hook on an arrival: each sees (w, eid, litres that reached it, liquid, source), and
+    while they run wetness_before(w, eid) is the wetness eid had before this arrival (the kernel writes the new wetness
+    first). Every kernel arrival goes through here (wet, rain, a wet item's seep). Returns the hooks' results."""
+    _WETTED.append((eid, wet_before))
+    try:
+        return run_hooks("phys.wetted", w, eid, liters, liquid, source)
+    finally:
+        _WETTED.pop()
+
+
+def wetness_before(w, eid):
+    """Inside a ``phys.wetted`` hook for eid: the wetness (0-1) eid had before the arrival the hook is seeing, so a
+    domain that adds up arrivals since a thing was last dry can tell it had dried in between (phase-1 close-out,
+    electrical's request: its ingress gathering learned of a drying only from its own system at order 77). None outside
+    such a call."""
+    for found, value in reversed(_WETTED):
+        if found == eid:
+            return value
+    return None
+
+
 def wet(w, eid, liters, liquid, source=None):
     """Liquid reaches eid (5.7): a soaking body takes it up to saturation (wetness and moisture rise by
     liters / absorb_l), anything else takes a surface film up to top area x 1.5 mm (wetness = film / that capacity).
-    Then every ``phys.wetted`` hook sees (w, eid, litres that reached it, liquid, source). Returns the litres kept."""
+    Then every ``phys.wetted`` hook sees (w, eid, litres that reached it, liquid, source) (run_wetted:
+    wetness_before gives the wetness before it). Returns the litres kept."""
     liters = max(0.0, num(liters))
     if liters <= 0:
         return 0.0
@@ -487,7 +513,7 @@ def wet(w, eid, liters, liquid, source=None):
         take = min(liters, film * (1.0 - wetness)) if film > 0 else 0.0
         if take > 0:
             w.mut(eid)["wetness"] = round(min(1.0, wetness + take / film), 4)
-    run_hooks("phys.wetted", w, eid, round(liters, 4), liquid, source)
+    run_wetted(w, eid, round(liters, 4), liquid, source, wetness)
     return round(take, 4)
 
 

@@ -996,8 +996,10 @@ TWIN_GROUPS = 6           # look-alike groups with a size spread twin-tested per
 ECHO_IDS = ("letter_6", "parcel_9_item_1", "spare_soap_jug", "m9")     # free text: every id-like word
 ECHO_SHAPED_IDS = ("letter_6", "parcel_9_item_1")    # other parameters: words shaped like generated ids
 # the unfamiliar things the novel twin probe compares (real registry types: an unknown name was silently dropped
-# before, so only two were twinned -- phase-1 red team); every one must exist when every domain is loaded
-NOVEL_TWINS = ("electric_kettle", "smartphone", "hair_dryer", "remote_control")
+# before, so only two were twinned -- phase-1 red team); every one must exist when every domain is loaded. The two
+# plain spray bottles carry a blank label (phase-1 close-out, mechanisms' report: an unfamiliar one read
+# {"label_text": ""} where an unfamiliar kettle had nothing legible, and no twin here had a blank label)
+NOVEL_TWINS = ("electric_kettle", "smartphone", "hair_dryer", "remote_control", "spray_bottle", "trigger_bottle")
 NOVEL_OPERATE = (("open", {}), ("switch_on", {}), ("switch_off", {}), ("take_photo", {}), ("read", {}))
 READ_OPERATE = (("read", {}), ("read_aloud", {}))     # the read probe's battery (compared by outcome form)
 # the look-alike group of the target-name echo probe: its member types (all must be known for the probe to run)
@@ -1784,8 +1786,9 @@ def main(argv):
     for e in errors[:15]:
         print("  crash:", e)
     if out:
-        Path(out).write_text(json.dumps({"leaks": [dict(seed=r["seed"], kind=k, owner=o, detail=d) for r in results + judged for k, o, d in r["leaks"]],
-                                         "errors": errors}, indent=1), encoding="utf-8", newline="\n")
+        with open(out, "w", encoding="utf-8", newline="\n") as f:     # Path.write_text(newline=) is 3.10+
+            f.write(json.dumps({"leaks": [dict(seed=r["seed"], kind=k, owner=o, detail=d) for r in results + judged
+                                          for k, o, d in r["leaks"]], "errors": errors}, indent=1))
     return 1 if by_kind or errors else 0
 
 

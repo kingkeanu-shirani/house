@@ -312,9 +312,16 @@ def require_tool(ctx, capability, tool_id=None, consume=True):
 
     tool_id restricts the check to that held tool. Broken, depleted (uses == 0) or empty-battery
     tools are refused. consume=True decrements `uses` when the tool tracks uses.
+
+    With realistic perception a held thing the robot takes for an unfamiliar (novel) one is no tool it knows of,
+    whatever it really is (review I4; phase-1 close-out, navigation_robot's request: a novel reacher "Retrieved ... with
+    the reacher" and a novel knife cut while any other novel thing was no tool): named, it gets the kernel's
+    identify-first refusal (Ctx.refuse_unfamiliar); unnamed, it is passed over.
     """
     w = ctx.w
-    candidates = [tool_id] if tool_id else w.held_items()
+    if tool_id:
+        ctx.refuse_unfamiliar(tool_id)
+    candidates = [tool_id] if tool_id else [eid for eid in w.held_items() if not ctx.unfamiliar(eid)]
     for eid in candidates:
         if not eid or not ctx.holding(eid):
             continue
@@ -548,6 +555,11 @@ def wrist_peek(ctx, target, where):
     require_access(problem is None, problem or "", _camera_category(problem))
     if record.get("private") and "touch:" + target not in state.get("approvals", []):
         _forbid(ctx, target, record, "private", "Private inspection requires permission", "privacy")
+    if where == "inside":
+        # an unfamiliar (novel) thing has no inside the robot knows of: the peek rules read its true openable and
+        # container flags ("It is closed; open it first" for a novel kettle, "There is nothing to look inside" for a
+        # novel bowl or brush; phase-1 close-out, admin_inventory's and pets' request), so one refusal for every one
+        ctx.refuse_unfamiliar(target)
     ok, reason, lift = camera.peek_access(state, target, where)
     require_access(ok, reason or "", _camera_category(reason))
     if lift:
@@ -692,6 +704,14 @@ CONTENT_FIELDS = {"liquid", "contents", "product", "chemical", "substance", "ing
 NOVEL_PRINT = ("text", "label_text")
 
 
+def printed_value(value):
+    """True when a printed field carries print (a non-blank string, or any other non-empty value): a blank label
+    ("" or spaces) prints nothing."""
+    if isinstance(value, str):
+        return bool(value.strip())
+    return value not in (None, [], {})
+
+
 @action("read", params={"target": "entity"}, duration=4.0, energy=0.0, category="perception",
         doc="Read printed text: labels, recipes, mail, manuals, displays. Needs the colour cameras.")
 def read(ctx):
@@ -716,10 +736,13 @@ def read(ctx):
         if k in record and record[k] not in (None, "", [], {}):
             text[k] = copy.deepcopy(record[k])
     novel = getattr(getattr(ctx.env, "realism", None), "novel_unidentified", None)
-    if ctx.realistic and (novel(target, record) if callable(novel) else bool(record.get("novel"))):
+    unfamiliar = ctx.realistic and (novel(target, record) if callable(novel) else bool(record.get("novel")))
+    if unfamiliar:
         # an unfamiliar thing (review I4; food's phase-1 request): only its printed text, whatever it is -- its true
-        # type's read-tier fields (a flour bag's allergens and net weight) told the types apart
-        text = {k: v for k, v in text.items() if k in NOVEL_PRINT}
+        # type's read-tier fields (a flour bag's allergens and net weight) told the types apart. A blank label prints
+        # nothing: it reads like no label (phase-1 close-out, mechanisms' request: an unfamiliar plain spray bottle
+        # read {"label_text": ""} where an unfamiliar kettle had nothing legible -- the field came from its type)
+        text = {k: v for k, v in text.items() if k in NOVEL_PRINT and printed_value(v)}
     if geometric:
         # TIER1_CAMERA 9.2: the head camera (10 px a character, the face seen, lit, no glare, a clean lens) or the
         # wrist within reach (+2 s; a held item turned to a free angle, +1 s); only what that camera can read
@@ -744,6 +767,13 @@ def read(ctx):
     w.sec("facts").setdefault("read", {})[target] = w.s["time_s"]
     w.sec("facts").setdefault("inspected", {})[target] = w.s["time_s"]
     ctx.grant(target, "read", sorted(text) if geometric else None)
+    if unfamiliar:
+        # the print reaches the agent as printed: the message's rewrite of an unfamiliar thing's true name inside its
+        # own print ("unfamiliar medium object - floating food ...") told it the print named the thing there (phase-1
+        # close-out, pets' request)
+        keep = getattr(ctx.env.realism, "keep_print", None)
+        if callable(keep):
+            keep(text.values())
     return json.dumps(text, sort_keys=True)
 
 
@@ -1166,6 +1196,11 @@ def place_item(ctx, target, dest, relation=None, spos=None, cell=None, shelf=Non
             m.pop(key, None)
     else:
         parent = ctx.obj(dest, touch=True, action="place")
+        # an unfamiliar (novel) destination is no receptacle or support the robot knows of: one refusal whatever it
+        # really is, before any check that reads what it is (review I4; phase-1 close-out, manipulation's request:
+        # "That cannot hold items" for a novel knife, "Placed ... in" for a novel bowl, "Open it first" for a novel
+        # mail piece). Domain verbs placing through here (stack, load, hang, dispose...) answer alike
+        ctx.refuse_unfamiliar(dest)
         require(dest != target and dest not in w.descendants(target), "Cannot place an object inside itself")
         relation = relation or ("in" if parent.get("container") else "on")
         broken = support_failed(parent, relation, shelf if shelf is not None else 0)

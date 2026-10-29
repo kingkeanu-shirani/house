@@ -240,13 +240,24 @@ class RememberedSubjectTests(unittest.TestCase):
                 # finish: people knowledge._known_record answers from the record the household knew)
                 result = env.step(action, **kw)
                 rows.append((result["ok"], result["category"], str(result["message"]).replace(name, "<subject>")))
+            for aspect in self.MORE_ASPECTS:
+                result = env.step("ask", target="ana", about=name, aspect=aspect, channel="text")
+                rows.append((result["ok"], result["category"], str(result["message"]).replace(name, "<subject>")))
             out[eid] = rows
         return out
 
+    # what is to happen to a thing (manipulation's answerer, manip:<key>:<entity>): "I'm not sure what you mean." for
+    # a destroyed thing where one out of view got its answer, until the phase-1 close-out (manipulation
+    # world._known_record; finish_breakages.json asked for these aspects here once fixed). Whatever answers them (no
+    # domain at all with HOUSE_SIM_DOMAINS=core), both things get the same answer
+    MORE_ASPECTS = ("keep", "intended", "how", "status")
+
     def test_a_destroyed_thing_is_reported_and_asked_about_like_one_out_of_view(self):
+        first = 4       # the report and ask rows above MORE_ASPECTS succeed for the thing out of view
         for perception in ("realistic", "oracle"):
             out = self.run_case(perception)
-            self.assertTrue(all(ok for ok, _, _ in out["apple_a"]), out["apple_a"])
+            self.assertTrue(all(ok for ok, _, _ in out["apple_a"][:first]), out["apple_a"])
+            self.assertEqual(len(out["apple_a"]), first + len(self.MORE_ASPECTS))
             self.assertEqual(out["apple_a"], out["apple_b"], perception)
 
     def test_a_thing_never_seen_is_still_refused(self):
@@ -307,6 +318,130 @@ class UnfamiliarThingTests(unittest.TestCase):
         entity = floor_thing((2, 1), label="thing", novel=True, openable=True, open=False)
         env = env_of({"thing_1": entity}, perception="oracle")
         self.assertTrue(env.step("open", "thing_1")["ok"])
+
+
+TABLE = {"type": "table", "location": "lab", "pos": [2, 1], "accepts_items": True, "surface": True}
+HELD_CUP = {"type": "generic_item", "location": "robot", "relation": "held", "held_hand": "right", "label": "cup",
+            "portable": True, "size_m": [0.08, 0.08, 0.1], "mass_kg": 0.2}
+
+
+class UnfamiliarCloseOutTests(unittest.TestCase):
+    """NOVEL, phase-1 close-out (the domains' kernel requests in catalog/analysis/phase1/closeout_*.json): an unfamiliar
+    thing was still told apart by a blank label that read {"label_text": ""} (mechanisms), by its print coming back with
+    its true name rewritten (pets), as a destination of core place (manipulation), as a held tool of core require_tool
+    (navigation_robot), when a nested leaf operated it (manipulation) and by a wrist look inside it (admin_inventory,
+    pets). Each case now answers alike for every true kind; oracle mode is unchanged."""
+
+    LOOK = {"label": "thing", "size_m": [0.2, 0.15, 0.25], "novel": True, "material": "plastic", "color": "grey"}
+    DESTINATIONS = {"plain": {}, "bowl": {"container": True, "accepts_items": True, "capacity_l": 2.0},
+                    "lidded": {"container": True, "accepts_items": True, "openable": True, "open": False},
+                    "tray": {"surface": True, "accepts_items": True}}
+
+    def on_table(self, **props):
+        out = {"type": "generic_item", "location": "table_1", "relation": "on", "portable": True}
+        out.update(self.LOOK)
+        out.update(props)
+        return out
+
+    @staticmethod
+    def row(result):
+        return result["ok"], result["category"], result["message"]
+
+    def test_a_blank_label_reads_like_no_label(self):
+        seen = {}
+        for name, props in (("none", {}), ("blank_label", {"label_text": ""}), ("blank_text", {"text": "  "}),
+                            ("both", {"label_text": "", "text": ""})):
+            entity = floor_thing((2, 1), **dict(self.LOOK, **props))
+            env = env_of({"thing_1": entity})
+            handle = handle_of(env, "thing_1")
+            glance = sorted(env.observe()["visible_entities"][handle])
+            env.step("approach", handle)
+            inspect = sorted(json.loads(env.step("inspect", handle)["message"]))
+            seen[name] = (glance, inspect, self.row(env.step("read", handle)))
+        for name in seen:
+            self.assertEqual(seen[name], seen["none"], name)
+        self.assertEqual(seen["none"][2], (False, "perception", "There is nothing legible to read on it"))
+
+    def test_the_print_of_an_unfamiliar_thing_reads_as_printed(self):
+        printed = "Fish flakes - floating food for surface fish"
+        entity = floor_thing((2, 1), **dict(self.LOOK, label="fish flakes", label_text=printed))
+        env = env_of({"thing_1": entity})
+        handle = handle_of(env, "thing_1")
+        env.step("approach", handle)
+        result = env.step("read", handle)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(json.loads(result["message"]), {"label_text": printed})
+        self.assertTrue(env.realism.novel_unidentified("thing_1"))           # reading it identifies nothing
+
+    def test_an_unfamiliar_destination_is_no_receptacle_or_support(self):
+        seen = {}
+        for name, props in self.DESTINATIONS.items():
+            rows = []
+            for relation in (None, "in", "on"):
+                env = env_of({"thing_1": self.on_table(**props), "table_1": dict(TABLE), "cup_1": dict(HELD_CUP)},
+                             robot={"hands": {"right": "cup_1", "left": None}})
+                handle = handle_of(env, "thing_1")
+                env.step("approach", handle)
+                kw = {"relation": relation} if relation else {}
+                rows.append(self.row(env.step("place", env.realism.handles.handle("cup_1"), destination=handle, **kw)))
+                self.assertEqual(env.world.s["entities"]["cup_1"]["location"], "robot")
+            seen[name] = rows
+        for name in seen:
+            self.assertEqual(seen[name], [(False, "precondition", NOVEL_OPERATE_MESSAGE)] * 3, name)
+        env = env_of({"thing_1": self.on_table(**self.DESTINATIONS["bowl"]), "table_1": dict(TABLE),
+                      "cup_1": dict(HELD_CUP)}, perception="oracle", robot={"hands": {"right": "cup_1", "left": None}})
+        env.step("approach", "thing_1")
+        self.assertTrue(env.step("place", "cup_1", destination="thing_1")["ok"])      # oracle: a bowl holds it
+
+    def test_an_unfamiliar_held_thing_is_no_tool(self):
+        import random
+        from house_sim.kernel.actions import ACTIONS, Ctx
+        from house_sim.kernel.errors import ActionError
+        from house_sim.systems.core import require_tool
+
+        def attempt(props, perception, named):
+            held = dict(HELD_CUP, **dict(self.LOOK, **props))
+            env = env_of({"knife_1": held}, perception=perception, robot={"hands": {"right": "knife_1", "left": None}})
+            ctx = Ctx(env, ACTIONS["look"], {}, random.Random(0))
+            try:
+                return require_tool(ctx, "cut", "knife_1" if named else None, consume=False)
+            except ActionError as exc:
+                return exc.category, str(exc)
+
+        knife = {"affordances": ["cut"], "tool_kind": "knife"}
+        for named, expected in ((True, ("precondition", NOVEL_OPERATE_MESSAGE)),
+                                (False, ("capability", "Hold a tool that can cut"))):
+            self.assertEqual(attempt(knife, "realistic", named), expected)
+            self.assertEqual(attempt({}, "realistic", named), expected)
+            self.assertEqual(attempt(knife, "oracle", named), "knife_1")
+
+    def test_a_nested_leaf_operates_no_unfamiliar_thing(self):
+        from house_sim.kernel.errors import ActionError
+        seen = {}
+        for name in ("lidded", "plain"):
+            env = env_of({"thing_1": self.on_table(**self.DESTINATIONS[name]), "table_1": dict(TABLE)})
+            env.step("approach", handle_of(env, "thing_1"))
+            env.world.begin()
+            try:
+                seen[name] = env.perform({"action": "open", "target": "thing_1"})
+            except ActionError as exc:
+                seen[name] = (exc.category, str(exc))
+            env.world.rollback()
+        self.assertEqual(seen["lidded"], ("precondition", NOVEL_OPERATE_MESSAGE))
+        self.assertEqual(seen["plain"], seen["lidded"])
+
+    def test_a_look_inside_an_unfamiliar_thing_is_refused_alike(self):
+        seen = {}
+        for name in ("lidded", "bowl", "plain"):
+            env = env_of({"thing_1": self.on_table(**self.DESTINATIONS[name]), "table_1": dict(TABLE)},
+                         camera="geometric")
+            env.step("look")
+            handle = handle_of(env, "thing_1")
+            self.assertIsNotNone(handle, name)
+            env.step("approach", handle)
+            seen[name] = [self.row(env.step(action, handle, where="inside")) for action in ("peek", "inspect")]
+        for name in seen:
+            self.assertEqual(seen[name], [(False, "precondition", NOVEL_OPERATE_MESSAGE)] * 2, name)
 
 
 SPREAD_TYPES = {

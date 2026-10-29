@@ -769,6 +769,48 @@ class RoutePriorityTests(unittest.TestCase):
         self.assertEqual(dialogue.weak("x:y"), "x:y")
 
 
+class KnownRecordTests(unittest.TestCase):
+    """Phase-1 close-out (manipulation's request): a dialogue route got no env, so it could not route a thing destroyed
+    out of view like one merely out of view (its record is gone from the state; the household's record of it is the
+    env's baseline), and people and manipulation each kept a copy of that rule. dialogue.known_record is the kernel's
+    rule; a route registered with takes_env=True is given env=."""
+
+    def test_the_record_the_household_knows(self):
+        env = env_of()
+        state = env.world.s
+        self.assertIs(dialogue.known_record(env, state, "book_1"), state["entities"]["book_1"])
+        before = copy.deepcopy(state["entities"]["book_2"])
+        env.world.begin()
+        state["entities"].pop("book_2")         # thrown out out of view
+        env.world.commit()
+        self.assertEqual(dialogue.known_record(env, state, "book_2"), before)
+        self.assertIsNone(dialogue.known_record(env, state, "book_99"))      # never was
+        self.assertIsNone(dialogue.known_record(None, state, "book_2"))       # without an env: the state only
+
+    def test_a_route_registered_with_takes_env_is_given_env(self):
+        seen = []
+
+        def plain(state, pid, subject, aspect, detail, act):
+            seen.append("plain")
+            return None
+
+        def with_env(state, pid, subject, aspect, detail, act, env=None):
+            seen.append(("env", env))
+            return None
+        for name, fn, takes in (("test.plain_route", plain, False), ("test.env_route", with_env, True)):
+            dialogue.route(name, ("test_aspect",), fn, takes_env=takes)
+            entry = dialogue.ROUTES[-1]
+            self.addCleanup(dialogue.ROUTES.remove, entry)
+            self.addCleanup(dialogue._ROUTE_NAMES.pop, name, None)
+            self.addCleanup(dialogue._ROUTE_ENV.discard, name)
+        env = env_of()
+        dialogue.find_route(env.world.s, "ann", None, "test_aspect", None, None, env=env)
+        self.assertEqual(seen, ["plain", ("env", env)])
+        seen[:] = []
+        dialogue.find_route(env.world.s, "ann", None, "test_aspect", None, None)
+        self.assertEqual(seen, ["plain", ("env", None)])
+
+
 class LintTests(unittest.TestCase):
     def test_facts_are_validated(self):
         good = {"id": "f", "about": "type:bed", "aspect": "preference", "detail": "pillow_layout", "value": 1}
