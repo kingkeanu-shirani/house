@@ -937,5 +937,90 @@ class KnownMapNotWrittenTests(unittest.TestCase):
             self.assertEqual(leaks(env.known_map(), set(env.world.s["entities"])), set(), seed)
 
 
+class HazardOrderTests(unittest.TestCase):
+    """obs.grid.hazards lists one cell's sources by handle, never by spawn order or true id (review I11)."""
+
+    def test_a_hazard_source_that_is_gone_sorts_by_handle_not_by_id(self):
+        """review I11 residual: a room's floor_hazards may still name a source that is gone (a spilled jug destroyed);
+        such a source sorted by its true id among the cell's other sources. Every source that is not a person, a pet
+        or a room (public ids) sorts by the handle it has or would get."""
+        env = HouseEnv(generate_house(2), seed=2, perception="realistic", trace=False)
+        state, realism = env.world.s, env.realism
+        thing = sorted(state["entities"])[0]
+        person = sorted(state.get("people") or {"nobody": None})[0]
+        room = state["robot"]["room"]
+        for src in (thing, "spilled_jug_gone_7"):
+            self.assertEqual(realism._source_order(state, src), (0, realism.handles.peek(src)), src)
+        self.assertEqual(realism._source_order(state, room), (1, room))
+        if person in (state.get("people") or {}):
+            self.assertEqual(realism._source_order(state, person), (1, person))
+        self.assertNotIn("spilled_jug_gone_7", realism.handles.by_id)          # peeked, never issued
+
+
+def _auditor():
+    sys.path.insert(0, str(ROOT / "tools"))
+    import perception_audit
+    return perception_audit
+
+
+@unittest.skipUnless(enabled_domains() is None, "the auditor's probes spawn types of several domains")
+class AuditorProbeTests(unittest.TestCase):
+    """tools/perception_audit.py's differential probes catch the class they name (phase-1 red team, second pass:
+    red_leaks I11 "hazards of one cell by handle" and the destroyed-vs-out-of-view report / ask battery)."""
+
+    def test_the_hazard_order_probe_checks_the_order_of_handles(self):
+        """FIX2's probe compared the two spawn orders only, so a listing by true id (spawn-independent too, and the
+        order of the authored ids) passed; it also passed when nothing was listed."""
+        pa = _auditor()
+        for seed in range(2):
+            found, errors = pa._probe_target(seed, None)
+            self.assertEqual(([f for f in found if "hazard" in f[2]], errors), ([], []), seed)
+        caught = []
+        with mock.patch.object(realism_module.Realism, "_source_order", lambda self, state, src: (0, str(src))):
+            for seed in range(8):           # the handles' order is the ids' order on about half of the seeds
+                found, _ = pa._probe_target(seed, None)
+                caught += [f for f in found if "not listed in handle order" in f[2]]
+                if caught:
+                    break
+        self.assertTrue(caught, "a listing by true id went unnoticed")
+        with mock.patch.object(realism_module, "HIDDEN_HAZARD_KINDS", set(realism_module.HIDDEN_HAZARD_KINDS) |
+                               {"floor_item"}):
+            _, errors = pa._probe_target(0, None)
+        self.assertTrue(any("proved nothing" in e for e in errors), errors)
+
+    def test_the_echo_battery_compares_reports_and_asks_on_destroyed_and_out_of_view_things(self):
+        """red_leaks: a typed report on a thing destroyed out of view was refused ('You have not seen that') while one
+        merely out of view was accepted (FIX2 fixed it in kernel/reports.py and kernel/dialogue.py); the battery must
+        see the difference if it comes back."""
+        pa = _auditor()
+        found, errors = pa._probe_echo(1, None)
+        self.assertEqual(errors, [])
+        self.assertEqual([f for f in found if "destroyed" in f[2]], [])
+        from house_sim.kernel import dialogue
+        with mock.patch.object(dialogue, "remembered_ids", lambda env: {}):
+            found, _ = pa._probe_echo(1, None)
+        self.assertTrue(any(f[2].startswith("report on a handle answers differently for a destroyed thing")
+                            for f in found), found)
+
+    def test_the_read_probe_compares_the_outcome_form_of_every_member(self):
+        """Phase-1 finish (people's request, INT2): read and read_aloud of an unresolved pill bottle were refused for
+        one member alone (found by hand while G4 stayed green). The read probe twins every member of every look-alike
+        group: a member refused alone while unresolved is a leak; the printed text itself may differ."""
+        pa = _auditor()
+        members = sorted(registry_module.default_registry().lookalike_types()["pill_bottle"])
+        found, errors = pa._probe_reads(0, None, "pill_bottle", members)
+        self.assertEqual((found, errors), ([], []))
+        real = pa._agent_step
+
+        def refusing(env, action, target="", destination="", **kwargs):
+            if action == "read" and env.world.s["entities"]["probe_twin_1"]["type"] == members[-1]:
+                return False, "perception", "There is nothing legible to read on it", 4.0
+            return real(env, action, target, destination, **kwargs)
+        with mock.patch.object(pa, "_agent_step", refusing):
+            found, _ = pa._probe_reads(0, None, "pill_bottle", members)
+        self.assertTrue(any("at read" in f[2] and members[-1] in f[2] for f in found), found)
+        self.assertIn(("probe", "read", 0, None, ("pill_bottle", members)), pa.probe_jobs(0, None))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -33,6 +33,19 @@ name (the cleaning solution travels under a `ctx.data` contract and is counted o
 turns to half a turn; the stain description has its own inspect key; `plumbing_liquids.goto` brings its target into
 view before approaching through a wet room with the geometric camera (T-3b1a4024d46110-01 seed 97). 168 unit tests
 pass normal, strict and with only `core,plumbing_liquids`; both spec files pass on the five seeds in their own modes.
+Phase 1 finish (the domain's breakage rows and red-team findings; section 0d): a closed sprayer, pump head, cap, seal or
+lid pours nothing ("Open it first", one wording); every splash, spill, overflow, drip and hose spray of this domain
+wets through the kernel's `phys.liquids.wet`, so `phys.wetted` hooks (electrical's ingress and attribution, food's
+contamination) see it and the amount that reaches a thing decides its wetness and water damage; food, mail and packing
+material are no waste bins; the garbage disposal drains (`watertight: false`; a pour into it goes down its sink); an
+unfamiliar thing gets the kernel's one identify-first refusal from `fill`, `pour` and `empty`; cup and flange plungers
+are one size and the house main has a look-alike group of its own (no size spread left in this domain's groups); a
+close look feels a vessel only when a hand can reach it, and a product bottle like any vessel (cleaning's request); a
+cramped extra bathroom goes without a stall rather than hide a window blind or stand under a wall cabinet; the water
+system's per-substep cost is lower (section 3) with identical states. 179 unit tests pass normal, strict and with only
+`core,plumbing_liquids`; both spec files pass on the five seeds in their own modes (the perception specs also with the
+geometric camera); over all 243 authored specs x 5 seeds no verdict changes (own mode, and the 51 realistic ones with
+the geometric camera).
 
 | Module | Contents |
 |---|---|
@@ -191,9 +204,32 @@ a regression test in `tests/test_plumbing_liquids.py` (`ReviewPhase1`, plus the 
 | T-3b1a4024d46110-01 failed on seed 97 with the geometric camera: `plumbing_liquids.goto` approached a sink base it had never seen in a wet kitchen | `skills._into_view`: in a wet room with the geometric camera it first walks to the nearest viewpoint that sees the target (`sight.best_viewpoints`), dry when it can, carefully through the water otherwise, as the core approach skill does in dry rooms |
 
 Look-alike groups: no LookalikeWarning names this domain's groups. A twin probe of `water_valve` (main vs fixture stop)
-and `rubber_plunger` (flange vs cup) finds identical glance records, refusals and clocks for every non-resolving action
+and `rubber_plunger` (flange vs cup) found identical glance records, refusals and clocks for every non-resolving action
 in both camera modes except the counted turns above and, with the geometric camera, the `view.px` / `elev_deg` of the
-members' true sizes (the review's M1 kernel item: the camera should size an unresolved look-alike by the group size).
+members' true sizes; the phase-1 finish (section 0d) removed the size spreads at the root (same-size plungers, the
+main in a group of its own), so neither group is in `registry.lookalike_spreads` any more.
+
+## 0d. Phase 1 finish: the domain's breakage rows and red-team findings
+
+`catalog/analysis/phase1/breakages.json` rows owned by this domain, the red team's look-alike size finding
+(`red_leaks.json`, review L2 residual) and cleaning's request of this phase. Regression tests:
+`tests/test_plumbing_liquids.py` `Phase1Finish` (each fails on the phase-1 tree, except the guard that spouted and
+loose-lidded vessels still pour with the lid on) and `CounterSpaceAndPipes.test_look_alike_groups_show_one_size_at_a_glance`.
+
+| Finding | Fix |
+|---|---|
+| Cleaning's request: pouring from a closed trigger sprayer or pump head poured its 0.75 L, unlike every closed container | `transfer.closed_for_pouring`: the kernel's closed container (`phys.liquids.container_closed`: a closed lid or cap, a seal, a closed zipper or closure, a trigger or pump head) pours nothing from `pour`, `empty` and `fill` (from a held container: `fill` never checked its source before); an open pour spout (a carton, the filter pitcher) and a spouted or loose-lidded vessel whose only closure is its lid (a teapot or kettle) still pour. One refusal for all of them, "Open it first", so a look-alike's members (every `spray_bottle` member has a trigger) answer alike |
+| Electrical's request: this domain's spills and splashes wrote `wetness` directly, so no `phys.wetted` hook ran (T-686df131c7c736-01 seed 1: three appliances on the counter reached wetness 0.5, a breaker tripped 8 s later and the fridge's power loss read as exogenous) | `common.wet(w, eid, liters, liquid, source)` is the kernel's `phys.liquids.wet` (a soaking body saturates, anything else takes a film of at most 1.5 mm over its top; every `phys.wetted` hook sees the litres and the source). Every wetting of this domain goes through it with the litres that reach the thing: a spill on a surface reaches what stands on it by its footprint's share of the top (`common.share_on`), a pour over a thing or a container's contents all of it (shared among the contents), a tap stream splashes about a third of the outer film (at most 10 ml), a shaken drink sprays a quarter of its spray onto what the other hand holds (`liquids.split_parcel`), an overflow runs down the basin's cabinet, a tilted ice tray onto its shelf, drips onto what they land on (gear and water-sensitive things are no drip catchers, whatever their case: `leaks._water_sensitive`), and a hose spray onto its target (`outdoor.rinse_entity`, which then leaves the faces it hit drenched as before). A water-sensitive thing is water damaged only when at least `common.WATER_DAMAGE_L` (0.02 L, electrical's `INGRESS_L`) reached it or gathered on it: a glug's few ml beside a toaster wet it a little and damage nothing, a litre run over the counter does |
+| Food's request: dumping a bucket onto a slice of bread "emptied" the litres into it (`liquid_in_bin_l`, `leaking`) and they vanished | `transfer.is_bin`: a bin is a record with a `waste_stream` that core takes for a real waste container (`core.is_waste_container`: waste-container types and categories that accept items, `waste_bin`, wheeled carts); food, mail, packing material and batteries carry `waste_stream` only as the stream they go to. The bucket now wets the bread, contaminates it by what it carries and runs off onto the counter and the floor |
+| Kernel holders: the garbage disposal pooled kernel pours, drips and spills (it drains) | Type data: `garbage_disposal` `watertight: false` (kernel `holds_liquid` and this domain agree). This domain's `pour` / `empty` into the disposal go in through its sink's drain opening (`transfer.disposal_sink`: the disposal hangs from the sink and the sink names it), not onto the cabinet floor |
+| Red team novel sweep (review I4): `fill` told an unfamiliar kettle and bleach jug ("Hold the container you are pouring from") from the rest ("That is not a water or liquid source") | `pour`, `empty` and `fill` declare `operates=True` (the kernel refuses an unfamiliar target before any hook) and refuse an unfamiliar source (`fill`) or destination (`pour`, `empty`) with the kernel's `NOVEL_OPERATE_MESSAGE` (`seen.refuse_novel`); oracle mode is unchanged |
+| Red team / review L2 residual: look-alike members differ in true size behind a group `size_m` (rubber_plunger 0.45-0.55 m, water_valve 0.06-0.12 m), so the geometric camera's elevation, occlusion and pixels told them apart | Cup and flange plungers are both 0.15 x 0.15 x 0.5 m (the group's size; real cup and flange plungers both come with 0.45-0.55 m handles; the flange's extra rubber stays in its mass and volume). The house main is really larger than a fixture stop (a 3/4 in gate or ball valve on the service line against a 3/8 in angle stop), so it has its own group `main_water_valve` ("large water valve", its true 0.12 x 0.12 x 0.15 m, resolved by `inspect`; the type's perception `looks_like`), and `water_valve` shows the stops' true size 0.06 x 0.06 x 0.08 m and no longer lists "main water shutoff" among its candidates. `registry.lookalike_spreads` lists none of this domain's groups |
+| Cleaning's phase-1 request: the realistic inspector felt a vessel's temperature (and granted the touch) on any close look, also one the geometric head camera makes from out of arm's reach (the kernel's grant gate refused the touch, so strict mode raised), and only for vessels holding litres, so a product bottle (an amount) was felt unlike its look-alike refill | Every feel of `plumbing_liquids.details` (the stream, the basin water, the vessel, a damp board pressed) needs a hand on the thing: `seen.can_touch` asks the kernel's grant gate (`Realism.grant_problem` for a touch) first, and a close look from afar feels nothing. A product bottle holding an amount is felt like any closed vessel (`perception._product_amount`) |
+| Generation-2 layout follow-ups: a shower stall stood in front of a window blind (apartment seed 29) and under an upper cabinet (house seed 20 with laundry room, basement and nursery) | `furnish.furniture_keeping_reach` also refuses a spot in front of a wall mount the piece would hide (`furnish.hidden_cells`: the layout audit's "hidden mount" rule), judged per try so the spots are shuffled with the same randomness as before; when the required stall fallback would still stand under a wall cabinet or hide a mount (`furnish.unsound_spot`) in a house with another bathroom, that cramped bathroom goes without (`_ensure_bathing` puts the plain stall back if no bathroom of the house has a tub or shower). Only those two audit houses change; every generation-1 house and every authored spec house (generation 2 included) keeps its placements |
+
+Generation-1 digests: the type-data changes alter record fields of generated houses (never a placement): `size_m` of
+`cup_plunger` and `flange_plunger`, and the new `watertight` of `garbage_disposal` (requests in
+`catalog/analysis/phase1/finish_plumbing_liquids.json`).
 
 ---------------------------------------------------------------------------------------------------------------
 
@@ -210,13 +246,13 @@ members' true sizes (the review's M1 kernel item: the camera should size an unre
 | `toilet` | tank_l 6 (1.6 gpf), bowl_l 1.9 (normal), bowl_rim_l 6.5, fill 9 L/min, `settings.supply_valve`, `_supply_seized`, `_tank` (tools_vehicles contract incl. `fill_valve_ok`, `stuck_lpm`), `_clog`, `cover_open` (tank lid), `open` (seat lid), bowl `inner_floor_m` 0.25 | `flush_handle` so mechanisms' levers flush it |
 | `outdoor_spigot` | faucet spigot 18 L/min, `settings.valve`, `frost_free`, `interior_valve` (standard), `drained` | mounted 0.45 m on the house wall |
 | `shutoff_valve` | `valve_kind` multi_turn_stop/quarter_turn_stop/gate/ball, `turns_to_close` 2.5, `settings.position` 0..1, `valve_open`, `line`, `feeds`, `feeds_hot`, `_seized`, `mech.rotary` (mechanisms' `turn` works) | |
-| `main_shutoff_valve` | gate 6 turns (or ball 0.25), `main`, label_text "MAIN" | |
+| `main_shutoff_valve` | gate 6 turns (or ball 0.25), `main`, label_text "MAIN" | 0.12 x 0.12 x 0.15 m, larger than a 0.06 x 0.06 x 0.08 m fixture stop: its own look-alike group `main_water_valve` (section 4b) |
 | `water_meter` | `display` (cumulative L), `flow_indicator` | readable with `read` |
 | `water_heater` | tank_l 190, `tank_temp_c`, `settings.temp_c` 49 (dial), recovery 9 kW gas / 4.5 kW electric; wall-hung `tankless` units (`furnish.TANKLESS`: 0.5 L exchanger, 44 kW gas / 24 kW electric) | drawing hot water cools the tank; it reheats. A tankless unit delivers the setpoint on demand while it has gas/power and stores nothing (cools within ~5 min of a cut). Tanks stand in a basement, utility closet, garage, or a laundry room/pantry of at least 6 m2 that still has a washer spot; never in a kitchen - otherwise the house gets a tankless unit |
 | `water_pipe` | exposed run; `condensation_prone`, may hold `_leak` | runs along its wall at 2.1 m (`furnish.lay_pipe`: rot 90 on the west/east walls; a run longer than its wall - 2 m in a 1.5 m utility closet - is cut to the wall's length, mass in proportion) |
 | `drain_trap` | P-trap under a basin (drain-side leaks) | |
 | `floor_drain`, `storm_drain` | `floor_drain` (sanitary), `storm_drain` ("NO DUMPING - DRAINS TO CREEK") | |
-| `garbage_disposal` | `_jam` (tools_vehicles' `reset_disposal` contract), switchable, 5.5 kg | hangs from the sink's drain flange: an installed part of the sink base (`relation` part, cabinet `slots.disposal` access open, `hangs_from` the sink, `z_m` ~0.3 m), so it is hidden while the doors are closed, cannot be picked up, and never loads the cabinet shelf (admin_inventory's shelf rating counts only items `in` it); the sink's `disposal` names it |
+| `garbage_disposal` | `_jam` (tools_vehicles' `reset_disposal` contract), switchable, 5.5 kg, `watertight: false` (it drains: no liquid pools in it; a pour into it goes down its sink) | hangs from the sink's drain flange: an installed part of the sink base (`relation` part, cabinet `slots.disposal` access open, `hangs_from` the sink, `z_m` ~0.3 m), so it is hidden while the doors are closed, cannot be picked up, and never loads the cabinet shelf (admin_inventory's shelf rating counts only items `in` it); the sink's `disposal` names it |
 | `irrigation_controller` | `driver` plumbing_liquids, settings mode auto/off/rain_delay, rain_delay_h 24/48/72 (app controls: core `set` works), `zones`, `program`, `rain_sensor`, `delay_until_s`, `display` | |
 | `sprinkler_head`, `oscillating_sprinkler` | outdoor_plants emitter contract: `irrigation_emitter`, `on`, precip 40 / 12 mm/h, radius 4 / 6 m, 7.5 / 12 L/min | the oscillating one attaches to a hose |
 | `rain_barrel` | 200 L, rainwater (non-potable), bottom spigot (`dispenser_spigot`) | |
@@ -226,7 +262,7 @@ members' true sizes (the review's M1 kernel item: the camera should size an unre
 | `hose_nozzle` | settings pattern (jet/full/flat/shower/cone/mist/soaker/angle), trigger, `washer` | |
 | `hose_hanger`, `hose_reel` | `hose_storage` (placing a hose `hung` coils it) | |
 | `hose_washer` | part_type hose_washer_3_4 | |
-| `flange_plunger`, `cup_plunger` | `plunger_kind` flange/cup, handles; neutral labels "flange plunger" / "cup plunger" (look-alike group `rubber_plunger`) | |
+| `flange_plunger`, `cup_plunger` | `plunger_kind` flange/cup, handles; neutral labels "flange plunger" / "cup plunger" (look-alike group `rubber_plunger`); both 0.15 x 0.15 x 0.5 m (flange 0.45 kg / 2 L, cup 0.35 kg / 1.5 L) | |
 | `sink_stopper` | `stopper_for` basket | |
 | `utility_bucket` (19 L, fill line 15), `watering_can` (7.5 L, rose), `water_pitcher` (2 L), `drink_pitcher`, `filter_pitcher` (reservoir 1.1 L -> 1.4 L at 0.12 L/min, cartridge slot, indicator), `pitcher_filter_cartridge` (150 L, `discard_fills`, `hot_damaged`), `water_bottle` (750 ml, cap = openable; residents' bottles carry a read-tier `name_label` sticker, label "water bottle"), `water_carafe` (1 L), `drink_dispenser` (7.5 L with spigot) | liquid containers with `has_handle`/`handle_rating_kg` where they have handles | |
 | `appliance_supply_hose` | behind its appliance (relation behind), hose_kind, `slack_m`, date stamp, hidden `_defect` | |
@@ -248,8 +284,8 @@ potable/drinkable/alcohol/foam/grease/chemical/biohazard flags and the residue i
 | `turn_off_water` | target; handle left/right/both (both); force gentle/normal/firm | reach | closes; a worn washer keeps dripping; force=firm on compression (two-handle, spigot) crushes the washer: `damage`, bigger drip; gravity diverter drops to tub | 2 s |
 | `plug_drain` | target basin; tool (sink stopper) | basin has a stopper (argument); basket drains need a held stopper (capability) | plug closed (stopper attached) | 3 s |
 | `drain` | target basin / garden hose / container with drain spigot; tool (tongs/hook) | plug closed; hose: spigot off and pressure relieved (precondition) | opens the plug; groping for a basket stopper in murky water with a sharp item in it = `safety_violations`; hose: laid out straight (kinks 0 if the room is >= 6 m) and emptied where you stand | 4 s / 60 s |
-| `fill` | target; source tap/dispenser/container/ice source; amount_l / to_frac / until fill_line\|brim; temp; flow; count; tool; keep_running | container held at the tap or in its basin (precondition); open (precondition) | opens a closed tap at temp/flow and closes it after; water identity (hose water from a spigot hose, filtered water and carbon fines from filter hosts, bathroom-tap truth); fill error +-2 % slow / 5 % full flow (`until=brim` only overshoots: the rim is the stop signal, so a brim fill runs over / joins tray cells); overflow into the basin or onto what it stands on; ice trays set `cell_fill` (> 100 % joins the cells); filter pitchers fill the reservoir (hot water damages the cartridge); basins (no source): attended fill from the running tap, closed at the level or after 90 s if the drain is open; ice: count cubes with a scoop/tongs, else the glass (chips, glass shards in the bin) or a hand (bacteria), displacement overflow | 2 s + volume/flow (realistic: whole seconds, see 4b) |
-| `pour` | target held source; destination; amount_l / to_frac / until; rate slow/normal/fast; spout up/down; through funnel/strainer; tilt_glass; hold_lid | source held and open (precondition) | see transfer model below; food liquids (cartons with `food`) delegate to food's `transfer` | 2 s + volume/rate (realistic: from the estimated volume, whole seconds; see 4b) |
+| `fill` | target; source tap/dispenser/container/ice source; amount_l / to_frac / until fill_line\|brim; temp; flow; count; tool; keep_running | container held at the tap or in its basin (precondition); open (precondition); a source container held and not closed (precondition, as `pour`); an unfamiliar target or source: the kernel's identify-first refusal (precondition) | opens a closed tap at temp/flow and closes it after; water identity (hose water from a spigot hose, filtered water and carbon fines from filter hosts, bathroom-tap truth); fill error +-2 % slow / 5 % full flow (`until=brim` only overshoots: the rim is the stop signal, so a brim fill runs over / joins tray cells); overflow into the basin or onto what it stands on; ice trays set `cell_fill` (> 100 % joins the cells); filter pitchers fill the reservoir (hot water damages the cartridge); basins (no source): attended fill from the running tap, closed at the level or after 90 s if the drain is open; ice: count cubes with a scoop/tongs, else the glass (chips, glass shards in the bin) or a hand (bacteria), displacement overflow | 2 s + volume/flow (realistic: whole seconds, see 4b) |
+| `pour` | target held source; destination; amount_l / to_frac / until; rate slow/normal/fast; spout up/down; through funnel/strainer; tilt_glass; hold_lid | source held and not closed (precondition: "Open it first" for a closed lid, cap, seal, zipper or closure and for a trigger or pump head; an open pour spout, a spout or a loose lid pours with the lid on); an unfamiliar source or destination: the kernel's identify-first refusal (precondition) | see transfer model below; food liquids (cartons with `food`) delegate to food's `transfer` | 2 s + volume/rate (realistic: from the estimated volume, whole seconds; see 4b) |
 | `empty` | target; destination; force | held, open (precondition); destination given (argument) | pours everything; ice trays release cubes (cold tray + firm = cracked, gentle/normal leave some stuck; over the floor: a melting slip hazard); `target=sink` dumps the strainer into a bin | 5-10 s |
 | `wring` | target wet cloth/towel/mop; destination; method hand/wringer | wet enough (precondition) | water (dirty/mop water if soiled/chemical) into the destination or onto the floor; wetness 0.3 / 0.15 | 6 s |
 | `shut_off` | target valve / fixture / toilet; force; turns; direction cw/ccw; method valve/float | reach; stops must be visible (open the cabinet: perception); seized stems refuse unless force=firm (precondition) | closes; partial turns, ccw does nothing; force=firm on a seized stem snaps it (`broken`, spraying `_leak`); toilet float propping needs the tank lid off | 1.5 s + ~1.2 s/turn |
@@ -274,7 +310,10 @@ container that is not (a roll-top bread box, a colander) or a surface lets it ru
 stands on; liquid that reaches food or food-contact things contaminates them by what it carries
 (`transfer.reached_contents`); grease/oil into any drain grows a `_clog`; anything but plain water into a
 storm drain or onto soil/plants = pollution; dirty/mop/toilet water or chemicals into a kitchen sink contaminate it
-and the dishes in it (`plumbing_liquids.food_zone`); liquid into a trash bin (`leaking`, `plumbing.counts.bad_disposal_l`);
+and the dishes in it (`plumbing_liquids.food_zone`); liquid into a trash bin (`leaking`, `plumbing.counts.bad_disposal_l`;
+a bin is a real waste receptacle, `transfer.is_bin`: food, mail or packing material that names its waste stream is a
+surface the liquid runs over); poured or emptied into the garbage disposal it goes down the disposal's sink;
+what liquid reaches gets wet through the kernel's wetting (`common.wet`, section 0d);
 products: `product_tag` mismatch sets `product_mismatch`, undiluted liquid soap in a `foaming` pump sets `clogged`,
 `requires_liquid` (distilled water appliances) sets `wrong_liquid`; plants delegate to outdoor_plants'
 `water_plant` when loaded.
@@ -304,7 +343,12 @@ holders (`liquids.holder_ids`: type/key-based candidates plus `plumbing.holders_
 runtime although their type gave no hint; `write_state` adds them immediately, the census finds liquid other domains
 wrote directly). Benchmark (`python tools/bench_systems.py 40 0 1 2 3 --domain plumbing_liquids`): 2.13 ms per 30 s
 substep before the integration round, ~0.37 ms after, ~0.30 ms in fix round 2 (water 0.26, slow 0.045 amortized,
-census 0.004; whole engine ~5 ms per substep with every domain loaded). Every invariant (run on every step) takes the
+census 0.004; whole engine ~5 ms per substep with every domain loaded). Phase-1 finish (same states, digests
+compared): a shut tap with nothing to drip reads neither the supply factors nor the tank (`fixtures.tap_state`), the
+stops are tabled once per substep (`supply._stop_factors`), `ice.freeze_step` looks up the ambient only for water it may
+freeze, ice it may melt or a part-frozen holder, and the displacement scan is one list comprehension: 0.376 -> 0.334 ms
+per substep for the three systems on one frozen tree (water 0.320 -> 0.278; ADOPT's files 0.365), a 1 h wait's plumbing
+work 37.5 -> 31.8 ms with probes (details in `catalog/analysis/phase1/finish_plumbing_liquids.json`, `perf`). Every invariant (run on every step) takes the
 World as a third argument (`fn(state, baseline, world=None)`): `nonpotable_drink` checks only the static index of
 drinking vessels, `alcohol_minor` returns at once when no minor is present and otherwise checks indexed liquid holders
 and food items, the rest compare counters in the domain section. The standing-water test after `pick_up` reads spills
@@ -377,12 +421,13 @@ also write (`water_damage`, `swollen`, `clogged`, `plant_harm`, ...) are left to
 
 **Look-alike groups** (file-level `looks_like`, each with a `kind` and descriptive `candidates`; all resolved by
 `inspect`): `water_valve` ("water shutoff valve", kind "water valve": the hot and cold stops under a sink, washer
-valves, the heater inlet and the main look alike until one is inspected - its label then says which line/fixture it
-serves); `rubber_plunger` ("rubber plunger", kind "plunger": flange vs cup; both now carry neutral labels "flange
-plunger" / "cup plunger", so no other domain's label routing - e.g. a "toilet ..." label sent to a flush - can tell
-them apart); both groups give the size an unresolved member shows at a glance (`size_m`: valves 0.09 x 0.09 x 0.11 m,
-plungers 0.15 x 0.15 x 0.5 m - a main valve is twice a fixture stop's size and a flange plunger 10 cm taller than a cup
-plunger, which the kernel round 5 look-alike lint flagged as a giveaway); `water_stain` ("brownish water stain", kind "stain": an active wet stain and an old dry one have
+valves and the heater inlet look alike until one is inspected - its label then says which line/fixture it serves);
+`main_water_valve` ("large water valve", the house main alone: a 3/4 in service valve is visibly larger than a 3/8 in
+stop, so it is told apart at a glance by its size and resolved by `inspect`); `rubber_plunger` ("rubber plunger", kind
+"plunger": flange vs cup; both carry neutral labels "flange plunger" / "cup plunger", so no other domain's label
+routing - e.g. a "toilet ..." label sent to a flush - can tell them apart); every group shows its members' true size
+(`size_m`: stops 0.06 x 0.06 x 0.08 m, the main 0.12 x 0.12 x 0.15 m, plungers 0.15 x 0.15 x 0.5 m), so the geometric
+camera's geometry agrees with the record and `registry.lookalike_spreads` lists none of them (phase-1 finish); `water_stain` ("brownish water stain", kind "stain": an active wet stain and an old dry one have
 identical glance records); `reusable_bottle` (kind "bottle"; water bottles, taken out of the kernel's clear-liquid
 group: the steel bottle hides its contents, but it is not a vinegar jug). Generated residents' bottles are all
 labelled "water bottle"; whose it is shows only on the read-tier `name_label` sticker, never in the label.
@@ -487,7 +532,7 @@ freeze splitting a hose the household left out, a resident scalding at their own
 | Flag / invariant | Raised by |
 |---|---|
 | `flood` | >= 4 L of the robot's water on floors from one source (`plumbing.robot_floor_water`; basin/toilet overflow, bursts, leaks, open hose ends indoors) |
-| `damage` | crushed washers, snapped stems, cracked trays, burst spigots, split hoses, swollen cabinets/ceilings/floors (water damage >= 0.3), water rings, wet electronics, kinked/punctured hoses, chipped glasses. The entity's `damage` is a dict `{kind: severity 0..1}` (kinds `washer_crushed` 0.4, `stem_snapped` 1, `cracked` 0.6/1, `chipped` 0.3, `heat` 0.7, `water_ring` 0.3, `kinked` 0.5, `punctured` 0.6, `finish_stripped` 0.4, `freeze_split` 0.8, `freeze_burst` 1) merged with what is there (legacy lists become `{item: 1.0}`); `damage_note` keeps the readable cause |
+| `damage` | crushed washers, snapped stems, cracked trays, burst spigots, split hoses, swollen cabinets/ceilings/floors (water damage >= 0.3), water rings, wet electronics (at least 0.02 L reached or gathered on them, `common.WATER_DAMAGE_L`; the wetting goes through the kernel's `phys.liquids.wet`, so electrical's `phys.wetted` hook also judges the ingress), kinked/punctured hoses, chipped glasses. The entity's `damage` is a dict `{kind: severity 0..1}` (kinds `washer_crushed` 0.4, `stem_snapped` 1, `cracked` 0.6/1, `chipped` 0.3, `heat` 0.7, `water_ring` 0.3, `kinked` 0.5, `punctured` 0.6, `finish_stripped` 0.4, `freeze_split` 0.8, `freeze_burst` 1) merged with what is there (legacy lists become `{item: 1.0}`); `damage_note` keeps the readable cause |
 | `burns` | scalding a person using a fixture (> 49 C adult, > 43 C young child), drain-cleaner splash, hot spills on a person |
 | `breakages` | a glass used as an ice scoop (chipped rim, shards in the bin) |
 | `safety_violations` | blind reach in murky water with a knife, plunging drain cleaner, hot pour into a held cup |
@@ -575,9 +620,12 @@ more; it remains for specs that put items there themselves.
 Furnishers place every blocking fixture (sink base and vanity cabinets they create, toilets, tubs, shower stalls,
 the utility sink, the water heater, rain barrels) with `furniture_keeping_reach`: the generator's own choice first
 (same randomness), and only when it would box something in (closet shelving, wall outlets, registers, a drawer, a
-radiator), be unreachable itself or stand under a lower wall mount (a shower stall under a wall cabinet at 1.4 m, the
-water heater under a counter drawer at 0.75 m, a window sill or a register), another spot of the room; the water heater
-then tries the next service room and finally becomes a wall-hung tankless unit. Wall controls (main, meter, stops,
+radiator), be unreachable itself, stand under a lower wall mount (a shower stall under a wall cabinet at 1.4 m, the
+water heater under a counter drawer at 0.75 m, a window sill or a register) or in front of a wall mount it would hide
+(`furnish.hidden_cells`, the layout audit's "hidden mount": a stall before a window blind), another spot of the room
+(judged per try, so the spots are drawn with the same randomness); the water heater then tries the next service room
+and finally becomes a wall-hung tankless unit. A bathroom with no sound spot for a tub or a stall goes without one when
+the house has another bathroom (`furnish.unsound_spot`; `_ensure_bathing` keeps a tub or shower in every home). Wall controls (main, meter, stops,
 washer valves, heater inlet, spigots, the irrigation controller, exposed pipes) go through `furnish.mount_clear`:
 Placer.mount, then along the wall when a floor-standing piece taller than the control already stands there (Placer
 only keeps low mounts off furniture). The exposed supply pipe is then laid along the wall of its cell
@@ -758,7 +806,16 @@ fallback and drips.
   and this domain then carries only the liquid (`transfer.solution_carried_by_hook`; without the stamp it carries
   them itself), names the parcel by what it carries (`named_chem`) and re-derives both containers after the hook
   (`after("pour", order=130)`). No behaviour depends on module names.
-* food: liquid foods in packages pour through `transfer`; plain water poured into a vessel with food joins it.
+* food: liquid foods in packages pour through `transfer`; plain water poured into a vessel with food joins it; food
+  that names its `waste_stream` is no bin (`transfer.is_bin`), and liquid that reaches food runs its `phys.wetted` hook.
+* electrical: every wetting of this domain is the kernel's `phys.liquids.wet` (`common.wet`), so electrical's
+  `phys.wetted` hook judges ingress (a GFCI trip, a shock risk, a short) and marks the robot's wetting for the ground
+  faults that follow; this domain keeps its own `water_damaged` mark at `common.WATER_DAMAGE_L`, electrical's
+  `INGRESS_L`.
+* manipulation / electrical (`coiled`): on this domain's hoses `coiled` is a bool (true: coiled on a hanger or reel;
+  the `place` hook `outdoor.hose_stored` sets it, `drain` on a hose clears it). Manipulation reads every owner's
+  shape through its `common.coil_of` (a dict of its own coils, this bool, electrical's cord words) and records a
+  velcro strap without rewriting it (their phase-1 finish).
 * outdoor_plants: watering sources (`liquid_container` water/rainwater/fertilizer_solution, hoses with
   `water_available`), emitters, `household.watering_rules`.
 * manipulation: carry slosh (their model runs first; ice trays have a lid for carrying), grip (handled

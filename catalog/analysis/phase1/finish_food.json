@@ -1,0 +1,83 @@
+{
+ "id": "food",
+ "fixed": [
+  {
+   "item": "breakages.json (food): legacy contact-heat copy ignored the kernel heat limits and every domain's claim -- any item above 70 C set 'on' wood, laminate or plastic got heat_mark 0.4 and stats.damage on every placement (T-7d4006bda247ba-01; appliances_cooking's request: a claimed 200 C steel pan on table_1 still got heat_mark 0.4).",
+   "how": "house_sim/systems/food/physical.py hot_contact (called from hooks._after_place for relation 'on'): the kernel's heat limit (thermal.heat_limit_c), contact temperature (thermal.contact_temp_c), mark (thermal.contact_mark: ring in a wood finish below 150 C, melted plastic, else scorch) and severity, recorded through impact.damage (damage flag once per kind, robot's), only after thermal.contact_claimed (every phys.contact_heat hook); a brittle top is the law's shock check, not a mark; returns at once while lawbook.active('contact_heat'), and steps aside while a domain laws.json lists in contact_heat.duplicated_by (manipulation, appliances_cooking) is loaded (other_copy_loaded: one mark per contact instead of a third copy). The breakage repro now leaves table_1 without damage and stats.damage 0.",
+   "test": "tests/test_food.py PhaseOneFinish.test_the_legacy_contact_heat_copy_uses_the_kernels_limits_and_every_domains_claim (kernel severity ring_stain on wood, counted once; nothing under plastic's limit; a claimed contact unmarked; the active law owns it; unclaimed 200 C pan melts plastic), test_a_hot_dish_set_on_a_wooden_board_is_marked_once (end to end through place, core+food and all-domain modes). Both fail on HEAD's food (no hot_contact). tests/test_appliances_cooking.py (190 tests incl. ReviewStabiliseTests.test_legacy_contact_heat_honours_every_domains_claim) green."
+  },
+  {
+   "item": "breakages.json (food) / red_leaks I4 (food's part): an unfamiliar (novel) thing told apart by garnish / plate / portion / scoop / transfer ('Open it first' for the electric kettle, 'It is empty' for every other unfamiliar thing); also every other food verb, a held unfamiliar tool (an unfamiliar chef's knife cut, an unfamiliar kettle did not), an unfamiliar opener / guard / probe / soap, and weigh reading an unfamiliar kitchen scale.",
+   "how": "Every food verb except weigh declares operates=True (the kernel refuses an unfamiliar target with NOVEL_OPERATE_MESSAGE before any hook); percept.unfamiliar_first, registered as a before hook (order 1) on every food verb in hooks.py, gives the same refusal for an unfamiliar thing in any other entity or list parameter (destination, tool, item, garnish, coating, scraps_to, into ...); common.held_known / common.tool skip unfamiliar held things (oracle mode unchanged: require_tool as before), used for the mandoline guard, the spoon-and-level spoon, the serving utensil, the strainer, the can opener, soap and the probe thermometer; weigh weighs an unfamiliar thing as an object and never reads it as the scale (_scale_under and portion/shape's scale search skip unfamiliar scales; its refusal then names no kind of thing, because the kernel's outbound substitution rewrites an unfamiliar target's true type words).",
+   "test": "PhaseOneFinish.test_every_food_verb_refuses_an_unfamiliar_thing_alike (six unfamiliar kinds -- chef_knife, closed flour bag, mixing bowl, kitchen scale, stock pot of chili, cucumber -- x every entity/list parameter of all 38 food verbs: the identify-first message for all, weigh identical across kinds), test_an_unfamiliar_thing_in_hand_is_no_tool. Both fail on HEAD's food."
+  },
+  {
+   "item": "Found by this round's unfamiliar-thing probe (review I4, food's inspector): inspecting an unfamiliar cucumber (or closed flour bag) returned a food_view and an unfamiliar pot of chili its food_contents, an unfamiliar knife neither.",
+   "how": "perception.food_inspector adds no food extras for an unfamiliar target in realistic mode (the kernel's NOVEL_FIELDS key set only); the food inside can still be inspected on its own.",
+   "test": "PhaseOneFinish.test_an_unfamiliar_food_or_container_shows_no_food_view (fails on HEAD's food)."
+  },
+  {
+   "item": "breakages.json (food) / red_leaks finding 7 (review L2 residual, food's groups): look-alike members of different true size behind one group size -- measuring_cup 0.13-0.17 m (1/4 cup vs 1 cup), measuring_spoon 0.09-0.12 m (1/4 tsp vs tbsp).",
+   "how": "house_sim/data/types/food.json: the measuring_cup and measuring_spoon look-alike groups are removed (split to single types): a measure of another size is told apart by its size in a real kitchen, and the probe showed that with the geometric camera even 5 mm told members apart (the robot's facing after approach follows the true centre), so no sub-grouping by the 1 cm lint threshold would have been honest; no size_m changed (generated houses unchanged). registry.lookalike_spreads lists no food group; no LookalikeWarning.",
+   "test": "PhaseOneStabilise.test_look_alike_members_share_one_package (now every food group, plus no food group in registry.lookalike_spreads), test_look_alike_members_cannot_be_told_apart_by_handling (now also with camera geometric, comparing the whole observation re-keyed by true id); RealisticPerception group list asserts the two groups are gone. Both group tests fail on HEAD's food.json."
+  },
+  {
+   "item": "G7 (P1 gate substep budget): food's share of the regression (+0.08 ms per substep: food.safety +0.07 GC pass landing there, food.thermal +0.008, food.refresh +0.003).",
+   "how": "house_sim/systems/food/systems.py: food.thermal's writes of a food's temperature, core temperature and food's own bookkeeping (_tt, _amb, _peak_c, _peak_core_c, _tfast, a pack's ice_frac), and food.safety's clock counters (_spoil, _time_out_s, _abuse_s: QUIET_CLOCKS) go through World.set_quiet (field-level journal, no copy of the whole record, no touch), as the kernel thermal system writes temperatures; phase changes (food.ice) and every effect of heat stay record writes, in the same key order. Each full thermal pass and each safety run used to copy every food record into the journal (about 9 us each).",
+   "test": "Byte-identical results: tools/golden.py dump --all (243 specs' reference plans + 8 scripted runs, oracle and realistic) identical between trees differing only in systems.py, and between HEAD's food and the final food; state digests identical after the bench loop (seeds 0-3), a further 1 h wait, and a 6 h wait with idle probes on and off; tests/test_food.py TierOneSweep.test_idle_probes_are_exact and the whole suite green in all modes."
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "red_leaks I4, parts outside food: the kernel's read of an unfamiliar thing returns the true type's read-tier fields (an unfamiliar flour bag: allergens, date_type, diet_tags, full_g; an unfamiliar kitchen scale: capacity_g, display) where an unfamiliar knife gives 'There is nothing legible to read on it'.",
+   "why": "kernel read rendering (owner kernel; request filed). Food's data only declares which fields are printed."
+  },
+  {
+   "item": "red_leaks I4, other owners: manipulation's inspector adds 'packing' (fill fraction, order) for an unfamiliar container; manipulation's shake says 'it feels empty' by the true contents; admin_inventory's count lists an unfamiliar pot's contents.",
+   "why": "other domains' inspectors/verbs (manipulation, admin_inventory); repro in requests."
+  },
+  {
+   "item": "Cross-domain duplicate copies of the deferred contact_heat law: with every domain loaded one 80 C dish set on a wooden board is marked by appliances_cooking (heat_mark 0.5), manipulation (scorch 0.5) and admin_inventory (ring_stain 0.1845): stats.damage 3. Food's copy no longer adds a fourth.",
+   "why": "kernel data (laws.json duplicated_by lists only manipulation and appliances_cooking) and the other owners' copies; the one-harm ledger of the verifier-hardening phase is the general fix. Request filed."
+  },
+  {
+   "item": "Measured G7 total on this machine.",
+   "why": "The machine ran at 100 % CPU with other agents' processes (bench totals 3.6-18 ms per substep from run to run), so only interleaved A/B runs of food's own systems are reported; the gate's record is the main session's."
+  }
+ ],
+ "specs_changed_outcome": [],
+ "perf": "Food's share of the P1 G7 regression was +0.08 ms/substep (food.safety +0.070 = a GC pass landing there, food.thermal +0.008, food.refresh +0.003; ADOPT 0.149/0.134/0.018 vs P1 0.219/0.142/0.021). Cause of food's own cost: every full thermal pass (each 300 s) and every safety run copied each food record into the journal through World.mut to write a temperature or a spoilage counter. Fix: field-level World.set_quiet for non-structural writes (temperatures, core temperature, food's thermal bookkeeping, the clock counters), as the kernel thermal system does. Measured A/B on two copies of the same live tree differing only in house_sim/systems/food/systems.py, the bench loop of tools/bench_systems.py (40 substeps x seeds 0-3, every system called), five interleaved runs each, best of five, GC disabled so a collection cannot land in one system: food.safety 0.173 -> 0.109 ms, food.thermal 0.155 -> 0.089 ms, food.refresh 0.023 -> 0.023 ms; food total 0.351 -> 0.221 ms/substep (-0.130 ms, -37 %, more than food's +0.08 share). With GC on, best of five: food total 0.765 -> 0.228 ms (A drew a GC pass in food.thermal). GC pass counts in the bench loop are deterministic and alike (gen0 163 vs 157, gen1 15 vs 15, one gen2 pass outside any system in both). tools/bench_systems.py 40 0 1 2 3 --domain food (B, three runs): food.safety 0.109-0.110, food.thermal 0.091-0.092 (one run 0.562 with a GC pass), food.refresh 0.024-0.030 ms. Results unchanged: golden dump --all (243 specs + 8 runs) identical A vs B and HEAD-food vs final; bench-loop, +1 h and 6 h (probes on and off) state digests identical. The machine ran at 100 % CPU from other agents' processes (bench totals 3.6-18 ms/substep run to run), so the absolute G7 total is not re-measured here; idle probes were not the lever (bench_systems calls every system directly).",
+ "tests": {
+  "count": 174,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 16,
+  "passed": 16
+ },
+ "requests": [
+  {
+   "owner": "kernel",
+   "request": "laws.json contact_heat duplicated_by lists manipulation and appliances_cooking, but admin_inventory (handling._hot_contact) and tools_vehicles (tools._hot_on_support) keep legacy copies too, and food keeps one for worlds without the listed domains (it steps aside while a listed domain is loaded, physical.other_copy_loaded). Add admin_inventory, tools_vehicles and food so the row is the list of copies to retire. Repro (all domains): tests/test_food.py scene with chili at 80 C (max_touch_temp_c 250) put on the kitchen helper's wooden board under lawbook.forced(contact_heat=False): board damage {heat_mark 0.5, scorch 0.5, ring_stain 0.1845}, stats.damage 3 for one contact."
+  },
+  {
+   "owner": "kernel",
+   "request": "read on an unfamiliar (novel) thing returns its true type's read-tier fields: realistic scene with thing_1 = all_purpose_flour {novel: true, open: false, size_m [0.2,0.15,0.25], color gray, material plastic} vs chef_knife with the same look: read -> {allergens, date_type, diet_tags, full_g} vs 'There is nothing legible to read on it' (kitchen_scale: {capacity_g, display}). Show an unfamiliar thing's printed text (label_text/text) only, or one refusal, like the NOVEL_FIELDS glance. Probe: scratchpad p1_food/f3/novel_food_probe.py."
+  },
+  {
+   "owner": "kernel",
+   "request": "Realism._label_substitution rewrites an unfamiliar target's own label and type words anywhere in a domain message, so a generic refusal that happens to name a kind of thing reads differently when the unfamiliar thing is of that kind: weigh target=<unfamiliar kitchen_scale> answered 'Put it on a unfamiliar medium object first' vs 'Put it on a kitchen scale first' for every other unfamiliar thing (food now words that refusal without the noun). Rewrite only references the domain makes to the entity (its label in the message as the domain rendered it), or flag it in the auditor."
+  },
+  {
+   "owner": "kernel",
+   "request": "registry.lookalike_size_spreads (SPREAD_RESOLUTION_M 1 cm and 5 %) is not the geometric camera's resolution: obs.robot.facing_deg (two decimals) after approach follows the target's true centre, so members 5 mm apart in one dimension still differ in geometric mode (HEAD's measuring_cup group with measuring_cup_half patched to 0.135 m and measuring_cup_third to the quarter's 0.13 m: the third and the quarter become indistinguishable, the half stays apart at approach, look, face and count; 1 cup vs 1/2 cup: facing 41.37 vs 41.55 deg after approach). Either round the facing after approach to the camera's 5-degree bearing grid or lint any size difference. Probe: scratchpad p1_food/f3/sizeclasses.py --groups measuring_cup --size measuring_cup_third=0.13,0.065,0.04 --size measuring_cup_half=0.135,0.065,0.04 (on HEAD's food.json)."
+  },
+  {
+   "owner": "manipulation",
+   "request": "Unfamiliar things (review I4): manipulation's inspector adds 'packing' for an unfamiliar container (a novel mixing_bowl) and shake says 'it feels empty' for an unfamiliar knife but not for an unfamiliar closed flour bag; an unfamiliar thing should show the kernel's NOVEL_FIELDS only. Repro: scratchpad p1_food/f3/novel_food_probe.py (tests/test_food.py PhaseOneFinish.NOVEL_KINDS scenes)."
+  }
+ ],
+ "notes": "All three food rows of breakages.json and food's parts of red_leaks findings 4 (I4) and 7 (L2 residual) are fixed at the root; red_defects.json has no food finding. Changed: house_sim/systems/food/{physical,hooks,percept,perception,common,actions_knife,actions_measure,actions_mix,systems}.py, house_sim/data/types/food.json (measuring_cup and measuring_spoon look-alike groups removed; no type props changed, so generated houses and gen-1 digests are unchanged by food), tests/test_food.py (PhaseOneFinish: 5 tests; PhaseOneStabilise look-alike tests extended to every group, the size-spread lint and the geometric camera; 174 tests), docs/domains/food.md (sections 2, 3, 4, 10, 11.1, new 12.1). food__examples.json and food__perception.json unchanged (no outcome changed). Every new or extended regression fails on HEAD's food code/data (run in a scratch tree). GREEN: tests/test_food.py 174 OK normal (239 s on the loaded machine; the geometric twin test adds about 25 s), HOUSE_SIM_STRICT=1 OK, HOUSE_SIM_DOMAINS=core,food OK (4 skips); food__examples.json 12/12 and food__perception.json 4/4 on seeds 0 1 2 41 97 in own mode (gen 2 where set), perception 4/4 with --camera geometric, examples 12/12 forced realistic; the 45 other domains' specs naming food types/fields/temperatures pass in own mode; tests/test_appliances_cooking.py 190 OK; tools/perception_audit.py 20 80 --verbose 0 leaks 0 crashes (room and geometric); tools/layout_audit.py 20 --domain food 120 houses 0 problems; tools/fuzz.py --coverage 243 specs 0 defects 0 nondeterministic. VERIFY_HARDENING is not implemented or contradicted (the contact-heat copy marks through impact.damage with robot attribution; the one-harm ledger stays the next phase's). Scratch tools: <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1_food/f3/ (sizeclasses.py, twin_diff.py, novel_food_probe.py, ab_bench.py, interleave.sh, gc_bench.py, prof_food.py, split_food.py, check_touching.py; trees treeO/treeA/treeB and their golden dumps). Nothing committed; nothing under %USERPROFILE%\\.house_ai."
+}

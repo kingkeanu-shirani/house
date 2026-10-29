@@ -142,14 +142,19 @@ def _device_broken(w, eid, info):
     C.refresh(w)
 
 
+@C.declare_index("water_logged", ("plug_required", "battery_powered", "rechargeable", "power_state", "category"))
+def _may_take_water(r):
+    """Static index predicate: things whose liquid ingress this module tracks (mains, battery and rechargeable gear)."""
+    return bool(r.get("plug_required") or r.get("battery_powered") or r.get("rechargeable") or "power_state" in r
+                or r.get("category") in GEAR_CATEGORIES)
+
+
 @C.refresher(5)
 def sync_dry_devices(w):
     """A water-logged device works again once it is dry (cleaning's drying, a towel): clear water_ingress, and the
     robot-wetting marker of any dry gear."""
     state = w.s
-    for eid in C.ids(w, "water_logged", lambda r: bool(r.get("plug_required") or r.get("battery_powered")
-                                                         or r.get("rechargeable") or "power_state" in r
-                                                         or r.get("category") in GEAR_CATEGORIES)):
+    for eid in C.ids(w, "water_logged", _may_take_water):
         rec = state["entities"].get(eid)
         if rec is None or C.num(rec.get("wetness"), 0.0) > DRY:
             continue

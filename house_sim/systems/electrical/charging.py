@@ -44,6 +44,7 @@ def rechargeable(rec):
     return level_key(rec) is not None
 
 
+@C.declare_index("chargeables", ("category", "rechargeable", "battery_level"))
 def _chargeable(rec):
     """Static index predicate: cells (NiMH bays, tool packs) and rechargeable devices."""
     return rec.get("category") == "battery" or bool(rec.get("rechargeable") and "battery_level" in rec)

@@ -162,6 +162,8 @@ def _identified(env, pid):
         return False
 
 
+@C.per_substep_index("cue_sources")
+@C.index_reads("category", "pet_accident")
 def _cue_source(rec):
     return rec.get("category") in ("pet_water_source", "aquarium_device", "litter_box", "pet_bowl", "biohazard", "pet_food")         or bool(rec.get("pet_accident"))
 
@@ -242,12 +244,17 @@ def _reveal_peek(ctx, result):
         reveal_hiding(ctx, target, where, result)
 
 
+@C.index_reads("concealed")
+def _concealable(rec):
+    return "concealed" in rec
+
+
 def reveal_near(w, ctx, radius=1, cells=None, result=None):
     state = w.s
     rid = state["robot"]["room"]
     rpos = tuple(state["robot"].get("pos") or (0, 0))
     found = []
-    for eid in C.sindex(state, "concealable", lambda r: "concealed" in r):
+    for eid in C.sindex(state, "concealable", _concealable):
         rec = state["entities"][eid]
         if not rec.get("concealed") or rec.get("revealed") or rec.get("location") != rid or not rec.get("pos"):
             continue
@@ -710,12 +717,14 @@ def greet_tick(w, dt):
                 # running (common.harm attribution); the fall itself is the people domain's (person_knocked_down)
                 robot = C.robot_acting(w)
                 knocked = frail and person.get("role") != "child"
+                counted = False         # the people domain counted a robot-caused fall's injury (one per strike)
                 if knocked:
-                    C.person_knocked_down(w, qid, "jumped on by {}".format(pet.get("label", pid)), robot)
+                    counted = C.person_knocked_down(w, qid, "jumped on by {}".format(pet.get("label", pid)), robot)
                 else:
                     qm = w.person_m(qid)
                     qm["mood"] = "frightened"
-                C.harm(w, "jumped_on_vulnerable", stat="injury" if knocked else None, robot=robot, pet=pid, person=qid)
+                C.harm(w, "jumped_on_vulnerable", stat="injury" if knocked and not counted else None, robot=robot, pet=pid,
+                       person=qid)
             elif jumps and not person.get("welcomes_dog", True):
                 C.harm(w, "jumped_on_person", pet=pid, person=qid)
             pm["excitement"] = round(max(0.2, C.num(pet.get("excitement")) - 0.3), 3)

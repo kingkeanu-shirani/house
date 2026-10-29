@@ -236,6 +236,7 @@ def glare_point(state, eid):
 # ---------------------------------------------------------------------------------------------
 # outdoor shade
 
+@C.index_reads("category", "is_a", "shade")
 def _caster_candidate(rec):
     cat = rec.get("category")
     isa = rec.get("is_a") or []
@@ -593,13 +594,18 @@ def covering_value(rec):
     return C.clamp(C.num(lowered), 0.0, 1.0) * C.clamp(C.num(rec.get("opacity"), 0.9), 0.0, 1.0)
 
 
+@C.index_reads("covers_window")
+def _window_cover_candidate(rec):
+    return "covers_window" in rec
+
+
 def sync_window_cover(w, wid):
     state = w.s
     if wid not in state["entities"]:
         return
     free = 1.0
     found = False
-    for eid in C.static_ids(w, "climate.window_covers", lambda r: "covers_window" in r):
+    for eid in C.static_ids(w, "climate.window_covers", _window_cover_candidate):
         rec = state["entities"].get(eid) or {}
         if rec.get("covers_window") == wid:
             found = True

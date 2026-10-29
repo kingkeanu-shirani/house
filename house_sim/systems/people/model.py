@@ -805,10 +805,16 @@ def ev_wobble(w, args, env):
 
 @hook("event:people.fall")
 def ev_fall(w, args, env):
+    """Someone falls (a scripted premise, or another domain's cause: a dog knocking a child down). robot_caused (default
+    false) is the caller's attribution -- a fall another domain knows the robot caused (the dog chasing a toy the robot
+    threw) is logged robot-caused and counts stats.falls and stats.injury, as person_falls counts a fall the robot
+    caused; count_harm makes a fall the robot did not cause count stats.falls anyway (pets' request, phase-1
+    breakages)."""
     pid = _pid(args)
     if pid not in w.s.get("people", {}):
         return False
-    person_falls(w, pid, args.get("cause", "fall"), robot_caused=False, count=bool(args.get("count_harm")))
+    robot = bool(args.get("robot_caused", False))
+    person_falls(w, pid, args.get("cause", "fall"), robot_caused=robot, count=robot or bool(args.get("count_harm")))
     if args.get("condition"):
         w.person_m(pid)["condition"] = args["condition"]
     return True

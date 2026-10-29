@@ -337,6 +337,12 @@ def _waterproof(rec):
     return bool(rec.get("waterproof")) or (rec.get("material") in WATERPROOF_MATS and not rec.get("porous"))
 
 
+def _water_sensitive(rec):
+    """Gear and water-sensitive things are no drip catchers whatever their case is made of: water standing on a plastic
+    television or radio gets in through its vents."""
+    return bool(rec.get("electronic")) or rec.get("water_safe") is False
+
+
 def _footprint_area(rec):
     size = rec.get("size_m") or [0.1, 0.1, 0.1]
     return float(size[0]) * float(size[1])
@@ -386,7 +392,7 @@ def drip_onto(w, eid, liters_, liquid, depth=0, cause=None):
     srec = w.ent(support)
     sec = C.psec(w)
     caught = sec.setdefault("drips_caught", {})
-    if _waterproof(srec):
+    if _waterproof(srec) and not _water_sensitive(srec):
         miss = 0.0
         if _footprint_area(srec) < 0.9 * _footprint_area(rec):
             miss = 1.0 - _footprint_area(srec) / max(1e-6, _footprint_area(rec))
@@ -427,15 +433,19 @@ def drip_onto(w, eid, liters_, liquid, depth=0, cause=None):
         if liters_ - kept > 1e-9:
             drip_onto(w, support, liters_ - kept, liquid, depth + 1, cause)
         return
-    # not waterproof and not absorbent: the water sits on it (wood rings, electronics)
-    m = w.mut(support)
-    m["wetness"] = max(C.num(srec.get("wetness")), 0.7)
+    # not waterproof and not absorbent: the water sits on it (wood rings, electronics). Its film is the kernel's wetting
+    # (phys.wetted hooks see every drip: electrical gear takes the ingress and its attribution); what stands on it is
+    # this domain's pooled_l, and water-sensitive gear is water damaged once common.WATER_DAMAGE_L has gathered there
+    C.wet(w, support, liters_, liquid, source=cause)
+    if support not in w.s["entities"]:
+        return
+    srec = w.ent(support)
     if srec.get("material") in ("wood", "hardwood", "mdf", "particleboard") and not srec.get("sealed"):
         accrue_damage(w, support, liters_, material=srec.get("material"), cause=cause)
         m = w.mut(support)
         m["_water_ring"] = C.rnd(C.num(m.get("_water_ring")) + liters_ * 10.0, 3)
     if srec.get("electronic") or srec.get("water_safe") is False:
-        if not srec.get("water_damaged"):
+        if not srec.get("water_damaged") and C.num(srec.get("pooled_l")) + liters_ >= C.WATER_DAMAGE_L:
             w.mut(support)["water_damaged"] = True
             C.harm(w, "damage", cause)
     if C.num(w.ent(support).get("pooled_l")) > 0.05:

@@ -22,6 +22,7 @@ import os
 import weakref
 
 from ...kernel import geometry, timeline
+from ...kernel.plugins import hook
 from ...kernel.predicates import root_room
 
 CELL = geometry.CELL
@@ -92,6 +93,18 @@ def identified(env, eid, record=None):
             raise
         return False
     return "candidates" not in ident
+
+
+def unfamiliar(ctx, eid, record):
+    """Realistic perception, inside an inspector: the robot takes eid for an unfamiliar (novel) thing it cannot
+    identify (ctx.unresolved). Safety's inspectors then add no extra its type implies -- a detector's alarm state and
+    battery indicator, an extinguisher's gauge and pin, a device's vents, a gate's push test (review I4: the battery
+    indicator told an unfamiliar smoke alarm from every other unfamiliar thing) -- while what any thing shows to the
+    senses (a hiss, a smell, a crack, warmth to the touch) still shows. Always False in oracle mode."""
+    if not realistic_ctx(ctx) or not (record or {}).get("novel"):
+        return False
+    probe = getattr(ctx, "unresolved", None)
+    return bool(probe(eid)) if callable(probe) else True
 
 
 def looks_alike(reg, record):
@@ -255,16 +268,62 @@ def world_of(state):
     return w if w is not None and w.s is state else None
 
 
+STRICT = os.environ.get("HOUSE_SIM_STRICT") == "1"
+# safety's indexes its systems read every substep: name -> predicate (filled by per_substep_index; built at episode
+# start by _prebuild_indexes)
+PREBUILT = {}
+
+
+def index_reads(*fields):
+    """Declare every record field a static-index predicate can read (World.static_index reads=; strict mode checks the
+    declaration on every evaluation). With nothing journaled the World then evaluates the predicate on the plain record
+    instead of a read view."""
+    def deco(fn):
+        fn.reads = tuple(fields)
+        return fn
+    return deco
+
+
+def per_substep_index(name):
+    """Register an index predicate (with declared reads) that safety's systems look up every substep: the episode-start
+    hook builds it before any other hook writes, on the plain records (the phase-1 G7 regression: a read view per
+    entity and index inside the first substep of every episode)."""
+    def deco(fn):
+        if getattr(fn, "reads", None) is None:
+            raise TypeError("per_substep_index {}: declare the fields it reads (index_reads)".format(name))
+        PREBUILT[name] = fn
+        return fn
+    return deco
+
+
 def sindex(state, name, predicate):
-    """Sorted ids of entities matching a predicate over static fields (cached by the World until an entity is created
-    or destroyed; a full scan when no World is bound). Ids are guaranteed to exist."""
+    """Sorted ids of entities matching a predicate over static fields (World.static_index: entities created, destroyed
+    or changed in a field the predicate reads are re-judged at the next lookup; a full scan when no World is bound).
+    Ids are guaranteed to exist (the World applies creations and destructions at once); the list is the caller's."""
     w = world_of(state)
     entities = state["entities"]
     if w is not None:
-        return [e for e in w.static_index("safety:" + name, predicate) if e in entities]
+        ids = w.static_index("safety:" + name, predicate, reads=getattr(predicate, "reads", None))
+        if STRICT and any(e not in entities for e in ids):
+            raise RuntimeError("Static index safety:{} lists an entity that no longer exists".format(name))
+        return list(ids)
     return [e for e in sorted(entities) if predicate(entities[e])]
 
 
+@hook("episode_start", order=-100)
+def _prebuild_indexes(w, env):
+    """Build safety's per-substep static indexes when the episode starts, before any other hook writes (order -100):
+    with nothing journaled the World evaluates their declared-read predicates on the plain records, the cheapest build,
+    instead of through a read view per entity in the first substep. An index's content is a pure function of the state
+    (World.static_index), so nothing any system computes changes."""
+    bind_world(w)
+    for name in sorted(PREBUILT):
+        predicate = PREBUILT[name]
+        w.static_index("safety:" + name, predicate, reads=predicate.reads)
+
+
+@per_substep_index("alarm_panels")
+@index_reads("category")
 def _is_alarm_panel(rec):
     return rec.get("category") == "alarm_panel"
 
@@ -273,6 +332,8 @@ def alarm_panels(state):
     return sindex(state, "alarm_panels", _is_alarm_panel)
 
 
+@per_substep_index("windows")
+@index_reads("category")
 def _is_window(rec):
     return rec.get("category") == "window"
 
@@ -727,6 +788,8 @@ def chem_classes(rec):
     return classes
 
 
+@per_substep_index("chemicals")
+@index_reads("category", "tags", "chem_class", "chem_classes", "chem_hazards", "hazardous_chemical")
 def is_chemical(rec):
     if not rec or rec.get("category") in ("fire",):
         return False

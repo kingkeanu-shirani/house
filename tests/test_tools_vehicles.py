@@ -3603,3 +3603,237 @@ class ReviewStabiliseTests(unittest.TestCase):
                 self.assertIn(config["rooms"][config["entities"][car]["location"]]["type"], ("garage", "driveway"))
             else:
                 self.assertEqual(config["entities"][oracle["bindings"]["toilet"]]["location"], oracle["bindings"]["bath"])
+
+
+# ======================================================================================
+class _ReadSpy(dict):
+    """A record that notes the fields a predicate reads (the declared-read check of FinishPhase1Tests)."""
+
+    def __init__(self, record):
+        dict.__init__(self, record)
+        self.read = set()
+
+    def get(self, key, default=None):
+        self.read.add(key)
+        return dict.get(self, key, default)
+
+    def __getitem__(self, key):
+        self.read.add(key)
+        return dict.__getitem__(self, key)
+
+    def __contains__(self, key):
+        self.read.add(key)
+        return dict.__contains__(self, key)
+
+
+def _authored_steps(steps):
+    for step in steps or []:
+        if isinstance(step, dict):
+            yield step
+            if isinstance(step.get("steps"), list):
+                yield from _authored_steps(step["steps"])
+
+
+class FinishPhase1Tests(unittest.TestCase):
+    """Phase-1 finish (catalog/analysis/phase1/breakages.json rows and red-team findings owned by this domain; result in
+    catalog/analysis/phase1/finish_tools_vehicles.json): the G7 substep cost with nothing any system computes changed,
+    the holder flags, the true sizes behind look-alike groups and the camera wrong plan of T-5a9598c809336a-01."""
+
+    # --- G7 ----------------------------------------------------------------------------------------------------
+    def test_a_switched_off_disposal_does_not_scan_its_hopper(self):
+        # the phase-1 hopper rule (anything it cannot grind wedges the plate) scanned every entity for every disposal on
+        # every substep, switched on or not (tools_vehicles.disposals 0.001 -> 0.027 ms per substep); it matters only to a
+        # running plate. tools/bench_systems.py times the system bodies without idle probes, so the body is driven here.
+        from house_sim.kernel.engine import Tick
+        from house_sim.systems.tools_vehicles import fixes as FX
+        m = FixTests().disposal()
+        m.c["entities"]["disp"].update(_jam={"jammed": False, "object": None}, thermal_tripped=False)
+        m.add("spoon", "generic_item", "disp", relation="in", label="teaspoon", material="steel", size_m=[0.14, 0.03, 0.01],
+              mass_kg=0.02)
+        env = m.env(room="kitchen", pos=(3, 1))
+        w = env.world
+        calls = []
+        original = FX._hard_in_hopper
+
+        def counted(world, eid):
+            calls.append(eid)
+            return original(world, eid)
+        FX._hard_in_hopper = counted
+        try:
+            for i in range(4):
+                w.begin()
+                FX.disposal_system(w, 30.0, Tick(env, i))
+                w.commit()
+            self.assertEqual(calls, [])
+            self.assertFalse(ent(env, "disp")["_jam"]["jammed"])
+            ok(self, env.step("switch_on", "disp"))
+            ok(self, env.step("wait", seconds=30))
+        finally:
+            FX._hard_in_hopper = original
+        self.assertIn("disp", calls)
+        self.assertTrue(ent(env, "disp")["_jam"]["jammed"])          # the spoon dropped in while it was off still wedges it
+        self.assertEqual(ent(env, "disp")["_jam"]["object"], "spoon")
+
+    def test_the_per_step_indexes_are_built_before_the_first_substep(self):
+        # the kernel's read views (review M3) made the first lookups inside the first substep of every episode three times
+        # dearer than a build on the plain records; the episode-start hook builds them while nothing is journaled
+        from house_sim.generator import generate_house
+        from house_sim.systems.tools_vehicles import common as TC
+        self.assertGreaterEqual(len(TC.PREBUILT), 10)
+        env = HouseEnv(generate_house(2), seed=2, trace=False, observe_on_step=False)
+        w = env.world
+        total = len(w.s["entities"])
+        builds = []
+        original = w._matching
+
+        def watched(name, predicate, ids, reads=None):
+            if name.startswith("tools_vehicles."):
+                builds.append((name, len(ids)))
+            return original(name, predicate, ids, reads)
+        w._matching = watched
+        try:
+            ok(self, env.step("wait", seconds=600))
+        finally:
+            del w._matching
+        prebuilt = {"tools_vehicles." + name for name in TC.PREBUILT}
+        self.assertEqual([b for b in builds if b[0] in prebuilt and b[1] >= total], [])     # no full build in a substep
+        for name, predicate in sorted(TC.PREBUILT.items()):
+            self.assertEqual(TC.index(w, name, predicate),
+                             sorted(e for e, r in w.s["entities"].items() if predicate(r)), name)
+
+    def test_every_index_predicate_reads_only_its_declared_fields(self):
+        # a declared read set (World.static_index reads=) is what tells the World which writes re-judge an entity; a
+        # field read but not declared would leave the index stale. Strict mode checks it on views; this checks every
+        # record of generated houses, including the plain-record path the episode-start build takes
+        from house_sim.generator import generate_house
+        from house_sim.systems.tools_vehicles import common as TC
+        from house_sim.systems.tools_vehicles import fixes as FX
+        predicates = dict(TC.PREBUILT, water_fixtures=FX._water_fixture, heat_sources=TC.is_heat_source)
+        for seed in (0, 1, 2):
+            for eid, record in sorted(generate_house(seed)["entities"].items()):
+                for name, predicate in sorted(predicates.items()):
+                    spy = _ReadSpy(record)
+                    self.assertEqual(bool(predicate(spy)), bool(predicate(record)), (name, eid))
+                    self.assertLessEqual(spy.read, set(predicate.reads), (name, eid))
+
+    def test_building_the_indexes_at_episode_start_changes_no_result(self):
+        from house_sim.generator import generate_house
+        from house_sim.kernel import plugins
+        from house_sim.kernel.predicates import digest
+        from house_sim.systems.tools_vehicles import common as TC
+
+        def run(prebuild):
+            hooks = plugins.HOOKS["episode_start"]
+            saved = list(hooks)
+            if not prebuild:
+                hooks[:] = [h for h in hooks if h[2] is not TC._prebuild_indexes]
+            try:
+                env = HouseEnv(generate_house(1), seed=1, trace=False, observe_on_step=False)
+                reset = digest(env.world.s)
+                ok(self, env.step("wait", seconds=1800))
+                return reset, digest(env.world.s)
+            finally:
+                hooks[:] = saved
+        self.assertEqual(run(True), run(False))
+
+    # --- holder flags (review L3; the kernel follows plumbing's liquid-tightness rule) -------------------------------
+    def test_the_organizer_frame_lets_liquid_out_and_its_drawers_hold_it(self):
+        from house_sim.kernel.phys import liquids
+        m = ReviewStabiliseTests.organizer()
+        m.add("tray", "parts_tray", "bench")
+        m.add("bin", "tool_bin", "bench")
+        env = m.env(room="garage", pos=(2, 1))
+        state = env.world.s
+        self.assertFalse(liquids.holds_liquid(state, "org"))            # a frame of drawer slots, open at the front
+        for eid in ("wood_c", "tray", "bin"):                            # a molded drawer, a steel dish, a plastic bin
+            self.assertTrue(liquids.holds_liquid(state, eid), eid)
+        w = env.world
+        w.begin()
+        delivered, spilled = liquids.pour_in(w, "org", 0.2, "water")
+        kept, _ = liquids.pour_in(w, "wood_c", 0.1, "water")
+        w.commit()
+        self.assertEqual((delivered, spilled), (0.0, 0.2))
+        self.assertFalse(ent(env, "org").get("liquid_l"))
+        self.assertEqual(kept, 0.1)
+
+    # --- look-alike groups: one true size per group (review L2 residual, red_leaks 7) ---------------------------------
+    @staticmethod
+    def _groups():
+        import os
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "house_sim", "data", "types", "tools_vehicles.json")
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)["looks_like"]
+
+    def test_no_look_alike_group_of_this_domain_differs_in_true_size(self):
+        reg = default_registry()
+        mine = set(self._groups())
+        self.assertEqual([row for row in reg.lookalike_spreads if row.split(":")[0] in mine], [])
+        members = reg.lookalike_types()
+        for name in sorted(mine):
+            sizes = {json.dumps(reg.resolve(t).get("size_m")) for t in members.get(name, [])}
+            self.assertLessEqual(len(sizes), 1, (name, sizes))     # the camera's px, range, elevation and occlusion agree
+        self.assertNotIn("felt_pad", mine)                         # a pad's diameter is what it is: no group
+
+    def test_unresolved_members_look_the_same_to_the_geometric_camera(self):
+        pairs = (("combination_wrench_10mm", "combination_wrench_9_16in"), ("screwdriver_phillips_1", "screwdriver_pozidriv_2"),
+                 ("screwdriver_flat_small", "screwdriver_flat_large"), ("screwdriver_torx_t20", "screwdriver_torx_t25"),
+                 ("antifreeze_jug", "motor_oil_jug"))
+        def seen(env, h):
+            obs = env.observe()
+            entry = dict(obs["visible_entities"].get(h) or {})
+            entry.pop("location", None)                             # the bench's handle (handles differ per house)
+            return [entry, obs.get("lidar"), obs["robot"].get("facing_deg")]
+
+        for pair in pairs:
+            for pos in ((2, 0), (0, 5), (5, 6), (2, 1)):
+                runs = []
+                for member in pair:
+                    m = Mini()
+                    m.add("bench_1", "workbench", "garage", pos=[2, 2])
+                    m.add("item_1", member, "bench_1")
+                    env = m.env(room="garage", pos=pos, perception="realistic", camera="geometric")
+                    h = env.realism.handles.handle("item_1")
+                    run = [seen(env, h)]
+                    for action in ("look", "approach"):                # aimed at it, then walked up to it
+                        result = env.step(action, h) if action == "approach" else env.step(action, target=h)
+                        run.append([result["ok"], result.get("duration_s")] + seen(env, h))
+                    runs.append(json.dumps(run, sort_keys=True))
+                self.assertEqual(runs[0], runs[1], (pair, pos))
+
+    # --- T-5a9598c809336a-01: the camera wrong plan performs its mistake (FIX2 interim rule) ---------------------------
+    @staticmethod
+    def _specs():
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[1] / "tasks" / "authored"
+        out = {}
+        for name in ("tools_vehicles__examples.json", "tools_vehicles__perception.json"):
+            for spec in json.loads((root / name).read_text(encoding="utf-8"))["specs"]:
+                out[spec["catalog_id"]] = spec
+        return out
+
+    def test_every_authored_step_uses_parameters_its_action_has(self):
+        # {"do": "look", "around": true} was refused for its form on every seed (look takes target, pan, tilt, rows, track),
+        # so the wrong plan never acted
+        control = ("do", "expect", "save", "from", "note")
+        for cid, spec in sorted(self._specs().items()):
+            for scope in [spec] + list(spec.get("variants") or []):
+                plans = [("reference", scope.get("reference"))] + [(w.get("name"), w.get("plan")) for w in scope.get("wrong") or []]
+                for where, plan in plans:
+                    for step in _authored_steps(plan):
+                        name = step.get("do")
+                        if not isinstance(name, str) or "{" in name:
+                            continue
+                        self.assertIn(name, ACTIONS, (cid, where))
+                        extra = sorted(k for k in step if k not in control and k not in ACTIONS[name].params)
+                        self.assertEqual(extra, [], (cid, where, name))
+
+    def test_the_bench_glance_wrong_plan_runs_every_step_and_fails(self):
+        from house_sim.tasks.verify import run_trial
+        trial = run_trial(self._specs()["T-5a9598c809336a-01"], 0, None, None)
+        self.assertTrue(trial["passed"], trial)
+        wrong = [w for w in trial["wrong"] if "from where it stands" in w["name"]]
+        self.assertEqual(len(wrong), 1)
+        self.assertTrue(wrong[0]["ran"], wrong[0])
+        self.assertEqual(wrong[0]["refusals"], 0, wrong[0].get("refused"))
+        self.assertIsNone(wrong[0].get("error_class"))
+        self.assertTrue(wrong[0]["fails"])

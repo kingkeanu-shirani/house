@@ -21,7 +21,9 @@ tried]} for every registered action), "coverage" (registered, succeeded, never_s
 noop_only) and "refusals" (each never-succeeding action's most common refusal messages). A physical action that
 "succeeds" without changing the world (HouseEnv.track_effect: no thing, room, body, person, pet or connection changed,
 bookkeeping aside -- "It is already fully open") is tried, not succeeded; it is counted in noop_successes and listed in
-noop_only when it never succeeded otherwise (phase-1 red team).
+noop_only when it never succeeded otherwise (phase-1 red team). The head camera's pose and per-step logs (robot.view:
+pan, tilt, aim, track, frames, events, step) are bookkeeping too: in geometric mode they change with any step that
+looks at its target, whatever it did (K-GATE2: open_valve on an open valve still counted through robot.view.frames).
 
 --coverage drives every registered action toward its success path instead of playing random houses: the house of
 every authored spec (tasks/authored/*.json, --specs GLOB) is built on one seed (rotating 0, 1, 2, 41, 97 over the
@@ -244,16 +246,28 @@ def _frame(tb):
     return "{}:{} ({})".format(os.path.relpath(f.filename, ROOT), f.lineno, f.name)
 
 
+# the head camera's pose and per-step logs: they change with any geometric-mode step that looks at its target, whatever
+# the action did -- bookkeeping for _noop like the robot's energy (K-GATE2)
+VIEW_BOOKKEEPING = "robot.view"
+
+
+def world_effect(paths):
+    """The changed world paths of a step that are an effect of the action (HouseEnv.last_step_effect minus the head
+    camera's pose and logs, VIEW_BOOKKEEPING)."""
+    return [p for p in paths or () if p != VIEW_BOOKKEEPING and not p.startswith(VIEW_BOOKKEEPING + ".")]
+
+
 def _noop(env, action, ok):
     """True for a successful physical action that changed nothing in the world but bookkeeping (env.track_effect:
-    HouseEnv.last_step_effect; phase-1 red team: open_valve "It is already fully open" counted as driven to success).
-    Perception, communication, cognitive and control actions succeed by what they tell or record."""
+    HouseEnv.last_step_effect, world_effect; phase-1 red team: open_valve "It is already fully open" counted as driven
+    to success, and still did through the camera's frame log in geometric specs). Perception, communication,
+    cognitive and control actions succeed by what they tell or record."""
     if not ok:
         return False
     from house_sim.kernel.plugins import ACTIONS
     spec = ACTIONS.get(str(action).strip().lower())
     effect = getattr(env, "last_step_effect", None)
-    return spec is not None and spec.category == "physical" and effect is not None and not effect
+    return spec is not None and spec.category == "physical" and effect is not None and not world_effect(effect)
 
 
 def _tally(stats, action, ok, message=None, refusals=None, noop=False, noops=None):

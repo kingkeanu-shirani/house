@@ -3,6 +3,7 @@ import copy
 
 from ...kernel import clock, dialogue, geometry
 from ...kernel.plugins import answerer, inspector, invariant, observer
+from . import common as C
 from . import data as D
 from . import mixing as X
 from . import model as M
@@ -104,7 +105,7 @@ def _firmness_word(rec):
 
 
 def _probe(w, eid, rec, details, ctx):
-    probe = next((h for h in w.held_items() if w.ent(h).get("tool_kind") in ("thermometer", "probe_thermometer", "meat_thermometer")
+    probe = next((h for h in C.held_known(ctx) if w.ent(h).get("tool_kind") in ("thermometer", "probe_thermometer", "meat_thermometer")
                   or "probe_temperature" in w.ent(h).get("capabilities", [])), None)
     if probe is None:
         return
@@ -134,6 +135,11 @@ def food_inspector(w, eid, rec, details, ctx):
     if eid in w.s.get("people", {}) or eid in w.s.get("pets", {}):
         return
     if ctx.realistic:
+        if P.unfamiliar(ctx.env, eid):
+            # an unfamiliar thing shows the kernel's fixed key set only: no food view of an unfamiliar food and no food
+            # contents of an unfamiliar container (they told a novel cucumber or pot of chili from a novel knife;
+            # review I4, phase-1 finish). What lies in it can still be inspected on its own.
+            return
         return _seen_inspector(w, eid, rec, details, ctx)
     closely = ctx.args.get("where") == "closely"
     if M.food(rec):

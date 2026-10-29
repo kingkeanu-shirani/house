@@ -50,10 +50,22 @@ def breaker_closed(rec):
     return bool(rec.get("on")) and not rec.get("tripped")
 
 
-def circuit_live(state, bid):
-    """A branch circuit is live when its breaker and the panel's main breaker are closed."""
+def circuit_live(state, bid, memo=None):
+    """A branch circuit is live when its breaker and the panel's main breaker are closed.
+
+    memo: optional dict shared through one pass over an unchanged supply state (provider_output_live)."""
     if not bid:
         return True
+    if memo is not None:
+        key = ("circuit", bid)
+        live = memo.get(key)
+        if live is None:
+            memo[key] = live = _circuit_live(state, bid)
+        return live
+    return _circuit_live(state, bid)
+
+
+def _circuit_live(state, bid):
     ents = state["entities"]
     rec = ents.get(bid)
     if rec is None:
@@ -117,7 +129,7 @@ def _provider_output_live(state, oid, depth, memo):
         up = o.get("gfci_protected_by")
         if up and (ents.get(up) or {}).get("gfci_tripped"):
             return False
-        return circuit_live(state, o.get("circuit") or room_circuit(state, oid))
+        return circuit_live(state, o.get("circuit") or room_circuit(state, oid), memo)
     if o.get("tripped"):
         return False
     if o.get("switchable") and not o.get("on", True):
@@ -130,7 +142,20 @@ def _provider_output_live(state, oid, depth, memo):
 
 
 def supply_ok(state, eid, depth=0, memo=None):
-    """True when power reaches the entity's input: mains, or a charged backup battery (UPS / medical backup pack)."""
+    """True when power reaches the entity's input: mains, or a charged backup battery (UPS / medical backup pack).
+
+    memo: as provider_output_live's; a pass's top-level answers (depth 0) are kept in it too, so the loads pass and the
+    derived-field pass of one power step walk each supply chain once."""
+    if memo is not None and depth == 0:
+        key = ("supply", eid)
+        ok = memo.get(key)
+        if ok is None:
+            memo[key] = ok = _supply_ok(state, eid, 0, memo)
+        return ok
+    return _supply_ok(state, eid, depth, memo)
+
+
+def _supply_ok(state, eid, depth, memo):
     if mains_ok(state, eid, depth, memo):
         return True
     rec = state["entities"].get(eid) or {}
@@ -143,26 +168,31 @@ def mains_ok(state, eid, depth=0, memo=None):
     rec = ents.get(eid)
     if rec is None or depth > MAX_DEPTH:
         return False
-    if is_breaker(rec) or rec.get("category") in ("breaker_panel", "outlet"):
-        return state.get("utilities", {}).get("power", True)
-    if not state.get("utilities", {}).get("power", True):
+    get = rec.get
+    category = get("category")
+    grid = state.get("utilities", {}).get("power", True)
+    if category in ("breaker", "breaker_panel", "outlet"):
+        return grid
+    if not grid:
         return False
-    if rec.get("plug_required"):
-        if not rec.get("plugged_in"):
+    if get("plug_required"):
+        if not get("plugged_in"):
             return False
-        if C.num(rec.get("plug_seated"), 1.0) < 0.99 or rec.get("plug_damage"):
+        if C.num(get("plug_seated"), 1.0) < 0.99 or get("plug_damage"):
             return False
-        out = rec.get("outlet")
+        out = get("outlet")
         if out and out in ents:
             return provider_output_live(state, out, depth + 1, memo)
-        return circuit_live(state, room_circuit(state, eid))
-    if rec.get("circuit"):
-        return circuit_live(state, rec["circuit"])
-    if rec.get("hardwired") or rec.get("category") == "light" or isinstance(rec.get("appliance"), dict):
-        if rec.get("hardwired") and rec.get("relation") == "part" and rec.get("category") == "detector":
-            base = ents.get(rec.get("location")) or {}
-            return circuit_live(state, base.get("circuit") or room_circuit(state, eid))
-        return circuit_live(state, room_circuit(state, eid))
+        return circuit_live(state, room_circuit(state, eid), memo)
+    circuit = get("circuit")
+    if circuit:
+        return circuit_live(state, circuit, memo)
+    hardwired = get("hardwired")
+    if hardwired or category == "light" or isinstance(get("appliance"), dict):
+        if hardwired and get("relation") == "part" and category == "detector":
+            base = ents.get(get("location")) or {}
+            return circuit_live(state, base.get("circuit") or room_circuit(state, eid), memo)
+        return circuit_live(state, room_circuit(state, eid), memo)
     return True
 
 
@@ -195,6 +225,14 @@ def supply_path(state, eid):
     return path
 
 
+def _wall_circuit(state, path):
+    """The branch circuit of a supply path that ends at a wall outlet (supply_path), else None."""
+    wall = state["entities"][path[-1]] if path else None
+    if wall is not None and wall.get("outlet_kind", "wall") == "wall":
+        return wall.get("circuit") or room_circuit(state, path[-1])
+    return None
+
+
 def circuit_of(state, eid):
     """Breaker id feeding an entity (through its supply path), or None."""
     ents = state["entities"]
@@ -202,7 +240,7 @@ def circuit_of(state, eid):
     if rec.get("plug_required"):
         path = supply_path(state, eid)
         if path and ents[path[-1]].get("outlet_kind", "wall") == "wall":
-            return ents[path[-1]].get("circuit") or room_circuit(state, path[-1])
+            return _wall_circuit(state, path)
         if rec.get("plugged_in") and not path:
             return room_circuit(state, eid)
         return None
@@ -293,7 +331,7 @@ def loads(state, w=None, memo=None):
             for prov in path:
                 if ents[prov].get("outlet_kind", "wall") != "wall":
                     per_provider[prov] = per_provider.get(prov, 0.0) + watts
-            bid = circuit_of(state, eid) if path else None
+            bid = _wall_circuit(state, path)       # circuit_of(state, eid) on the path just walked
         else:
             bid = rec.get("circuit")
         if bid:
@@ -573,21 +611,27 @@ def sync_energized(w, memo=None):
         rec = ents.get(eid)
         if rec is None:
             continue
-        cat = rec.get("category")
+        get = rec.get
+        cat = get("category")
+        # (`get(field) is not value` only skips C.set_if when the field already holds that very value: set_if decides)
         if cat == "outlet" or is_provider(rec):
-            C.set_if(w, eid, "live", provider_output_live(state, eid, 0, memo))
+            live = provider_output_live(state, eid, 0, memo)
+            if get("live") is not live:
+                C.set_if(w, eid, "live", live)
         if cat == "breaker":
-            handle = "tripped" if rec.get("tripped") else ("on" if rec.get("on") else "off")
-            C.set_if(w, eid, "handle", handle)
+            handle = "tripped" if get("tripped") else ("on" if get("on") else "off")
+            if get("handle") != handle:
+                C.set_if(w, eid, "handle", handle)
             continue
-        relevant = rec.get("plug_required") or cat == "light" or rec.get("circuit") or rec.get("hardwired") or "energized" in rec
+        relevant = get("plug_required") or cat == "light" or get("circuit") or get("hardwired") or "energized" in rec
         if not relevant:
             continue
         ok = supply_ok(state, eid, 0, memo)
-        before = rec.get("energized")
-        if cat == "light":
+        before = get("energized")
+        if cat == "light" and get("powered") is not ok:
             C.set_if(w, eid, "powered", ok)
-        C.set_if(w, eid, "energized", ok)
+        if before is not ok:
+            C.set_if(w, eid, "energized", ok)
         if SETTLING[0]:
             continue
         if before is True and not ok:
@@ -680,11 +724,29 @@ def on_power_restored(order=100):
 # ----------------------------------------------------------------------------------------
 # time system: loads, trips, cord heating, ground faults
 
+def coil_word(rec):
+    """How a cord lies, in this domain's words, whoever wrote `coiled` (three owners write the one field: this domain a
+    word -- plug_in's deploy, unplug's coil, furnished spares --, plumbing_liquids a bool for a garden hose, manipulation
+    the dict of its coil verb, None once uncoiled; breakages.json, the velcro row): "tight" (bundled loops: a strapped
+    or hand-wrapped coil, "tight", "coiled", True), "loose" (loose or over-under loops, an unstrapped coil of
+    manipulation's) or "uncoiled" (laid out, or nothing recorded)."""
+    value = rec.get("coiled", "uncoiled")
+    if isinstance(value, dict):
+        if not value:
+            return "uncoiled"
+        return "tight" if value.get("secured") or C.num(value.get("diameter_m"), 0.3) <= 0.15 else "loose"
+    if value is True or value in ("tight", "coiled"):
+        return "tight"
+    return "loose" if value in ("loose", "over_under") else "uncoiled"
+
+
+CORD_K = {"tight": 95.0, "loose": 55.0, "uncoiled": 30.0}       # steady rise (C) at rated load, by how the cord lies
+
+
 def _cord_k(rec):
     k = 30.0
     if rec.get("outlet_kind") == "extension":
-        coil = rec.get("coiled", "uncoiled")
-        k = 95.0 if coil in ("tight", "coiled", True) else (55.0 if coil == "loose" else 30.0)
+        k = CORD_K[coil_word(rec)]
     if "under_rug" in (rec.get("cord_hazard") or []):
         k *= 1.6
     return k
@@ -693,10 +755,17 @@ def _cord_k(rec):
 _CHARGE_FIELDS = ("battery_level", "charge_rate_w", "charging", "charge_status", "charger")
 
 
+def _modelled_cord(rec):
+    """A strip, cord or plug-in adapter whose temperature the power step models (_cord_temperature)."""
+    return bool(rec.get("fixed_temperature")) and is_provider(rec) and rec.get("outlet_kind", "wall") != "wall"
+
+
 def _power_ignore(rec):
-    """Fields the power step never reads: charging and thermal bookkeeping (a cord's own temperature excepted)."""
-    out = _CHARGE_FIELDS + ("internal_temp_c",)
-    return out if rec.get("fixed_temperature") else out + ("temperature_c",)
+    """Fields the power step never reads: charging and thermal bookkeeping, appliance displays, and every temperature
+    but a modelled cord's own (a clothes iron's or a griddle's temperature, which their domains keep moving, is no
+    input: phase-1 finishing round)."""
+    out = _CHARGE_FIELDS + ("internal_temp_c", "display")
+    return out if _modelled_cord(rec) else out + ("temperature_c",)
 
 
 POWER_IDLE = C.IdleNote("electrical.power", ("powerable", "metered", "plug_devices", "providers", "backup"),
@@ -717,7 +786,7 @@ def _power_inputs(w):
         rec = ents.get(oid) or {}
         if rec.get("outlet_kind") == "timer" and (rec.get("settings") or {}).get("mode", "auto") == "auto":
             timers = True
-        if rec.get("fixed_temperature") and is_provider(rec) and rec.get("outlet_kind", "wall") != "wall":
+        if _modelled_cord(rec):
             cords[oid] = _CORD_RATIOS.get(oid, 0.0)
     return {"grid": C.grid_on(state), "timers": timers, "cords": cords}
 

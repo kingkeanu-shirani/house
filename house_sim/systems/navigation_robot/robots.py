@@ -275,6 +275,8 @@ def try_dock(w, eid):
     return True
 
 
+@C.per_substep_index("household_robots")
+@C.index_reads("rv")
 def _is_household_robot(rec):
     return bool(rec.get("rv"))
 
@@ -304,12 +306,15 @@ def rv_idle(w):
 
 @system("navigation_robot.robot_vacuums", order=115, max_dt=30.0, idle=rv_idle)
 def rv_system(w, dt, tick):
+    ids = robot_ids(w)
+    if not ids:
+        return
     state = w.s
     now = C.now(state)
     from ...kernel import clock
     hour = clock.hour(state)
     prev_hour = hour - dt / 3600.0
-    for eid in robot_ids(w):
+    for eid in ids:
         rec = state["entities"][eid]
         data = refresh_dock_zone(w, eid, force=C.first_substep(tick))
         st = data.get("state")

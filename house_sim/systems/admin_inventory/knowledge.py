@@ -17,6 +17,8 @@ _sentimental) and household tables; question necessity is scored like the core s
 import copy
 import json
 
+from ...kernel import geometry
+from ...kernel.actions import motion_records
 from ...kernel.perception import light_level
 from ...kernel.plugins import answerer, inspector, observer
 from .common import admin_facts, authority, resolve_name, slug
@@ -227,6 +229,31 @@ def _visible_layers(ctx, eid, record):
     return out
 
 
+def _seen_into(record):
+    """A close look sees what it holds: through clear walls, or into an open (or lidless) one whose walls are not
+    opaque. An opaque or closed jug or jar shows nothing of its contents to the eye, however close; only a heft tells
+    its level."""
+    see_through = record.get("transparent") or str(record.get("material") or "") in ("glass", "clear_plastic", "acrylic")
+    return bool(see_through or ((record.get("open") or not record.get("openable")) and not record.get("opaque")))
+
+
+def _may_heft(ctx, eid):
+    """A hand can be on eid now, so a close look can heft and tilt it: the kernel's gate on a touch grant
+    (Realism.grant_problem: held, within arm's reach -- crouching counts --, or passed within reach on this step's
+    walk); without the gate (oracle mode), arm's reach. The geometric head camera can resolve a jug from the closet
+    doorway for a close look, but the heft it used to grant there was one the robot cannot have had (HOUSE_SIM_STRICT
+    raised; T-ab9a26cd6a795e-01 seed 97, wrong plan 'checks the shelf from the closet doorway')."""
+    if ctx is None:
+        return False
+    if ctx.holding(eid):
+        return True
+    gate = getattr(getattr(ctx.env, "realism", None), "grant_problem", None)
+    if gate is not None:
+        return gate(ctx.w.s, eid, "touch", ctx.w, motion_records(ctx)) is None
+    problem = geometry.reach_problem(ctx.w.s, eid)
+    return problem is None or "Crouch" in problem
+
+
 @inspector("admin_inventory.stock", order=110)
 def _inspect_stock(w, eid, record, details, ctx):
     """Stock, dispensers and bulk jars (this domain's flags; a bare liquid container is the plumbing domain's).
@@ -247,19 +274,25 @@ def _inspect_stock(w, eid, record, details, ctx):
         if level is not None and not own and details.get(key) is None:
             held = ctx.holding(eid) if ctx is not None else False
             closely = ctx is not None and ctx.args.get("where") == "closely"
+            if realistic and closely and not observable and not held and not _seen_into(record) \
+                    and not _may_heft(ctx, eid):
+                # what an opaque, closed one holds a close look tells only as a heft and a tilt, which needs a hand on
+                # it: the head camera resolving it from a doorway does not (phase-1 coverage fuzz, strict mode)
+                closely = False
             if observable or held or closely:
                 details[key] = round(level, 2)
-                if realistic and not observable and closely and _liquid_fraction(record) is not None:
+                if realistic and not observable and closely and _liquid_fraction(record) is not None \
+                        and _may_heft(ctx, eid):
                     ctx.grant(eid, "touch", ["liquid_l", "mass_kg"])     # a close look at an opaque jug is a heft and a tilt
             else:
-                details[key] = "unknown: opaque, lift it or inspect closely"
+                details[key] = "unknown: opaque, lift it or inspect it closely within reach"
         for field in ("units_count", "pack_count", "tissues", "sku", "product_tag", "liquid", "expiration", "opened_on",
                       "pao_months", "lot", "bag_size", "liner_size", "paper_size", "clogged", "product_mismatch", "layers",
                       "label_facing", "sealed", "opened_before", "remaining"):
             if field in record and field not in record.get("secret_fields", []):
                 details[field] = copy.deepcopy(record[field])
         if realistic and "layers" in details:
-            if observable or (ctx.args.get("where") == "closely"):
+            if observable or (ctx.args.get("where") == "closely" and _seen_into(record)):
                 details["layers"] = _visible_layers(ctx, eid, record)
                 details.setdefault("_perceived", []).append("layers")
             else:

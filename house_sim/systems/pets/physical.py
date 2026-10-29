@@ -140,6 +140,7 @@ def _on_a_surface(state, eid):
     return bool(parent) and rec.get("relation", "on") == "on" and bool(parent.get("accepts_items") or parent.get("surface"))
 
 
+@C.index_reads("portable", "ground_layer")
 def _knockable(rec):
     return bool(rec.get("portable")) and not rec.get("ground_layer")
 

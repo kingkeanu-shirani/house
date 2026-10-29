@@ -19,8 +19,12 @@ mostly has none. The same random draws are taken in both generations, so generat
 unchanged; a generation-1 kitchen also keeps the field values the adoption round changed in the type data (GEN1_PROPS:
 burners and the electric griddle own their temperature through the older fixed_temperature alias, a pressure cooker
 is put away lid open, a rice cooker keeps its 3.5 kg and its pot 0.6 kg and the label "rice cooker inner pot" that
-named its appliance at a glance: independent review, phase 1), because generation-1 houses stay byte-identical
-(TIER1_INTEGRATION 3.2).
+named its appliance at a glance: independent review, phase 1), and is furnished with the sizes the phase-1 finish
+changed (GEN1_SIZES: the rice cooker, the electric pressure cooker and the electric kettle took their look-alike
+group's one true size; a generation-1 kitchen places, measures and keeps them at the old size through
+_GenerationOneTypes, so its layout is unchanged, and leaves out the kettle fields that only pin what the old size
+gave, GEN1_DROP), because generation-1 houses stay byte-identical (TIER1_INTEGRATION 3.2). Liquid-holding flags added
+to the type data (watertight, holes_mm) are record fields every house gets.
 """
 from ...generator.place import Placer
 from ...kernel import geometry
@@ -32,6 +36,35 @@ from . import common as C
 GEN1_PROPS = {"burner": {"fixed_temperature": True}, "electric_griddle": {"fixed_temperature": True},
               "electric_pressure_cooker": {"open": True}, "rice_cooker": {"mass_kg": 3.5},
               "rice_cooker_pot": {"label": "rice cooker inner pot", "mass_kg": 0.6}}
+# sizes changed after generation 1 was frozen (phase-1 finish, review L2 residual: the members of a look-alike group
+# share one true size): a generation-1 kitchen places and keeps these types at their old size (_GenerationOneTypes)
+GEN1_SIZES = {"rice_cooker": [0.26, 0.33, 0.21], "electric_pressure_cooker": [0.33, 0.31, 0.32],
+              "electric_kettle": [0.22, 0.16, 0.25]}
+# fields added with those sizes that a generation-1 kitchen leaves out: they pin what the old size gave (the electric
+# kettle's water column and base plate), so the generation-1 kettle heats exactly as the new one does
+GEN1_DROP = {"electric_kettle": ("inner_size_m", "base_diameter_m")}
+
+
+class _GenerationOneTypes:
+    """The type registry as a generation-1 kitchen sees it: GEN1_SIZES' types resolve and are made at their old size,
+    so the placer measures and places them exactly as before; everything else is the registry itself."""
+
+    def __init__(self, registry):
+        self._registry = registry
+
+    def __getattr__(self, name):
+        return getattr(self._registry, name)
+
+    def resolve(self, name):
+        rec = self._registry.resolve(name)
+        old = GEN1_SIZES.get(name)
+        return dict(rec, size_m=list(old)) if old else rec
+
+    def make(self, name, location, **overrides):
+        old = GEN1_SIZES.get(name)
+        if old and "size_m" not in overrides:
+            overrides["size_m"] = list(old)
+        return self._registry.make(name, location, **overrides)
 
 STOVES = {
     "us": [("electric_coil", 0.4), ("radiant", 0.25), ("gas", 0.3), ("induction", 0.05)],
@@ -135,13 +168,17 @@ def _hot_drinks(config):
 
 def _generation_one(ents, before):
     """The GEN1_PROPS values on what this furnisher placed in a generation-1 house (thermal_owner gives way to the
-    fixed_temperature alias: the kernel reads both as this domain's ownership)."""
+    fixed_temperature alias: the kernel reads both as this domain's ownership), without the GEN1_DROP fields."""
     for eid, rec in ents.items():
+        if eid in before:
+            continue
         old = GEN1_PROPS.get(rec.get("type"))
-        if old and eid not in before:
+        if old:
             if "fixed_temperature" in old:
                 rec.pop("thermal_owner", None)
             rec.update(old)
+        for field in GEN1_DROP.get(rec.get("type"), ()):
+            rec.pop(field, None)
 
 
 def _pod_machine(p, counters, rng):
@@ -159,13 +196,13 @@ def _kg(p, *type_names):
 
 @furnisher("appliances_cooking.kitchen", order=45)
 def furnish_kitchen(config, rng, opts, registry):
-    p = Placer(config, registry, rng)
+    gen2 = int(opts.get("gen") or 1) >= 2
+    p = Placer(config, registry if gen2 else _GenerationOneTypes(registry), rng)
     meta = config.get("metadata", {})
     region = opts.get("region") or meta.get("region") or "us"
     dwelling = meta.get("dwelling_type", "house")
     gas_service = config.get("utilities", {}).get("gas", True)
     ents = config["entities"]
-    gen2 = int(opts.get("gen") or 1) >= 2
     drinks = _hot_drinks(config) if gen2 else set()
     before = set(ents)
     for kitchen in p.rooms("kitchen"):

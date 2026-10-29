@@ -15,6 +15,7 @@ import weakref
 
 from ...kernel import clock, geometry
 from ...kernel.errors import ActionError, require
+from ...kernel.plugins import hook
 from ...kernel.predicates import root_room
 
 SECTION = "pet_care"
@@ -45,21 +46,88 @@ def world_of(state):
 
 
 def sindex(state, name, predicate):
-    """Sorted ids of entities matching a predicate over STATIC fields (cached by the World until an entity is
-    created or destroyed). Callers re-check dynamic fields; ids are guaranteed to exist."""
+    """Sorted ids of entities matching a predicate of one entity record (kernel World.static_index, kept current by
+    the kernel). Callers re-check dynamic fields; ids are guaranteed to exist. A predicate declares every field it
+    reads (index_reads): the kernel then builds the index from the plain records while a step's journal is empty and
+    re-checks an entity only when one of those fields changed (strict mode checks the declaration)."""
     w = world_of(state)
     entities = state["entities"]
     if w is not None:
-        return [e for e in w.static_index("pets:" + name, predicate) if e in entities]
+        return [e for e in w.static_index("pets:" + name, predicate, getattr(predicate, "reads", None)) if e in entities]
     return [e for e in sorted(entities) if predicate(entities[e])]
 
 
+def index_reads(*fields):
+    """Declare the fields a static-index predicate reads -- all of them, on every path (World.static_index reads=;
+    tests/test_pets.py checks every pets predicate against a recording view of every registered type)."""
+    def deco(fn):
+        fn.reads = tuple(fields)
+        return fn
+    return deco
+
+
+# Indexes pets' time systems and idle probes look up every substep: name -> (predicate, always). Built when the episode
+# starts (prebuild_indexes); "always" ones in every house (the idle probes of pets.food, habitats, cages, water and
+# litter run there too), the others where pets live.
+PREBUILT = {}
+
+
+def per_substep_index(name, always=False):
+    def deco(fn):
+        assert getattr(fn, "reads", None) is not None, name
+        PREBUILT[name] = (fn, always)
+        return fn
+    return deco
+
+
+@hook("episode_start", order=-80)
+def prebuild_indexes(w, env):
+    """Build pets' per-substep static indexes when the episode starts, before any hook writes (order -80): with nothing
+    journaled the World evaluates their declared-read predicates on the plain records, several times cheaper than the
+    read view per entity a first build inside a busy substep goes through (P1 gate G7, phase-1 finish). An index's
+    content is a pure function of the state (World.static_index), so nothing any system computes changes."""
+    bind_world(w)
+    has_pets = bool(w.s.get("pets"))
+    for name in sorted(PREBUILT):
+        predicate, always = PREBUILT[name]
+        if always or has_pets:
+            w.static_index("pets:" + name, predicate, predicate.reads)
+
+
+@per_substep_index("pet_doors")
+@index_reads("category", "mech")
 def _is_pet_door(rec):
     return rec.get("category") == "pet_door" or (rec.get("mech") or {}).get("kind") == "pet_door"
 
 
+@per_substep_index("windows")
+@index_reads("category", "type", "is_a")
 def _is_window(rec):
     return rec.get("category") == "window" or rec.get("type") == "window" or "window" in (rec.get("is_a") or [])
+
+
+@per_substep_index("litter_boxes", always=True)
+@index_reads("category")
+def _is_litter_box(rec):
+    return rec.get("category") == "litter_box"
+
+
+@index_reads("category")
+def is_rug(rec):
+    return rec.get("category") == "rug"
+
+
+@index_reads("portable", "pet_gear")
+def _portable_or_gear(rec):
+    return bool(rec.get("portable") or rec.get("pet_gear"))
+
+
+@per_substep_index("water_sources", always=True)
+@index_reads("pet_item", "liquid_container")
+def is_water_source(rec):
+    """A pet's water holder (bowls, fountains, waterers, travel bottles): the pets.water systems' and the agents'
+    water sources."""
+    return bool(rec.get("pet_item") and rec.get("liquid_container"))
 
 
 def pet_doors(state):
@@ -71,7 +139,15 @@ def windows(state):
 
 
 def litter_boxes(state):
-    return sindex(state, "litter_boxes", lambda r: r.get("category") == "litter_box")
+    return sindex(state, "litter_boxes", _is_litter_box)
+
+
+def rugs(state):
+    return sindex(state, "rugs", is_rug)
+
+
+def water_sources(state):
+    return sindex(state, "water_sources", is_water_source)
 
 
 def located_in(state, ids, parent):
@@ -104,7 +180,7 @@ def add_damage(w, eid, kind, severity):
 def carried_by(state, pid):
     """Entities located on a pet (held in the mouth, worn gear): scans only portable things, cached statically."""
     ents = state["entities"]
-    return [e for e in sindex(state, "portable", lambda r: bool(r.get("portable") or r.get("pet_gear"))) if ents[e].get("location") == pid]
+    return [e for e in sindex(state, "portable", _portable_or_gear) if ents[e].get("location") == pid]
 
 
 def is_bin(rec):
@@ -728,16 +804,19 @@ def robot_set_up(w, *eids):
 
 def person_knocked_down(w, qid, cause, robot):
     """A pet knocked a person down (a dog jumping up to greet a frail visitor, a fetching dog barrelling into a child).
-    Falls are the people domain's: its scenario event "people.fall" sets the posture and condition, logs the fall and
-    posts the thud and the call for help the robot may hear; its global falls flag is raised only when the robot caused
-    it (count_harm, the harm attribution above). Without the people domain the record is updated here."""
+    Falls are the people domain's: its scenario event "people.fall" sets the posture and condition, logs the fall with
+    the caller's attribution (robot_caused: the harm attribution above) and posts the thud and the call for help the
+    robot may hear; a robot-caused fall counts the global falls and injury flags there, once for the strike. Without the
+    people domain the record is updated here (falls only). Returns True when the people domain counted the injury of a
+    robot-caused fall, so the caller does not count it again."""
     from ...kernel.plugins import HOOKS, run_hooks
     person = (w.s.get("people") or {}).get(qid)
     if not person:
-        return
+        return False
     if HOOKS.get("event:people.fall"):
-        run_hooks("event:people.fall", w, {"person": qid, "cause": cause, "count_harm": bool(robot)}, None)
-        return
+        run_hooks("event:people.fall", w, {"person": qid, "cause": cause, "robot_caused": bool(robot),
+                                           "count_harm": bool(robot)}, None)
+        return bool(robot)
     qm = w.person_m(qid)
     qm["posture"] = "fallen"
     qm["mood"] = "hurt"
@@ -745,6 +824,7 @@ def person_knocked_down(w, qid, cause, robot):
         w.stat("falls")
     if person.get("location") in w.s.get("rooms", {}):
         w.notice("person_down", room=person.get("location"), db=65.0, source=qid)
+    return False
 
 
 def note_confined(w, pid, confined=True):
@@ -1071,12 +1151,22 @@ def pet_rooms(state, pid):
         return set()
     if not is_free(pet):
         return {start}
+    # each room's connections in id order, from one pass over them (what neighbors() finds room by room)
+    links = {}
+    connections = state.get("connections", {})
+    for cid in sorted(connections):
+        conn = connections[cid]
+        for rid in conn.get("rooms", []):
+            have = links.setdefault(rid, [])
+            if not have or have[-1] is not conn:
+                have.append(conn)
     seen, frontier = {start}, [start]
     while frontier:
         rid = frontier.pop()
         if escape_zone(state, rid, pet) and rid != start:
             continue
-        for other, _cid, conn in neighbors(state, rid):
+        for conn in links.get(rid, ()):
+            other = conn["rooms"][1] if conn["rooms"][0] == rid else conn["rooms"][0]
             if other in seen or not conn_open(state, conn, pet):
                 continue
             seen.add(other)

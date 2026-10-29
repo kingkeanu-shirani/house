@@ -2957,5 +2957,288 @@ class PhaseOneStabiliseTests(unittest.TestCase):
         self.assertEqual(len(set(masses.values())), 1, masses)
 
 
+def _index_records(seeds=((0, 1), (1, 1), (2, 1), (0, 2))):
+    """Records the index predicates judge: every registry type's defaults and every entity of a few generated houses
+    (generation 1 and 2), each after its episode started."""
+    reg = default_registry()
+    records = [dict(reg.resolve(name), type=name, is_a=reg.ancestors(name)) for name in sorted(reg.types)]
+    for seed, gen in seeds:
+        env = HouseEnv(generate_house(seed, gen=gen), seed=seed, trace=False, observe_on_step=False)
+        records += [env.world.s["entities"][eid] for eid in sorted(env.world.s["entities"])]
+    return records
+
+
+class PhaseOneFinishTests(unittest.TestCase):
+    """Phase 1, finishing round (catalog/analysis/phase1/finish_electrical.json)."""
+
+    def test_remote_look_alikes_share_one_true_size_and_mass(self):
+        """breakages.json (electrical, FIX2 registry.lookalike_spreads / review L2 residual): the remote group's members
+        differed in true size (remote_control_aa 0.05 x 0.22 x 0.03 m against 0.045 x 0.2 x 0.025 m) and mass (0.15 vs
+        0.12 kg), so the geometric camera's pixels, lidar and elevation, and the robot's load, told an AA remote from the
+        others while the record showed the group's size."""
+        reg = default_registry()
+        members = reg.lookalike_types()["remote"]
+        self.assertIn("remote_control_aa", members)
+        self.assertEqual(len({tuple(reg.resolve(t)["size_m"]) for t in members}), 1, members)
+        self.assertEqual(len({reg.resolve(t)["mass_kg"] for t in members}), 1, members)
+        from pathlib import Path
+        own = set(json.loads((Path(__file__).resolve().parents[1] / "house_sim" / "data" / "types" /
+                              "electrical.json").read_text(encoding="utf-8"))["types"])
+        electrical_groups = {g for g, types in reg.lookalike_types().items() if own & set(types)}
+        self.assertIn("remote", electrical_groups)
+        spread = [line for line in reg.lookalike_size_spreads() if line.split(":")[0] in electrical_groups]
+        self.assertEqual(spread, [])
+        self.assertEqual(reg.resolve("remote_control_aa")["slots"]["cell_1"]["accepts"], ["battery_aa"],
+                         "the cell type stays what tells it apart (inspect the compartment)")
+
+    def test_every_index_predicate_reads_only_its_declared_fields(self):
+        """G7 (P1 gate): the electrical static indexes are built on plain records with declared reads (World.static_index
+        reads=), so a predicate reading an undeclared field would leave an index stale outside strict mode. Every
+        predicate, on every type's defaults and every generated record, reads only INDEX_READS[name]."""
+        from house_sim.kernel.world import _ReadView
+        from house_sim.systems.electrical import common as C
+        names = sorted(set(C.PREDICATES) | set(C.MODULE_INDEXES))
+        self.assertEqual(sorted(C.INDEX_READS), names, "every index declares its reads")
+        for record in _index_records():
+            for name in names:
+                keys = set()
+                predicate = C.PREDICATES.get(name) or C.MODULE_INDEXES[name]
+                self.assertEqual(bool(predicate(_ReadView(record, keys))), bool(predicate(record)), name)
+                self.assertLessEqual(keys, set(C.INDEX_READS[name]),
+                                     "{} reads {} on {}".format(name, sorted(keys - set(C.INDEX_READS[name])),
+                                                                record.get("type")))
+
+    def test_the_indexes_are_built_at_episode_start_and_change_nothing(self):
+        """G7: the indexes are built before any episode_start hook writes (furnish._prebuild_indexes), so neither the
+        setup hooks nor the first substep build them through a read view per entity. Each equals a scan of the starting
+        records, and an hour on a generated house ends in the same state with and without the early build."""
+        from house_sim.kernel.predicates import digest
+        from house_sim.systems.electrical import common as C
+        env = HouseEnv(generate_house(1), seed=1, trace=False, observe_on_step=False)
+        w = env.world
+        for name in sorted(set(C.PREDICATES) | set(C.MODULE_INDEXES)):
+            predicate = C.PREDICATES.get(name) or C.MODULE_INDEXES[name]
+            self.assertIn("electrical." + name, w._static, name)
+            scan = [eid for eid in sorted(w.s["entities"]) if predicate(w.s["entities"][eid])]
+            self.assertEqual(C.ids(w, name), scan, name)
+        ok(self, env, "wait", seconds=3600)
+        saved = C.prebuild_indexes
+        try:
+            C.prebuild_indexes = lambda w: None
+            late = HouseEnv(generate_house(1), seed=1, trace=False, observe_on_step=False)
+            self.assertNotIn("electrical.metered", late.world._static)
+            ok(self, late, "wait", seconds=3600)
+        finally:
+            C.prebuild_indexes = saved
+        self.assertEqual(digest(env.world.s), digest(late.world.s))
+
+    def test_a_power_pass_answers_as_an_unshared_walk_of_each_supply_chain(self):
+        """G7: one power step shares one memo between its loads pass and the derived-field pass (circuit liveness and
+        each top-level supply answer are kept in it). Every answer equals a walk without the memo, in a quiet house and
+        with a tripped branch breaker, a tripped GFCI, a strip switched off and a grid outage."""
+        from house_sim.systems.electrical import common as C, power as P
+
+        def check(env, label):
+            state, w = env.world.s, env.world
+            memo = {}
+            shared = P.loads(state, w, memo)
+            self.assertEqual(shared, P.loads(state, w), label)
+            for eid in C.ids(w, "powerable"):
+                self.assertEqual(P.supply_ok(state, eid, 0, memo), P.supply_ok(state, eid), (label, eid))
+                rec = state["entities"][eid]
+                if rec.get("category") == "outlet" or P.is_provider(rec):
+                    self.assertEqual(P.provider_output_live(state, eid, 0, memo), P.provider_output_live(state, eid),
+                                     (label, eid))
+                bid = rec.get("circuit")
+                if bid:
+                    self.assertEqual(P.circuit_live(state, bid, memo), P.circuit_live(state, bid), (label, eid))
+            for eid in C.ids(w, "plug_devices"):
+                path = P.supply_path(state, eid)
+                if path:
+                    self.assertEqual(P._wall_circuit(state, path), P.circuit_of(state, eid), (label, eid))
+            return shared
+
+        for seed in (0, 1, 2):
+            env = HouseEnv(generate_house(seed), seed=seed, trace=False, observe_on_step=False)
+            w, ents = env.world, env.world.s["entities"]
+            self.assertTrue(check(env, "quiet")[2], "a generated house draws power")
+            breaker = next(b for b in C.ids(w, "breakers") if ents[b].get("breaker_kind") != "main")
+            outlet = next(o for o in C.ids(w, "outlets") if ents[o].get("outlet_kind", "wall") == "wall")
+            strips = [p for p in C.ids(w, "providers") if ents[p].get("outlet_kind") == "strip"]
+            poke(env, breaker, tripped=True, on=False)
+            check(env, "breaker")
+            poke(env, outlet, gfci=True, gfci_tripped=True)
+            check(env, "gfci")
+            for strip in strips:
+                poke(env, strip, on=False)
+            check(env, "strip")
+            env.world.begin()
+            env.world.sec("utilities")["power"] = False
+            env.world.commit()
+            check(env, "outage")
+
+    def test_the_light_and_detector_passes_write_what_a_fresh_pass_derives(self):
+        """G7: sync_lights computes each fixture's working bulbs once and skips C.set_if for fields that already hold
+        their value; sync_detectors reads each detector's voltage, mounting, power and date once. A second pass over
+        what the first wrote changes nothing, and the derived fields follow bulbs, dimmers and power as before."""
+        from house_sim.systems.electrical import common as C, detectors as D, lighting as L
+        for seed in (0, 1, 2):
+            env = HouseEnv(generate_house(seed), seed=seed, trace=False, observe_on_step=False)
+            w, ents = env.world, env.world.s["entities"]
+            w.begin()
+            before = w.mutation_count
+            L.sync_lights(w)
+            D.sync_detectors(w)
+            self.assertEqual(w.mutation_count, before, "the episode start left every derived field settled")
+            w.commit()
+            for eid in C.ids(w, "detectors"):
+                rec = ents[eid]
+                self.assertEqual(rec.get("_electrical_status"), D.condition(env.world.s, eid), eid)
+                self.assertEqual(rec.get("power_source"), D.power_status(env.world.s, eid)[0], eid)
+            for eid in C.ids(w, "lights"):
+                rec = ents[eid]
+                work = L.working_bulbs(env.world.s, eid)
+                self.assertEqual(L._working(ents, rec, L.bulb_slots(rec)), work, eid)
+                self.assertEqual(L.dim_for(env.world.s, eid, rec, L.switch_index(env.world.s, w), work),
+                                 L.dim_for(env.world.s, eid, rec), eid)
+        env, b, r = build(LAMP_SCENE)
+        r.skill("electrical.plug_in", device=b["lamp"], outlet=b["outlet"], route="along_wall")
+        r.skill("approach", target=b["lamp"])
+        ok(self, env, "switch_on", b["lamp"])
+        self.assertTrue(ent(env, b["lamp"])["lit"])
+        bulb = L.bulbs(env.world.s, b["lamp"])[0]
+        poke(env, bulb, burnt_out=True)
+        ok(self, env, "wait", seconds=30)
+        self.assertFalse(ent(env, b["lamp"])["lit"])
+        self.assertTrue(ent(env, b["lamp"])["burnt_out"])
+
+    def test_a_lamp_wheeled_on_a_cart_into_a_warmer_room_wakes_the_light_step(self):
+        """Exact idle probes: the location ancestors of a note's members were cached per entity count, so a lamp put on
+        a cart during a step left the cart out of them and the cart's move into a warmer room went unseen (a dimmed
+        lamp's bulbs heat toward its room's temperature). A note now reads the ancestors of its last run."""
+        from house_sim.systems.electrical import lighting as L
+        env, b, r = build([{"op": "room", "var": "lr", "type": "living_room"},
+                           {"op": "room", "var": "kit", "type": "kitchen"},
+                           {"op": "spawn", "var": "side", "type": "side_table", "furniture": "{lr}", "wall": True},
+                           {"op": "spawn", "var": "cart", "type": "side_table", "furniture": "{lr}"},
+                           {"op": "helper", "name": "electrical.lamp", "args": {"on": "{side}", "type": "touch_lamp",
+                                                                               "var": "lamp"}},
+                           {"op": "robot", "room": "{lr}"}])
+        r.skill("approach", target=b["lamp"])
+        ok(self, env, "switch_on", b["lamp"])
+        self.assertLess(ent(env, b["lamp"])["dim_level"], 1.0)
+        w = env.world
+        w.begin()
+        w.room_m(b["kit"])["temperature_c"] = 30.0
+        L.lights_system(w, 30.0, None)
+        L.lights_system(w, 30.0, None)
+        self.assertTrue(L.lights_idle(w), "a run that wrote nothing leaves the note")
+        before = ent(env, b["lamp"])["internal_temp_c"]
+        w.mut(b["lamp"])["location"] = b["cart"]          # a resident puts the lamp on the cart (same room)
+        self.assertFalse(L.lights_idle(w))
+        L.lights_system(w, 30.0, None)
+        self.assertEqual(ent(env, b["lamp"])["internal_temp_c"], before)
+        self.assertTrue(L.lights_idle(w))
+        w.mut(b["cart"])["location"] = b["kit"]           # and wheels the cart into the warmer kitchen
+        self.assertFalse(L.lights_idle(w), "the cart is now an ancestor of the lamp")
+        L.lights_system(w, 30.0, None)
+        self.assertGreater(ent(env, b["lamp"])["internal_temp_c"], before)
+        w.commit()
+
+    def test_a_run_that_writes_keeps_the_notes_snapshots(self):
+        """G7 (engine): every run that wrote threw a note's snapshots away, so after it the first substep in which a
+        neighbour touched a member (a fridge's cooling state, every substep) woke the system once more. The snapshots
+        now survive a writing run; the next run that writes nothing refreshes them."""
+        from house_sim.systems.electrical import lighting as L
+        env, b, r = build([{"op": "room", "var": "lr", "type": "living_room"},
+                           {"op": "spawn", "var": "side", "type": "side_table", "furniture": "{lr}", "wall": True},
+                           {"op": "helper", "name": "electrical.lamp", "args": {"on": "{side}", "type": "touch_lamp",
+                                                                               "var": "lamp"}},
+                           {"op": "robot", "room": "{lr}"}])
+        r.skill("approach", target=b["lamp"])
+        ok(self, env, "switch_on", b["lamp"])
+        w, lamp = env.world, b["lamp"]
+        bulb = L.bulbs(w.s, lamp)[0]
+        w.begin()
+        L.lights_system(w, 30.0, None)
+        L.lights_system(w, 30.0, None)
+        w.mut(lamp)["_handled_by"] = "resident_1"         # a neighbour's write to the lamp: no snapshot yet
+        self.assertFalse(L.lights_idle(w))
+        L.lights_system(w, 30.0, None)                    # writes nothing, snapshots the lamp
+        self.assertTrue(L.lights_idle(w))
+        w.mut(bulb)["burnt_out"] = True
+        before = w.mutation_count
+        L.lights_system(w, 30.0, None)
+        self.assertNotEqual(w.mutation_count, before, "the lamp goes dark: a run that writes")
+        self.assertFalse(L.lights_idle(w))
+        before = w.mutation_count
+        L.lights_system(w, 30.0, None)
+        self.assertEqual(w.mutation_count, before)
+        w.mut(lamp)["_handled_by"] = "resident_1"         # the same neighbour's write again
+        self.assertTrue(L.lights_idle(w), "the lamp's snapshot outlived the run that wrote")
+        w.commit()
+
+    def test_an_extension_cord_coiled_by_any_owner_heats_as_a_coil(self):
+        """breakages.json (manipulation's velcro row: three owners write `coiled`, electrical a word, plumbing_liquids
+        a bool, manipulation the dict of its coil verb): the cord heat model read only words, so a cord lying in
+        manipulation's loops (or over-under loops) under load heated as if laid out (k 30 C instead of 55 / 95 C)."""
+        from house_sim.systems.electrical import power as P
+        loops = {"technique": "loop", "loops": 8, "diameter_m": 0.3, "twist_per_loop": 0.5, "kinks": 0, "secured": False}
+        for value, word in (("tight", "tight"), ("coiled", "tight"), (True, "tight"), ("loose", "loose"),
+                            ("over_under", "loose"), ("uncoiled", "uncoiled"), (None, "uncoiled"), (False, "uncoiled"),
+                            ({}, "uncoiled"), (loops, "loose"), (dict(loops, secured=True), "tight"),
+                            (dict(loops, technique="wrap_hand", diameter_m=0.12), "tight")):
+            self.assertEqual(P.coil_word({"coiled": value}), word, value)
+        ops = [{"op": "room", "var": "lr", "type": "living_room"},
+               {"op": "spawn", "var": "cord", "type": "extension_cord", "floor": "{lr}"},
+               {"op": "spawn", "var": "heater", "type": "generic_item", "robot_hand": "left", "props": HEATER},
+               {"op": "helper", "name": "electrical.outlet", "args": {"room": "{lr}", "near": "{cord}"}},
+               {"op": "robot", "room": "{lr}"}]
+        temps, scorched = {}, {}
+        for label, coiled in (("laid out", "uncoiled"), ("loops", loops), ("strapped", dict(loops, secured=True))):
+            env, b, r = build(ops)
+            r.skill("electrical.plug_in", device=b["cord"], outlet=b["outlet"])
+            r.skill("approach", target=b["cord"])
+            r.do("crouch")
+            ok(self, env, "plug_in", b["heater"], b["cord"], route="direct")
+            poke(env, b["cord"], coiled=coiled)       # staged as the coil verb leaves a cord
+            ok(self, env, "wait", seconds=3600)
+            temps[label], scorched[label] = ent(env, b["cord"])["temperature_c"], bool(ent(env, b["cord"]).get("scorched"))
+        self.assertGreater(temps["loops"], temps["laid out"] + 10.0, temps)
+        self.assertEqual(scorched, {"laid out": False, "loops": False, "strapped": True}, temps)
+
+    def test_a_devices_own_temperature_does_not_wake_the_power_step_but_a_cords_does(self):
+        """G7: electrical.power reads a temperature only of the cords it models (_cord_temperature), but its probe
+        snapshot kept every fixed-temperature record's temperature_c, so a clothes iron or a griddle its domain keeps
+        heating woke the power step every substep (456 of 480 probes in an hour on houses 0-3 answered False)."""
+        from house_sim.systems.electrical import common as C, power as P
+        env = HouseEnv(generate_house(1), seed=1, trace=False, observe_on_step=False)
+        w, ents = env.world, env.world.s["entities"]
+        def modelled(rec):
+            return bool(rec.get("fixed_temperature")) and P.is_provider(rec) and rec.get("outlet_kind", "wall") != "wall"
+        cords = [o for o in C.ids(w, "providers") if modelled(ents[o])]
+        devices = [d for d in C.ids(w, "plug_devices") if not modelled(ents[d])]
+        self.assertTrue(cords and devices)
+        w.begin()
+        w.mut(devices[0]).update(fixed_temperature=True, temperature_c=60.0)     # an iron its domain keeps heating
+        for _ in range(200):
+            before = w.mutation_count
+            P.power_system(w, 30.0, None)
+            if w.mutation_count == before:
+                break
+        self.assertTrue(P.power_idle(w), "the cords settled at the room temperature")
+        w.mut(devices[0])["temperature_c"] = 120.0
+        self.assertFalse(P.power_idle(w), "a first write to a member without a snapshot wakes the step once")
+        before = w.mutation_count
+        P.power_system(w, 30.0, None)
+        self.assertEqual(w.mutation_count, before)
+        self.assertTrue(P.power_idle(w))
+        w.mut(devices[0])["temperature_c"] = 180.0
+        self.assertTrue(P.power_idle(w), "a device's own temperature is no input of the power step")
+        w.mut(cords[0])["temperature_c"] = C.num(ents[cords[0]].get("temperature_c"), 21.0) + 5.0
+        self.assertFalse(P.power_idle(w), "a modelled cord's temperature is")
+        w.commit()
+
+
 if __name__ == "__main__":
     unittest.main()

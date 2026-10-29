@@ -145,6 +145,41 @@ python tools/orchestration/tier1_gate.py compare --package ADOPT:cleaning --shar
 python tools/orchestration/tier1_gate.py signoff --package ADOPT:cleaning --by main --out draft.json  # main session
 ```
 
+## Phase-1 red team: FIX2 and the second gate pass (K-GATE2, 2026-10-28)
+
+The red team (catalog/analysis/phase1/red_defects.json) asked who can make the gate say PASS. FIX2 (its fix pass;
+tier1_gate.py's docstring has the rules) added per-test outcomes, tree fingerprints, an honest standalone compare and
+policy files read from the project's commits only. K-GATE2 (catalog/analysis/phase1/finish_K-GATE2.json) closed what
+those fixes left open, each with a regression test in tests/test_gate_tool.py (`SecondPassGateTests`):
+
+* **Hand-over base.** A record or a comparison is a hand-over only against the package's base: the stage's default
+  previous gate or the base of a sub-stage the package runs in (`SUBSTAGE_BASE`; phase 1: ADOPT for every
+  `ADOPT:<domain>` and the P1 packages). `record --prev none` while a base exists, `--prev` naming the package's own
+  earlier record (which already carries the regression), or a copy of the record itself end `INCOMPLETE`.
+  `--stage` belongs to main-session ids without a package; `--seeds` fewer than 0 1 2 41 97 and `--extras` fewer
+  than the package's narrow the record.
+* **One tree.** `compare` fails TREE for a record whose tree is neither the project nor an isolated copy made from
+  one of its commits (`record --root <any folder with its own git history>` passed its own TREE and G10 before).
+* **What failed the record's own G3 / G6** is recomputed: the G2/G3 determinism check of the realistic specs,
+  spec-worker crashes and the required audit variants (coverage, geometric, battery) even when the previous record
+  lacks them too. Per-test ids, once a record has them, are required (a count hides a deleted test replaced by
+  another).
+* **Wall-clock bounds out of the correctness suite.** G1, G1b, G8 and the G9 test extras run with
+  `HOUSE_SIM_PERF_TESTS=0` (each bound skips with "wall-clock bound off"; the `_unittest` worker records outcome
+  `perf`); G7 runs them alone after the benchmarks, normal and strict, each passing when one of 3 attempts meets it
+  (`green_tests.py --perf`), into tests.json `perf`. A bound moved there is excused against the previous record only
+  when that job ran it; one failing every attempt fails G7 (compare: `PERF`). `green_tests.py` itself turns the bounds
+  off unless the caller sets the switch; CI runs the perf job separately and informationally.
+* **Coverage fuzz.** The head camera's pose and per-step logs (`robot.view`) are bookkeeping: a physical action that
+  changed only them (open_valve on an open valve in a geometric spec) is a no-op success, not coverage.
+* **Golden.** `tools/golden.py record` pins a failing reference only when the main session accepted it: on the
+  committed allowlist or already pinned known-failing in the committed golden; `--known-failing` is checked against
+  those, never a recorder's own excuse.
+* **Verifier (interim, VERIFY_HARDENING 14.3 rule 1 is the full rule).** A wrong plan that never acts -- every action
+  it attempted refused, waiting aside, a physical success that changed nothing counting as no act -- is not
+  evidence (`NeverActed`); a strict-block refusal (safety, privacy, social, authority) and a declared `mistake` are
+  left to the full rule.
+
 ## run_check.py (orchestrator-verified checks)
 
 ```

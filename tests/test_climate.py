@@ -2847,6 +2847,136 @@ class Phase1StabiliseTests(unittest.TestCase):
         self.assertNotIn(oracle["bindings"]["hygro"], env.world.s.get("reports") or {})
 
 
+class Phase1FinishTests(unittest.TestCase):
+    """Phase 1 finish: the breakage the red team left for this domain (FIX2) and its share of the G7 substep cost."""
+
+    def test_purifier_panels_share_one_true_size_so_the_geometric_camera_sees_them_alike(self):
+        # breakages.json (FIX2; review L2 residual): the pre-filter (8 mm), carbon (15 mm) and HEPA (40 mm) panels hid
+        # different true sizes behind one look; the geometric camera's range told the HEPA panel apart on approach
+        reg = default_registry()
+        ours = {"pleated_air_filter", "purifier_cartridge", "purifier_panel"}
+        self.assertEqual([s for s in reg.lookalike_size_spreads() if s.split(":")[0] in ours], [])
+        members = ("purifier_prefilter", "purifier_carbon_filter", "purifier_hepa_filter")
+        self.assertEqual(len({(tuple(reg.resolve(t)["size_m"]), reg.resolve(t)["volume_l"]) for t in members}), 1)
+        rp = RealisticPerceptionTests()
+        rows = {}
+        for t in members:
+            h = PurifierTests().house(layered=True)
+            h.add("probe_panel", t, "bedroom", pos=[1, 4])
+            env = HouseEnv(copy.deepcopy(h.c), None, 0, perception="realistic", camera="geometric")
+            rp.go(env, "bedroom")
+            row = []
+            for action, target, args in (("look", "around", {"rows": 2}), ("face", "probe_panel", {}), ("approach", "probe_panel", {})):
+                r = rp.step(env, action, target, **args)
+                obs = env.observe()
+                row.append((r["ok"], obs["visible_entities"].get(rp.h(env, "probe_panel")), obs.get("lidar")))
+            self.assertTrue(all(ok_ for ok_, _, _ in row), row)
+            self.assertIsNotNone(row[0][1])
+            self.assertEqual(row[0][1]["label"], "flat air-filter panel")
+            rows[t] = row
+        for t in members[1:]:
+            self.assertEqual(rows[t], rows[members[0]], t)
+
+    def index_predicates(self):
+        from house_sim.systems.climate import fans as FN, moisture as MO
+        preds = dict(CC.PER_STEP)
+        preds.update({"climate.connecting": CC.connects_rooms, "climate.combustible": CC.combustible_candidate,
+                      "climate.light_or_flame": FN._light_or_flame, "climate.shade_casters": SUN._caster_candidate,
+                      "climate.window_covers": SUN._window_cover_candidate, "climate.dust_settle": MO._settle_candidate,
+                      "climate.floors": MO._floor_candidate, "climate.mist_sensitive": MO._mist_candidate})
+        return preds
+
+    def test_every_climate_index_predicate_declares_every_field_it_reads(self):
+        # G7 (phase 1): declared reads let the World evaluate a predicate on the plain record; a field read but not
+        # declared would leave the index stale when that field changes (World.static_index contract)
+        from house_sim.kernel.world import _ReadView
+        preds = self.index_predicates()
+        records = []
+        for state in (HouseEnv(generate_house(0), seed=0).world.s, HouseEnv(generate_house(3, gen=2), seed=3).world.s,
+                      FanTests().house().env().world.s, HeaterTests().house(strip=True).env().world.s,
+                      PurifierTests().house(layered=True).env().world.s, RealisticPerceptionTests().humid_house().env().world.s):
+            records.extend(state["entities"].values())
+        # shapes these houses may lack: screens, candles and papers, outdoor shade casters, a shade-watched item, a curtain
+        records += [{"category": "tv"}, {"category": "painting", "glare_watch": True}, {"category": "candle"},
+                    {"category": "paper", "mass_kg": 0.005}, {"category": "card", "tags": ["loose_paper"], "mass_kg": 0.02},
+                    {"category": "tree", "is_a": ["plant"]}, {"category": "chair", "shade": {"radius_m": 1.0}},
+                    {"category": "patio_umbrella", "is_a": ["portable_object"]}, {"category": "seat", "shade_watch": {"from_s": 0.0}},
+                    {"category": "curtain", "covers_window": "win_n", "material": "cotton"}]
+        for name, pred in sorted(preds.items()):
+            self.assertTrue(pred.reads, name)
+            hits = 0
+            for rec in records:
+                keys = set()
+                answer = bool(pred(_ReadView(rec, keys)))
+                self.assertEqual(answer, bool(pred(rec)), name)
+                self.assertLessEqual(keys, set(pred.reads), name)
+                hits += answer
+            self.assertGreater(hits, 0, name)       # the predicate is exercised, not vacuous
+        # every climate lookup in these episodes passes a declared predicate
+        from house_sim.kernel.world import World
+        seen = {}
+        original = World.static_index
+
+        def spy(world, name, predicate, reads=None):
+            if name.startswith("climate."):
+                seen.setdefault(name, set()).add(reads is not None)
+            return original(world, name, predicate, reads)
+        World.static_index = spy
+        try:
+            for h in (FanTests().house(), HeaterTests().house(curtain_close=True), PurifierTests().house(layered=True)):
+                env = h.env()
+                env.step("wait", seconds=600)
+                env.observe()
+            env = HouseEnv(generate_house(1), seed=1)
+            env.step("wait", seconds=3600)
+            env.observe()
+        finally:
+            World.static_index = original
+        self.assertTrue(seen)
+        self.assertEqual({n: v for n, v in seen.items() if v != {True}}, {})
+        self.assertLessEqual(set(seen), set(preds))
+
+    def test_per_substep_indexes_are_built_when_the_episode_starts_and_change_nothing(self):
+        # G7 (phase 1): the indexes every substep looks up were first built inside the first substep, through the
+        # kernel's read views; they are now built at episode start on the plain records - the same content
+        env = HouseEnv(generate_house(1), seed=1, trace=False, observe_on_step=False)
+        w = env.world
+        ents = w.s["entities"]
+        for name, pred in sorted(CC.PER_STEP.items()):
+            self.assertIn(name, w._static)
+            self.assertEqual(w._static[name][0], sorted(e for e, r in ents.items() if pred(r)), name)
+        env.step("wait", seconds=7200)
+        with_prebuild = digest(env.world.s)
+        saved = dict(CC.PER_STEP)
+        CC.PER_STEP.clear()
+        try:
+            plain = HouseEnv(generate_house(1), seed=1, trace=False, observe_on_step=False)
+            plain.step("wait", seconds=7200)
+        finally:
+            CC.PER_STEP.update(saved)
+        self.assertEqual(digest(plain.world.s), with_prebuild)
+
+    def test_a_window_fan_forces_air_through_its_open_window(self):
+        # the air pass now joins rooms into open-door zones only when a window is open (cross ventilation and window
+        # fans read them); a box fan exhausting through the bedroom's open window still drives its air change
+        def run(fan):
+            h = VentilationAndWeatherTests().house()
+            h.c["entities"]["win_bed"].update(open=True, locked=False)
+            if fan:
+                h.add("outlet", "generic_item", "bedroom", pos=[6, 7], label="wall outlet", category="outlet", outlet_kind="wall",
+                      portable=False, size_m=[0.07, 0.03, 0.12], mounted=True)
+                h.add("wfan", "box_fan", "bedroom", pos=[3, 7], outlet="outlet", on=True,
+                      settings={"speed": "high", "oscillate": False, "aim_deg": 180.0})
+            env = h.env()
+            wait(env, 900)
+            return env
+        with_fan, without = run(True), run(False)
+        self.assertTrue(ent(with_fan, "wfan")["running"])
+        self.assertTrue(room(with_fan, "bedroom")["ventilating"])
+        self.assertGreater(room(with_fan, "bedroom")["air_change_rate_ach"], 2.0 * room(without, "bedroom")["air_change_rate_ach"])
+        self.assertLess(room(with_fan, "bedroom")["co2_ppm"], room(without, "bedroom")["co2_ppm"])
+
+
 def clock_daylight(state):
     from house_sim.kernel import clock
     return clock.daylight(state)

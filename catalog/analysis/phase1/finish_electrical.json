@@ -1,0 +1,82 @@
+{
+ "id": "electrical",
+ "fixed": [
+  {
+   "item": "breakages.json (electrical; FIX2 registry.lookalike_spreads; red_leaks finding 'Review L2 residual'): the remote look-alike group's members differed in true size, remote 0.20-0.22 m (remote_base 0.045 x 0.2 x 0.025 m vs remote_control_aa 0.05 x 0.22 x 0.03 m) and in shell mass (0.12 vs 0.15 kg), so the geometric camera's pixels, lidar, elevation and occlusion (and the robot's load) told an AA remote apart while the record showed the group's size.",
+   "how": "house_sim/data/types/electrical.json: remote_control_aa inherits remote_control's shell (0.045 x 0.2 x 0.025 m, 0.12 kg) with a doc note (remotes of either cell size come in overlapping sizes; the battery compartment, inspect, tells AA from AAA and the cells inside weigh what they weigh). registry.lookalike_spreads lists no group holding an electrical type. docs/domains/electrical.md section 5a.",
+   "test": "tests/test_electrical.py PhaseOneFinishTests.test_remote_look_alikes_share_one_true_size_and_mass (one size and one mass across the group, no electrical group in lookalike_size_spreads, the AA slots kept; fails on HEAD: 2 sizes)."
+  },
+  {
+   "item": "P1 gate G7 (substep cost), electrical's share of the phase-1 increase: measured the same day on archived trees with tools/bench_systems.py 40 0 1 2 3 --domain electrical, ADOPT 0.550 -> HEAD 0.580 ms per substep (+0.03: power +0.016, devices +0.009).",
+   "how": "All exact, no result changes. power.py: one memo per power step now also keeps branch-circuit liveness (circuit_live(..., memo)) and each top-level supply answer (supply_ok depth 0), so the loads pass and the derived-field pass walk each chain once; loads reuses the path it walked for the circuit (_wall_circuit); mains_ok reads its record once; sync_energized calls set_if only when a field would change. lighting.py: one working-bulb list per fixture (_working, dim_for(..., work)), set_if only for changed fields. detectors.py: one backup voltage, mounting, power status and clock.now per detector per pass (power_status(..., voltage, is_mounted), expired(..., now), _condition). clocks.py: the local wall-clock time once per pass. common.py: every static-index predicate declares the fields it reads (INDEX_READS; declare_index for batteries, cables, charging, devices and physical's predicates) and furnish._prebuild_indexes builds all 27 electrical indexes at episode_start (order -100, before any hook writes) on plain records, instead of through a read view per entity in the setup hooks (18) and the first substep (7).",
+   "test": "PhaseOneFinishTests.test_every_index_predicate_reads_only_its_declared_fields (every predicate on every registry type's defaults and every record of 4 generated houses, gen 1 and 2, reads only its declared fields), test_the_indexes_are_built_at_episode_start_and_change_nothing (each index built at reset equals a scan; an hour ends in the same digest with and without the early build), test_a_power_pass_answers_as_an_unshared_walk_of_each_supply_chain (memoized supply / liveness / circuit answers equal unmemoized walks on 3 houses quiet, with a tripped breaker, a tripped GFCI, strips off and a grid outage), test_the_light_and_detector_passes_write_what_a_fresh_pass_derives. All fail on HEAD (new API). Exactness: the A/B in notes (1,215 spec trials, identical verdicts and digests)."
+  },
+  {
+   "item": "G7, engine side (the 1 h wait metric): electrical.power ran in 458 of 480 substeps of a 1 h wait on houses 0-3 although most runs changed nothing (its idle probe answered False 456 times).",
+   "how": "power._power_ignore: the power note ignores every temperature_c but a modelled cord's own (_modelled_cord: fixed_temperature, a provider, not a wall outlet; power reads no other temperature) and appliance displays: a clothes iron or griddle its domain keeps heating woke the power step every substep (190 of the probe misses). common.IdleNote: a run that writes keeps the note's snapshots (the probe still answers False until a run writes nothing, which refreshes them), so a system whose own writes come and go (cord temperatures, breaker heat) is no longer re-warmed from nothing after each write; an unchanged snapshot is kept without a deep copy, compared field by field (_matches, the same comparison as the dict equality it replaces).",
+   "test": "PhaseOneFinishTests.test_a_devices_own_temperature_does_not_wake_the_power_step_but_a_cords_does (a fixed-temperature device's temperature leaves the probe True, a modelled cord's makes it False; fails on HEAD) and test_a_run_that_writes_keeps_the_notes_snapshots (after a writing run and a quiet run, a neighbour's repeated write no longer wakes the lights step; fails on HEAD). Exactness: Tier1SweepAdoptionTests.test_idle_probes_are_exact, and probes on vs off on 12 generated houses (8 gen 1, 4 gen 2) x six waits (20.5 h): identical digests after every wait, and identical to the HEAD code's; power runs 12,438 -> 4,400 of 27,612 substeps."
+  },
+  {
+   "item": "Own finding while reworking the probes (exact idle probes): IdleNote cached its members' location ancestors per World version and entity count, so a member put on a new parent during a step (a lamp on a cart) left that parent out, and the parent's later move (the cart wheeled into a warmer room) went unseen: the lights probe answered True while a dimmed lamp's bulb heat should follow the new room.",
+   "how": "common.IdleNote: members(w) keeps the per-count cache (an index changes within a step only on create/destroy); ancestors(w, members) is taken when quiet() first needs it after a run and kept until the next run (any later change of a member's chain is a write to the member or to an entity of that chain, which quiet() sees).",
+   "test": "PhaseOneFinishTests.test_a_lamp_wheeled_on_a_cart_into_a_warmer_room_wakes_the_light_step (fails on HEAD: the probe answered True after the cart's move)."
+  },
+  {
+   "item": "Electrical's side of the manipulation breakage row (velcro on a garden hose: three owners write `coiled`, electrical a word, plumbing_liquids a bool, manipulation the dict of its coil verb): the cord heat model read only the words tight/coiled/loose, so a cord in manipulation's coil loops or in over_under loops heated as if laid out (k 30 C instead of 55 / 95 C).",
+   "how": "power.coil_word(rec) reads every owner's form: tight (tight, coiled, True, a strapped or hand-wrapped coil dict), loose (loose, over_under, an unstrapped coil dict), uncoiled (anything else, None, {}); _cord_k uses CORD_K[coil_word]. No reachable outcome changes today (plug_in rewrites an extension cord's word and manipulation's coil verb unplugs a plugged cord), but a staged or future coiled cord now heats as one. docs section 1.",
+   "test": "PhaseOneFinishTests.test_an_extension_cord_coiled_by_any_owner_heats_as_a_coil (the twelve forms; under a heater for an hour a manipulation-coiled cord runs >10 C hotter than a laid-out one and a strapped coil scorches)."
+  },
+  {
+   "item": "Spec outcome: T-8e57df5742271b-01 (electrical__examples.json) failed on all 5 seeds on the live tree once the verifier refused wrong plans that never act (house_sim/tasks/verify.py 'NeverActed', the red team's second pass): its wrong plan 'reports a status without actually inspecting the display' is always refused by core report ('Inspect it before reporting').",
+   "how": "That wrong plan is replaced by 'checks the alarm but only logs its status, never telling the resident' (approach, inspect, report status without to): it acts and fails both variants (reports._to missing). The second wrong plan is unchanged.",
+   "test": "python -m house_sim --check tasks/authored/electrical__examples.json --seeds 0 1 2 41 97: 12/12 (T-8e57df5742271b-01 5/5; before: 0/5), also with --perception realistic --camera geometric 12/12."
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "red_leaks 'Review I4 still open' (unfamiliar things told apart by glance openable, action outcomes and inspect extras).",
+   "why": "Electrical's part was fixed in phase 1 (percept.unfamiliar / refuse_unfamiliar for its five inspectors and ten verbs); the remaining channels are the kernel's (realism _novel, core switch_on/open, now operates=True), appliances_cooking, people (take_photo) and mechanisms, as the finding names. Re-checked with the fixed auditor (real NOVEL_TWINS electric_kettle, smartphone, hair_dryer, remote_control, every field and operating them): perception_audit 20 80 --verbose 0 leaks, --camera geometric 10 60 and --gen 2 10 60 0 leaks."
+  },
+  {
+   "item": "red_leaks 'Review L2 residual' for the other twelve size-spread groups.",
+   "why": "Other owners' type data (plumbing_liquids, appliances_cooking, tools_vehicles, mechanisms, food, climate, safety); registry.lookalike_spreads now lists none (all owners fixed theirs this round)."
+  },
+  {
+   "item": "Electrical's earlier kernel requests (app-level handles for the smart-home app, electrical-4; one consequence API with an explicit cause and the 'failure to prevent' rule; an uncapped acted-on log; phys.wetted passing the spill's attribution; a shared fire-ignition hook).",
+   "why": "INT deferred them with reasons (kernel design / the next phase's VERIFY_HARDENING ledger, writer log and causal links); nothing in this round depends on them, and adding them now would pre-empt that design."
+  },
+  {
+   "item": "Remaining electrical substep cost: electrical.power is still ~0.21 ms per call (sync_energized walks ~90 supply chains per pass).",
+   "why": "A cross-pass supply cache keyed on the touch log would save ~0.05 ms more but must first make the per-pass memo depth-independent (provider_output_live keeps its first answer whatever depth it was asked at, which only matters for chains of 4+ daisy-chained providers) to stay exact; not worth the risk in this round, the share is already removed (0.58 -> 0.47 ms, below ADOPT's 0.55)."
+  },
+  {
+   "item": "T-8e57df5742271b-01's weaker checks (the review's p2-b 3.12: a report's value is not compared with what the inspect showed).",
+   "why": "Spec weaknesses belong to the hardened verifier (docs/design/VERIFY_HARDENING.md); only the never-acting wrong plan was replaced, since the live verifier already refuses it as evidence."
+  }
+ ],
+ "specs_changed_outcome": [
+  "T-8e57df5742271b-01 (tasks/authored/electrical__examples.json): 0/5 -> 5/5 own mode (and forced realistic geometric) after replacing its never-acting wrong plan 1 ('reports a status without actually inspecting the display', refused by report on every seed, so the verifier's new NeverActed rule rejected it as evidence) with 'checks the alarm but only logs its status, never telling the resident' (approach, inspect, report without to). The outcome change came from the verifier change (house_sim/tasks/verify.py), not from electrical code; tasks/specs.jsonl needs a recompile (request)."
+ ],
+ "perf": "All measured on one snapshot of the shared tree (scratch snapA = live tree with electrical at HEAD, snapB = the same with this round's electrical files), interleaved runs, minima, with the machine at 100 % CPU from other agents (25 python processes on 8 logical CPUs), so whole-tree absolute numbers are not comparable across times; only same-snapshot A/B deltas are reported. Electrical's share of the regression: ADOPT 0.550 -> HEAD 0.580 ms per substep (bench_systems 40 0 1 2 3 --domain electrical on archived trees the same day: power 0.234 -> 0.250, devices 0.022 -> 0.031). bench_systems loop (40 substeps x seeds 0-3, 5-6 interleaved process pairs, min per system): electrical 0.599 -> 0.474 ms per substep (-0.125, -21 %; now below ADOPT's 0.55); steady state (after the first substep) 0.533 -> 0.462; first substep 3.1 -> 0.7 ms (index builds moved to episode_start on plain records). Per system: power 0.260 -> 0.219, lights 0.127 -> 0.097, detectors 0.098 -> 0.064, devices 0.034 -> 0.014, clocks 0.035 -> 0.033, charging 0.043 -> 0.044 (noise), cells/smart_home unchanged. Whole-engine 1 h wait on houses 0-3 (G7's second metric; probes on; 3 interleaved rounds, best of 2): wall 1.74-1.75 -> 1.63-1.66 s, CPU (process_time) 1.125-1.141 -> 1.047-1.078 s; electrical system calls 213-255 -> 92-111 ms; electrical systems plus probes 263 -> 162 ms; power runs 458 -> 265 of 480 substeps (12 houses x 20.5 h: 12,438 -> 4,400 of 27,612). Reset (HouseEnv of houses 0-3, best of 6): 804-831 vs 807-822 ms, unchanged. No result changes: the A/B of all 243 authored specs (own mode, seeds 0 1 2 41 97, 1,215 trials, same snapshot, electrical files and type data swapped, spec files equal) gives 0 verdict, failure-list or wrong-plan changes and identical idle, reference and wrong-plan final digests (1,205 pass on both sides; the 10 failing trials are T-8e57df5742271b-01 x5 and another domain's T-03d77bbfc281a4-01 x5, both from the verifier's NeverActed rule); 12 generated houses (gen 1 seeds 0-7, gen 2 seeds 0-3) reach identical digests after six waits (20.5 h) with probes on and off, and the same digests with the HEAD code.",
+ "tests": {
+  "count": 179,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 16,
+  "passed": 16
+ },
+ "requests": [
+  {
+   "owner": "main session",
+   "request": "Recompile tasks/specs.jsonl (python -m house_sim --compile) for the edited spec T-8e57df5742271b-01 in tasks/authored/electrical__examples.json (wrong plan 1 replaced) and sign it as an edited spec in the P1 gate policy (tools/orchestration/gate_policy/); its verdict goes FAIL -> PASS on seeds 0, 1, 2, 41, 97 against the live verifier."
+  },
+  {
+   "owner": "kernel",
+   "request": "Optional, for the next perf round: World.static_index checks declared reads (reads=) only when it evaluates through a read view (strict mode), so an index built on plain records with an incomplete declaration goes stale silently outside strict mode. A cheap guard would be a strict-mode check in _matching's plain path too (evaluate once through a _ReadView and compare keys). Electrical guards its own declarations with tests/test_electrical.py test_every_index_predicate_reads_only_its_declared_fields; safety, climate, tools_vehicles, mechanisms and pets prebuild the same way."
+  }
+ ],
+ "notes": "Handoff: catalog/analysis/phase1/finish_electrical.json. Files changed: house_sim/systems/electrical/{common,power,lighting,detectors,clocks,furnish,batteries,cables,charging,devices,physical}.py, house_sim/data/types/electrical.json (remote_control_aa), tasks/authored/electrical__examples.json (T-8e57df5742271b-01 wrong plan 1), tests/test_electrical.py (class PhaseOneFinishTests, 9 tests, and the helper _index_records), docs/domains/electrical.md (sections 1, 4, 5a, 11 sweep and new section 14). GREEN on the live tree: tests/test_electrical.py 179 tests OK normal (4 skipped), HOUSE_SIM_STRICT=1 (4 skipped) and HOUSE_SIM_DOMAINS=core,electrical (1 skipped); --check 5 seeds (0 1 2 41 97): electrical__examples own mode 12/12, --perception realistic --camera geometric 12/12; electrical__perception own mode (realistic, geometric) 4/4, --camera room 4/4; perception_audit 20 80 --verbose: 0 leaks 0 crashes, --camera geometric 10 60: 0/0, --gen 2 10 60: 0/0; layout_audit 20 --domain electrical: 120 houses 0 problems, --gen 2: 220 houses 0 problems, 0 domain follow-ups; fuzz --coverage (all 243 specs, live tree during this round): 0 distinct defects, 0 nondeterministic, 278 of 427 actions succeeded; fuzz --coverage --specs 'electrical__*' on the final code: 16 specs, 0 defects, 0 nondeterministic. A/B and exactness evidence and scripts in the scratch dir p1f_electrical (ab.py/abcmp.py adapted from safety's, bench_split.py, ab_bench.sh, wait_bench.py, wait_sys.py, probes_exact.py, prof_bench.py). The A/B baseline also showed that T-03d77bbfc281a4-01 (another domain's) fails on every seed under the verifier's NeverActed rule, as T-8e57df5742271b-01 did. VERIFY_HARDENING is not implemented or contradicted: the spec fix only replaces a wrong plan the live verifier already refuses as evidence. Nothing committed; nothing under %USERPROFILE%\\.house_ai; no network."
+}

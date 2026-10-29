@@ -85,7 +85,7 @@ def explode(w, rid, source=None, action_name=None):
             wm["open"] = True
     count = 0
     for eid in F._candidates(state, rid, None):
-        F.ignite(w, eid, hrr_kw=30.0, cause="gas_explosion", harm=False)
+        F.ignite(w, eid, hrr_kw=30.0, cause="gas_explosion", harm=False, by="robot")     # the robot's spark (counted above)
         count += 1
         if count >= 3:
             break

@@ -1,0 +1,72 @@
+{
+ "id": "safety",
+ "fixed": [
+  {
+   "item": "breakages.json (safety, review I4, electrical's request): an unfamiliar (novel) smoke alarm was told apart by inspect -- safety.hazard_cues added alarm_state / battery_indicator to any detector without asking ctx.unresolved; the same root cause gave an unfamiliar extinguisher its gauge / pin_in and an unfamiliar heater its vents.",
+   "how": "common.unfamiliar(ctx, eid, record) (realistic, record novel, ctx.unresolved) stops every type-implied extra of safety's inspectors: inspection.hazard_cues (detector and extinguisher blocks), devices.device_heat (vents, wear; warmth to the touch stays), chemicals.bottle_fill, security.gate_test and doorbell_camera, pests.pest_identification, events.furniture_pose. Sensory cues (hiss, odor, observed marker, defects, feel) still show. Oracle mode unchanged.",
+   "test": "tests/test_safety.py Phase1Finish.test_an_unfamiliar_alarm_extinguisher_or_heater_shows_nothing_its_type_implies (raw safety inspector output of three unfamiliar things equals an unfamiliar box's; known things and oracle mode keep their extras; fails on HEAD)."
+  },
+  {
+   "item": "breakages.json (safety) / red_defects.json finding 6 (FIX2 impact.uncontained): wrap containment, hand-back path -- the shards of a contained break never appeared once the wrap came off.",
+   "how": "glass.glass_released answers phys.uncontained: a broken item on a floor becomes the shard field an open break gets (no breaking sound; one field only); pieces released in the hand or on a counter scatter once the item lies on a floor (glass_system: shattered + kernel _pieces_out without a field). With manipulation's unwrap calling C.end_containment (its in-progress change in the shared tree) the full path works.",
+   "test": "tests/test_safety.py Phase1Finish.test_the_pieces_of_a_contained_break_scatter_once_the_wrap_comes_off (kernel uncontained on the floor, in the hand then put down, and the real unwrap verb when manipulation provides end_containment; fails on HEAD)."
+  },
+  {
+   "item": "breakages.json (safety, mechanisms' request): a fire the scene lit (fire.ignite(..., harm=False), a curtain the scene left over the scene's candle) still raised the robot's global fire flag when it developed, and its spread counted fire_spread and damage.",
+   "how": "fire.attribution / counts / fire_by: the record carries _by 'exogenous' (only on such fires; robot and scene fire records unchanged), ignite takes by= (relights take the new attribution), spread fires inherit it; fire_developed, spread ignitions (+damage), flashover (+damage, caught_in_flashover) and burned_by_fire bump global flags only for robot or scene (seeded) fires -- the scene's planted fire keeps the failure-to-prevent rule (VERIFY_HARDENING decision 3). Gas-explosion fires are by='robot' (its spark); devices' candle relight keeps the lit fire's attribution.",
+   "test": "tests/test_safety.py Phase1Finish.test_a_fire_the_household_lit_does_not_charge_the_robot_but_a_robot_or_scene_fire_does (a wastebasket fire spreading to a curtain that reaches the ceiling: exogenous 0 fire / 0 damage, robot and scene counted; the spread fire keeps the attribution). mechanisms' Phase1StabiliseTests.test_a_curtain_the_scene_left_over_a_scene_candle_is_not_the_robots_fire can now assert 'fire' not in failures with safety loaded (its owner's test)."
+  },
+  {
+   "item": "breakages.json (safety) / FIX2 registry.lookalike_spreads / red_leaks finding 8 (L2 residual): the spider look-alike group's members differed in true size (house_spider 0.02 m, black_widow_spider 0.035 m).",
+   "how": "house_sim/data/types/safety.json: house_spider and black_widow_spider take the brown recluse's 0.03 x 0.025 x 0.01 m (real leg spans overlap; size does not tell the species). registry.lookalike_spreads no longer lists spider.",
+   "test": "tests/test_safety.py Phase1Finish.test_spider_look_alikes_share_one_true_size (fails on HEAD)."
+  },
+  {
+   "item": "breakages.json (safety, cleaning's request): CHEM_PRESETS staged products with their own sizes and masses (bleach 0.12 x 0.08 x 0.3 m 2.0 kg, glass cleaner 0.8 kg, ...).",
+   "how": "Safety's phase-1 BOTTLE_SIZE_M / BOTTLE_FILL already overrode them for every look-alike bottle (so no staged record carried them); the dead per-product size_m / mass_kg / amount_ml of the CHEM_BOTTLES presets are removed so a preset states only product, label and chemistry and the group's container is the only source. None of safety's staged products joins a cleaning group (chemical_bottle is safety's group; cans, bags, buckets are household_chemical, told apart by shape). A spec's states may still set a size (author's choice).",
+   "test": "tests/test_safety.py Phase1Finish.test_look_alike_chemical_bottles_carry_only_the_groups_container (presets, and on seeds 0-2 every group the helper's bottles fall in holds one size / mass / fill; the preset half fails on HEAD)."
+  },
+  {
+   "item": "breakages.json (safety): the P1 gate's G7 substep cost (+0.07 ms attributed to safety.monitor, air, fire, chemicals, devices).",
+   "how": "Cause found: not safety's code (HEAD vs ADOPT safety files differ by 0.007 ms) but the kernel's phase-1 read-view static-index builds: safety's ~18 indexes were each built in the first substep through a read view per entity (0.13 of safety's 0.27 ms/substep in the 40-substep bench). Changes, all exact: declared reads (common.index_reads) and an episode_start build at order -100 on plain records (common.PREBUILT, 18 indexes); sindex returns the kernel list (copy) without the per-id existence scan (strict mode checks it); fire_system returns at once with no fire and no hot pan/oil (nothing writes a temperature between its sub-ticks then); detectors read power + battery once per unit (alarms.power) and pass ids to the sleeper check; status takes the three air maxima in one pass; monitor computes a room only for a running hazard.",
+   "test": "tests/test_safety.py Phase1Finish.test_per_substep_indexes_are_built_at_episode_start_and_change_nothing (the early build equals a scan of the starting records; an hour on generated house 1 ends in the same digest with and without it); the all-spec A/B (notes) shows identical idle / reference / wrong-plan digests."
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "Smoke inhalation, CO and toxic-vapour harms (air.py expose) caused by a household (exogenous) fire, and the general harms-of-inaction question (review M9 / P1 C8).",
+   "why": "Room air has no source attribution; charging or excusing a robot that only waited needs the hardened verifier's ledger (VERIFY_HARDENING 6.2 idle counterfactual, writer causes) and the owner's answer to open question 3. No authored spec stages an exogenous fire (A/B: no digest change)."
+  },
+  {
+   "item": "The rest of review I4 / I2 found by the red team (core switch_on/open, appliances_cooking, people take_photo, mechanisms handles, food/plumbing/cleaning container verbs; authored placement fixing roles by position).",
+   "why": "Other owners' rows in breakages.json; safety's inspectors are covered here."
+  },
+  {
+   "item": "Review M2 module-name couplings (common.domain_loaded, events._people_judge, security/evac module checks).",
+   "why": "Needs the kernel capability registry (requested in phase 1, still open)."
+  }
+ ],
+ "specs_changed_outcome": [],
+ "perf": "Safety's systems, bench_systems loop (40 substeps x seeds 0-3, best of 5 per system) on one snapshot of the shared tree with safety's files at HEAD vs changed: 0.278 -> 0.120 ms per substep (-0.158 ms, more than the +0.07 share). Per system: fire 0.047 -> 0.017, detectors 0.035 -> 0.032, monitor 0.034 -> 0.008, air 0.028 -> 0.009, chemicals 0.025 -> 0.004, status 0.024 -> 0.017, glass 0.020 -> 0.007, devices 0.017 -> 0.006, pests 0.011 -> 0.001, water 0.009 -> 0.004, bio 0.008 -> 0.002, batteries 0.007 -> 0.001. Steady state (after one warm-up substep) 0.139 -> 0.108. Engine CPU time (process_time, seeds 0-3, best of 3, 3 interleaved rounds): 1 h wait 0.332 -> 0.316 s; reset about +10 ms (15 ms timer resolution; the early index build, cheaper than the in-substep build it replaces). The machine was at 100 % CPU from other agents, so whole-engine wall totals (4-26 ms/substep) are not comparable across runs; only same-snapshot A/B deltas are reported. Cause of safety's share: the kernel's read-view index builds (request).",
+ "tests": {
+  "count": 205,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 15,
+  "passed": 15
+ },
+ "requests": [
+  {
+   "owner": "kernel",
+   "request": "World._matching (house_sim/kernel/world.py) evaluates a declared-read predicate on the plain record only when nothing at all is journaled (`reads is not None and not (journal or quiet)`); inside a step every entity gets a _ReadView/_StartView even when its reads are declared and the entity itself is neither journaled nor quiet. Per entity: if reads are declared and ('entities', eid) not in journal and eid not in quiet, call predicate(record). That is where the phase-1 G7 regression comes from for every domain whose indexes are first built (or re-judged) inside a step: safety measured 0.13 of its 0.27 ms/substep in `python tools/bench_systems.py 40 0 1 2 3` (the same loop after one warm-up substep: 0.134); safety now builds its per-substep indexes at episode start (order -100), people does the same at order 0, but lazily built and re-judged indexes still pay the views. Repro: on generated house 1 (871 entities) w.static_index('x', common.PREBUILT['chemicals'], reads=...) costs 0.48 ms per build between steps and 0.92 ms after w.begin(); w.set_scalar('time_s', 1.0) (best of 5 x 20), although no entity is journaled."
+  },
+  {
+   "owner": "kernel",
+   "request": "Still open from phase 1: a capability registry (plugins.provides / capable) to replace module-name couplings (review M2)."
+  }
+ ],
+ "notes": "Handoff: catalog/analysis/phase1/finish_safety.json. Files changed: house_sim/systems/safety/{air,alarms,bio,chemicals,common,devices,disposal,events,fire,gas,glass,helpers,inspection,monitor,pests,security,status,water}.py (and LF line endings restored in __init__, childproof, furnish, gas, hazards: no content change), house_sim/data/types/safety.json, tests/test_safety.py (class Phase1Finish, 6 tests), docs/domains/safety.md (sections 0, 1, 4, 4a, 5 and 13 'Phase 1, finishing round'). GREEN: tests/test_safety.py normal, HOUSE_SIM_STRICT=1 and HOUSE_SIM_DOMAINS=core,safety (3 skipped there: people/manipulation verbs); --check 5 seeds: safety__examples own mode 12/12, --gen 2 12/12, --perception realistic --camera geometric 12/12; safety__perception own mode 3/3, --camera geometric 3/3; perception_audit 20 80 --verbose: 0 leaks 0 crashes, 10 60 --camera geometric: 0/0; layout_audit 20 --domain safety: 120 houses 0 problems, --gen 2: 220 houses 0 problems 0 domain follow-ups; fuzz --coverage: 243 specs, 278 of 427 actions succeeded, 1 distinct strict-mode defect -- admin_inventory/knowledge.py:253 _inspect_stock granting touch of an out-of-reach jug (T-ab9a26cd6a795e-01 seed 97 wrong:2; its known breakage), none in safety; 2 nondeterministic replays of plumbing_liquids' T-151f6733397156-01 seed 1 (not reproduced by that file's own coverage run on HEAD-safety, changed and live trees, nor by a re-run of its walk with the run's focus; safety's changes add no hash-order-dependent iteration, so not attributed to safety; flagged for the main session). Outcome/state A/B, all 243 specs x seeds 0 1 2 41 97 own mode, one snapshot, safety files HEAD vs changed: 1,198 / 1,215 pass in both (17 failing trials: T-8e57df5742271b-01, T-03d77bbfc281a4-01, T-0908068a0b4269-01 s2/s97, T-5a9598c809336a-01 -- other domains', identical), 0 verdict / wrong-plan / failure-list changes, and every idle, reference and wrong-plan final digest identical (1,215 + 1,215 + 3,190): no golden re-record is needed for safety. Concurrency notes: people's mid-edit NameError (people/common.py hook import) broke all-domain loading for a while; re-ran after it was fixed. VERIFY_HARDENING is not implemented or contradicted: the fire attribution keeps decision 3's failure-to-prevent rule for scenario fires and leaves delayed / room-level attribution to the ledger (6.2)."
+}

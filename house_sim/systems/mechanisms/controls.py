@@ -157,7 +157,8 @@ def rotary_turn(ctx, eid, turns, direction, force):
                         "grip_force_n": {"type": "number", "default": 120.0, "min": 5.0, "max": 600.0}, "grip_aid": "?entity",
                         "start": {"type": "str", "default": "aligned", "choices": ["aligned", "tilted"]}, "torque_nm": "?number",
                         "pages": "?int"},
-        duration=lambda ctx: 2.0 + ctx.data.get("extra_s", 0.0), energy=0.004, category="physical", timing="commanded",
+        duration=lambda ctx: 2.0 + ctx.data.get("extra_s", 0.0), energy=0.004, category="physical", operates=True,
+        timing="commanded",
         doc="Rotate a control or part. setting+value sets a knob/dial/handle to a labelled or numeric position (push=true for "
             "push-to-turn gas knobs; hold_s holds it at the ignition position; direction cw|ccw; one-way timers turn cw only). "
             "turns+direction work valves, faucet handles and casement cranks (cw closes a valve). part=deadbolt|knob_lock|"
@@ -460,7 +461,8 @@ def press_noise_db(ctx):
 
 @action("press", params={"target": "entity", "button": "?str", "tool": "?entity", "where": "?str",
                          "force": {"type": "str", "default": "normal", "choices": list(C.FORCES)}},
-        duration=lambda ctx: 1.0 + ctx.data.get("extra_s", 0.0), energy=0.002, category="physical", noise_db=press_noise_db,
+        duration=lambda ctx: 1.0 + ctx.data.get("extra_s", 0.0), energy=0.002, category="physical", operates=True,
+        noise_db=press_noise_db,
         doc="Press a momentary button (button=<label> on a device panel, a garage-door wall button or remote), a flip-top cap, a "
             "hidden catch (button=hidden), a press-fit lid (tool=<rubber mallet> taps it home), snap-lid tabs, or a jar lid edge "
             "(where=lid_edge: tap it, or lever it with tool=<spoon> to break the vacuum). Verify the device's response.")
@@ -510,7 +512,8 @@ def press(ctx):
 
 
 @action("hold_press", params={"target": "entity", "button": "?str", "seconds": {"type": "number", "default": 3.0, "min": 0.5, "max": 120.0}},
-        duration=lambda ctx: float(ctx.args["seconds"]) + 0.5, energy=0.003, category="physical", timing="commanded",
+        duration=lambda ctx: float(ctx.args["seconds"]) + 0.5, energy=0.003, category="physical", operates=True,
+        timing="commanded",
         doc="Press and hold a button for a duration: hold-to-start panels, child-lock combos (e.g. Stop 3 s), pairing (5 s) vs "
             "factory reset (15-30 s), blender pulse, garage-door constant-pressure close (overrides the safety sensors).")
 def hold_press(ctx):
@@ -560,7 +563,7 @@ def _refresh_display(w, eid):
 
 
 @action("touch_select", params={"target": "entity", "item": "?str", "text": "?str", "swipe": "?str:left|right|up|down"},
-        duration=1.5, energy=0.001, category="physical",
+        duration=1.5, energy=0.001, category="physical", operates=True,
         doc="Tap a labelled item on a touchscreen's current screen (read its display first); text types into a keypad field; "
             "item=Back/Home navigate. Edits stay pending until saved and are discarded if the screen times out; confirmation "
             "dialogs offer scoped options (e.g. This day only / All days).")
@@ -701,7 +704,8 @@ def mixer_temp(rec, temp):
 
 @action("move_lever", params={"target": "entity", "position": "?any", "setting": "?str", "flow": "?number", "temp": "?number",
                               "hold_s": {"type": "number", "default": 0.0, "min": 0.0, "max": 30.0}},
-        duration=lambda ctx: 1.5 + ctx.data.get("extra_s", 0.0), energy=0.003, category="physical", timing="commanded",
+        duration=lambda ctx: 1.5 + ctx.data.get("extra_s", 0.0), energy=0.003, category="physical", operates=True,
+        timing="commanded",
         doc="Move a lever: a single-lever faucet or mixer tap of a sink or tub (flow 0..1 = lift, temp -1 cold..1 hot; read "
             "mech.outlet_temp_c), toaster carriage (position=down latches only when powered), a toilet's flush lever (hold_s "
             "for a full flush), recliner lever (position=recline|upright; check nobody's feet are in the mechanism), vent "

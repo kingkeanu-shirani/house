@@ -19,6 +19,7 @@ import copy
 import json
 
 from ...kernel import geometry, timeline
+from ...kernel.actions import NOVEL_OPERATE_MESSAGE
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, answerer, before, inspector, invariant, observer
 from . import common as C
@@ -76,10 +77,27 @@ def _unresolved_guard(ctx):
         eid = ctx.args.get(key)
         if P.unresolved_member(ctx.env, eid):
             raise ActionError(P.UNRESOLVED_REFUSAL, "precondition")
+    _novel_guard(ctx)
+
+
+def _novel_guard(ctx):
+    """Realistic mode: an unfamiliar (novel) thing named as the appliance or the item of a verb that works by what they
+    are (load: the appliance's loading rules and what may go where by the item's kind; steam_milk: the wand and the
+    pitcher; grind_coffee: the basket it grinds into -- P.DESTINATION_VERBS) is refused with the kernel's
+    identify-first message, as the engine refuses an unfamiliar target of an operates=True verb: the outcome would
+    otherwise say what it is. Core place still puts an unfamiliar thing anywhere it fits."""
+    if not ctx.realistic or ctx.spec.name not in P.DESTINATION_VERBS:
+        return
+    for key in ("target", "destination"):
+        if P.novel_unidentified(ctx.env, ctx.args.get(key)):
+            raise ActionError(NOVEL_OPERATE_MESSAGE, "precondition")
 
 
 for _verb in P.OPERATE_VERBS:
     before(_verb, order=5)(_unresolved_guard)
+for _verb in P.DESTINATION_VERBS:
+    if _verb not in P.OPERATE_VERBS:
+        before(_verb, order=5)(_novel_guard)
 
 
 # ----------------------------------------------------------------------------------------------

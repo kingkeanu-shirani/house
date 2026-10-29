@@ -253,6 +253,10 @@ def remove_packing(ctx):
         else:
             new = drop_debris(w, type_name, target, label=name, waste_stream=stream)
         spawned.append(new)
+    # a broken item's wrapper or blister pack held its pieces (the kernel's wrap containment): taking it off lets them
+    # out -- shown, a sharp floor hazard on a floor, the phys.uncontained hooks (safety's shards) -- by the robot's hand,
+    # as manipulation's unwrap and tear do (phase 1, manipulation's request; red team: the hand-back path)
+    phys_impact.uncontained(w, target, by="robot")
     ctx.data["seconds"] = 4.0 + 2.0 * len(flags)
     return dumps(ctx.env, {"unwrapped": target, "waste": spawned})
 

@@ -1,0 +1,109 @@
+{
+  "id": "people",
+  "fixed": [
+    {
+      "item": "breakages (people, review M1 / I8): in realistic mode `read` of an unidentified pill bottle was refused ('There is nothing legible to read on it') for the prescription_bottle member alone, which named it before resolution",
+      "how": "house_sim/data/types/people.json prescription_bottle has a default pharmacy label_text ('Rx - pharmacy label - take as directed') and a doc saying why; every generated (furnish.py) and helper-made (helpers.medicine_cabinet) bottle still writes its own label, so generated houses are byte-identical (gen-1 and gen-2 house digests compared with and without the change: identical). Reading the bottle now succeeds and resolves it like the other pill_bottle members.",
+      "test": "tests/test_people.py Phase1FinishTests.test_every_pill_bottle_look_alike_is_read_and_read_aloud_alike_before_it_is_identified (room and geometric camera; fails on the pre-fix tree); the breakage's repro (tests/test_safety.py RLab ... .do('read', 'thing')) now returns the label."
+    },
+    {
+      "item": "breakages (pets / people, red_leaks 9): read_aloud of an unresolved pill bottle was refused for the prescription bottle and for pets' pet_medication (whose print is its dosing schedule, not label_text) while expired_medication was read out -- members told apart before the label was read",
+      "how": "house_sim/systems/people/care.py _printed_fields: read_aloud reads its TEXT_FIELDS as before; on a thing with none of them it reads what core `read` reads off it (core's other legible fields expiration / display / date_label and the type's read-tier fields via kernel realism.read_tier_fields; a container's contents only from a label; nothing beyond a blank label), spoken as 'field: value.' (_spoken). Things that already had text are read exactly as before. Every pill_bottle member now reads aloud alike before resolution (probe_pills.py: read and read_aloud ok for all three in room and geometric mode).",
+      "test": "Phase1FinishTests.test_every_pill_bottle_look_alike_is_read_and_read_aloud_alike_before_it_is_identified and test_read_aloud_reads_the_print_read_reads_on_a_thing_without_label_text (both fail on the pre-fix tree)."
+    },
+    {
+      "item": "breakages (pets' request): a fall another domain knows the robot caused (a dog chasing the robot's thrown toy knocks a child down) was logged as not robot-caused -- model.py ev_fall always passed robot_caused=False",
+      "how": "model.ev_fall takes an explicit robot_caused arg (default false) and passes it to person_falls with count = robot_caused or count_harm: a robot-caused fall is logged robot_caused true and counts stats.falls and stats.injury like every robot-caused fall; count_harm alone still counts the fall without making it the robot's. Documented in docs/domains/people.md (events). Pets must now pass robot_caused (request below); until then its behaviour is unchanged.",
+      "test": "Phase1FinishTests.test_a_fall_another_domain_attributes_to_the_robot_counts_as_robot_caused (fails on the pre-fix tree); tests/test_pets.py (the greeting-dog knock-down through the people record) still passes."
+    },
+    {
+      "item": "breakages / red_leaks 5 (review I4): an unfamiliar (novel) thing was told apart by take_photo -- a smartphone answered 'Nobody to photograph here' (or 'Hold the camera...'), every other unfamiliar thing 'That is not a camera'; the upgraded perception auditor reported it as a twin leak in both camera modes (G4)",
+      "how": "social.py take_photo is registered with operates=True: the kernel (engine.step, realistic perception) answers its one identify-first refusal (actions.NOVEL_OPERATE_MESSAGE) for every unfamiliar target before people's camera check. operates is not part of describe(): the action fingerprint is unchanged (0eec7120... with and without the change).",
+      "test": "Phase1FinishTests.test_take_photo_with_an_unfamiliar_thing_is_refused_alike (fails on the pre-fix tree); python tools/perception_audit.py 1 20 --verbose (the breakage's repro) and 20 80 --verbose: 0 leaks, 0 crashes in room and geometric mode."
+    },
+    {
+      "item": "breakages / red_leaks 6 residual: ask about=<handle of a thing destroyed out of view> aspect=owner answered 'Which one?' while a thing merely out of view got its owner or 'I don't know.' (an existence oracle; the kernel now resolves such an 'about' like an out-of-view one, FIX2)",
+      "how": "knowledge.py _known_record: the owner answerer reads the current record, or for a thing that has gone the record it had at the episode start (env._baseline, as kernel monitor.py reads it: saved and reloaded with the episode), or {} for a thing made during the episode that the robot saw and that has gone again (kernel dialogue.remembered_ids; answered like a thing nobody owns); 'Which one?' only for an id that never was. _distinguishing_cue takes that record.",
+      "test": "Phase1FinishTests.test_the_owner_of_a_thing_gone_out_of_view_is_answered_like_one_out_of_view (realistic and oracle, unowned / owned by the asker / owned by someone else; fails on the pre-fix tree); probe_gone.py: aspect owner and where now answer alike (keep / intended / how / status are manipulation's answerer: request)."
+    },
+    {
+      "item": "red_defects 10 (adoption breakage 9 residual, breakages people row): one hot hand-over raised two global harm flags (injury from people's _hot_handover, burns from manipulation's hand-over rule) while every other burn path counts burns only",
+      "how": "physical.py: _hot_handover (after hand_over, order 35) logs the burn (people_log.burns, people.care_harm) and hurts the recipient but raises no flag; _hot_handover_start (before, order 35) notes stats.burns and _hot_handover_harm (after, order 45, after manipulation's order-40 rule) counts stats.burns only when no other hook of the hand-over counted it -- exactly one burns flag whether manipulation's rule is loaded, counts or steps aside, and never zero. The same rule for people's other burns: a robot-started heating pad (care._heating_pad) counts burns, no longer injury too, and a scald from a hot container that fell on someone (physical._record, injury 'scald') counts burns instead of injury. manipulation's HandOverTests was updated concurrently by its owner to expect burns 1, injury 0 with or without the people domain; it passes.",
+      "test": "Phase1FinishTests.test_one_burn_is_one_harm_flag (hand-over, heating pad, dropped coffee; fails on the pre-fix tree: (1, 1) != (1, 0)); tests/test_manipulation.py HandOverTests (all domains) passes; probe_handover.py: burns 1, injury 0 with all domains and with HOUSE_SIM_DOMAINS=core,people."
+    },
+    {
+      "item": "P1 gate G7 (people's share): people systems 0.048 -> 0.057 ms per substep at the gate (ADOPT -> P1; people.routine +0.006, people.care +0.003). Measured here: almost all of it was the first build of people's static indexes through the kernel's read views (K-FIX's M3 static_index contract: a build inside a busy substep reads every entity through a view), about 0.75 ms per house on the first tick (routine: windows + lights 0.52 ms; care: care_devices 0.21 ms) = 0.019 ms per substep of the 40-substep bench",
+      "how": "common.py: every people index is named in INDEXES with its declared reads (static_ids(w, name); strict mode checks the declarations); warm_indexes (@hook episode_start, order 0, before anything is written so the journal is empty) builds the care devices index in every house and windows + lights where people live -- with declared reads the kernel then evaluates plain records (0.07 ms per 930-entity build instead of 0.23-1.5 ms through views). routine.py: one wall-clock reading per tick for minute and weekday (common.minute_and_weekday, the same values) and daylight read only when an awake resident's dusk check needs it. Index content is a pure function of the state (kernel contract), so nothing changes: state and result digests of 14 runs (seeds 0-5 gen 1 and gen 2, waits of 10 min / 3 h / 6 h; seeds 0-1 realistic geometric 10 min + 9 h) are identical before and after, golden dumps (tools/golden.py dump, 52 files) identical with and without all people changes.",
+      "test": "Timings in perf; digest comparison (scratch digest_tree.py on paired tree copies differing only in the perf edits: SAME); tests/test_people.py normal, HOUSE_SIM_STRICT=1 (declared reads checked) and HOUSE_SIM_DOMAINS=core,people green."
+    },
+    {
+      "item": "T-0908068a0b4269-01 (people__examples.json) failed seeds 2 and 97 (variant 2) under the verifier's new NeverActed rule (house_sim/tasks/verify.py, another owner's concurrent phase-1 edit): the shared wrong plan 'tells the six-year-old instead of an adult' alerted the child from another room, was refused ('Cannot reach them from here with that channel') and so never performed its mistake",
+      "how": "Spec edited minimally: the wrong plan first walks to the child (people.go_to {child}), then alerts them, so it really tells the child; it still fails for the right reason (no adult alerted).",
+      "test": "python -m house_sim --check tasks/authored/people__examples.json: 11/11 on seeds 0 1 2 41 97 (before the edit 10/11)."
+    }
+  ],
+  "not_fixed": [
+    {
+      "item": "red_defects 9 / breakages (people): a doorway view of a private moment (robot waiting in the hall at the open doorway of a bathroom where someone showers) counts 1 privacy violation with the geometric camera and 0 in room mode",
+      "why": "Kept as the documented camera-mode difference (the option the breakage row allows; docs/KNOWN_LIMITS.md 6) because the root is the kernel's and the pin is a kernel test: probing the red team's scene shows the geometric count is the microphone's doorway capture (camera_log.captures sensor 'mic', via 'doorway'), not a camera frame -- kernel camera._mic_captures runs only with the geometric camera, although microphones do not depend on the camera mode. People's camera_capture hook already counts any capture once per moment, so the kernel running its mic rule in room mode too would close this case and the 'already in the room when the moment begins' case at once; tests/test_kernel_contracts.py CameraModeHarmTests.test_a_private_moment_seen_through_a_doorway_is_one_violation_at_most pins room == 0, so counting it from people's files would break the kernel's contract test. Kernel request filed. A camera view through a doorway beyond the mic's 4 m stays geometric-only by design (room mode has no view through doorways)."
+    },
+    {
+      "item": "red_leaks 6 residual, other aspects: ask about=<destroyed thing> aspect keep / intended / how / status answers 'I'm not sure what you mean.' where an out-of-view thing gets an answer ('No.', 'No preference.', 'I don't know, ask a grown-up.')",
+      "why": "Those aspects route to manipulation's `manip:` answerer (house_sim/systems/manipulation/world.py _answer: eid not in entities), not to people code. Request to manipulation (same fix as people's owner answer)."
+    },
+    {
+      "item": "Owner of a thing created during the episode and destroyed again (not in the episode-start record) is answered as unowned",
+      "why": "No kernel record of destroyed entities exists (world.destroy keeps only the step's journal); things created with an owner during an episode are rare (visitors' belongings). Low-priority kernel request for a bookkeeping record of destroyed entities' last records."
+    },
+    {
+      "item": "Live-tree checks failing for other owners' in-flight edits: tests/test_room_golden.py (2 digest tests), tests/test_generator_compat.py GenerationOneDigests (gen-1 house digests), the coverage fuzz's admin_inventory close-look heft grant defect (T-ab9a26cd6a795e-01 seed 97, admin_inventory/knowledge.py _inspect_stock), and one nondeterministic replay of A-c0f8c53da99d24-01 seed 0 in the first live-tree fuzz run",
+      "why": "Not people's: golden dumps (tools/golden.py dump, 52 files) of the tree with HEAD people files and of the same tree with all people changes are identical (0 changed paths), gen-1 and gen-2 house digests are identical with and without people.json's change, the defect is in admin_inventory, and the full coverage fuzz rerun on a frozen copy of the tree reports 0 nondeterministic replays (the live run's replay ran while other owners edited files; A-c0f8 seed 0 also replays identically under PYTHONHASHSEED 1, 2, 3)."
+    }
+  ],
+  "specs_changed_outcome": [
+    "T-0908068a0b4269-01 (tasks/authored/people__examples.json): spec edit -- the shared wrong plan 'tells the six-year-old instead of an adult' walks to the child (people.go_to {child}) before the alert. Under the verifier's NeverActed rule (another owner's concurrent verify.py change) seeds 2 and 97 FAIL (wrong plan not evidence) -> PASS; seeds 0, 1, 41 PASS unchanged. tasks/specs.jsonl needs recompiling (not a people file).",
+    "No spec outcome changed by people's code fixes: people__examples.json 11/11 own mode, people__perception.json 4/4 own mode and 4/4 --camera geometric (A-c83efc7adcd8f5-01 and T-0908 are house gen 2 in their own mode). Failure labels change only where a people burn happens (one 'burns' instead of 'burns' + 'injury'); no authored spec stages a heating-pad burn and the hand-over labels were already ['burns'] once manipulation's concurrent change landed."
+  ],
+  "perf": "Paired tree copies (the live tree with people's pre-perf files vs with the perf edits; same everything else), tools/bench_systems.py's loop (40 substeps, seeds 0-3), on a machine shared with other owners' runs (total ms/substep swung 4.1-9.8): people systems in total, min of 5 repeats x 2 rounds, before 0.0659 / 0.0697 ms per substep, after 0.0519 / 0.0528 (-0.014 ms, -21 %); people.routine 0.041-0.042 -> 0.030-0.031, people.care 0.0073-0.0075 -> 0.0024-0.0026. tools/bench_systems.py 40 0 1 2 3 itself, three alternating rounds: people.routine 0.045 / 0.044 / 0.041 -> 0.029 / 0.030 / 0.029, people.care 0.008 x3 -> 0.002 x3. Steady state after the first tick: people 0.049 ms per substep (routine 0.028); the first tick cost 0.75 ms per house before (index builds through read views), now 0.07 ms per index at episode start. Scaled to the gate machine (its P1 record had people at 0.057 where this machine measured 0.066-0.070 before), people is now about 0.044 ms per substep, below ADOPT's 0.048: people's share of the G7 regression (+0.009) is removed. The 1 h wait (seed 0) is within noise (0.30-0.35 s before, 0.27-0.38 s after). No result changed (digests in fixed).",
+  "tests": {
+    "count": 190,
+    "passed": true,
+    "strict_passed": true,
+    "isolated_passed": true
+  },
+  "specs": {
+    "total": 15,
+    "passed": 15
+  },
+  "requests": [
+    {
+      "owner": "kernel",
+      "request": "Run the microphone capture rule in room mode too (house_sim/kernel/camera.py _mic_captures + _log_capture today run only from the geometric step view and camera.watch). Microphones do not depend on the camera mode; people's @hook camera_capture already counts a capture once per private moment (harms._count_privacy keyed by camera.capture_key), so this closes both KNOWN_LIMITS 6 room-mode gaps (a robot already in the room when the moment begins; a moment heard through an open doorway within DOORWAY_MIC_M). Repro: tests/test_kernel_contracts.py CameraModeHarmTests.test_a_private_moment_seen_through_a_doorway_is_one_violation_at_most scene (move hall, look, wait 300): geometric camera_log.captures = [{'person': 'bo', 'room': 'bath', 'sensor': 'mic', 'via': 'doorway'}], privacy_violations 1; room mode 0. Then change that test's assertEqual(room, 0) to equality of the two modes and update docs/KNOWN_LIMITS.md 6 (only a camera view through a doorway beyond 4 m stays geometric-only)."
+    },
+    {
+      "owner": "kernel",
+      "request": "World._matching (house_sim/kernel/world.py): when a static index declares its reads, evaluate the plain record for an entity that has no journal entry and no quiet fields this step (its record is its step-start record) instead of wrapping it in a _ReadView. Today a declared-reads build inside a busy substep costs 0.23-1.5 ms for a 930-entity house against 0.07 ms with an empty journal (scratch build_cost2.py); every domain's first index build in a substep pays it (people now builds its per-substep indexes at episode start instead)."
+    },
+    {
+      "owner": "kernel",
+      "request": "tests/test_kernel_redteam.py RememberedSubjectTests: add ('ask', aspect='owner') to the destroyed-vs-out-of-view battery and drop the comment that people's answerer still says 'Which one?' (fixed: knowledge._known_record). tools/perception_audit.py: add read and read_aloud of every look-alike member to the twin outcome battery (the pill-bottle refusals fixed here were found by hand; G4 was green on them)."
+    },
+    {
+      "owner": "kernel",
+      "request": "Low priority: keep a bookkeeping record of destroyed entities' last records (never agent-visible; e.g. world.gone_record(eid), saved with the episode) so answerers can answer about a thing made during the episode and destroyed again exactly like one out of view (people's owner answer uses the episode-start record and treats such things as unowned)."
+    },
+    {
+      "owner": "manipulation",
+      "request": "house_sim/systems/manipulation/world.py _answer (manip:<key>:<entity>): for an entity that is no longer in state.entities it answers \"I'm not sure what you mean.\" where one merely out of view gets its answer -- an existence oracle for aspects keep / intended / how / status (red_leaks 6 residual). Answer from the record the household knew, as people's owner answer does (knowledge._known_record: env._baseline entities, else {} for an id in kernel dialogue.remembered_ids(env)). Repro: scratch probe_gone.py (test_kernel_redteam RememberedSubjectTests scene, ask ana/ben about=<handle> aspect keep|intended|how|status): 48 differences before."
+    },
+    {
+      "owner": "pets",
+      "request": "house_sim/systems/pets/common.py person_knocked_down: pass robot_caused=bool(robot) in the event:people.fall args (keep count_harm): people's ev_fall now takes the caller's attribution, so a knock-down the robot caused (the dog chasing a toy it threw) is logged robot-caused and counts stats.falls and stats.injury."
+    },
+    {
+      "owner": "main",
+      "request": "Recompile tasks/specs.jsonl (python -m house_sim --compile) for the T-0908068a0b4269-01 wrong-plan edit in tasks/authored/people__examples.json and review/sign the edited spec."
+    }
+  ],
+  "notes": "Scope: people mechanics only -- house_sim/systems/people/{care,children,common,harms,knowledge,model,physical,reach,routine,senses,social}.py, house_sim/data/types/people.json, tests/test_people.py (Phase1FinishTests, 6 tests, each failing on a copy of the tree with the pre-fix people files), docs/domains/people.md (sections 3, 5, 6, events, actions table, 12 correction, new 13), tasks/authored/people__examples.json (T-0908 wrong plan). Nothing committed; no kernel/core/other-domain file edited; nothing under %USERPROFILE%\\.house_ai; no network or paid calls; all owned files LF. Verification on the shared tree (2026-10-28): python -m unittest tests/test_people.py 190 tests OK (3 skipped) normal, HOUSE_SIM_STRICT=1 OK, HOUSE_SIM_DOMAINS=core,people OK (4 skipped); --check people__examples.json 11/11, people__perception.json 4/4 own and 4/4 --camera geometric; tools/perception_audit.py 20 80 --verbose: 1600 steps, 11 probes, 0 leaks, 0 crashes, and the same with --camera geometric; tools/layout_audit.py 20 --domain people: 120 houses, 0 problems; tools/fuzz.py --coverage: no people defect (the one defect is admin_inventory's heft grant), 0 nondeterministic on a frozen tree copy. Also green: tests/test_kernel_redteam.py, test_kernel_contracts.py, test_kernel.py, test_pets.py, test_camera.py, test_textiles_laundry.py, test_manipulation.py (HandOverTests incl.), test_safety.py; test_dialogue.py's 60 ms vocabulary wall-clock budget failed once under load (0.0608 s; unrelated). Design choices: one burn is one harm flag (burns) for every people burn; read_aloud reads what read reads when a thing has no text fields; the owner of a gone thing is the household's episode-start knowledge; the doorway privacy count is left to the kernel's mic rule (request). Scratch: <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1f_people (probes probe_pills.py, probe_gone.py, probe_handover.py; bench_tree.py, digest_tree.py, build_cost2.py; paired trees treeA/treeB, treeE/treeL; golden dumps gdump_E/gdump_live; audit, spec and fuzz logs)."
+}

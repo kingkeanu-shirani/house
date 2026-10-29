@@ -179,7 +179,7 @@ def _after_pick_up(ctx, result):
 
 def drapes(rec):
     """Long limp items that hang and trail when lifted at one point."""
-    if rec.get("coiled") or rec.get("folded") or rec.get("rolled"):
+    if C.coil_of(rec) is not None or rec.get("folded") or rec.get("rolled"):
         return False
     if rec.get("drapes"):
         return True
@@ -291,6 +291,26 @@ def heat_limit(w, sid):
     return kthermal.heat_limit_c(w.s, sid)
 
 
+def hot_contact(w, eid, sid):
+    """This domain's copy of the kernel's contact_heat law while the law is deferred: eid set down on sid scorches its
+    finish when its contact face (phys.thermal.contact_temp_c: a vessel's wall is cooler than its liquid) is above
+    the finish's heat limit (heat_limit). Before marking anything it asks every domain's phys.contact_heat hook with the
+    law's severity, exactly as the law's contact_check does (phys.thermal.contact_claimed): a contact another domain
+    owns is not this rule's to mark -- an iron standing on its heel rest (textiles_laundry), a pot on its own burner
+    (appliances_cooking), a support that catches fire instead (safety). Phase-1 breakage: this rule asked no one and
+    scorched the ironing board under an upright iron (T-7d4006bda247ba-01). Returns True when it marked sid."""
+    limit = heat_limit(w, sid)
+    temp = kthermal.contact_temp_c(w.s, eid)
+    if limit is None or temp <= limit + 1e-9:
+        return False
+    severity = round(min(1.0, (temp - limit) / kthermal.CONTACT_SPAN_K), 4)
+    if kthermal.contact_claimed(w, eid, sid, temp, severity):
+        return False
+    C.mark_damage(w, sid, "scorch", "{} at {:.0f} C on {}".format(eid, temp, C.material(w.ent(sid))))
+    w.mut(sid)["scorched"] = True
+    return True
+
+
 def edge_margin(w, eid):
     rec = w.ent(eid)
     parent = w.s["entities"].get(rec.get("location"))
@@ -359,11 +379,7 @@ def after_placement(ctx, eid, speed=None, kernel_setdown=False):
         # heat damage to finishes (a trivet or heat-resistant parent protects what is under it): this domain's copy of
         # the contact_heat law, with the kernel's heat limits and contact temperature, while that law is deferred
         if not C.kernel_owns("contact_heat"):
-            limit = heat_limit(w, loc)
-            temp = kthermal.contact_temp_c(w.s, eid)
-            if limit is not None and temp > limit + 1e-9:
-                C.mark_damage(w, loc, "scorch", "{} at {:.0f} C on {}".format(eid, temp, C.material(parent)))
-                w.mut(loc)["scorched"] = True
+            hot_contact(w, eid, loc)
         # soft surfaces: trays and tall items tip
         if parent.get("soft_surface") or C.is_kind(parent, "bed", "sofa", "armchair", "cushion") and not C.is_kind(parent, "table"):
             if rec.get("carry_level"):

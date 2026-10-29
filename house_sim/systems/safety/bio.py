@@ -31,6 +31,8 @@ DWELL = {"bleach": 300.0, "chlorine": 300.0, "disinfectant": 600.0, "quat": 600.
 POROUS = ("carpet", "rug", "fabric", "upholstery", "wool", "cotton", "mattress")
 
 
+@C.per_substep_index("biohazards")
+@C.index_reads("category", "tags")
 def is_bio(rec):
     return rec.get("category") == "biohazard" or "biohazard" in (rec.get("tags") or [])
 

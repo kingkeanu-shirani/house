@@ -288,6 +288,11 @@ def _seen_details(w, eid, rec, details, ctx):
         details["_perceived"] = sorted(set(details.get("_perceived") or ()) | added)
 
 
+def _product_amount(rec):
+    """A product bottle that holds an amount (amount_ml) rather than litres: felt like any vessel on a close look."""
+    return bool(rec.get("product")) and C.num(rec.get("amount_ml")) > 0
+
+
 def _seen_details_body(w, eid, rec, details, ctx):
     thermal = V.thermal(ctx)
     closely = ctx.args.get("where") == "closely"
@@ -306,7 +311,7 @@ def _seen_details_body(w, eid, rec, details, ctx):
             if probe:
                 _measure(details, "outlet_temp_c", V.reading(ctx, probe, eid, "outlet_temp_c", outlet))
                 ctx.grant(eid, "measure", ["outlet_temp_c"])
-            elif closely:
+            elif closely and V.can_touch(ctx, eid):
                 details["stream_feel"] = V.temp_word(outlet)          # a hand held in the stream
                 ctx.grant(eid, "touch", ["outlet_temp_c"])
             elif thermal:
@@ -326,7 +331,7 @@ def _seen_details_body(w, eid, rec, details, ctx):
             if probe:
                 _measure(details, "temperature_c", V.reading(ctx, probe, eid, "temperature_c", temp))
                 ctx.grant(eid, "measure", ["temperature_c"])
-            elif closely:
+            elif closely and V.can_touch(ctx, eid):
                 water["feel"] = V.temp_word(temp)
                 ctx.grant(eid, "touch", ["temperature_c"])
             elif thermal:
@@ -408,7 +413,7 @@ def _seen_details_body(w, eid, rec, details, ctx):
             if meter:
                 _measure(details, "moisture", V.reading(ctx, meter, eid, "moisture", moisture, 2))
                 ctx.grant(eid, "measure", ["moisture"])
-            elif closely:
+            elif closely and V.can_touch(ctx, eid):
                 details["moisture_feel"] = V.wet_word(moisture)
                 ctx.grant(eid, "touch", ["moisture"])
         elif rec.get("open") or not rec.get("openable"):
@@ -418,7 +423,7 @@ def _seen_details_body(w, eid, rec, details, ctx):
         if meter:
             _measure(details, "moisture_inner", V.reading(ctx, meter, eid, "moisture_inner", inner, 2))
             ctx.grant(eid, "measure", ["moisture_inner"])
-        else:
+        elif V.can_touch(ctx, eid):
             details["inner_feel"] = V.wet_word(inner)            # pressed: damp inside or not
             ctx.grant(eid, "touch", ["moisture_inner"])
     if C.num(rec.get("water_damage")) > 0.05:
@@ -435,12 +440,12 @@ def _seen_details_body(w, eid, rec, details, ctx):
             details["fill_level"] = C.rnd(L.liters(rec) / cap, 3)      # the kernel shows it to the nearest 5 % at inspect
         # (a hidden level adds nothing; a fill_level another inspector reported stays: the kernel hides a sealed
         # container's own recorded level and every secret field itself, and a reading it was given is that domain's)
-        if L.liters(rec) > 0 and not V.secret(rec, "temperature_c"):
+        if (L.liters(rec) > 0 or _product_amount(rec)) and not V.secret(rec, "temperature_c"):
             temp = C.num(rec.get("temperature_c"), 21.0)
             if probe and not hidden_inside and (rec.get("open") or not rec.get("openable")):
                 _measure(details, "temperature_c", V.reading(ctx, probe, eid, "temperature_c", temp))
                 ctx.grant(eid, "measure", ["temperature_c"])
-            elif closely:
+            elif closely and V.can_touch(ctx, eid):
                 details["vessel_feel"] = V.temp_word(temp)          # a hand on the outside of the vessel
                 ctx.grant(eid, "touch", ["temperature_c"])
         if not hidden_inside:
@@ -456,6 +461,11 @@ def _seen_details_body(w, eid, rec, details, ctx):
                 details["reservoir"] = "about {:.0f}% full".format(V.five_pct(C.num(rec.get("reservoir_l")) / max(0.05, res_cap)) * 100)
         if rec.get("reservoir_l") is not None:
             details["filter_indicator"] = (rec.get("settings") or {}).get("indicator")
+    elif _product_amount(rec) and closely and not V.secret(rec, "temperature_c") and V.can_touch(ctx, eid):
+        # a product bottle (an amount, not litres: a cleaner's spray, a soap) feels like any other closed vessel, so a
+        # look-alike group's refills and products are felt alike (cleaning's phase-1 request)
+        details["vessel_feel"] = V.temp_word(C.num(rec.get("temperature_c"), 21.0))
+        ctx.grant(eid, "touch", ["temperature_c"])
     if rec.get("ice_tray"):
         details["tray"] = {"cell_fill": V.five_pct(rec.get("cell_fill")), "frozen": V.frozen_word(rec.get("frozen_frac")),
                            "joined": bool(rec.get("joined")), "tilt": V.tilt_word(rec.get("tilt_deg")), "cracked": bool(rec.get("cracked"))}

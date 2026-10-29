@@ -156,14 +156,27 @@ class GraspTests(unittest.TestCase):
         self.assertTrue(ent(e, "glass")["broken"])
         self.assertGreater(stat(e, "damage"), 0)
 
-    def test_oily_bottle_slips_unless_supported(self):
+    def test_oily_bottle_breaks_or_slips_unless_supported(self):
+        """An oily surface: the adaptive one-hand squeeze that would hold the 0.9 kg glass bottle (about 86 N, up to the
+        hand's 150 N limit since red_defects 8) is above glass's crush force, so it cracks in the hand; a heavier
+        oily thing that even the hardware limit cannot hold slips out. Supported from below, both are held intact."""
         e = self.m.env()
         e.step("pick_up", "oil")
-        self.assertEqual(ent(e, "oil")["location"], "living")
         self.assertTrue(ent(e, "oil")["broken"])
         e = self.m.env()
         ok(self, e.step("pick_up", "oil", grip="underneath"))
         self.assertEqual(ent(e, "oil")["location"], "robot")
+        self.assertFalse(ent(e, "oil").get("broken"))
+        m = Mini()
+        m.add("table", "table", "living", pos=[1, 1])
+        m.add("pan", "generic_item", "table", label="cast iron pan", material="cast_iron", surface_state="oily", mass_kg=4.0,
+              size_m=[0.3, 0.3, 0.06], spos=[0.1, 0.1])
+        e = m.env()
+        e.step("pick_up", "pan")
+        self.assertEqual(ent(e, "pan")["location"], "living")      # slipped: no hand holds it by friction
+        e = m.env()
+        ok(self, e.step("pick_up", "pan", grip="underneath"))
+        self.assertEqual(ent(e, "pan")["location"], "robot")
 
     def test_lift_monotonicity_a_one_hand_lift_never_slips_on_mass_alone(self):
         """Review H11 / P2-gate probe row 4: the kernel's lift plan gives one hand up to its 8.0 kg rating, but the
@@ -186,9 +199,19 @@ class GraspTests(unittest.TestCase):
                     self.assertTrue(r["ok"], r["message"])
                     self.assertEqual(rec["location"], "robot", r["message"])
                     self.assertEqual(rec["held_hand"], "both" if mass > 8.0 else "right")
-        held = [lift(mass, material="glass", surface_state="wet")[1]["location"] == "robot" for mass in (0.5, 2.0, 4.0, 6.0, 8.0)]
-        self.assertEqual(held, sorted(held, reverse=True))          # lighter wet items hold whenever heavier ones do
-        self.assertFalse(all(held))                                 # and a wet surface does make heavy ones slip
+        # phase-1 red team red_defects 8: a damp or wet surface no longer slips one-handed below the rating (a damp item
+        # slipped from 4.8 kg while 8.01 kg was held with two hands): the adaptive squeeze rises to the hardware limit
+        masses = (0.5, 2.0, 3.2, 4.0, 4.8, 6.0, 7.0, 8.0, 8.01, 10.0)
+        for props in ({"wetness": 0.1}, {"wetness": 0.15}, {"wetness": 0.3}, {"material": "glass", "wetness": 0.1},
+                      {"material": "glass", "surface_state": "wet"}, {"material": "steel", "surface_state": "wet"}):
+            with self.subTest(**props):
+                held = [lift(mass, **props)[1]["location"] == "robot" for mass in masses]
+                self.assertTrue(all(held), held)
+        # a surface even the hardware limit cannot hold still slips, monotonically in mass
+        for state in ("oily", "soapy"):
+            held = [lift(mass, material="steel", surface_state=state)[1]["location"] == "robot" for mass in masses[:8]]
+            self.assertEqual(held, sorted(held, reverse=True), state)  # lighter ones hold whenever heavier ones do
+            self.assertFalse(all(held), state)
         r, rec = lift(8.0, grip_damage={})
         self.assertEqual(rec["held_grip"], "normal")
 
@@ -483,7 +506,11 @@ class HandOverTests(unittest.TestCase):
         """Adoption breakage (people cross-domain report 2): a hot hand-over burned above a fixed 55 C here while the
         people domain uses thermal.burn_seconds over a ~2 s grip. Both now agree: an adult at about 65 C and above, a
         child at about 60 C; never when offered by the handle or insulated; the surface temperature decides, not a
-        "hot" hazard tag."""
+        "hot" hazard tag.
+
+        Phase-1 red team red_defects 10: one burn is one global harm flag. The hand-over raised injury (people) and
+        burns (here) for the same burn; now stats.burns counts it once and stats.injury not at all, whether the people
+        domain is loaded or not (its log still records the burn and agrees with this domain's judgement)."""
         from house_sim.kernel import plugins
         people_hook = any(name.endswith("_hot_handover") for _, name, _ in plugins.AFTER["hand_over"])
         cases = (({"temperature_c": 60.0}, "adult", False), ({"temperature_c": 64.0}, "adult", False),
@@ -498,9 +525,12 @@ class HandOverTests(unittest.TestCase):
                 m.person("ana", "living", [2, 3], role=role, authority=2 if role == "adult" else 0)
                 e = m.env(hold={"right": "mug"})
                 ok(self, e.step("hand_over", "mug", "ana"))
-                self.assertEqual(stat(e, "burns") > 0, burns)
-                if people_hook and "temperature_c" in props:
-                    self.assertEqual(stat(e, "injury") > 0, burns)     # the people domain's count agrees
+                self.assertEqual(stat(e, "burns"), 1 if burns else 0)
+                self.assertEqual(stat(e, "injury"), 0)                  # one harm, one flag
+                self.assertEqual([f for f in e.evaluate()["failures"] if f in ("burns", "injury")], ["burns"] if burns else [])
+                if people_hook and "temperature_c" in props:            # the people domain's judgement agrees
+                    logged = [b for b in (e.world.s.get("people_log") or {}).get("burns") or [] if b.get("cause") == "hot_handover"]
+                    self.assertEqual(bool(logged), burns)
         m = Mini()
         m.add("mug", "generic_item", "living", label="mug", mass_kg=0.35, size_m=[0.12, 0.09, 0.1], temperature_c=80.0,
               features={"handle": 0}, has_handle=True)
@@ -3575,6 +3605,236 @@ class TierOneAdoptionTests(unittest.TestCase):
             ok(self, e.step("pack", "glass", "box"))
             ok(self, e.step("pack", "books", "box"))
             self.assertTrue(ent(e, "glass")["broken"])
+
+
+# ======================================================================================
+class PhaseOneFinishTests(unittest.TestCase):
+    """Phase 1 (stabilise), finishing round: the adoption breakages and red-team findings owned by this domain."""
+
+    def test_the_legacy_contact_heat_rule_asks_every_contact_heat_hook_first(self):
+        """breakages.json (T-7d4006bda247ba-01, the only failing authored spec): an iron upright on its heel rest
+        scorched the ironing board through this domain's legacy contact-heat copy, which asked no phys.contact_heat
+        hook. It now asks them with the law's own severity, exactly as the kernel's contact_check does, so the outcome
+        is the same with the law deferred and active."""
+        from house_sim.kernel.phys import lawbook, thermal
+        from house_sim.kernel.plugins import HOOKS
+        m = Mini()
+        m.add("table", "dining_table", "living", pos=[1, 1])
+        m.add("dish", "generic_item", "living", label="casserole", material="ceramic", temperature_c=160.0, max_touch_temp_c=200.0,
+              size_m=[0.3, 0.22, 0.08], mass_kg=2.0)
+        claims = []
+
+        def claim(w, hot, support, temp_c, severity):
+            if hot == "dish":
+                claims.append((support, round(temp_c, 1), severity))
+                return True
+            return None
+        for law in (False, True):
+            with self.subTest(contact_heat=law), lawbook.forced(contact_heat=law):
+                entry = (-10 ** 6, "tests.test_manipulation.claim", claim)
+                HOOKS["phys.contact_heat"].insert(0, entry)
+                del claims[:]
+                try:
+                    e = m.env(hold={"right": "dish"})
+                    ok(self, e.step("place", "dish", "table", spos=[0.1, 0.1]))
+                    e.step("wait", seconds=120)
+                finally:
+                    HOOKS["phys.contact_heat"].remove(entry)
+                self.assertTrue(claims)
+                support, temp, severity = claims[0]
+                limit = thermal.heat_limit_c(e.world.s, "table")
+                self.assertEqual(support, "table")
+                self.assertEqual(severity, round(min(1.0, (temp - limit) / thermal.CONTACT_SPAN_K), 4))
+                self.assertNotIn("scorch", ent(e, "table").get("damage") or {})
+                self.assertFalse(ent(e, "table").get("scorched"))
+                e = m.env(hold={"right": "dish"})               # nobody claims it: scorched as before
+                ok(self, e.step("place", "dish", "table", spos=[0.1, 0.1]))
+                e.step("wait", seconds=120)
+                self.assertIn("scorch", ent(e, "table").get("damage") or {})
+
+    def _stack(self, base, uppers):
+        """A stack built record by record on a table (no settling): base (props) and uppers [(id, props, offset)]."""
+        m = Mini()
+        m.add("table", "table", "kitchen", pos=[1, 1])
+        m.add("base", "generic_item", "table", spos=[0.2, 0.2], **dict(base, accepts_items=True))
+        below = "base"
+        for eid, props, offset in uppers:
+            m.add(eid, "generic_item", below, relation="on", stack_member=True, stack_offset_m=list(offset), spos=[0.0, 0.0],
+                  **dict(props, accepts_items=True))
+            below = eid
+        return m.env(room="kitchen", pos=(1, 3))
+
+    def test_stack_reason_judges_each_member_as_the_kernels_stack_verdict_does(self):
+        """breakages.json (stack law readiness, D1): stack_reason compared the members' bounding boxes, so a mixing bowl
+        on a kitchen scale's platform was 'much larger' here and stable for the kernel. It now names the kernel
+        verdict's rule (top_wd of the support, contact_wd of the member, its centre offset; slenderness; the shelf
+        gap) and is None exactly when the verdict topples nothing."""
+        from house_sim.kernel.phys import statics
+        from house_sim.systems.manipulation import stacking as MS
+        scale = dict(label="kitchen scale", mass_kg=0.6, size_m=[0.18, 0.18, 0.04], surface_size_m=[0.24, 0.24], stackable=True,
+                     accepts_items=True, surface=True)
+        bowl = dict(label="mixing bowl", material="steel", mass_kg=0.4, size_m=[0.28, 0.28, 0.12])
+        box = dict(label="box", mass_kg=1.0, size_m=[0.2, 0.2, 0.2], stackable=True)
+        board = dict(label="board", mass_kg=1.0, size_m=[0.6, 0.4, 0.02], stackable=True)
+        cases = (("bowl on a scale's platform", scale, [("bowl", bowl, (0, 0))], None),
+                 ("board on a small box", box, [("board", board, (0, 0))], "much larger"),
+                 ("box well off-centre", box, [("box2", box, (0.12, 0.0))], "off-centre"),
+                 ("box a little off-centre", box, [("box2", box, (0.04, 0.0))], None),
+                 ("tall slender stack", dict(box, size_m=[0.1, 0.1, 0.2]),
+                  [("b%d" % i, dict(box, size_m=[0.1, 0.1, 0.2]), (0, 0)) for i in range(3)], "too tall"))
+        for name, base, uppers, words in cases:
+            with self.subTest(name):
+                e = self._stack(base, uppers)
+                w = e.world
+                members = MS.stack_members(w, "base")
+                self.assertEqual(members, ["base"] + [u[0] for u in uppers])
+                toppling = [eid for eid, kind in statics.stack_verdict(w.s, "base") if kind == "topple"]
+                reason = MS.stack_reason(w, members)
+                self.assertEqual(reason is None, not toppling, (reason, toppling))
+                if words:
+                    self.assertIn(words, reason)
+                    if toppling:
+                        self.assertTrue(reason.startswith(toppling[0]) or reason.startswith("the stack"), reason)
+        # the stack verb: the bowl rests on the scale with the law deferred and active alike
+        from house_sim.kernel.phys import lawbook
+        for law in (False, True):
+            with self.subTest(stack=law), lawbook.forced(stack=law):
+                m = Mini()
+                m.add("table", "table", "kitchen", pos=[1, 1])
+                m.add("scale", "generic_item", "table", spos=[0.2, 0.2], **scale)
+                m.add("bowl", "generic_item", "kitchen", pos=[3, 3], **bowl)
+                e = m.env(room="kitchen", pos=(1, 3), hold={"right": "bowl"})
+                r = ok(self, e.step("stack", "bowl", "scale"))
+                self.assertNotIn("toppled", r["message"])
+                self.assertEqual(ent(e, "bowl")["location"], "scale")
+
+    def test_light_items_lift_at_the_wind_at_the_item(self):
+        """breakages.json (wind law readiness): wind_lift_mps was compared with the weather's 10 m wind, while the
+        kernel reads it as the speed at the item (phys.environment.object_wind_mps: 0.6 of the 10 m gust near the
+        ground), so light things lifted at 0.6 of the wind they need. A sheet that lifts at 4 m/s stays under a 6 m/s
+        10 m gust (3.6 m/s in the yard) and goes at 7 m/s (4.2 m/s). The idle probe stays exact: windy weather with
+        only indoor light things is idle."""
+        from house_sim.kernel import plugins
+        from house_sim.kernel.phys import environment, lawbook
+        from house_sim.systems.manipulation import world as MW
+        for law in (False, True):
+            for gust, blown in ((6.0, False), (7.0, True)):
+                with self.subTest(wind=law, gust=gust), lawbook.forced(wind=law):
+                    m = Mini()
+                    m.add("sheet", "generic_item", "yard", label="paper sheet", material="paper", wind_lift_mps=4.0, mass_kg=0.05,
+                          size_m=[0.3, 0.2, 0.01], pos=[5, 5])
+                    m.c["weather"].update(wind_mps=4.0, gust_mps=gust)
+                    e = m.env()
+                    self.assertEqual(environment.object_wind_mps(e.world.s, "sheet")[1] >= 4.0, blown)
+                    # this domain's copy runs while the law is deferred; the law (same reading of the field) once active
+                    self.assertEqual(plugins.SYSTEM_IDLE["manipulation.wind"](e.world), law)
+                    e.step("wait", seconds=60)
+                    self.assertEqual(bool(ent(e, "sheet").get("blown_away")), blown)
+        m = Mini()
+        m.add("sheet", "generic_item", "garage", label="paper sheet", material="paper", wind_lift_mps=1.0, mass_kg=0.05,
+              size_m=[0.3, 0.2, 0.01], pos=[2, 2])
+        m.c["weather"].update(wind_mps=9.0, gust_mps=14.0)
+        e = m.env()
+        self.assertTrue(plugins.SYSTEM_IDLE["manipulation.wind"](e.world))       # indoors: nothing for the wind
+        w = e.world
+        w.begin()
+        MW.wind_system(w, 30.0, None)
+        self.assertFalse(w.s["entities"]["sheet"].get("blown_away"))
+        w.commit()
+
+    def test_unwrapping_a_contained_break_lets_its_pieces_out(self):
+        """breakages.json / red_defects 6 (wrap containment, hand-back path): a broken glass in a full wrap is contained
+        (no floor hazard, no shards); unwrapping it on the floor only set `shattered`, so neither the floor hazard nor
+        the shard field followed. The unwrap (and tearing the packaging off) now ends the containment through the
+        kernel (phys.impact.uncontained: shattered, the sharp floor hazard, the phys.uncontained hooks, once), for an
+        opaque wrap and a see-through one; a wrap another domain takes off is released by manipulation.breaks."""
+        from unittest import mock
+        from house_sim.kernel import plugins
+        from house_sim.kernel.phys import impact
+        wraps = {"newspaper": {"material": "newspaper", "coverage": 1.0, "layers": 3, "padding_mm": 3.0},
+                 "bubble wrap": {"material": "bubble_wrap", "coverage": 1.0, "layers": 2, "padding_mm": 9.6}}
+        for name, how in (("newspaper", "unwrap"), ("bubble wrap", "unwrap"), ("packaging", "tear"), ("newspaper", "elsewhere")):
+            with self.subTest(wrap=name, how=how):
+                m = Mini()
+                props = dict(label="glass jar", material="glass", fragile=True, mass_kg=0.3, size_m=[0.1, 0.1, 0.15], pos=[2, 3])
+                if name == "packaging":
+                    props["packaged"] = True
+                else:
+                    props["wrapped"] = dict(wraps[name])
+                m.add("jar", "generic_item", "living", **props)
+                e = m.env(pos=(1, 3))
+                w = e.world
+                w.begin()
+                impact.break_entity(w, "jar", "dropped_in_test", by="robot")
+                w.commit()
+                jar = ent(e, "jar")
+                self.assertTrue(jar["broken"])
+                self.assertIsNone(jar.get("floor_hazard"))                     # contained
+                self.assertTrue(plugins.SYSTEM_IDLE["manipulation.breaks"](w))  # nothing to do while it stays wrapped
+                seen = []
+                hook = (99, "tests.test_manipulation.seen", lambda world, eid, info: seen.append((eid, info["mode"])))
+                with mock.patch.dict(plugins.HOOKS, {"phys.uncontained": list(plugins.HOOKS.get("phys.uncontained", [])) + [hook]}):
+                    if how == "unwrap":
+                        ok(self, e.step("unwrap", "jar"))
+                    elif how == "tear":
+                        ok(self, e.step("tear", "jar"))
+                    else:
+                        w.begin()
+                        w.mut("jar")["wrapped"] = None          # another domain takes the wrap off
+                        w.commit()
+                        self.assertFalse(plugins.SYSTEM_IDLE["manipulation.breaks"](w))
+                        e.step("wait", seconds=30)
+                    e.step("wait", seconds=60)
+                jar = ent(e, "jar")
+                self.assertEqual((jar.get("shattered"), jar.get("floor_hazard")), (True, "sharp"))
+                self.assertEqual(seen, [("jar", "shatter")])                   # released once
+                self.assertFalse((w.s.get("manipulation") or {}).get("unseen_breaks"))
+
+    def test_velcro_and_coils_accept_every_owners_coiled_and_rolled_field(self):
+        """breakages.json (coverage-fuzz strict-mode defect, G6): velcro on a garden hose crashed (dict(True)): three
+        owners write `coiled` (this domain a dict, plumbing_liquids a bool, electrical a word) and two write `rolled`.
+        Every reader goes through C.coil_of / C.roll_of: another owner's flag or word is left as written (the strap is
+        the velcro record), this domain's dict notes the strap, uncoiling and the deploy test accept any coil, and a
+        cord laid out ("uncoiled") is not coiled."""
+        from house_sim.systems.manipulation import common as MC
+        self.assertEqual([MC.coil_of({"coiled": v}) for v in (True, False, None, "loose", "tight", "uncoiled", {"loops": 3}, {})],
+                         [{}, None, None, {}, {}, None, {"loops": 3}, None])
+        self.assertEqual([MC.roll_of({"rolled": v}) for v in (True, False, None, {"tight": True})], [{}, None, None, {"tight": True}])
+        for field, value in (("coiled", True), ("coiled", "loose"), ("rolled", True)):
+            with self.subTest(field=field, value=value):
+                m = Mini()
+                m.add("thing", "generic_item", "living", label="garden hose", category="garden_hose", mass_kg=2.0, length_m=15.0,
+                      size_m=[0.5, 0.5, 0.15], pos=[2, 3], **{field: value})
+                e = m.env(pos=(1, 3))
+                ok(self, e.step("velcro", "thing", aligned=True))
+                self.assertEqual(ent(e, "thing")[field], value)                # its owner's schema is untouched
+                self.assertTrue(ent(e, "thing")["velcro"]["engaged"])
+                ok(self, e.step("unvelcro", "thing"))
+                self.assertEqual(ent(e, "thing")[field], value)
+                if field == "coiled":
+                    r = ok(self, e.step("roll", "thing", unroll=True))
+                    self.assertIn("Uncoiled", r["message"])
+                    self.assertIsNone(ent(e, "thing")["coiled"])
+        m = Mini()
+        m.add("cord", "generic_item", "living", label="extension cord", category="extension_cord", mass_kg=0.6, length_m=7.5,
+              size_m=[7.5, 0.02, 0.02], pos=[2, 3], coiled="uncoiled")
+        m.c["events"] = [{"at_step": 1, "effect": "manipulation.deploy_test", "args": {"target": "cord"}}]
+        e = m.env(pos=(1, 3))
+        r = e.step("roll", "cord", unroll=True)
+        self.assertFalse(r["ok"])
+        self.assertIn("not coiled", r["message"])
+        ok(self, e.step("roll", "cord"))                                        # coil it: this domain's record
+        ok(self, e.step("velcro", "cord"))
+        self.assertTrue(ent(e, "cord")["coiled"]["secured"])
+        ok(self, e.step("unvelcro", "cord"))
+        self.assertFalse(ent(e, "cord")["coiled"]["secured"])
+        m = Mini()
+        m.add("hose", "generic_item", "living", label="garden hose", category="garden_hose", mass_kg=2.0, length_m=15.0,
+              size_m=[0.5, 0.5, 0.15], pos=[2, 3], coiled=True)
+        m.c["events"] = [{"at_step": 1, "effect": "manipulation.deploy_test", "args": {"target": "hose"}}]
+        e = m.env(pos=(1, 3))
+        ok(self, e.step("look"))
+        self.assertEqual(ent(e, "hose")["deploy_result"], {"knots": 0, "kinks": 0})
 
 
 if __name__ == "__main__":

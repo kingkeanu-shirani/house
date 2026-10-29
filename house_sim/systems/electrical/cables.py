@@ -407,6 +407,8 @@ def _drag_other_end(ctx, cid, end):
 # ----------------------------------------------------------------------------------------
 # link graph
 
+@C.declare_index("linkables", ("ports", "captive_connector", "usb_device", "storage", "usb_storage", "hub",
+                                 "category", "ends"))
 def _linkable(rec):
     """Static index predicate: cables, devices with ports or captive plugs, USB devices, storage, hubs."""
     return bool(rec.get("ports") or rec.get("captive_connector") or rec.get("usb_device") or C.storage_device(rec)

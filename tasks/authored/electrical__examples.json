@@ -1713,14 +1713,21 @@
    "target_fidelity": "S",
    "wrong": [
     {
-     "name": "reports a status without actually inspecting the display",
+     "name": "checks the alarm but only logs its status, never telling the resident",
      "plan": [
+      {
+       "skill": "approach",
+       "target": "{co}"
+      },
+      {
+       "do": "inspect",
+       "target": "{co}"
+      },
       {
        "do": "report",
        "target": "{co}",
        "field": "status",
-       "value": "ok",
-       "to": "resident_1"
+       "value": "ok"
       }
      ]
     },

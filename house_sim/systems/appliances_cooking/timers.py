@@ -36,7 +36,7 @@ def _timer_seconds(ctx):
 
 @action("set_timer", params={"target": "entity", "minutes": "?number", "seconds": "?number", "hours": "?number",
                              "label": "?text", "replace": {"type": "bool", "default": False}},
-        duration=_timer_seconds, energy=0.001, category="physical",
+        duration=_timer_seconds, energy=0.001, category="physical", operates=True,
         doc="Start a labelled countdown on a kitchen timer, an oven's timer or a microwave's timer key (hours/minutes/seconds; "
             "they add up). A zero duration with a label stops/acknowledges that timer. If every channel is busy, replace=true "
             "overwrites the oldest - never someone else's without asking. Does not change any clock.")

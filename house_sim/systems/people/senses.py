@@ -273,7 +273,7 @@ def _effective_light(state, rid, w=None, memo=None):
 def _continuous_sources(w):
     state = w.s
     sources = []
-    for eid in C.static_ids(w, "noisy", lambda r: "noise_db" in r):
+    for eid in C.static_ids(w, "noisy"):
         rec = state["entities"][eid]
         db = rec.get("noise_db")
         if not db:

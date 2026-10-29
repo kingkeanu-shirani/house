@@ -478,6 +478,40 @@ class PourTests(PhysTest):
         self.assertEqual(w.s["event_log"][-1]["kind"], "phys.overflow")
         self.assertEqual(w.s["entities"]["jar"]["contents_from"], "pitcher")
 
+    def test_a_cavity_pools_its_pool_l_not_its_storage_capacity(self):
+        """Phase-1 finish (appliances_cooking's request, INT2): an opened oven pooled a kernel pour up to its 75 L
+        storage capacity_l. pool_l is what it holds before the liquid runs over its lip; 0 holds nothing."""
+        w = self.kitchen(capacity_l=75.0, pool_l=1.0)
+        self.assertEqual(liquids.hold_capacity_l(w.s, "jar"), 1.0)
+        self.assertEqual(liquids.transfer(w, "pitcher", "jar", 1.6), (1.0, 0.6))
+        self.assertEqual(w.s["entities"]["jar"]["liquid_l"], 1.0)
+        w = self.kitchen(capacity_l=75.0, pool_l=0)
+        self.assertIsNone(liquids.hold_capacity_l(w.s, "jar"))
+        self.assertFalse(liquids.holds_liquid(w.s, "jar"))
+        self.assertEqual(liquids.hold_capacity_l(self.kitchen().s, "jar"), 1.0)        # no pool_l: capacity_l
+
+    def test_a_domain_hook_takes_liquid_arriving_in_a_holder_first(self):
+        """Phase-1 finish (outdoor_plants' request, INT2): a pour or a spill into a plant pot pooled liquid_l the
+        domain's soil model never read. phys.liquid_arrives takes its share before the kernel pools the rest; pour_in
+        counts it delivered, the spill walk counts it caught."""
+        seen = []
+
+        def soil(w, eid, liters, liquid, source, by):
+            if eid != "jar":
+                return None
+            seen.append((eid, liters, liquid, source, by))
+            return min(liters, 0.25)
+        self.hooks.add("phys.liquid_arrives", soil)
+        w = self.kitchen()
+        self.assertEqual(self.assertJournaled(w, liquids.transfer, w, "pitcher", "jar", 0.5, by="robot"), (0.5, 0.0))
+        self.assertAlmostEqual(w.s["entities"]["jar"]["liquid_l"], 0.25)          # the hook kept the other 0.25 L
+        self.assertEqual(seen, [("jar", 0.5, "water", "pitcher", "robot")])
+        w = self.kitchen()
+        liquids.spill(w, 0.2, "water", onto="jar", source="pitcher", by="robot")
+        self.assertEqual(w.s["entities"]["jar"]["liquid_l"], 0.0)                 # all 0.2 L taken by the hook
+        self.assertEqual(puddles(w), [])
+        self.assertEqual(liquids.arrives(w, "table", 1.0, "water"), 0.0)          # not the hook's: 0, nothing taken
+
     def test_pouring_from_a_half_frozen_bottle_leaves_the_ice_behind(self):
         """Adoption-round request (plumbing_liquids 1): _drain lowered liquid_l but kept ice_frac, so pouring the
         free half of a half-frozen bottle turned half of its ice into liquid."""
@@ -1028,6 +1062,19 @@ def napkin(location, **fields):
 
 
 class WindTests(PhysTest):
+    def test_the_wind_gates_are_public(self):
+        """Phase-1 finish (outdoor_plants' request, INT2): the domain's deferred wind copy gates on the kernel's own
+        bounds; they are public now (the private names stay for older callers)."""
+        self.assertIs(environment._cannot_move, environment.cannot_move)
+        self.assertIs(environment._free_to_move, environment.free_to_move)
+        w = yard({"chair": item("patio", pos=[1, 1], size_m=[0.55, 0.55, 0.85], mass_kg=4.0),
+                  "fence": item("patio", pos=[0, 0], portable=False, category="fence", size_m=[1.0, 0.1, 1.8])})
+        self.assertTrue(environment.free_to_move(w.s, "chair"))
+        self.assertFalse(environment.free_to_move(w.s, "fence"))
+        chair = w.s["entities"]["chair"]
+        self.assertTrue(environment.cannot_move(chair, 1.0))
+        self.assertFalse(environment.cannot_move(chair, 30.0))
+
     def test_direction_and_speed_from_the_weather(self):
         self.assertAlmostEqual(environment.wind_direction_deg({"wind_from_deg": 270}), 0.0)    # from west -> east
         self.assertAlmostEqual(environment.wind_direction_deg({"wind_from_deg": 0}), 90.0)     # from north -> south

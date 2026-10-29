@@ -2980,6 +2980,187 @@ class Phase1StabiliseTests(unittest.TestCase):
             self.assertEqual(stats(env).get("falls", 0), 1 if laid_by_robot else 0)
 
 
+def small_house(entities=None, people=None, robot=None):
+    """A lit 6 x 5 m kitchen ("lab") next to a lit hallway (the kernel red-team tests' scene)."""
+    import copy
+    reg = default_registry()
+    ents = {"light_1": reg.make("ceiling_light", "lab", pos=[11, 0], on=True, mounted=True, mount_height_m=2.4),
+            "light_2": reg.make("ceiling_light", "hall", pos=[1, 1], on=True, mounted=True, mount_height_m=2.4)}
+    ents.update(copy.deepcopy(entities or {}))
+    return {"schema_version": 2, "start_room": "lab",
+            "rooms": {"lab": {"size_m": [6.0, 5.0], "type": "kitchen", "exits": ["hall"]},
+                      "hall": {"size_m": [2.0, 3.0], "type": "hallway", "exits": ["lab"]}},
+            "entities": ents, "people": copy.deepcopy(people or {}), "pets": {},
+            "robot": dict(robot or {"room": "lab", "pos": [1, 1]})}
+
+
+def floor_thing(cell, label="thing", **props):
+    out = {"type": "generic_item", "location": "lab", "pos": list(cell), "label": label, "size_m": [0.1, 0.07, 0.25],
+           "portable": True}
+    out.update(props)
+    return out
+
+
+class Phase1FinishTests(unittest.TestCase):
+    """Phase 1 finish: the people rows of catalog/analysis/phase1/breakages.json and the phase-1 red team's people
+    findings (red_leaks / red_defects), one regression test each (docs/domains/people.md section 12)."""
+
+    PILLS = ("prescription_bottle", "pet_medication", "expired_medication")
+
+    def test_every_pill_bottle_look_alike_is_read_and_read_aloud_alike_before_it_is_identified(self):
+        """breakages (people Rx label; pets/people read_aloud): reading an unidentified pill bottle was refused
+        ("nothing legible") for the prescription bottle alone, and reading one aloud for the prescription and the pet
+        medicine bottle -- the members were told apart before their labels were read. Every member now reads and is
+        read aloud alike, and reading resolves it."""
+        reg = default_registry()
+        types = [t for t in self.PILLS if reg.known(t)]
+        for camera in ("room", "geometric"):
+            outcomes = {}
+            for type_name in types:
+                ops = [{"op": "find", "var": "table", "type": "coffee_table", "room": "living_room"},
+                       {"op": "spawn", "var": "thing", "type": type_name, "on": "{table}"},
+                       {"op": "robot", "room": "living_room"}]
+                config = generate_house(2, residents="minimal", pets="none", start="2026-10-09T10:00:00")
+                b = apply_setup(config, ops, reg, 2, {"catalog_id": "test_people"})
+                rows = []
+                for verb in ("read", "read_aloud"):
+                    env = HouseEnv(copy_config(config), seed=2, perception="realistic", camera=camera)
+                    handle = env.realism.handles.handle(b["thing"])
+                    self.assertTrue(env.step("approach", handle)["ok"])
+                    if camera == "geometric":
+                        env.step("look_at", handle)
+                    self.assertTrue(env.realism.unresolved(b["thing"]), (camera, type_name))
+                    result = env.step(verb, handle)
+                    rows.append((verb, result["ok"], result["category"]))
+                    if verb == "read" and type_name == "prescription_bottle":
+                        self.assertFalse(env.realism.unresolved(b["thing"]), camera)    # its Rx label resolves it
+                outcomes[type_name] = rows
+            self.assertEqual(len(set(map(tuple, outcomes.values()))), 1, (camera, outcomes))
+            self.assertTrue(all(ok_ for _, ok_, _ in outcomes["prescription_bottle"]), outcomes)
+        self.assertTrue(reg.resolve("prescription_bottle").get("label_text"))      # the type's own printed Rx label
+
+    def test_read_aloud_reads_the_print_read_reads_on_a_thing_without_label_text(self):
+        """A thing whose print is not label_text (a pet medicine bottle's dosing schedule) is read aloud from the fields
+        core `read` reads off it; what a container holds is read only from a label."""
+        from house_sim.systems.people import care
+        rec = {"type": "generic_item", "schedule": ["08:00"], "dose_units": 1, "drug": "carprofen 75 mg",
+               "_perception": {"read": ["schedule", "dose_units", "drug"]}}
+
+        class Ctx(object):
+            env = HouseEnv(small_house(), seed=0)
+        fields = care._printed_fields(Ctx(), rec)
+        self.assertEqual(fields, ["dose_units", "schedule"])          # the drug is a content field: only from a label
+        self.assertEqual(care._text_of(rec, fields), "dose units: 1. schedule: 08:00.")
+        self.assertEqual(care._printed_fields(Ctx(), dict(rec, label_text="Rx carprofen")), ["label_text"])
+        self.assertEqual(care._printed_fields(Ctx(), dict(rec, label_text="")), [])     # a blank label prints nothing
+
+    def test_a_fall_another_domain_attributes_to_the_robot_counts_as_robot_caused(self):
+        """breakages (pets' request): event:people.fall always logged robot_caused false, so a dog chasing a toy the
+        robot threw that knocks a child down was not the robot's. The caller's robot_caused now decides."""
+        from house_sim.kernel.plugins import run_hooks
+        for robot, count_harm, counted in ((None, False, False), (True, False, True), (False, True, True)):
+            ops = [{"op": "person", "id": "kid_1", "role": "child", "room": "living_room", "props": {"age": 6}}]
+            env, b, r = build(ops)
+            args = {"person": "kid_1", "cause": "knocked down by the dog"}
+            if robot is not None:
+                args["robot_caused"] = robot
+            if count_harm:
+                args["count_harm"] = True
+            in_step(env, lambda w: run_hooks("event:people.fall", w, args, None))
+            fall = plog(env)["falls"][-1]
+            self.assertEqual(fall["robot_caused"], bool(robot), args)
+            self.assertEqual(stats(env).get("falls", 0), 1 if counted else 0, args)
+            self.assertEqual(stats(env).get("injury", 0), 1 if robot else 0, args)
+            self.assertEqual(person(env, "kid_1")["posture"], "fallen")
+
+    def test_take_photo_with_an_unfamiliar_thing_is_refused_alike(self):
+        """breakages / red_leaks 5 (review I4): take_photo told an unfamiliar phone ("Nobody to photograph here") from
+        any other unfamiliar thing ("That is not a camera"). It is declared operates=True: the kernel answers its one
+        identify-first refusal for every unfamiliar target, before people's camera check."""
+        from house_sim.kernel.actions import NOVEL_OPERATE_MESSAGE
+        from house_sim.kernel.plugins import ACTIONS as REGISTERED
+        self.assertTrue(REGISTERED["take_photo"].operates)
+        answers = set()
+        for props in ({"camera": True, "category": "phone", "battery_powered": True, "battery_level": 0.8}, {}):
+            env = HouseEnv(small_house({"thing_1": floor_thing((2, 1), novel=True, material="plastic", **props)}),
+                           seed=0, perception="realistic")
+            handle = env.realism.handles.handle("thing_1")
+            self.assertTrue(env.realism.novel_unidentified("thing_1"))
+            result = env.step("take_photo", handle)
+            answers.add((result["ok"], result["category"], result["message"]))
+        self.assertEqual(answers, {(False, "precondition", NOVEL_OPERATE_MESSAGE)})
+
+    def test_the_owner_of_a_thing_gone_out_of_view_is_answered_like_one_out_of_view(self):
+        """breakages / red_leaks 6: ask about=<a thing destroyed out of view> aspect=owner answered "Which one?" where one
+        merely out of view got its owner -- an existence oracle. The household answers from the record they knew."""
+        for perception in ("realistic", "oracle"):
+            for owner in (None, "ana", "ben"):
+                people = {pid: {"label": pid.title(), "role": "resident", "location": "hall", "pos": [i, 0],
+                                "posture": "standing", "has_phone": True, "age": 40}
+                          for i, pid in enumerate(("ana", "ben"))}
+                extra = {"owner": owner} if owner else {}
+                ents = {"apple_a": floor_thing((3, 3), label="apple", category="food", size_m=[0.08, 0.08, 0.08], **extra),
+                        "apple_b": floor_thing((4, 3), label="apple", category="food", size_m=[0.08, 0.08, 0.08], **extra)}
+                env = HouseEnv(small_house(ents, people), seed=0, perception=perception)
+                env.observe()
+                names = {e: (env.realism.handles.by_id[e] if perception == "realistic" else e) for e in ents}
+                self.assertTrue(env.step("move", "hall")["ok"])
+                w = env.world
+                w.begin()
+                w.s["entities"].pop("apple_b")              # off screen: someone ate it
+                w.commit()
+                out = {}
+                for eid, name in sorted(names.items()):
+                    rows = []
+                    for asker in ("ana", "ben"):
+                        result = env.step("ask", target=asker, about=name, aspect="owner", channel="text")
+                        rows.append((result["ok"], result["category"], str(result["message"]).replace(name, "<s>")))
+                    out[eid] = rows
+                self.assertEqual(out["apple_a"], out["apple_b"], (perception, owner))
+                self.assertNotIn("Which one?", json.dumps(out["apple_b"]))
+
+    def test_one_burn_is_one_harm_flag(self):
+        """red_defects 10 (adoption breakage 9 residual): a hot hand-over raised injury (people) and burns
+        (manipulation) for one burn. Every people burn now counts stats.burns once and stats.injury not at all: the
+        hand-over (counted by people only when no other hook counted it), a robot-started heating pad and a scald from
+        a hot drink the robot dropped on someone."""
+        from house_sim.systems.people import physical as P
+        ops = [{"op": "person", "id": "p1", "role": "adult", "room": "living_room", "props": {"age": 40, "label": "P"}},
+               {"op": "find", "var": "table", "type": "coffee_table", "room": "living_room"},
+               {"op": "spawn", "var": "mug", "type": "generic_item", "on": "{table}",
+                "props": {"label": "mug", "mass_kg": 0.3, "temperature_c": 72.0, "thermal_owner": "test"}},
+               {"op": "robot", "room": "living_room", "hold": {"right": "{mug}"}}]
+        env, b, r = build(ops)
+        r.run([{"skill": "people.approach", "target": "p1"}])
+        ok(self, env, "hand_over", target=b["mug"], destination="p1")
+        self.assertEqual((stats(env).get("burns", 0), stats(env).get("injury", 0)), (1, 0))
+        self.assertTrue([e for e in plog(env).get("burns") or [] if e.get("cause") == "hot_handover"])
+        self.assertEqual([f for f in env.evaluate()["failures"] if f in ("burns", "injury")], ["burns"])
+        # the heating pad the robot switched on
+        ops = [{"op": "helper", "name": "people.sleeper", "args": {"person": "resident_1", "room": "master_bedroom"}},
+               {"op": "spawn", "var": "pad", "type": "heating_pad", "held_by": "resident_1",
+                "props": {"on": True, "_robot_started": True, "settings": {"level": "high", "auto_off_min": 0}}}]
+        env, b, r = build(ops, start="2026-10-09T23:00:00")
+        ok(self, env, "wait", seconds=3600)
+        self.assertTrue(plog(env).get("burns"))
+        self.assertEqual((stats(env).get("burns", 0), stats(env).get("injury", 0)), (1, 0))
+        # hot coffee the robot dropped on someone: a scald, struck_injuries' injury "scald", the burns flag
+        ops = [{"op": "person", "id": "p1", "role": "adult", "room": "living_room", "props": {"age": 40}},
+               {"op": "find", "var": "table", "type": "coffee_table", "room": "living_room"},
+               {"op": "spawn", "var": "mug", "type": "generic_item", "on": "{table}",
+                "props": {"label": "mug", "mass_kg": 0.35, "liquid_l": 0.3, "liquid": "coffee", "temperature_c": 80.0,
+                          "open": True, "container": True}}]
+        env, b, r = build(ops)
+        in_step(env, lambda w: P._struck_by_falling(w, b["mug"], {"struck": ["p1"], "height_m": 0.5, "by": "robot"}))
+        self.assertEqual(plog(env)["struck_injuries"][-1]["injury"], "scald")
+        self.assertEqual((stats(env).get("burns", 0), stats(env).get("injury", 0)), (1, 0))
+
+
+def copy_config(config):
+    import copy
+    return copy.deepcopy(config)
+
+
 def C_present(p):
     return p.get("location") is not None and not p.get("away")
 

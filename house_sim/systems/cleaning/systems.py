@@ -183,9 +183,28 @@ def soak_containers(w):
     found = []
     for eid in w.static_index("cleaning.liquid_holders", _liquid_holder):
         rec = ents.get(eid)
-        if rec is not None and float(rec.get("liquid_l", 0.0) or 0.0) > 0.2:
-            found.append(eid)
+        if rec is not None:
+            liters = rec.get("liquid_l")
+            if liters and float(liters) > 0.2:      # most holders (drawers, boxes, products) carry no litres at all
+                found.append(eid)
     return found
+
+
+def _boils_over(rec):
+    """An overfilled container at a boil that has not boiled over yet (boil_over's trigger)."""
+    return bool(rec.get("max_fill_l") and float(rec.get("liquid_l", 0.0)) > float(rec["max_fill_l"]) + 1e-9
+                and float(rec.get("temperature_c", 21.0)) >= 95.0 and not rec.get("cl_boiled_over"))
+
+
+def _inert(rec):
+    """A filled holder the soak pass leaves exactly as it is: nothing dissolved in it (no cleaner or dirt to rescale,
+    S.norm_solution writes nothing, and no chemistry to dissolve its scale), not boiling over, and nothing can sit in
+    it (items in a basin, bucket or tub are soaked). The product bottles and pet bowls of a quiet house are all inert;
+    the system skips them and its idle probe counts them as idle (exactly what the full pass would do: nothing)."""
+    if rec.get("cl_chem") or rec.get("cl_soil_g") or _holds_items(rec) or _boils_over(rec):
+        return False
+    ref = rec.get("_cl_ref_l")
+    return ref is None or abs(float(rec.get("liquid_l", 0.0) or 0.0) - float(ref)) <= 1e-9
 
 
 def _children_map(w, parents):
@@ -232,8 +251,12 @@ def seed_hidden_sharps(w, env):
 
 
 def soak_idle(w):
-    """Exact idle probe: no filled basin, bucket or kettle and no sharp hidden under suds (soak's own early return)."""
-    return not S.watched(w, "hidden") and not soak_containers(w)
+    """Exact idle probe: no sharp hidden under suds and every filled basin, bucket, kettle or bottle inert (_inert: the
+    pass would write nothing for it; none at all is soak's own early return)."""
+    if S.watched(w, "hidden"):
+        return False
+    ents = w.s["entities"]
+    return all(_inert(ents[b]) for b in soak_containers(w))
 
 
 @system("cleaning.soak", order=72, max_dt=30.0, idle=soak_idle)
@@ -247,8 +270,8 @@ def soak(w, dt, tick):
     kids = None
     hidden = []
     for basin in basins:
-        if basin not in ents:
-            continue
+        if basin not in ents or _inert(ents[basin]):
+            continue            # nothing in or on it to soak, dissolve, rescale or boil over (_inert)
         S.norm_solution(w, basin)
         brec = w.ent(basin)
         classes = S.solution_classes(brec)
@@ -726,8 +749,9 @@ def spills(w, dt, tick):
                     robot = S.spill_is_robots(w, eid)       # the scene's toxic spill is not the robot's harm
                     S.charge(w, "injury", robot)
                     S.glog(w, "pet_licked_toxic_spill", pet=pid, spill=eid, by=S.by_word(robot))
-    piles = [e for e in w.static_index("cleaning.debris", _is_debris) if e in ents and ents[e].get("toxic_to_pets")]
-    for pile in (piles if w.s.get("pets") else ()):
+    piles = [e for e in w.static_index("cleaning.debris", _is_debris) if e in ents and ents[e].get("toxic_to_pets")] \
+        if w.s.get("pets") else ()          # (no pet, no pile to look at: the index is not even needed)
+    for pile in piles:
         rid = w.root_room(pile)
         for pid in S.pets_in(w, rid):
             key = "{}@{}".format(pid, pile)
@@ -810,22 +834,6 @@ def _people_on_wet_floors(w, t):
 FOOD_RATES = {"fish": 1.5, "meat": 1.0, "bone": 0.8, "dairy": 0.8, "cooked_mixed": 0.6, "oily": 0.5}
 
 
-def _child_index(w):
-    index = {}
-    for eid, rec in w.s["entities"].items():
-        index.setdefault(rec.get("location"), []).append(eid)
-    return index
-
-
-def _descendants(index, eid):
-    out, stack = [], [eid]
-    while stack:
-        for child in sorted(index.get(stack.pop(), [])):
-            out.append(child)
-            stack.append(child)
-    return out
-
-
 def streams_idle(w):
     """Exact idle probe: every judged item (the "stream" watch list) still sits in a container of the stream it was
     judged in, so the system would write nothing."""
@@ -882,6 +890,30 @@ def waste_idle(w):
     return True
 
 
+def _food_inside(w, holders):
+    """{holder: (rate, produce)} for the holders among `holders` with food scraps anywhere inside them: the fastest
+    souring rate of those scraps (FOOD_RATES) and whether any is produce. Found from the scraps up (the static index of
+    food scraps -- waste_kind is type data, set when a scrap is made -- and each one's location chain), not by indexing
+    every entity's children: the same answer as walking each holder's descendants."""
+    ents = w.s["entities"]
+    out = {}
+    for item in w.static_index("cleaning.food_scraps", _is_food_scrap):
+        irec = ents.get(item)
+        if irec is None or irec.get("waste_kind") != "food_scrap":
+            continue
+        ftype = irec.get("food_type", "plant")
+        rate = FOOD_RATES.get(ftype, 0.3)
+        produce = ftype in ("plant", "fruit", "vegetable", "peel")
+        loc, seen = irec.get("location"), {item}
+        while loc in ents and loc not in seen:      # entity ancestors only (a holder's descendants are entities)
+            seen.add(loc)
+            if loc in holders:
+                old = out.get(loc, (0.0, False))
+                out[loc] = (max(old[0], rate), old[1] or produce)
+            loc = ents[loc].get("location")
+    return out
+
+
 @system("cleaning.waste", order=80, max_dt=60.0, period=WASTE_PERIOD_S, idle=waste_idle)
 def waste_system(w, dt, tick):
     t = S.now(w)
@@ -892,19 +924,10 @@ def waste_system(w, dt, tick):
     bins = sorted(set(e for e in S.waste_containers(w) if e in ents) | set(bags))
     if not bins:
         return
-    index = _child_index(w)
+    food = _food_inside(w, set(bins))
     for eid in bins:
         rec = w.ent(eid)
-        rate = 0.0
-        produce = False
-        if not index.get(eid) and not rec.get("has_food_waste") and S.odor_level(rec, "garbage") <= 0:
-            continue
-        for item in _descendants(index, eid):
-            irec = w.ent(item)
-            if irec.get("waste_kind") == "food_scrap":
-                ftype = irec.get("food_type", "plant")
-                rate = max(rate, FOOD_RATES.get(ftype, 0.3))
-                produce = produce or ftype in ("plant", "fruit", "vegetable", "peel")
+        rate, produce = food.get(eid, (0.0, False))
         if rec.get("has_food_waste"):
             rate = max(rate, 0.4 if not rec.get("has_meat_waste") else 1.0)
         if rate <= 0 and S.odor_level(rec, "garbage") <= 0:
@@ -935,7 +958,7 @@ def waste_system(w, dt, tick):
             continue
         rid = pet.get("location")
         for bag in [e for e in bags if e in ents and ents[e].get("location") == rid and not ents[e].get("torn")]:
-            if any(w.ent(i).get("waste_kind") == "food_scrap" for i in _descendants(index, bag)):
+            if bag in food:                         # food scraps anywhere inside it (_food_inside)
                 m = w.mut(bag)
                 m["_dog_s"] = float(m.get("_dog_s", 0.0)) + dt
                 if m["_dog_s"] >= 900:

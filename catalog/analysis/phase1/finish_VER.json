@@ -1,0 +1,1187 @@
+{
+ "id": "VER",
+ "role": "independent verifier, end of phase 1 (a) gate attacks (b) breakage repros (c) review leak probes",
+ "findings": [
+  {
+   "owner": "tools/orchestration/tier1_gate.py (PACKAGES / policy_for; K-GATE2, main session)",
+   "severity": "medium",
+   "title": "NEW: the gate's rules live in the unprotected gate script -- two edited lines lower G7's perf budget and a 20 % slower record compares PASS as a hand-over",
+   "repro": "<home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1f_VER/budget_attack.py: in iso/full (the live tree's exact copy, `tier1_gate.py isolate --package P1-ALL`, tree 900b89239a85) edit policy_for's cap '\"bench\": [1.05, \"prev\"]' and _pkg's default 'bench=(1.05, \"prev\")' to 1.5 (one alone is not enough: policy_for keeps the smaller), model the record as made on that tree (its fingerprint e2f3d9cf2c82 in meta and every check), substep 2.69 -> 3.228 ms and 1 h wait 1.020 -> 1.224 s; the copy's own `tier1_gate.py --gates-root gates_h compare ADOPT N6e_edited` -> 'G7 PASS substep_ms ... limit 4.035 = prev x 1.5 ... compare result: PASS' exit 0; unedited script on the same data -> 'limit 2.825 = prev x 1.05 OVER BUDGET ... FAIL'. The same file holds every package's allow list, codes, extras and file globs (scope_attacks.py P4: 'gen1' added to ADOPT:<domain>). PROTECTED covers gate_policy/* only; the policy is computed from the script that runs, i.e. the working tree's. Fix: move the rule fields of PACKAGES and policy_for's caps into gate_policy/ (read from HEAD through policy_root like the allowlist), or have record/compare refuse to run when tools/orchestration/tier1_gate.py differs from HEAD unless the main session passes an explicit flag; record a digest of the effective policy in meta.json and compare it with the committed one."
+  },
+  {
+   "owner": "tools/orchestration/tier1_gate.py (scope_check --shared-tree, SUBSTAGES; K-GATE2)",
+   "severity": "medium",
+   "title": "NEW: G10 with --shared-tree passes a domain package that edits the gate script, the gate's allowlist or another owner's test: phase 1 attributes them to adoption-round peers (K-EVAL, K-CAM, ADOPT-INT) and to K-GATE (policy=True)",
+   "repro": "<home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1f_VER/scope_attacks.py on iso/cleaning (`isolate --package ADOPT:cleaning`), one edit at a time, `tier1_gate.py --root <copy> scope --package ADOPT:cleaning`: tools/orchestration/tier1_gate.py bench edit -> without --shared-tree 'G10 FAIL ... outside: tools/orchestration/tier1_gate.py', with it 'G10 PASS ... attributed (concurrent package K-EVAL)'; a planted entry {kind skip, test tests.test_cleaning, expires 2099-12-31} in tools/orchestration/gate_policy/known_failing.json -> FAIL ('1 of the gate's policy files changed') vs PASS ('concurrent package K-GATE'); tests/test_perception.py wall-clock bound loosened 1000x -> FAIL vs PASS ('concurrent package K-CAM'). Domain owners record with --shared-tree (tier1_adopt.js GATE_NOTE); ADOPT:<domain> sits in SUBSTAGES 'ADOPT' and 'P1', so its peers include K-EVAL (tools/*), K-CAM, ADOPT-INT (house_sim/kernel/*, tests/data/*, tools/*) though none of them runs in phase 1. A planted allowlist entry is inert until committed, but the main session commits the phase's tree wholesale and P1-ALL (policy=True) accepts policy files in G10. Today nothing under gate_policy/ differs from HEAD and the working tree's tier1_gate.py diff changes no bench value. Fix: on a shared tree never attribute PROTECTED files or tools/orchestration/* to a peer (list them for the main session); limit peers to the packages of the running phase; make `policy` and compare print a warning when gate_policy/ differs from HEAD."
+  },
+  {
+   "owner": "tools/golden.py compare + tests/test_room_golden.py (K-GATE2, main session)",
+   "severity": "low",
+   "title": "NEW: a hand edit of tests/data/room_golden.json neutralises any spec pin -- an entry marked known_failing with passes false is skipped whenever the run passes, so any digest is accepted; golden.py's committed-allowlist guard is bypassed",
+   "repro": "<home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1f_VER/golden_attacks.py in iso/full (python -m unittest tests.test_room_golden): G0 unedited OK; G1 fixed spec T-0242c820d56e7e-01 state digest changed -> FAIL ('state differ'); G2 the same plus {\"known_failing\": true, \"passes\": false} on that entry -> OK; G3b a non-fixed spec likewise with HOUSE_SIM_GOLDEN_ALL=1 -> OK; G4 a script run's step digest changed -> FAIL; G3 deleting a spec entry -> FAIL (caught); G5 `tools/golden.py record --known-failing T-0242c820d56e7e-01` -> refused (K-GATE2's guard holds for the tool). golden.compare skips 'want.known_failing and not want.passes and got.passes' without asking committed_known_failing() / allowlisted_failing(); the gate has no rule on golden content. Who can edit the file: ADOPT-INT / P1-INT / P1-FIX2 / P1-ALL, and any domain through --shared-tree attribution to ADOPT-INT (finding above). Fix: test_room_golden (or golden.compare) accepts a known_failing entry only when the committed golden (HEAD) or the committed allowlist vouches for it, and reports a vouched entry that now passes as a failure to re-record, not a skip."
+  },
+  {
+   "owner": ".github/workflows/ci.yml + tools/orchestration/green_tests.py (K-GATE2)",
+   "severity": "low",
+   "title": "NEW: a failing correctness test disguised as a wall-clock bound keeps CI green: it skips in the correctness step and fails only in the informational perf job; the gate's G7 catches it only when it fails all 3 attempts alone",
+   "repro": "<home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1f_VER/perf_disguise.py in iso/full: tests/test_ver_disguise.py with one test that skips with 'wall-clock bound off' when HOUSE_SIM_PERF_TESTS=0 and otherwise asserts 1 + 1 == 3: the CI correctness invocation -> 'OK (skipped=1)' exit 0; `green_tests.py --perf test_ver_disguise*` -> 'FAILED (failures=1)' exit 1, which CI's perf job (continue-on-error: true) does not turn red. Record level (gate_attacks_ver.py N3/N4/N5): the moved test not run by the perf job -> FAIL; failing every perf attempt -> PERF FAIL; passing 1 of 3 alone -> PASS (a flaky correctness test is excused). Bounds are found by AST (any method mentioning HOUSE_SIM_PERF_TESTS) and the outcome 'perf' by the skip message; there is no committed list. Fix: commit the list of wall-clock bound ids (gate_policy, signed) and fail the correctness run / compare when another test skips with the bound message or a new method reads HOUSE_SIM_PERF_TESTS without a signed row."
+  },
+  {
+   "owner": "house_sim/tasks/verify.py (VERIFY_HARDENING S2 'every wrong plan runs fully, fails and matches expect' and 14.3 rule 1; hardening phase)",
+   "severity": "low",
+   "title": "Wrong plans that perform no mistake still count as evidence (speak only, a 1 s wait, one look, or two refused steps followed by one speak -- the last escapes the interim never-acted rule)",
+   "repro": "<home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1f_VER/wrong/make_new_wrong.py (A-04b40946bea880-01 with one wrong plan each) and `python -m house_sim --check <scratch>/wrong/wrong_W1x.json --seeds 0 1 2 41 97`: W10 [speak 'hello'], W11 [wait 1 s], W12 [look], W13 [pick_up {clutter_1}, pick_up {rug} (both refused), speak 'done'] -> PASS on 5/5 seeds each. The red team's W1-W9 all FAIL now (SpecError / TypeError / KeyError / NeverActed; W9's unknown action rejected when the spec loads). Expected open: the next phase's expect patterns and rule 1 close these; not contradicted here."
+  },
+  {
+   "owner": "admin_inventory (felt_marker), navigation_robot (robot_vacuum), mechanisms with cleaning (spray_bottle: trigger_bottle) -- finish_breakages.json rows",
+   "severity": "medium",
+   "title": "Known, still open: the read probe's look-alike leaks fail G4 (and G9's camera extra): one member alone is refused at read / read_aloud",
+   "repro": "python tools/perception_audit.py 1 20 --workers 4 --verbose (room: 3 leaks; --camera geometric: 5) and the review batch's perception_audit.py 6 150 (room 3, geometric 5): 'lookalike:felt_marker marker_pen vs washable_marker at read: (True, '') / (False, 'perception')', 'lookalike:robot_vacuum robot_vacuum vs robot_vacuum_mop at read: (False, 'perception') / (True, '')', 'lookalike:spray_bottle all_purpose_cleaner vs trigger_bottle at read: (True, '') / (False, 'perception')'. Same as P1F's G4 and STATUS 'What remains'."
+  },
+  {
+   "owner": "admin_inventory (count) and manipulation (shake, 'packing' inspector) -- finish_breakages.json rows",
+   "severity": "low",
+   "title": "Known, still open: unfamiliar (novel) things are still told apart before identification by count of the counter (only the unfamiliar kettle gets a 'levels' entry) and by shake ('it feels empty' / 'liquid sprayed out' / plain)",
+   "repro": "<home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1f_VER/id/twins_generic.py novel_sweep e3_novel_sweep_live.json --sweep (6 unfamiliar types x 597 commands; cwd = live tree): battery 39 / sweep 5 differences (red team: 88 / 22): count_counter levels {obj: 'unknown'} for electric_kettle only; shake 'Shook obj: it feels empty' (kettle), '...: liquid sprayed out' (bleach bottle), plain for the rest; read / read_aloud of the bleach bottle's printed text (legitimate resolution); flip / rotate / support heft follow true mass and size (physical). take_photo, pull/push_handle, garnish/plate/portion/scoop/transfer, fill and empty_into no longer differ (breakages rows 29-33 fixed)."
+  },
+  {
+   "owner": "tasks/setup.py + authored specs (VERIFY_HARDENING WP9 seeded arrangements; review I2, red_leaks 4)",
+   "severity": "high",
+   "title": "Expected open (hardening): authored placement still fixes look-alike roles by position",
+   "repro": "<home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1f_VER/id/position_role_scan2.py (243 specs x 10 seeds): 26 same-label groups in 24 specs, role fixed by position on every seed in 13 groups / 12 specs (3 realistic: T-c35156368a8a4b-01 letter trays, A-a67431128da2e1-01 stones, A-83f6ca95b72b85-01 film rolls); id/gaming_glass_position.py (T-3fb8a84f20876c-01): 10/10 room episodes pass reading only the third bottle (spos 0.08/0.30/0.42/0.54 on every seed), 4/10 geometric (the rest never frame the bottles)."
+  },
+  {
+   "owner": "house_sim/eval/run.py + house_sim/tasks/setup.py (VERIFY_HARDENING WP9, nonce-drawn permutations; review L7, red_leaks 2)",
+   "severity": "high",
+   "title": "Expected open (hardening, public seeds): an offline rebuild of the public (spec, seed) decodes what the robot sees by content",
+   "repro": "<home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1f_VER/side/probe_reconstruct.py (T-3fb8a84f20876c-01, dev seed 41): 4 candidate rebuilds, matched in 1.0 s offline, all 35 visible handles decoded correctly, every look-alike spray bottle listed with true type, place and label text before it is seen, the three glass-cleaner handles equal to the truth."
+  },
+  {
+   "owner": "house_sim/kernel/realism.py (glance size estimate; review L8)",
+   "severity": "low",
+   "title": "Expected open (hardening): the glance size estimate still moves when averaged over viewing conditions, although less than at the red team's run",
+   "repro": "<home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1f_VER/side/probe_size_regression.py 0|1|2 1.73 (148-224 readings over 16-22 distances): regression vs single glance, error in m: seed 0 [0.003, -0.01, -0.038] vs [0.02, 0.03, 0.02]; seed 1 [0.01, 0.027, -0.07] vs [0.02, -0.02, -0.08]; seed 2 [0.113, -0.07, 0.013] vs [0.07, -0.07, -0.03]. Some dimensions gain (seed 0 width 0.45 -> 0.433, true 0.43), others lose; at the red team's run seed 2 regressed to within 0.006 m on every dimension."
+  },
+  {
+   "owner": "people (doorway privacy; docs/KNOWN_LIMITS.md 6)",
+   "severity": "low",
+   "title": "Known, documented: a doorway view of a private moment counts 1 with the geometric camera and 0 in room mode (breakages row 42, people not_fixed)",
+   "repro": "<home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1f_VER/brk/probe_privacy.py: 'showering in bath, robot waits in the hall facing the doorway' room 0 / geometric 1 in oracle and realistic perception; every other case agrees. Documented in KNOWN_LIMITS 6 and pinned as an expected difference (tests/test_kernel_contracts.py CameraModeHarmTests.test_a_private_moment_seen_through_a_doorway_is_one_violation_at_most) -- the red team's second fix option."
+  },
+  {
+   "owner": "people.care_harm invariant + manipulation burns (VERIFY_HARDENING ledger: harms counted once)",
+   "severity": "low",
+   "title": "Residual of breakages row 43: one hot hand-over now raises one global flag (burns), but the failure list still scores the same burn twice ('burns' and 'people.care_harm:ana')",
+   "repro": "<home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1f_VER/brk/brk_repros.py hot_handover: tests.test_manipulation Mini, a mug of coffee at 70 C and 90 C handed to adult ana -> stats burns 1, injury 0, failures ['burns', 'people.care_harm:ana']. HandOverTests filters failures to ('burns', 'injury'). The once-per-harm rule across flags and invariants is the hardening ledger's; listed so it is not lost."
+  }
+ ],
+ "closed": [
+  "(a) red_defects 1 (high, failing tests skipped or deleted): every variant re-tried on copies of P1F with the live compare FAILs: S1 two skips by count only (counts disagree with per-test outcomes), S1b two LiftMonotonicity tests skipped by id, S2 test file gone, S3 20 tests fewer by count, S3b 20 tests deleted with consistent ids, S12 module-level SkipTest (45 ids removed). Hand-over family (prev = the cleaned record as ADOPT, live tree check) and the red team's family (prev PREVX, --any-tree) alike.",
+  "(a) red_defects 2 (high, partial re-run merges / stale records): real `record --only G10 --prev ADOPT` on records whose G2/G3/G6 carry an earlier tree -> 'STALE (checks run on another tree ...: G2,G3,G6)', handover false, exit 1; G2/G3 judged against another record -> STALE; `--prev none` and `--prev <own earlier record>` -> STALE + INCOMPLETE; `--stage A0` refused; record-level T1/T2 -> compare TREE FAIL. A consistent partial re-run (same tree, same prev) is still a hand-over, as designed.",
+  "(a) red_defects 3 (medium, compare passes FAIL records): S5 (G1b SKIP / G8 FAIL, rows gone), S6 (no G7), S7 (no G0), S8 (55 of 60 gen-1 digests and the layout counts gone), S9 coverage / S9b geometric audit missing, S9c coverage lost unsigned, S10 realistic trials missing, S13 G2/G3 mismatch, S14 worker crash, S15 wrong-plan reasons changed, a narrowed previous record (L2), E0-E6 -> FAIL; S11 --spec-files, S16 seeds [0], S17 extras [] -> INCOMPLETE (never a hand-over; exit 0 as documented).",
+  "(a) red_defects 4 (medium, policy forge): policy_forge.py re-run: `policy --root <fake>` reads the project's committed files ('--root ... is ignored'); scope of the forged copy -> FAIL (base commit 000... is not a project commit); compare with --root refused (exit 2); with --foreign-root -> TREE FAIL and G2 FAIL (forged allowlist and signature ignored).",
+  "(a) red_defects 5 (medium, wrong plans that never act): W1-W9 re-run with --check on 5 seeds: all FAIL, error classes SpecError (W1, W2, W4, W5), TypeError (W3, W6), KeyError (W7), NeverActed (W8: 'carried out none of the 2 action(s) it attempted'), W9's unknown action rejected when the spec loads. Residual: see the W10-W13 finding (hardening).",
+  "(a) red_defects 7 (medium, CI flakes): the correctness step runs with HOUSE_SIM_PERF_TESTS=0, the bounds run in a separate informational perf job, the spec sample passes --allowlist; P1F has 243/243 specs on every seed incl. 41. Residual: the disguised-bound finding.",
+  "(a) red_defects 11 (low, coverage no-op successes): `fuzz.py --coverage --specs plumbing_liquids__*` in iso/full: 47 of 427 actions, shake's one success listed apart as 'succeeded only without changing anything (not counted)'; the coverage fuzz's 278-of-427 count in P1F already excludes them.",
+  "(a) red_defects 12 (low, golden pins a failing reference): `golden.py record --known-failing T-0242c820d56e7e-01` refused (neither allowlisted nor pinned in the committed golden); T-7d4006bda247ba-01 passes and is no longer pinned. Residual: the hand-edit finding.",
+  "(a) new attacks that are caught: N1 test file renamed (ids follow the module) -> FAIL 'test file gone'; N2 one test method renamed (count unchanged) -> FAIL 'removed'; N6 G7 +20 % with the record's own G7 left PASS -> FAIL OVER BUDGET; N7 a state digest change in a record made for K-GATE2 (no 'state' allowance) -> FAIL, control PASS; G1/G4 golden digest edits without the known-failing mark -> FAIL; deleting a golden spec entry -> FAIL.",
+  "(b) High rows (gate-blocking): 0 T-7d4006bda247ba-01 --check PASS 5/5; 1 HOUSE_SIM_STRICT=1 --check T-ab9a26cd6a795e-01 seeds 97 and 0 PASS with no wrong-plan error class, and inspect where=closely from out of reach on seeds 97/0/1 answers without a strict-mode exception ('contents hidden', 'level unknown'); 25-28 bench_systems.py 40 0 1 2 3 x3: 2.79 / 2.70 / 2.71 ms per substep (ADOPT 3.21, limit 3.371), outdoor_plants.weather 0.042 ms (row: 0.09), tools_vehicles.disposals 0.001 (0.024), pets.agents 0.074 (0.135), safety 0.098 in all; 38 T-5a9598c809336a-01 --check PASS 5/5; 52 velcro on A-c627488c575314-01's garden hose (seed 2) 'Fastened the hook-and-loop strap', HOUSE_SIM_SAFE=0 normal and strict.",
+  "(b) Rows re-run from their own repro text: 3 closed spray / pump / trigger bottles refuse to pour ('Open it first', 0 L moved); 9 T-702453ef553c00-01's heater unplugged on a rug for 1800 s: no scorch, no fire (plugged control scorches and burns); --check T-702453ef553c00-01 PASS 5/5; 12 the staged chemical bottles of T-f9c90de5bb6b68-01, T-89530941a65283-01, T-718ad251e38789-01 on seeds 0-2 share one size / mass / fill per scene; 13 a scene-left curtain over a scene candle with every domain loaded: no fire / damage flag through 1 h (the robot-drawn control: fire); 14 / 36 prescription_bottle, expired_medication, pet_medication unresolved: read and read_aloud alike in room and geometric mode; 16-21 a kernel pour_in of 0.3 L into each listed type keeps 0 L (mug control 0.3 L); 22 hardware_organizer keeps 0 L, organizer_compartment keeps 0.25 L by tools_vehicles' documented decision (a closed-bottom drawer); 23 / 24 layout_audit 30 --gen 2: 330 houses, 0 problems, 0 domain follow-ups.",
+  "(b) Rows re-run through the red team's / review's probes: 29-33 novel sweep (no take_photo, pull/push_handle, food-verb, fill or empty_into difference), perception_audit 1 20 --verbose shows no take_photo twin leak; 34 spray-bottle members heft alike ('Feels medium' x4, same inspect mass / fill, same load word) and the look-alike sweep differs only at read; 35 probe_spill_kind2: bleach, detergent and softener spills all 'wet' (red team: wet / slip / slip); 37 ask owner on a destroyed vs out-of-view thing answer alike (probe_refusal2, RememberedSubjectTests normal + strict); 39 / 40 probe_glass2 'wrapped: throw, then unwrap on the floor' -> shattered, sharp floor hazard, 15 shards (= unwrapped control); 41 damp 0.1 / 0.15 and wet 0.3: 8.0 kg held one-handed, probe_lift 3 bodies x 9 variants x 17 masses: no non-monotone mass, no accepted lift dropped; 43 one global flag (residual listed); 44-51 registry.lookalike_size_spreads() empty, every named group one true size (measuring_cup / measuring_spoon groups dropped by food).",
+  "(b) Regression tests the owners name for their fixed rows: 110 test ids from 64 finish items (17 test files), run on the live tree normal and HOUSE_SIM_STRICT=1: all OK (rows 2, 4, 5, 6, 7, 8, 10, 11, 15 re-checked only this way; T-c541cb694906f5-01, row 6's expected outcome, --check PASS 5/5).",
+  "(c) Review identity probes (copies in p1f_VER/id, TREE = live tree, the red team's shims for removed realism internals): I1 address channel at chance (addr_variant: 10/47 and 18/47 for 3 variants); I1 second stage closed by the widened hidden range -- house structure depends on the full seed (seed vs seed + 2^31 / 2^32 / 2^40 / 2^52: 0/25 identical each), so 9e15 candidates; the census's '1,061 core-hours' line is computed for the old 2^31 range; I3 count leaves cartons 'paper drink carton' in both modes; I4 unfamiliar inspect extras gone (repro_novel_inspect: 0 extra keys, one refusal for open / switch_on / take_photo); I5 handles of a fresh nonce share 0/41 and 0/42, typed-before-issued handles refused; I6 135/135 agent-side echo confirmations say 'something' (probe_echo, probe_echo_variant, echo_variant_scan2, probe_echo_contents, repro_runtime_event_echo); I7 private documents inspect / read alike, private sweep differs only in ask owner; I8 one 'identify it first' refusal for the spray bottles; I9 glance openable equal within groups; I10 non-requester answers silence; I11 hazard order no longer follows spawn order (repro_hazard_cell_order: 'order flips with spawn order: False'); red_leaks 1 apply_label echo now 'plastic jug of laundry liquid ...' for every member, 'something' for unfamiliar things; S1 / S2 closed; key_order_twins 0, viewer_leak_check 0 true ids.",
+  "(c) Review side-channel probes (p1f_VER/side): L1 until / watch oracles closed (identical to the red team's run); L2 geometric px x range identical within every group (repro_geo_size, patched to skip food's dropped measuring_cup group), twins_lookalike geometric 0 findings over 78 groups (red team: 220 over 83); L3 the battery reads no more than the load word; L4 spill kind and jug inspect liquid_l no longer tell (repro_inspect_fingerprint distributions overlap), probe_twins room / geometric differ only after read and in the documented load word; L5 / L5b no fragile ring or rug_slip before inspect; noise repeat, coverage twin, sleep ring: null as before; message-number scans (12 houses x 250 steps): 176 room / 140 geometric candidate number matches (red team 103 / 57), spot-checked, all of the review's coincidence kind (heat setpoint 21.0 = room 21.0, 25 healthy leaves vs a 25 L volume, a blind's visible cord heights) or known fields (fridge setpoint known=1) -- not every candidate re-verified; lookalike_sizes 130 groups, 0 with different true sizes. smooth_stone's heft difference (faux 0.15 kg vs decor 1.4 kg) is A-a67431128da2e1-01's intended channel (resolve never, heft by design)."
+ ],
+ "notes": "VER = independent verifier for the end of phase 1. Read STATUS.md, finish_INT2.json, finish_K-GATE2.json, red_defects.json (and red_leaks.json, breakages.json, finish_breakages.json, the domains' finish files, the review's p3 reports). Live tree: unchanged during the run (tree fingerprint 900b89239a85, equal to P1F's; `git status` identical before and after every run). Nothing in the project was edited; the only project file written is this one. Nothing committed, no branch / stash / reset, nothing under %USERPROFILE%\\.house_ai (the viewer probe and the golden runs use a scratch HOME), no network, no paid calls; files LF. (a) The live gate tool (project tools/orchestration/tier1_gate.py, policy read from the project's commits) against copies of the final record P1F in my scratch gates roots: family H (hand-over: the cleaned record renamed ADOPT as base, every check's prev rewritten, no --any-tree; baseline PASS) and family X (the red team's PREVX with --any-tree; baseline INCOMPLETE): 42 + 40 attack records, every one as expected (gate_attacks_ver_H.json / _X.json). Real `record --only G10` runs for the stale / laundering cases (record_attacks.json). Tree-level attacks in isolated copies made with `tier1_gate.py isolate` (iso/full = HEAD + P1-ALL's 271 changed files, made identical to the live tree by copying 3 CRLF files; iso/cleaning = HEAD + cleaning's 8). Four things still get through: the gate script's own policy table (budget), G10's shared-tree attribution, a hand-edited golden, a failing test disguised as a bound in CI; plus the hardening phase's do-nothing wrong plans. Record forgery (hand-written meta.json) stays outside the gate, as K-GATE2 concluded. compare's INCOMPLETE exits 0 (documented; no script consumes the exit status). (b) breakages.json carries no severity field: 'High' was taken as the rows that fail a gate check or a spec (0, 1, 25-28, 38, 52); all fixed. 52 of 53 rows are marked fixed by their domain (row 42 is not; pets' not_fixed note on row 6 is stale: mechanisms' fix landed and its tests pass); 43 of the 52 re-run independently from their repro text or the red team's / review's probes (row 42 too, still open), the remaining 9 through the owners' regression tests (110 ids, normal + strict). Every row marked fixed reproduces as fixed; row 22 is fixed for hardware_organizer and closed by decision for organizer_compartment; row 43 has the ledger residual above. (c) The review's identity and side-channel probe scripts were re-run from copies (p1f_VER/id, p1f_VER/side; the red team's TREE-to-live-tree and realism-shim adaptations, runner.py batches quick_id / long_id / sweeps_id / side / side_long / audit, plus the red team's new probes). Not runnable end to end, as for the red team: gaming_mail_sort.py, gaming_mail_sort2.py and seed_recovery_demo.py (the mail spec is geometric now and a naive agent never frames the desk; the address channel was checked with addr_variant.py instead), find_types.py (needs arguments). Open, as expected for the hardening phase: placement by position (I2), the public-seed rebuild (L7), averaging (L8, weaker); also open but domain-owned and already listed in STATUS: the read-probe leaks and two unfamiliar-thing tells. Side observations: 68 working-tree files are CRLF while their committed blobs are LF (core.autocrlf=input; 3 inside the gate's fingerprint paths: house_sim/generator/furnish_core.py, tests/test_eval_common.py, tools/show_entries.py; 3 in catalog/raw, whose byte spans CI pins), so an isolated copy made by `isolate` has another tree fingerprint than the project (9984b07c17 vs 900b89239a) until they are copied in; the hot hand-over control in the scene-fire repro counts stats.fire 2 for one robot-drawn curtain (two panels). Scratch: <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1f_VER (gate_attacks_ver.py, record_attacks.py, scope_attacks.py, budget_attack.py, golden_attacks.py, perf_disguise.py, forge/policy_forge.py, wrong/, brk/ (brk_repros.py, run_fix_tests.py, scene_fire.py, the red team's defect probes), id/, side/, out/, runner.py, iso/, gates_h/, gates_x/).",
+ "gate_attacks": {
+  "hand_over_family": {
+   "A00_baseline": {
+    "note": "unchanged copy",
+    "verdict": "PASS",
+    "expected": "PASS",
+    "as_expected": true,
+    "result": "compare result: PASS"
+   },
+   "E1_new_failing_spec": {
+    "note": "new spec failing every seed",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "E2_regression_self_reviewed": {
+    "note": "PASS->FAIL with the package's own reviewed.json",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "E4_spec_edit_same_verdict": {
+    "note": "spec edited (hash changed), verdicts unchanged",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "E5_spec_removed": {
+    "note": "a spec's own-mode trials missing",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "E5b_G10_skip": {
+    "note": "record's own G10 SKIP",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "E6_fuzz_defect": {
+    "note": "3 coverage-fuzz defects",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S1_skips_by_count": {
+    "note": "2 more skips by count, ids untouched (red team S1)",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S1b_skips_by_id": {
+    "note": "2 LiftMonotonicity tests skipped (ids+outcomes, as recorded)",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S2_test_file_deleted": {
+    "note": "a whole test file gone (both modes)",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S3_tests_fewer_by_count": {
+    "note": "20 tests fewer by count (red team S3)",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S3b_tests_deleted_by_id": {
+    "note": "20 tests deleted, ids consistent",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S12_module_level_skip": {
+    "note": "module-level unittest.SkipTest (rc 0, 1 skip)",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S4_G1b_G8_not_run": {
+    "note": "isolated/core and golden rows absent",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S5_G1b_SKIP_G8_FAIL_in_meta": {
+    "note": "record says G1b SKIP and G8 FAIL, rows absent",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S6_G7_bench_missing": {
+    "note": "no G7 results, record says SKIP",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S7_G0_missing": {
+    "note": "no action fingerprint, record says G0 SKIP",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S8_G5_gen1_and_layout_dropped": {
+    "note": "55 of 60 gen-1 digests and the layout counts absent",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S9_coverage_variant_missing": {
+    "note": "coverage fuzz variant absent",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S9b_geometric_audit_missing": {
+    "note": "G4 geometric variant absent",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S9c_coverage_lost_unsigned": {
+    "note": "an action no longer driven to success, unsigned",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S10_realistic_trials_missing": {
+    "note": "a spec's realistic trials missing",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S11_compare_narrowed": {
+    "note": "new failing spec, compare --spec-files narrows it away",
+    "verdict": "INCOMPLETE",
+    "expected": "INCOMPLETE",
+    "as_expected": true,
+    "result": "compare result: INCOMPLETE (partial record, not a hand-over: compared on spec files cleaning__*)"
+   },
+   "S13_G3_nondeterministic": {
+    "note": "G2/G3 records of a realistic spec differ",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S14_worker_crash": {
+    "note": "a spec worker crash in the record",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S15_wrong_reasons_changed": {
+    "note": "a wrong plan's reason classes changed, unreviewed",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S16_seeds_narrowed": {
+    "note": "meta seeds [0]",
+    "verdict": "INCOMPLETE",
+    "expected": "INCOMPLETE",
+    "as_expected": true,
+    "result": "compare result: INCOMPLETE (partial record, not a hand-over: seeds limited to 0)"
+   },
+   "S17_extras_narrowed": {
+    "note": "meta extras []",
+    "verdict": "INCOMPLETE",
+    "expected": "INCOMPLETE",
+    "as_expected": true,
+    "result": "compare result: INCOMPLETE (partial record, not a hand-over: extras without physics,camera,body,sweep,gen)"
+   },
+   "S18_perf_bound_fails": {
+    "note": "a wall-clock bound fails every perf attempt",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "N1_test_file_renamed": {
+    "note": "NEW: test_physics_forces.py renamed (ids follow)",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "N2_test_method_renamed": {
+    "note": "NEW: one test method renamed, count unchanged",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "N3_test_disguised_as_perf_unrun": {
+    "note": "NEW: correctness test skipped as a perf bound, perf job never ran it",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "N4_test_disguised_as_perf_failing": {
+    "note": "NEW: ... perf job ran it, fails every attempt",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "N5_test_disguised_as_perf_passing": {
+    "note": "NEW: ... perf job ran it, passes 1 of 3 alone (design: excused)",
+    "verdict": "PASS",
+    "expected": "PASS",
+    "as_expected": true,
+    "result": "compare result: PASS"
+   },
+   "N6_bench_regressed_20pct": {
+    "note": "NEW: G7 substep and 1 h wait +20 % (record's own G7 PASS)",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "N7_state_change_K-GATE2": {
+    "note": "NEW: state digest changed in a record for K-GATE2 (no 'state')",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "N7c_K-GATE2_control": {
+    "note": "control: unchanged record made for K-GATE2",
+    "verdict": "PASS",
+    "expected": "PASS",
+    "as_expected": true,
+    "result": "compare result: PASS"
+   },
+   "T1_stale_tree": {
+    "note": "checks G2/G3/G6 carry an earlier tree's fingerprint (merged partial run)",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "T2_stale_prev": {
+    "note": "checks G2/G3 judged against another previous record",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "L1_own_earlier_record_prev": {
+    "note": "regression compared with the agent's own earlier record carrying it",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "L2_vs_narrowed_prev": {
+    "note": "new failing spec vs a narrowed previous record",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "E0_carried_failure": {
+    "note": "a spec failing in both records",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   }
+  },
+  "red_team_family": {
+   "A00_baseline": {
+    "note": "unchanged copy",
+    "verdict": "INCOMPLETE",
+    "expected": "INCOMPLETE",
+    "as_expected": true,
+    "result": "compare result: INCOMPLETE (partial record, not a hand-over: tree not checked (--any-tree))"
+   },
+   "E1_new_failing_spec": {
+    "note": "new spec failing every seed",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "E2_regression_self_reviewed": {
+    "note": "PASS->FAIL with the package's own reviewed.json",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "E4_spec_edit_same_verdict": {
+    "note": "spec edited (hash changed), verdicts unchanged",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "E5_spec_removed": {
+    "note": "a spec's own-mode trials missing",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "E5b_G10_skip": {
+    "note": "record's own G10 SKIP",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "E6_fuzz_defect": {
+    "note": "3 coverage-fuzz defects",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S1_skips_by_count": {
+    "note": "2 more skips by count, ids untouched (red team S1)",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S1b_skips_by_id": {
+    "note": "2 LiftMonotonicity tests skipped (ids+outcomes, as recorded)",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S2_test_file_deleted": {
+    "note": "a whole test file gone (both modes)",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S3_tests_fewer_by_count": {
+    "note": "20 tests fewer by count (red team S3)",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S3b_tests_deleted_by_id": {
+    "note": "20 tests deleted, ids consistent",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S12_module_level_skip": {
+    "note": "module-level unittest.SkipTest (rc 0, 1 skip)",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S4_G1b_G8_not_run": {
+    "note": "isolated/core and golden rows absent",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S5_G1b_SKIP_G8_FAIL_in_meta": {
+    "note": "record says G1b SKIP and G8 FAIL, rows absent",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S6_G7_bench_missing": {
+    "note": "no G7 results, record says SKIP",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S7_G0_missing": {
+    "note": "no action fingerprint, record says G0 SKIP",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S8_G5_gen1_and_layout_dropped": {
+    "note": "55 of 60 gen-1 digests and the layout counts absent",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S9_coverage_variant_missing": {
+    "note": "coverage fuzz variant absent",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S9b_geometric_audit_missing": {
+    "note": "G4 geometric variant absent",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S9c_coverage_lost_unsigned": {
+    "note": "an action no longer driven to success, unsigned",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S10_realistic_trials_missing": {
+    "note": "a spec's realistic trials missing",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S11_compare_narrowed": {
+    "note": "new failing spec, compare --spec-files narrows it away",
+    "verdict": "INCOMPLETE",
+    "expected": "INCOMPLETE",
+    "as_expected": true,
+    "result": "compare result: INCOMPLETE (partial record, not a hand-over: compared on spec files cleaning__*; tree not checked (--any-tree))"
+   },
+   "S13_G3_nondeterministic": {
+    "note": "G2/G3 records of a realistic spec differ",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S14_worker_crash": {
+    "note": "a spec worker crash in the record",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S15_wrong_reasons_changed": {
+    "note": "a wrong plan's reason classes changed, unreviewed",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "S16_seeds_narrowed": {
+    "note": "meta seeds [0]",
+    "verdict": "INCOMPLETE",
+    "expected": "INCOMPLETE",
+    "as_expected": true,
+    "result": "compare result: INCOMPLETE (partial record, not a hand-over: seeds limited to 0; tree not checked (--any-tree))"
+   },
+   "S17_extras_narrowed": {
+    "note": "meta extras []",
+    "verdict": "INCOMPLETE",
+    "expected": "INCOMPLETE",
+    "as_expected": true,
+    "result": "compare result: INCOMPLETE (partial record, not a hand-over: extras without physics,camera,body,sweep,gen; tree not checked (--any-tree))"
+   },
+   "S18_perf_bound_fails": {
+    "note": "a wall-clock bound fails every perf attempt",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "N1_test_file_renamed": {
+    "note": "NEW: test_physics_forces.py renamed (ids follow)",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "N2_test_method_renamed": {
+    "note": "NEW: one test method renamed, count unchanged",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "N3_test_disguised_as_perf_unrun": {
+    "note": "NEW: correctness test skipped as a perf bound, perf job never ran it",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "N4_test_disguised_as_perf_failing": {
+    "note": "NEW: ... perf job ran it, fails every attempt",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "N5_test_disguised_as_perf_passing": {
+    "note": "NEW: ... perf job ran it, passes 1 of 3 alone (design: excused)",
+    "verdict": "INCOMPLETE",
+    "expected": "INCOMPLETE",
+    "as_expected": true,
+    "result": "compare result: INCOMPLETE (partial record, not a hand-over: tree not checked (--any-tree))"
+   },
+   "N6_bench_regressed_20pct": {
+    "note": "NEW: G7 substep and 1 h wait +20 % (record's own G7 PASS)",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "N7_state_change_K-GATE2": {
+    "note": "NEW: state digest changed in a record for K-GATE2 (no 'state')",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "N7c_K-GATE2_control": {
+    "note": "control: unchanged record made for K-GATE2",
+    "verdict": "INCOMPLETE",
+    "expected": "INCOMPLETE",
+    "as_expected": true,
+    "result": "compare result: INCOMPLETE (partial record, not a hand-over: tree not checked (--any-tree))"
+   },
+   "L1_own_earlier_record_prev": {
+    "note": "regression compared with the agent's own earlier record carrying it",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "L2_vs_narrowed_prev": {
+    "note": "new failing spec vs a narrowed previous record",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   },
+   "E0_carried_failure": {
+    "note": "a spec failing in both records",
+    "verdict": "FAIL",
+    "expected": "FAIL",
+    "as_expected": true,
+    "result": "compare result: FAIL"
+   }
+  },
+  "record_runs": {
+   "R1_stale_tree_then_only_G10": {
+    "exit": 1,
+    "summary": "TIER1-GATE R1_STALE_TREE [P1-ALL] vs ADOPT: STALE (12 pass, 1 n/a; this run: G10; STALE (checks run on another tree or against another previous record: G2,G3,G6))",
+    "verdict": "STALE",
+    "handover": false,
+    "stale": [
+     "G2",
+     "G3",
+     "G6"
+    ],
+    "incomplete": null
+   },
+   "R2_other_prev_then_only_G10": {
+    "exit": 1,
+    "summary": "TIER1-GATE R2_OTHER_PREV [P1-ALL] vs ADOPT: STALE (12 pass, 1 n/a; this run: G10; STALE (checks run on another tree or against another previous record: G2,G3))",
+    "verdict": "STALE",
+    "handover": false,
+    "stale": [
+     "G2",
+     "G3"
+    ],
+    "incomplete": null
+   },
+   "R3_consistent_then_only_G10": {
+    "exit": 0,
+    "summary": "TIER1-GATE R3_CONSISTENT [P1-ALL] vs ADOPT: PASS (12 pass, 1 n/a; this run: G10)",
+    "verdict": "PASS",
+    "handover": true,
+    "stale": [],
+    "incomplete": null
+   },
+   "R4_prev_none_only_G10": {
+    "exit": 1,
+    "summary": "TIER1-GATE R4_PREV_NONE [P1-ALL] (no previous gate): STALE (12 pass, 1 n/a; this run: G10; STALE (checks run on another tree or against another previous record: G0,G1,G1b,G1c,G2,G3,G4,G5,G6,G7,G8,G9))",
+    "verdict": "STALE",
+    "handover": false,
+    "stale": [
+     "G0",
+     "G1",
+     "G1b",
+     "G1c",
+     "G2",
+     "G3",
+     "G4",
+     "G5",
+     "G6",
+     "G7",
+     "G8",
+     "G9"
+    ],
+    "incomplete": "compared with no previous record although its hand-over base ADOPT exists"
+   },
+   "R5_prev_own_earlier_only_G10": {
+    "exit": 1,
+    "summary": "TIER1-GATE R5_OWN_PREV [P1-ALL] vs R5_EARLIER: STALE (12 pass, 1 n/a; this run: G10; STALE (checks run on another tree or against another previous record: G0,G1,G1b,G1c,G2,G3,G4,G5,G6,G7,G8,G9))",
+    "verdict": "STALE",
+    "handover": false,
+    "stale": [
+     "G0",
+     "G1",
+     "G1b",
+     "G1c",
+     "G2",
+     "G3",
+     "G4",
+     "G5",
+     "G6",
+     "G7",
+     "G8",
+     "G9"
+    ],
+    "incomplete": "previous record R5_EARLIER is not the package's hand-over base (ADOPT)"
+   },
+   "R6_stage_A0": {
+    "exit": 1,
+    "summary": "--stage A0 contradicts the stage of P1-ALL (P1); --stage is for main-session gate ids without a package\n",
+    "verdict": null,
+    "handover": null,
+    "stale": null,
+    "incomplete": null
+   }
+  },
+  "shared_tree_scope": {
+   "P0_unedited_copy": {
+    "file": null,
+    "plain": [
+     0,
+     "G10 PASS 8 changed file(s); 0 outside the list of ADOPT:cleaning"
+    ],
+    "shared_tree": null
+   },
+   "P1_bench_factor_in_gate_script": {
+    "file": "tools/orchestration/tier1_gate.py",
+    "plain": [
+     1,
+     "G10 FAIL 9 changed file(s); 1 outside the list of ADOPT:cleaning\n  outside: tools/orchestration/tier1_gate.py"
+    ],
+    "shared_tree": [
+     0,
+     "G10 PASS 9 changed file(s); 0 outside the list of ADOPT:cleaning; 1 attributed to concurrent packages (--shared-tree)\n  tools/orchestration/tier1_gate.py (concurrent package K-EVAL)"
+    ]
+   },
+   "P2_planted_allowlist_entry": {
+    "file": "tools/orchestration/gate_policy/known_failing.json",
+    "plain": [
+     1,
+     "G10 FAIL 9 changed file(s); 1 outside the list of ADOPT:cleaning; 1 of the gate's policy files changed (main session only: tools/orchestration/gate_policy)\n  outside: tools/orchestration/gate_policy/known_failing.json"
+    ],
+    "shared_tree": [
+     0,
+     "G10 PASS 9 changed file(s); 0 outside the list of ADOPT:cleaning; 1 attributed to concurrent packages (--shared-tree)\n  tools/orchestration/gate_policy/known_failing.json (concurrent package K-GATE)"
+    ]
+   },
+   "P3_loosened_wall_clock_bound": {
+    "file": "tests/test_perception.py",
+    "plain": [
+     1,
+     "G10 FAIL 9 changed file(s); 1 outside the list of ADOPT:cleaning\n  outside: tests/test_perception.py"
+    ],
+    "shared_tree": [
+     0,
+     "G10 PASS 9 changed file(s); 0 outside the list of ADOPT:cleaning; 1 attributed to concurrent packages (--shared-tree)\n  tests/test_perception.py (concurrent package K-CAM)"
+    ]
+   },
+   "P4_domain_may_change_gen1": {
+    "file": "tools/orchestration/tier1_gate.py",
+    "plain": [
+     1,
+     "G10 FAIL 9 changed file(s); 1 outside the list of ADOPT:cleaning\n  outside: tools/orchestration/tier1_gate.py"
+    ],
+    "shared_tree": [
+     0,
+     "G10 PASS 9 changed file(s); 0 outside the list of ADOPT:cleaning; 1 attributed to concurrent packages (--shared-tree)\n  tools/orchestration/tier1_gate.py (concurrent package K-EVAL)"
+    ]
+   }
+  },
+  "edited_budget": {
+   "unedited": {
+    "exit": 1,
+    "lines": [
+     "TREE PASS  the record was made on this tree (900b89239a85; <home>\\AppData\\Local\\Temp\\claude\\C--Users-USER-OneDrive-Desktop-house-ai\\e86e18f6-923d-4bcc-93e1-ba70c8993bc5\\scratchpad\\p1f_VER\\iso\\full)",
+     "G7   FAIL  substep_ms: 2.69 -> 3.228 (+20.0%; limit 2.825 = prev x 1.05)  OVER BUDGET",
+     "           wait_1h_s: 1.0201 -> 1.224 (+20.0%; limit 1.071 = prev x 1.05)  OVER BUDGET",
+     "REC  PASS  this record's own G0, G1c, G4, G5, G7, G9, G10: G0 PASS, G1c N/A, G4 PASS, G5 PASS, G7 PASS, G9 PASS, G10 PASS",
+     "compare result: FAIL"
+    ]
+   },
+   "edited: union cap and package default bench 1.05 -> 1.5": {
+    "exit": 0,
+    "lines": [
+     "TREE PASS  the record was made on this tree (e2f3d9cf2c82; <home>\\AppData\\Local\\Temp\\claude\\C--Users-USER-OneDrive-Desktop-house-ai\\e86e18f6-923d-4bcc-93e1-ba70c8993bc5\\scratchpad\\p1f_VER\\iso\\full)",
+     "G7   PASS  substep_ms: 2.69 -> 3.228 (+20.0%; limit 4.035 = prev x 1.5)",
+     "           wait_1h_s: 1.0201 -> 1.224 (+20.0%; limit 1.53 = prev x 1.5)",
+     "REC  PASS  this record's own G0, G1c, G4, G5, G7, G9, G10: G0 PASS, G1c N/A, G4 PASS, G5 PASS, G7 PASS, G9 PASS, G10 PASS",
+     "compare result: PASS"
+    ]
+   }
+  },
+  "golden_hand_edit": {
+   "fixed_spec": "T-0242c820d56e7e-01",
+   "other_spec": "A-04b40946bea880-01",
+   "G0_control_unedited": {
+    "rc": 0,
+    "tail": [
+     "Ran 7 tests in 20.388s",
+     "OK"
+    ]
+   },
+   "G1_fixed_spec_digest_changed": {
+    "rc": 1,
+    "tail": [
+     "FAIL: test_reference_plan_digests_match (tests.test_room_golden.RoomGoldenTests.test_reference_plan_digests_match)",
+     "AssertionError: Lists differ: ['spec T-0242c820d56e7e-01: state differ'] != []",
+     "Ran 7 tests in 20.666s",
+     "FAILED (failures=1)"
+    ]
+   },
+   "G2_digest_changed_and_marked_known_failing": {
+    "rc": 0,
+    "tail": [
+     "Ran 7 tests in 20.553s",
+     "OK"
+    ]
+   },
+   "G3_non_fixed_spec_deleted_golden_all": {
+    "rc": 1,
+    "tail": [
+     "FAIL: test_reference_plan_digests_match (tests.test_room_golden.RoomGoldenTests.test_reference_plan_digests_match)",
+     "AssertionError: Items in the first set but not the second:",
+     "Ran 7 tests in 28.772s",
+     "FAILED (failures=1)"
+    ]
+   },
+   "G3b_non_fixed_digest_changed_marked_golden_all": {
+    "rc": 0,
+    "tail": [
+     "Ran 7 tests in 28.477s",
+     "OK"
+    ]
+   },
+   "G4_script_step_digest_changed": {
+    "rc": 1,
+    "tail": [
+     "FAIL: test_script_digests_match (tests.test_room_golden.RoomGoldenTests.test_script_digests_match)",
+     "AssertionError: Lists differ: ['run 0/oracle step 4 (move): state differ'] != []",
+     "Ran 7 tests in 20.351s",
+     "FAILED (failures=1)"
+    ]
+   },
+   "G5_golden_record_self_known_failing": {
+    "rc": 1,
+    "text": "golden: --known-failing T-0242c820d56e7e-01 is neither on the gate's committed allowlist nor pinned known-failing in the committed golden; a recorder cannot excuse a failure itself (ask the main session for a dated allowlist entry)"
+   }
+  }
+ },
+ "breakage_repros": {
+  "holders_row16": {
+   "row": 16,
+   "verdict": "FIXED"
+  },
+  "holders_row17": {
+   "row": 17,
+   "verdict": "FIXED"
+  },
+  "holders_row18": {
+   "row": 18,
+   "verdict": "FIXED"
+  },
+  "holders_row19": {
+   "row": 19,
+   "verdict": "FIXED"
+  },
+  "holders_row20": {
+   "row": 20,
+   "verdict": "FIXED"
+  },
+  "holders_row21": {
+   "row": 21,
+   "verdict": "FIXED"
+  },
+  "holders_row22": {
+   "row": 22,
+   "verdict": "hardware_organizer FIXED; organizer_compartment still pools 0.25 L, kept as a holder by tools_vehicles' documented decision (a closed-bottom drawer)"
+  },
+  "lookalike_sizes_row44": {
+   "row": 44,
+   "verdict": "FIXED"
+  },
+  "lookalike_sizes_row45": {
+   "row": 45,
+   "verdict": "FIXED"
+  },
+  "lookalike_sizes_row46": {
+   "row": 46,
+   "verdict": "FIXED"
+  },
+  "lookalike_sizes_row47": {
+   "row": 47,
+   "verdict": "FIXED"
+  },
+  "lookalike_sizes_row48": {
+   "row": 48,
+   "verdict": "FIXED"
+  },
+  "lookalike_sizes_row49": {
+   "row": 49,
+   "verdict": "FIXED"
+  },
+  "lookalike_sizes_row50": {
+   "row": 50,
+   "verdict": "FIXED"
+  },
+  "lookalike_sizes_row51": {
+   "row": 51,
+   "verdict": "FIXED"
+  },
+  "lookalike_spread_lint": {
+   "row": "44-51",
+   "verdict": "FIXED"
+  },
+  "hot_handover": {
+   "row": 43,
+   "verdict": "FIXED"
+  },
+  "closed_sprayer_pour": {
+   "row": 3,
+   "verdict": "FIXED (no 'pitcher' type, so no open-vessel control in this probe)"
+  },
+  "strict_heft_grant": {
+   "row": 1,
+   "verdict": "FIXED"
+  },
+  "pill_bottles_read": {
+   "row": "14/36",
+   "verdict": "FIXED"
+  },
+  "heater_unpowered": {
+   "row": 9,
+   "verdict": "FIXED"
+  },
+  "chem_presets_staged": {
+   "row": 12,
+   "verdict": "FIXED"
+  },
+  "check_T-7d4006bda247ba-01": {
+   "row": 0,
+   "verdict": "FIXED: --check PASS 5/5"
+  },
+  "check_T-5a9598c809336a-01": {
+   "row": 38,
+   "verdict": "FIXED: --check PASS 5/5"
+  },
+  "check_T-702453ef553c00-01": {
+   "row": 9,
+   "verdict": "FIXED: --check PASS 5/5"
+  },
+  "check_T-c541cb694906f5-01": {
+   "row": 6,
+   "verdict": "PASS 5/5 (the row's expected outcome)"
+  },
+  "velcro_repro": {
+   "row": 52,
+   "verdict": "FIXED: strap fastened, normal and strict, HOUSE_SIM_SAFE=0"
+  },
+  "bench_systems_40_0_1_2_3": {
+   "row": "25-28",
+   "verdict": "FIXED: 2.70 ms/substep best of 3 (limit 3.371)"
+  },
+  "layout_audit_30_gen2": {
+   "row": "23-24",
+   "verdict": "FIXED: 330 houses, 0 problems, 0 domain follow-ups"
+  },
+  "perception_audit_1_20_verbose": {
+   "row": 29,
+   "verdict": "FIXED: no take_photo twin leak (room and geometric)"
+  },
+  "novel_sweep": {
+   "row": "30-33",
+   "verdict": "FIXED: no pull/push_handle, food-verb, fill or empty_into difference"
+  },
+  "heft_twins_and_lookalike_sweep": {
+   "row": 34,
+   "verdict": "FIXED: spray-bottle members heft alike"
+  },
+  "probe_spill_kind2": {
+   "row": 35,
+   "verdict": "FIXED: every member's spill shows 'wet'"
+  },
+  "probe_refusal2_and_RememberedSubjectTests": {
+   "row": 37,
+   "verdict": "FIXED"
+  },
+  "probe_glass2": {
+   "row": "39-40",
+   "verdict": "FIXED: unwrap on the floor scatters 15 shards, sharp hazard"
+  },
+  "probe_lift_damp_and_probe_lift": {
+   "row": 41,
+   "verdict": "FIXED: no non-monotone mass, damp 8 kg held one-handed"
+  },
+  "probe_privacy": {
+   "row": 42,
+   "verdict": "NOT FIXED (marked so): room 0 / geometric 1; documented, pinned"
+  },
+  "scene_fire": {
+   "row": 13,
+   "verdict": "FIXED: no fire flag for the scene's fire through 1 h; robot control flagged"
+  }
+ },
+ "owner_regression_tests": {
+  "items": 65,
+  "test_ids": 110,
+  "results": {
+   "test_admin_inventory normal": {
+    "rc": 0,
+    "tests": 4
+   },
+   "test_appliances_cooking normal": {
+    "rc": 0,
+    "tests": 4
+   },
+   "test_cleaning normal": {
+    "rc": 0,
+    "tests": 4
+   },
+   "test_climate normal": {
+    "rc": 0,
+    "tests": 1
+   },
+   "test_electrical normal": {
+    "rc": 0,
+    "tests": 2
+   },
+   "test_food normal": {
+    "rc": 0,
+    "tests": 6
+   },
+   "test_gate_tool normal": {
+    "rc": 0,
+    "tests": 17
+   },
+   "test_manipulation normal": {
+    "rc": 0,
+    "tests": 8
+   },
+   "test_mechanisms normal": {
+    "rc": 0,
+    "tests": 7
+   },
+   "test_navigation_robot normal": {
+    "rc": 0,
+    "tests": 4
+   },
+   "test_outdoor_plants normal": {
+    "rc": 0,
+    "tests": 6
+   },
+   "test_people normal": {
+    "rc": 0,
+    "tests": 6
+   },
+   "test_pets normal": {
+    "rc": 0,
+    "tests": 10
+   },
+   "test_plumbing_liquids normal": {
+    "rc": 0,
+    "tests": 13
+   },
+   "test_safety normal": {
+    "rc": 0,
+    "tests": 6
+   },
+   "test_textiles_laundry normal": {
+    "rc": 0,
+    "tests": 2
+   },
+   "test_tools_vehicles normal": {
+    "rc": 0,
+    "tests": 10
+   },
+   "test_admin_inventory strict": {
+    "rc": 0,
+    "tests": 4
+   },
+   "test_appliances_cooking strict": {
+    "rc": 0,
+    "tests": 4
+   },
+   "test_cleaning strict": {
+    "rc": 0,
+    "tests": 4
+   },
+   "test_climate strict": {
+    "rc": 0,
+    "tests": 1
+   },
+   "test_electrical strict": {
+    "rc": 0,
+    "tests": 2
+   },
+   "test_food strict": {
+    "rc": 0,
+    "tests": 6
+   },
+   "test_gate_tool strict": {
+    "rc": 0,
+    "tests": 17
+   },
+   "test_manipulation strict": {
+    "rc": 0,
+    "tests": 8
+   },
+   "test_mechanisms strict": {
+    "rc": 0,
+    "tests": 7
+   },
+   "test_navigation_robot strict": {
+    "rc": 0,
+    "tests": 4
+   },
+   "test_outdoor_plants strict": {
+    "rc": 0,
+    "tests": 6
+   },
+   "test_people strict": {
+    "rc": 0,
+    "tests": 6
+   },
+   "test_pets strict": {
+    "rc": 0,
+    "tests": 10
+   },
+   "test_plumbing_liquids strict": {
+    "rc": 0,
+    "tests": 13
+   },
+   "test_safety strict": {
+    "rc": 0,
+    "tests": 6
+   },
+   "test_textiles_laundry strict": {
+    "rc": 0,
+    "tests": 2
+   },
+   "test_tools_vehicles strict": {
+    "rc": 0,
+    "tests": 10
+   }
+  }
+ }
+}

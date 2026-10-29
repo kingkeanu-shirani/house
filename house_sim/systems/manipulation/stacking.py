@@ -151,26 +151,75 @@ def topple_from(ctx, members, index, cause):
 
 
 def stack_reason(w, members):
-    """Why a stack is unstable, in words (the first rule that fails: the kernel's stack rules plus this domain's open
-    container rule), or None."""
-    for i in range(1, len(members)):
-        upper, lower = w.ent(members[i]), w.ent(members[i - 1])
-        uw, ud, _ = C.dims(upper)
-        lw, ld, _ = C.dims(lower)
-        if not upper.get("nested") and (uw > lw * kstatics.STACK_OVERSIZE + 1e-6 or ud > ld * kstatics.STACK_OVERSIZE + 1e-6):
-            return "{} is much larger than {} below it".format(members[i], members[i - 1])
-        if lower.get("openable") and lower.get("open") and lower.get("container") and not upper.get("nested"):
-            return "{} rests on the open contents of {}".format(members[i], members[i - 1])
-        off = upper.get("stack_offset_m") or [0.0, 0.0]
-        if abs(C.num(off[0])) > kstatics.STACK_OFFSET_FRAC * lw or abs(C.num(off[1])) > kstatics.STACK_OFFSET_FRAC * ld:
-            return "{} is off-centre".format(members[i])
-    height = stack_height(w, members)
-    clearance = clearance_for(w, members[0])
-    if clearance is not None and height > clearance + 1e-6:
+    """Why a stack is unstable, in words, or None: this domain's open-container rule (_open_contents_at: what it
+    topples, settle_stack topples), else the kernel's stack rules judged exactly as its stack law judges them
+    (phys.statics.stack_verdict on the kernel's chain from the base), named by the rule that fails first at the
+    first member the verdict topples: each member against the TOP of the one below it (statics.top_wd: a kitchen
+    scale's platform or a trivet's declared surface, else its footprint) by the part that bears on it
+    (statics.contact_wd: its foot when it stands on one) and by its centre offset; then the stack's slenderness and
+    the shelf gap above it. Phase-1 breakage: the old oversize rule compared the members' bounding boxes, so a mixing
+    bowl on a kitchen scale's platform was 'much larger' here and stable for the kernel."""
+    if not members or members[0] not in w.s["entities"]:
+        return None
+    open_at = _open_contents_at(w, members)
+    if open_at is not None:
+        return "{} rests on the open contents of {}".format(members[open_at], members[open_at - 1])
+    state = w.s
+    toppling = [eid for eid, kind in kstatics.stack_verdict(state, members[0]) if kind == "topple"]
+    if not toppling:
+        return None
+    chain = kstatics.stack_chain(state, members[0])
+    at = chain.index(toppling[0])
+    rule = _member_rule(state, chain, at)
+    if rule == "oversize":
+        return "{} is much larger than {} below it".format(chain[at], chain[at - 1])
+    if rule == "offset":
+        return "{} is off-centre".format(chain[at])
+    clearance = kstatics.clearance_above_m(state, chain[0])
+    if clearance is not None and kstatics.stack_height_m(state, chain) > clearance + 1e-6:
         return "the stack hits the shelf above"
-    if height / max(0.05, min(C.dims(w.ent(members[0]))[:2])) > kstatics.STACK_TOPPLE:
-        return "the stack is too tall for its base"
+    return "the stack is too tall for its base"
+
+
+def _member_rule(state, chain, i):
+    """The kernel's per-member stack rule that member i of a kernel stack chain fails, as statics.stack_verdict
+    applies them: "oversize" (the part bearing on the one below, contact_wd, reaches more than STACK_OVERSIZE past its
+    top, top_wd, unless it nests), "offset" (its centre is off by more than STACK_OFFSET_FRAC of that top while it
+    reaches past it), else None. A low flat base under a member centred over it (a phone on a charging pad) carries
+    it whatever their sizes."""
+    entities = state["entities"]
+    upper, lower = entities[chain[i]], entities[chain[i - 1]]
+    uw, ud = kstatics.footprint_wd(state, chain[i])
+    cw, cd = kstatics.contact_wd(state, chain[i])
+    lw, ld = kstatics.top_wd(state, chain[i - 1])
+    dx, dy = _centre_offset(state, chain[i])
+    if i == 1 and ksupport.resting_size(state, chain[0])[2] <= kstatics.LOW_BASE_M + 1e-9 and \
+            abs(dx) <= lw / 2.0 + 1e-9 and abs(dy) <= ld / 2.0 + 1e-9:
+        return None
+    u_long, u_short = sorted((cw, cd), reverse=True)
+    l_long, l_short = sorted((lw, ld), reverse=True)
+    group = upper.get("nest_group")
+    nests = bool(group) and group == lower.get("nest_group") and \
+        ksupport.dims(upper)[0] <= ksupport.dims(lower)[0] + 1e-6 and ksupport.dims(upper)[1] <= ksupport.dims(lower)[1] + 1e-6
+    if not nests and (u_long > l_long * kstatics.STACK_OVERSIZE + 1e-6 or u_short > l_short * kstatics.STACK_OVERSIZE + 1e-6):
+        return "oversize"
+    inside = abs(dx) + uw / 2.0 <= lw / 2.0 + 1e-9 and abs(dy) + ud / 2.0 <= ld / 2.0 + 1e-9
+    if not inside and (abs(dx) > kstatics.STACK_OFFSET_FRAC * lw + 1e-9 or abs(dy) > kstatics.STACK_OFFSET_FRAC * ld + 1e-9):
+        return "offset"
     return None
+
+
+def _centre_offset(state, eid):
+    """(dx, dy) of a stack member's centre from the centre of the top below it, as the kernel's stack verdict reads
+    it: this domain's stack_offset_m when set, else from its spot on that top (statics.surface_frame)."""
+    offset = state["entities"][eid].get("stack_offset_m")
+    if isinstance(offset, (list, tuple)) and len(offset) >= 2:
+        return C.num(offset[0]), C.num(offset[1])
+    frame = kstatics.surface_frame(state, eid)
+    if frame is None:
+        return 0.0, 0.0
+    sw, sd, x0, y0, fw, fd = frame
+    return x0 + fw / 2.0 - sw / 2.0, y0 + fd / 2.0 - sd / 2.0
 
 
 def _open_contents_at(w, members):

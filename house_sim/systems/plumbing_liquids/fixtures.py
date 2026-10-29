@@ -104,15 +104,23 @@ def refresh(w, eid, cache=None):
 
 def tap_state(w, eid, cache=None):
     """The derived state of a (non-spigot) tap from its settings and the supply: water_running, flow_lpm,
-    outlet_temp_c, the hot/cold split and the drip of a worn washer. Pure (writes nothing)."""
+    outlet_temp_c, the hot/cold split and the drip of a worn washer. Pure (writes nothing). A shut tap with no drip
+    to judge needs neither the supply factors nor the tank temperature (only a thermostatic valve reads the tank
+    for its split), so they are read only when something can flow: the same values, cheaper on a quiet house."""
     rec = w.s["entities"][eid]
-    th_tank = S.hot_supply_c(w, cache)
+    thermostatic = fkind(rec) == "thermostatic"
+    th_tank = S.hot_supply_c(w, cache) if thermostatic else None
     tc = S.cold_supply_c(w)
     hot_open, cold_open = handle_fracs(rec, th_tank, tc)
     max_lpm = C.num(faucet(rec).get("max_lpm"), 6.0)
     lines = rec.get("lines") or ["hot", "cold"]
-    f_hot = S.line_factor(w, eid, "hot", cache) if "hot" in lines else 0.0
-    f_cold = S.line_factor(w, eid, "cold", cache) if "cold" in lines else 0.0
+    worn = rec.get("_worn") or {}
+    damage_lpm = C.num(rec.get("_damage_flow_lpm"))
+    if hot_open > 0 or cold_open > 0 or damage_lpm > 0 or (worn and C.num(worn.get("drip_lpm")) > 0):
+        f_hot = S.line_factor(w, eid, "hot", cache) if "hot" in lines else 0.0
+        f_cold = S.line_factor(w, eid, "cold", cache) if "cold" in lines else 0.0
+    else:
+        f_hot = f_cold = 0.0        # nothing open and nothing to drip: every flow below is zero whatever the supply
     if "hot" not in lines:
         cold_open = cold_open + hot_open
         hot_open = 0.0
@@ -122,18 +130,18 @@ def tap_state(w, eid, cache=None):
     if total > max_lpm and total > 0:
         hot_lpm, cold_lpm = hot_lpm * max_lpm / total, cold_lpm * max_lpm / total
         total = max_lpm
-    damage_lpm = C.num(rec.get("_damage_flow_lpm"))
-    worn = rec.get("_worn") or {}
     drip = 0.0
     if total <= 0.01:
         drip = C.num(worn.get("drip_lpm")) if worn else 0.0
         drip += damage_lpm
         if drip > 0 and (f_hot + f_cold) <= 0:
             drip = 0.0
-    warm = C.clamp(C.num(rec.get("_hot_run_s")) / max(1.0, C.num(faucet(rec).get("warm_up_s"), 20.0)), 0.0, 1.0)
-    th_out = tc + (th_tank - tc) * warm
     outlet = None
     if total > 0.01:
+        if th_tank is None:
+            th_tank = S.hot_supply_c(w, cache)
+        warm = C.clamp(C.num(rec.get("_hot_run_s")) / max(1.0, C.num(faucet(rec).get("warm_up_s"), 20.0)), 0.0, 1.0)
+        th_out = tc + (th_tank - tc) * warm
         outlet = C.rnd((hot_lpm * th_out + cold_lpm * tc) / total, 1)
     running = total > 0.05
     return {"water_running": running, "flow_lpm": C.rnd(total, 3), "outlet_temp_c": outlet,
@@ -639,7 +647,7 @@ def overflow(w, eid, parcel):
     m["overflowed_l"] = C.rnd(C.num(m.get("overflowed_l")) + parcel["liters"], 3)
     cab = rec.get("cabinet")
     if cab in w.s["entities"] and not w.ent(cab).get("waterproof"):
-        C.wet(w, cab, 0.8)
+        C.wet(w, cab, parcel["liters"], name, source=eid)       # it runs down the cabinet front (the kernel's wetting)
 
 
 def basin_step(w, eid, dt):

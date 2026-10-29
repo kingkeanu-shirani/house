@@ -81,7 +81,7 @@
     "padlock": {"is_a": "portable_object", "props": {"label": "padlock", "category": "padlock", "material": "steel", "mass_kg": 0.2, "size_m": [0.05, 0.025, 0.08], "volume_l": 0.1, "shackle_closed": true, "value": 15.0}, "perception": {"inspect": ["shackle_closed"], "hidden": ["value"]}},
     "combination_padlock": {"is_a": "padlock", "props": {"label": "combination padlock", "combination": true}, "perception": {"glance": ["combination"], "looks_like": "combination_padlock"}},
     "door_wedge": {"is_a": "portable_object", "props": {"label": "door wedge", "category": "doorstop", "doorstop": true, "wedge": true, "material": "rubber", "mass_kg": 0.06, "size_m": [0.12, 0.04, 0.03], "volume_l": 0.1}},
-    "magnetic_lock_key": {"is_a": "portable_object", "props": {"label": "magnetic lock key", "category": "key", "magnetic_key": true, "affordances": ["magnetic_key"], "mass_kg": 0.03, "size_m": [0.05, 0.05, 0.015], "volume_l": 0.05}, "perception": {"inspect": ["magnetic_key"]}},
+    "magnetic_lock_key": {"is_a": "portable_object", "props": {"label": "magnetic lock key", "category": "key", "magnetic_key": true, "affordances": ["magnetic_key"], "mass_kg": 0.03, "size_m": [0.05, 0.05, 0.015], "volume_l": 0.05}, "perception": {"inspect": ["magnetic_key"], "looks_like": "magnetic_lock_key"}},
     "rubber_grip_pad": {"is_a": "portable_object", "props": {"label": "rubber jar grip pad", "category": "kitchen_tool", "material": "rubber", "affordances": ["grip_aid"], "grip_mu": 0.9, "mass_kg": 0.02, "size_m": [0.13, 0.13, 0.002], "volume_l": 0.05}, "perception": {"hidden": ["grip_mu"]}},
     "child_lock_latch": {"is_a": "portable_object", "props": {"label": "child-lock latch", "category": "child_safety_part", "part_type": "child_lock", "child_lock_kind": "latch", "mass_kg": 0.02, "size_m": [0.08, 0.02, 0.02], "volume_l": 0.02}, "perception": {"inspect": ["child_lock_kind"]}},
     "magnetic_child_lock": {"is_a": "child_lock_latch", "props": {"label": "magnetic child lock", "child_lock_kind": "magnetic"}},
@@ -98,6 +98,7 @@
   "looks_like": {
     "padlock": {"descriptor": "keyed padlock", "resolve": "inspect", "members": ["padlock"], "kind": "padlock", "candidates": ["keyed padlock"]},
     "combination_padlock": {"descriptor": "combination padlock", "resolve": "inspect", "members": ["combination_padlock"], "kind": "padlock", "candidates": ["combination padlock"]},
+    "magnetic_lock_key": {"descriptor": "round magnet key", "resolve": "inspect", "members": ["magnetic_lock_key"], "kind": "magnet key", "candidates": ["magnetic lock key"]},
     "child_lock_part": {"descriptor": "plastic child-lock latch", "resolve": "inspect", "members": ["child_lock_latch", "magnetic_child_lock"], "kind": "child lock", "candidates": ["spring catch latch", "magnetic lock", "strap lock"]},
     "pump_dispenser": {"descriptor": "pump bottle of liquid", "resolve": "read", "members": ["pump_bottle"], "kind": "pump bottle", "candidates": ["hand soap", "lotion", "hand sanitizer", "dish soap"], "label_fields": ["label_text"]},
     "spray_bottle": {"members": ["trigger_bottle"]}

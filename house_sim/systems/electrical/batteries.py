@@ -90,6 +90,7 @@ def nominal_voltage(state, eid):
     return total or 1.5
 
 
+@C.declare_index("battery_devices", ("slots", "category", "charges_chemistry"))
 def battery_device(rec):
     return bool(battery_slots(rec)) and rec.get("category") not in ("charger",) and not rec.get("charges_chemistry")
 

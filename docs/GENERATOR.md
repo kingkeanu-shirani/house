@@ -58,7 +58,8 @@ build_structure(..., min_bedrooms, exterior_steps), finish_structure
 utilities (house rng); weather and clock (climate.apply, hash draws)
 people_records, pet_records (house rng picks the rooms)
 apply_profiles(Random("profile:{seed}:people"))                         profiles, bedrooms, schedules, household.profile
-dock; furnishers (domains 10-99 with gen.bedrooms at 60; gen.furnishings 101, gen.belongings 102, gen.residents 103)
+dock; furnishers (domains 10-99 with gen.bedrooms at 60; gen.furnishings 101, gen.belongings 102, gen.residents 103;
+                  navigation_robot.dock_check 120: a dock whose keep-clear zone cuts a hazard-free route moves)
 repair_layout; metadata.gen = 2
 ```
 

@@ -64,7 +64,18 @@ def unidentified(env, eid):
     return "candidates" in ident
 
 
+def novel_unidentified(env, eid):
+    """Realistic mode: True when eid is an unfamiliar (novel) thing the robot has not identified (the kernel's
+    Realism.novel_unidentified, which the engine asks before an operates=True action). Always False in oracle mode."""
+    realism = getattr(env, "realism", None)
+    if realism is None or not isinstance(eid, str):
+        return False
+    rec = env.world.s["entities"].get(eid)
+    return rec is not None and bool(realism.novel_unidentified(eid, rec))
+
+
 GENERIC_REFUSAL = "That does not work on it"
+GENERIC_CATEGORY = "precondition"
 
 
 @contextlib.contextmanager
@@ -72,15 +83,16 @@ def plain_refusals(ctx, *eids):
     """Refusals raised inside the block are this domain's own type-specific reasons ("seat the kettle on its base",
     "the float valve is up", "lock the portafilter into the group head"). In realistic mode, when one of `eids` is not
     identified (an unresolved look-alike or a novel object), the reason would name what it is: one generic reason is
-    given instead (same category). Kernel access refusals (not visible, out of reach, robot state, permission:
-    `exc.kernel_access`, kernel round 5) pass unchanged even when raised inside the block."""
+    given instead, always in one category (GENERIC_CATEGORY: the type-specific reason's own category -- argument,
+    resource, safety -- told the types apart too, phase-1 finish). Kernel access refusals (not visible, out of reach,
+    robot state, permission: `exc.kernel_access`, kernel round 5) pass unchanged even when raised inside the block."""
     try:
         yield
     except ActionError as exc:
         if getattr(exc, "kernel_access", False):
             raise
         if getattr(ctx, "realistic", False) and any(unidentified(ctx.env, e) for e in eids if isinstance(e, str)):
-            raise ActionError(GENERIC_REFUSAL, exc.category) from None
+            raise ActionError(GENERIC_REFUSAL, GENERIC_CATEGORY) from None
         raise
 
 
@@ -109,7 +121,7 @@ def plain_check(fn):
         ctx = args[0] if args else kwargs.get("ctx")
         if verdict and isinstance(verdict, (str, tuple)) and ctx is not None and getattr(ctx, "realistic", False) \
                 and unidentified(ctx.env, eid):
-            return (GENERIC_REFUSAL, verdict[1] if isinstance(verdict, tuple) else "precondition")
+            return (GENERIC_REFUSAL, GENERIC_CATEGORY)
         return verdict
     return wrapper
 
@@ -129,6 +141,13 @@ def ordered(ctx, ids):
 GROUPS = ("kettle_lookalike", "countertop_cooker", "dial_thermometer")
 OPERATE_VERBS = ("switch_on", "switch_off", "set", "start", "pause", "cancel", "preheat", "brew", "blend", "ignite",
                  "set_timer", "steam_milk", "grind_coffee", "light_grill", "defrost")
+# an unfamiliar (novel) thing is handled as an object but not operated (kernel NOVEL_OPERATE_MESSAGE): this domain's
+# device verbs are declared operates=True (the engine refuses an unfamiliar target first), and the verbs that work by
+# what their item or their destination appliance is -- load by the appliance's loading rules and the item's kind,
+# steam_milk with a pitcher on a wand, grind_coffee into a basket -- refuse an unfamiliar target or destination the
+# same way (status._novel_guard; phase-1 finish, review I4: the outcome or the refusal's category told the unfamiliar
+# types apart)
+DESTINATION_VERBS = ("load", "steam_milk", "grind_coffee")
 UNRESOLVED_REFUSAL = "It is not clear which kind this is or how it is worked: take a closer look at it first (inspect)"
 
 

@@ -35,6 +35,8 @@ FENCE_VIEW_M = 4.0
 # ---------------------------------------------------------------------------
 # surfaces
 
+@C.episode_index("paved_surfaces")
+@C.index_reads("type", "is_a", "category", "outdoor")
 def is_surface(record):
     return C.is_type(record, "walkway") or (record.get("category") == "floor" and record.get("outdoor"))
 
@@ -974,6 +976,10 @@ def _after_drag_bag(ctx, result):
                 C.stat(w, "bags_torn")
 
 
+C.episode_types("pumpkin")
+C.episode_types("outdoor_decoration")
+
+
 @system("outdoor_plants.yard", order=126, max_dt=C.SLOW_S, period=C.SLOW_S)
 def yard_system(w, dt, tick):
     """De-icers, spalling, pumpkin rot, decorations in rain: once per 600 s with dt = accumulated time."""
@@ -990,6 +996,8 @@ from ...kernel.plugins import invariant  # noqa: E402
 REACH_SAFE_M = 1.4
 
 
+@C.episode_index("garden_chemicals")
+@C.index_reads("garden_chemical")
 def _is_garden_chemical(record):
     return bool(record.get("garden_chemical"))
 
@@ -1005,7 +1013,7 @@ def garden_chemical_within_reach(state, baseline, world=None):
         return None
     ents = state["entities"]
     if world is not None and world.s is state:
-        candidates = world.static_index("op:garden_chemicals", _is_garden_chemical)
+        candidates = C.static_ids(world, "garden_chemicals", _is_garden_chemical)
     else:
         candidates = sorted(e for e, r in ents.items() if _is_garden_chemical(r))
     for eid in candidates:

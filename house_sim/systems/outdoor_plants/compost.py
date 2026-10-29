@@ -374,6 +374,9 @@ def slow_compost(w, periods):
         compost_status(w, bid)
 
 
+C.episode_types("compost_bin")
+
+
 @system("outdoor_plants.compost", order=132, max_dt=C.SLOW_S, period=C.SLOW_S)
 def compost_system(w, dt, tick):
     """Compost pile model: once per 600 s with dt = accumulated time (temperature relaxes exponentially)."""

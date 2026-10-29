@@ -25,8 +25,24 @@ from . import common as C
 HULL_PER_KERNEL = 0.39
 
 
+@C.index_reads("category", "label", "switchable")
 def _is_fan(r):
     return r.get("category") in ("ceiling_fan", "fan") or "fan" in str(r.get("label", "")).lower() and bool(r.get("switchable"))
+
+
+@C.index_reads("category")
+def _is_cage_tray(rec):
+    return rec.get("category") == "cage_tray"
+
+
+@C.index_reads("hull_g")
+def _is_seed_dish(rec):
+    return "hull_g" in rec
+
+
+@C.index_reads("category")
+def _is_nest_box(rec):
+    return rec.get("category") == "nest_box"
 
 
 def _fan_on(state, rid):
@@ -107,6 +123,8 @@ def _bird_out(w, bird, cage, rid, fan, window, robot=None):
         C.seen_event(w, "pets.harm_bird_loose", source=cage, size_m=0.4)     # out of the cage, flapping round the room
 
 
+@C.per_substep_index("cages", always=True)
+@C.index_reads("category")
 def _is_cage(rec):
     return rec.get("category") in ("bird_cage", "small_animal_cage", "chicken_coop")
 
@@ -144,7 +162,7 @@ def _bird_cage(w, cage, rec, dt):
             rid = root_room(state, cage)
             _bird_out(w, bird, cage, rid, _fan_on(state, rid), _open_window(state, rid))
             return
-    trays = C.located_in(state, C.sindex(state, "cage_trays", lambda r: r.get("category") == "cage_tray"), cage)
+    trays = C.located_in(state, C.sindex(state, "cage_trays", _is_cage_tray), cage)
     if trays and state["entities"][trays[0]].get("open"):
         t = C.num(rec.get("_gap_s")) + dt
         w.mut(cage)["_gap_s"] = round(t, 1)
@@ -159,7 +177,7 @@ def _bird_cage(w, cage, rec, dt):
         w.mut(cage)["_gap_s"] = 0.0
     # eating seed: kernels -> hulls left on top
     need = C.num(C.SPECIES["bird"].get("seed_g_day"), 12.0) * dt / 86400.0
-    for dish in C.located_in(state, C.sindex(state, "seed_dishes", lambda r: "hull_g" in r), cage):
+    for dish in C.located_in(state, C.sindex(state, "seed_dishes", _is_seed_dish), cage):
         drec = state["entities"][dish]
         seed = sum(C.num(v) for v in (drec.get("food_g") or {}).values())
         hull = C.num(drec.get("hull_g"))
@@ -224,7 +242,7 @@ def _small_cage(w, cage, rec, dt):
 
 
 def _nest_box(state, coop):
-    boxes = C.located_in(state, C.sindex(state, "nest_boxes", lambda r: r.get("category") == "nest_box"), coop)
+    boxes = C.located_in(state, C.sindex(state, "nest_boxes", _is_nest_box), coop)
     return boxes[0] if boxes else None
 
 

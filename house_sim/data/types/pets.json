@@ -376,21 +376,21 @@
     "pet_crate": {
       "is_a": "furniture",
       "perception": {"hidden": ["crated_s", "freshness"]},
-      "doc": "Wire dog crate with a latching door (open = door open). occupant = pet id; crate_size small|medium|large.",
+      "doc": "Wire dog crate with a latching door (open = door open). occupant = pet id; crate_size small|medium|large. Its wire walls hold no liquid (watertight false: kernel pours, spills, drips and rain run out onto the floor beneath it; its 300 l is room for the dog, not a vessel).",
       "props": {"label": "dog crate", "category": "pet_crate", "pet_item": true, "material": "steel", "mass_kg": 13.0,
                 "size_m": [0.92, 0.6, 0.66], "openable": true, "open": true, "latched": false, "occupant": null, "crate_size": "large",
                 "accepts_items": true, "container": true, "transparent": true, "capacity_l": 300.0, "inner_size_m": [0.88, 0.56, 0.62],
-                "blocks_path": true, "movable": true, "floor_scratch_risk": false}
+                "blocks_path": true, "movable": true, "floor_scratch_risk": false, "watertight": false}
     },
     "pet_carrier": {
       "is_a": "portable_object",
       "perception": {"hidden": ["crated_s", "freshness"]},
       "view": {"porosity": 0.25},
-      "doc": "Hard-sided pet carrier for cats, small dogs and small animals: a solid plastic shell with vent slots and a wire front door (the camera sees about a quarter through it).",
+      "doc": "Hard-sided pet carrier for cats, small dogs and small animals: a solid plastic shell with vent slots and a wire front door (the camera sees about a quarter through it). The vents and the wire door let liquid out (watertight false: kernel pours, spills, drips and rain do not pool in it).",
       "props": {"label": "pet carrier", "category": "pet_crate", "pet_item": true, "material": "plastic", "mass_kg": 2.0,
                 "size_m": [0.48, 0.32, 0.3], "volume_l": 45.0, "openable": true, "open": true, "latched": false, "occupant": null,
                 "crate_size": "small", "accepts_items": true, "container": true, "transparent": true, "capacity_l": 35.0,
-                "inner_size_m": [0.45, 0.3, 0.28], "two_handed": true}
+                "inner_size_m": [0.45, 0.3, 0.28], "two_handed": true, "watertight": false}
     },
     "pet_bed": {
       "is_a": "surface_furniture",
@@ -653,10 +653,11 @@
     "bird_cage": {
       "is_a": "furniture",
       "perception": {"hidden": ["freshness"]},
-      "doc": "Bird cage on a stand (open = cage door open; closing re-latches). Dishes sit inside; the slide-out tray holds the liner. occupant = bird pet id.",
+      "doc": "Bird cage on a stand (open = cage door open; closing re-latches). Dishes sit inside; the slide-out tray holds the liner. occupant = bird pet id. Its wire walls and grate hold no liquid (watertight false: with the door open, kernel pours and spills into it run out below).",
       "props": {"label": "bird cage", "category": "bird_cage", "pet_item": true, "material": "steel", "mass_kg": 9.0, "size_m": [0.6, 0.5, 1.5],
                 "accepts_items": true, "container": true, "transparent": true, "capacity_l": 200.0, "inner_size_m": [0.55, 0.45, 0.7],
-                "openable": true, "open": false, "latched": true, "occupant": null, "blocks_path": true, "inner_floor_m": 0.9}
+                "openable": true, "open": false, "latched": true, "occupant": null, "blocks_path": true, "inner_floor_m": 0.9,
+                "watertight": false}
     },
     "cage_tray": {
       "is_a": "portable_object",

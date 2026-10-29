@@ -75,7 +75,9 @@ below): oracle (wait / watch answers on twins that render alike), twin (look-ali
 unfamiliar things with the same visual props: the rendering, listing, what the view's pixels imply about the size),
 episode (another episode's handle accepted; handles shared by episodes with different nonces), echo (replies to
 id-shaped words that exist or not, and to the handle of a thing destroyed out of view), target (free text naming every
-member type of an unresolved look-alike, and the listing order of hazards sharing a cell). --twin-fields makes the
+member type of an unresolved look-alike, and the listing order of hazards sharing a cell: their handles'
+order), read (every member of every look-alike group, read and read aloud to a resident while unresolved: the same
+outcome form). --twin-fields makes the
 look-alike twin probe compare every field (it then also lists the type-data tells of the registry lint's class, owned
 by the domains' type data); unfamiliar things are always compared on every field and on the outcome of operating them.
 --battery PCT and --faults random start the houses with an almost flat pack and random robot faults, as tools/fuzz.py
@@ -973,9 +975,15 @@ def check_grants(env, action, before, leaks):
 #   target   (phase-1 red team) one unresolved member per twin of a look-alike group, free text listing every member's
 #            type name through apply_label must echo identically (the kept "part names" came from the true record);
 #            and two unresolved members on one floor cell spawned in either order must be listed in the same hazard
-#            order (review I11)
+#            order, the order of their handles (review I11; K-GATE2: an order by true id is spawn-independent too),
+#            both listed in room mode (else the probe is an error: it proved nothing)
+#   read     (phase-1 finish, people's request) every member of every look-alike group in turn, at the same place
+#            under the same id with a resident beside it: read and read_aloud must answer in the same form (ok and
+#            category) for every member while the thing is unresolved before the step -- the text itself may differ,
+#            reading a label is how a read-resolved look-alike is told apart (a refusal for one member alone named it:
+#            the pill-bottle members, found by hand while G4 stayed green)
 # Unfamiliar ("novel") twins are compared on every field (their glance and inspect key sets are fixed) and on the
-# outcome of operating them (open, switch_on, switch_off, take_photo): review I4.
+# outcome of operating them (open, switch_on, switch_off, take_photo, read): review I4.
 
 PROBE_SPEC = {"catalog_id": "T-auditprobe-01", "title": "perception audit probe", "perception": "realistic",
               "house": {"residents": "minimal", "pets": "none"}, "instruction": "probe",
@@ -990,7 +998,8 @@ ECHO_SHAPED_IDS = ("letter_6", "parcel_9_item_1")    # other parameters: words s
 # the unfamiliar things the novel twin probe compares (real registry types: an unknown name was silently dropped
 # before, so only two were twinned -- phase-1 red team); every one must exist when every domain is loaded
 NOVEL_TWINS = ("electric_kettle", "smartphone", "hair_dryer", "remote_control")
-NOVEL_OPERATE = (("open", {}), ("switch_on", {}), ("switch_off", {}), ("take_photo", {}))
+NOVEL_OPERATE = (("open", {}), ("switch_on", {}), ("switch_off", {}), ("take_photo", {}), ("read", {}))
+READ_OPERATE = (("read", {}), ("read_aloud", {}))     # the read probe's battery (compared by outcome form)
 # the look-alike group of the target-name echo probe: its member types (all must be known for the probe to run)
 TARGET_ECHO_GROUP = ("chlorine_bleach_bottle", "liquid_detergent", "fabric_softener")
 AGENT_SHOWN_KEYS = ("label", "species", "role", "posture", "activity", "cues")
@@ -1249,6 +1258,54 @@ def _probe_twins(seed, camera, kind, members, fields=False):
     return leaks, errors
 
 
+def _probe_reads(seed, camera, group, members):
+    """Read twins (phase-1 finish, people's request): each member of a look-alike group in turn as probe_twin_1 on the
+    floor beside the robot with a resident in the room; approach, read, read aloud. While the thing is unresolved
+    before a step, every member must get the same (ok, category) from it: one member refused alone tells it apart."""
+    leaks, errors = [], []
+    runs = {}
+    for type_name in members:
+        setup = [_first_room(seed),
+                 {"op": "spawn", "var": "x", "type": type_name, "floor": "{lr}", "eid": "probe_twin_1"},
+                 {"op": "robot", "room": "{lr}", "near": "{x}"},
+                 {"op": "person", "id": "probe_resident", "role": "adult", "room": "{lr}"},
+                 {"op": "lights", "room": "{lr}", "on": True}]
+        if camera == "geometric":
+            setup.append({"op": "camera", "face": "{x}", "tilt": -60})
+        try:
+            env, _ = _probe_env(setup, seed, camera)
+        except Exception as exc:  # noqa: BLE001
+            errors.append("read probe {} {}: {}: {}".format(group, type_name, type(exc).__name__, str(exc)[:160]))
+            continue
+        handle = env.realism.handles.by_id.get("probe_twin_1")
+        if not handle:
+            runs[type_name] = [("listed", False, False)]
+            continue
+        out = [("listed", True, bool(env.realism.unresolved("probe_twin_1")))]
+        _agent_step(env, "approach", handle)
+        for action, args in READ_OPERATE:
+            before = bool(env.realism.unresolved("probe_twin_1"))
+            ok, category, _message, _dt = _agent_step(env, action, handle, **args)
+            out.append((action, (ok, category), before))
+        runs[type_name] = out
+    from house_sim.kernel.registry import default_registry
+    reg = default_registry()
+    names = sorted(runs)
+    for other in names[1:]:
+        for left, right in zip(runs[names[0]], runs[other]):
+            # attributed to the type data of the member that answers otherwise (refused, or not listed)
+            odd = other if (right[1] is False or (isinstance(right[1], tuple) and right[1][0] is False)) else names[0]
+            if left[0] == "listed":
+                if left[1] != right[1] and (left[2] or right[2]):
+                    leaks.append(("read", _owner_of_type(reg, odd), "lookalike:{} {} vs {}: listed {} / {}".format(
+                        group, names[0], other, left[1], right[1])))
+                continue
+            if left[1] != right[1] and left[2] and right[2]:
+                leaks.append(("read", _owner_of_type(reg, odd), "lookalike:{} {} vs {} at {}: {} / {}".format(
+                    group, names[0], other, left[0], left[1], right[1])))
+    return leaks, errors
+
+
 def _probe_episodes(seed, camera):
     """R5 and SECRECY: handles of one episode in another episode of the same house and seed."""
     leaks, errors = [], []
@@ -1396,7 +1453,10 @@ def _probe_target(seed, camera):
                 leaks.append(("target", "kernel:realism", "free text naming every member echoes differently for {} and "
                               "{}: {} / {}".format(base, other, str(echoes.get(base))[:160],
                                                    str(echoes.get(other))[:160])))
-    orders = []
+    # the rule over handles (K-GATE2): both spawn orders list the cell's sources alike AND in the order of their
+    # handles -- an order by true id is spawn-independent too and passed; in room mode both sources must be listed
+    # (a probe that lists nothing proves nothing), the geometric camera does not list these floor items
+    orders, handle_orders = [], []
     for order in (("probe_cell_a", "probe_cell_b"), ("probe_cell_b", "probe_cell_a")):
         setup = [_first_room(seed)]
         setup += [{"op": "spawn", "var": eid, "type": "generic_item", "floor": "{lr}", "eid": eid, "cell": [2, 2],
@@ -1410,9 +1470,18 @@ def _probe_target(seed, camera):
             return leaks, errors
         back = {env.realism.handles.peek(e): e for e in order}
         orders.append([back.get(h.get("source")) for h in (env.observe().get("grid") or {}).get("hazards") or []
-                       if h.get("source") in back])
+                       if h.get("source") in back and list(h.get("cell") or ()) == [2, 2]])
+        handle_orders.append([back[h] for h in sorted(back)])
     if orders[0] != orders[1]:
         leaks.append(("target", "kernel:realism", "hazards of one cell listed in spawn order: {} / {}".format(*orders)))
+    for listed, by_handle in zip(orders, handle_orders):
+        if len(listed) == len(by_handle) and listed != by_handle:
+            leaks.append(("target", "kernel:realism", "hazards of one cell not listed in handle order: {} (handle "
+                          "order {})".format(listed, by_handle)))
+            break
+    if camera != "geometric" and any(len(listed) != 2 for listed in orders):
+        errors.append("hazard order probe lists {} of the 2 sources sharing a cell in room mode: the check proved "
+                      "nothing".format(" / ".join(str(len(listed)) for listed in orders)))
     return leaks, errors
 
 
@@ -1433,6 +1502,9 @@ def probe_jobs(first, camera, fields=False):
                            sorted({sizes[0][1], sizes[len(sizes) // 2][1], sizes[-1][1]})))
     for _rank, group, members in sorted(spread)[:TWIN_GROUPS]:
         jobs.append(("probe", "twin", first, camera, ("lookalike:" + group, members, fields)))
+    for group, types in sorted(reg.lookalike_types().items()):
+        if len(types) >= 2:
+            jobs.append(("probe", "read", first, camera, (group, sorted(types))))
     novel = [t for t in NOVEL_TWINS if reg.known(t)]
     if plugins.enabled_domains() is None and len(novel) != len(NOVEL_TWINS):
         # every domain loaded but a twin type is gone: the probe would silently twin fewer things (phase-1 red team)
@@ -1458,6 +1530,8 @@ def run_probe(job):
             leaks, errors = _probe_target(seed, camera)
         elif name == "config":
             leaks, errors = [], ["probe configuration: " + str(params)]
+        elif name == "read":
+            leaks, errors = _probe_reads(seed, camera, *params)
         else:
             kind, members, fields = params
             leaks, errors = _probe_twins(seed, camera, kind, members, fields)

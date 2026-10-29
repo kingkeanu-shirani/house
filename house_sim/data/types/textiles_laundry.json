@@ -3367,9 +3367,10 @@
      0.05
     ],
     "loose_volume_l": 1.2,
-    "color": "brown"
+    "color": "brown",
+    "watertight": false
    },
-   "doc": "Summer sandal."
+   "doc": "Summer sandal (open straps: watertight false, kernel pours, spills, drips and rain run off it instead of pooling in its 1 l shoe room)."
   },
   "slipper": {
    "is_a": "shoe",
@@ -4252,9 +4253,10 @@
      0.13
     ],
     "volume_l": 4.0,
-    "mass_kg": 0.3
+    "mass_kg": 0.3,
+    "watertight": false
    },
-   "doc": "Box of dryer sheets."
+   "doc": "Box of dryer sheets (a paperboard carton with a pull slot: watertight false, kernel pours, spills, drips and rain soak through it instead of pooling)."
   },
   "wool_dryer_ball": {
    "is_a": "laundry_product",
@@ -4879,9 +4881,10 @@
      0.36,
      0.62
     ],
-    "blocks_path": false
+    "blocks_path": false,
+    "watertight": false
    },
-   "doc": "One bag of a sorter hamper.",
+   "doc": "One bag of a sorter hamper (a fabric bag: watertight false, kernel pours, spills, drips and rain run through it to the floor instead of pooling in its 40 l).",
    "view": {
     "opening": "top",
     "doc": "An open-topped fabric bag hung in the sorter's frame: looked into from above."
@@ -5343,9 +5346,10 @@
     "volume_l": 0.0,
     "mass_kg": 0.0,
     "looks_empty": true,
-    "portable": false
+    "portable": false,
+    "watertight": false
    },
-   "doc": "A pocket on a garment (open it to check; contents hide inside).",
+   "doc": "A pocket on a garment (open it to check; contents hide inside). Its cloth holds no liquid (watertight false: kernel pours, spills, drips and rain soak through an open pocket instead of pooling in it).",
    "perception": {
     "glance": [
      "looks_empty"

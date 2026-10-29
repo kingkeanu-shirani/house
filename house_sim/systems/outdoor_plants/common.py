@@ -18,6 +18,7 @@ import math
 from ...kernel import camera, clock, geometry, physics
 from ...kernel.errors import ActionError, require  # noqa: F401  (re-exported)
 from ...kernel.phys import environment as kenv
+from ...kernel.plugins import hook
 from ...kernel.predicates import root_room
 
 CELL = geometry.CELL
@@ -173,21 +174,98 @@ def is_roofed(w, rid):
     return bool(room.get("roofed")) or room.get("type") in ROOFED_ROOMS
 
 
+# ---------------------------------------------------------------------------
+# static indexes (kernel World.static_index)
+#
+# Phase-1 G7 regression: the kernel's step-start read views (independent review M3) made a first index build inside a
+# busy substep about three times dearer (0.2-0.45 ms per index on a 900-entity house), and the first slow tick of every
+# episode built some twenty of this domain's (own_drying's 25 type tests per record: 3.7 ms). Every index the systems,
+# idle probes and invariants look up in an episode is therefore built when the episode starts (prebuild_indexes, before
+# any hook writes): with nothing journaled the World evaluates a predicate with declared reads on the plain records.
+# An index's content is a pure function of the state (World.static_index), so nothing any system computes changes.
+
+TYPE_READS = ("type", "is_a")
+PREBUILT = {}           # index name (without "op:") -> (predicate with .reads, only in houses with an outdoor room)
+PREBUILT_TYPES = []     # type-name tuples of the type_index lookups every episode makes
+_TYPE_PREDICATES = {}   # frozenset of type names -> its predicate (one object per set)
+
+
+def index_reads(*fields):
+    """Declare every record field a static-index predicate reads (World.static_index reads=; strict mode checks the
+    declaration on every evaluation)."""
+    def deco(fn):
+        fn.reads = tuple(fields)
+        return fn
+    return deco
+
+
+def episode_index(name, outdoor=False):
+    """Register a static_ids predicate (declared reads) the domain looks up in every episode: prebuild_indexes builds it
+    when the episode starts; outdoor: only in houses with an outdoor room."""
+    def deco(fn):
+        if getattr(fn, "reads", None) is None:
+            raise TypeError("episode_index {}: declare the fields it reads (index_reads)".format(name))
+        PREBUILT[name] = (fn, bool(outdoor))
+        return fn
+    return deco
+
+
+def episode_types(*names):
+    """Register a type_index(w, names) lookup every episode makes (the slow systems' type lists) for prebuild_indexes."""
+    key = tuple(sorted(set(names)))
+    if key not in PREBUILT_TYPES:
+        PREBUILT_TYPES.append(key)
+
+
+def _type_predicate(wanted):
+    pred = _TYPE_PREDICATES.get(wanted)
+    if pred is None:
+        if len(wanted) == 1:
+            (only,) = tuple(wanted)
+
+            def pred(r):
+                return r.get("type") == only or only in (r.get("is_a") or ())
+        else:
+            def pred(r):
+                return r.get("type") in wanted or not wanted.isdisjoint(r.get("is_a") or ())
+        pred.reads = TYPE_READS
+        _TYPE_PREDICATES[wanted] = pred
+    return pred
+
+
 def type_index(w, names):
-    """Cached sorted ids whose type or ancestors include any of names (kernel static_index: type/is_a are
-    static, the cache is rebuilt only when an entity is created or destroyed). Do not mutate the result."""
+    """Cached sorted ids whose type or ancestors include any of names (kernel static_index over type and is_a, declared
+    reads). Do not mutate the result."""
     names = (names,) if isinstance(names, str) else tuple(names)
     wanted = frozenset(names)
-    if len(wanted) == 1:
-        (only,) = tuple(wanted)
-        return w.static_index("op:t:" + only, lambda r: r.get("type") == only or only in (r.get("is_a") or ()))
-    return w.static_index("op:t:" + ",".join(sorted(wanted)),
-                          lambda r: r.get("type") in wanted or not wanted.isdisjoint(r.get("is_a") or ()))
+    return w.static_index("op:t:" + ",".join(sorted(wanted)), _type_predicate(wanted), TYPE_READS)
 
 
 def static_ids(w, name, predicate):
-    """Domain-namespaced w.static_index (predicate over static fields only)."""
-    return w.static_index("op:" + name, predicate)
+    """Domain-namespaced w.static_index (predicate over static fields only; its declared reads, index_reads, when it
+    has them)."""
+    return w.static_index("op:" + name, predicate, getattr(predicate, "reads", None))
+
+
+@hook("episode_start", order=-70)
+def prebuild_indexes(w, env):
+    """Build the domain's episode indexes when the episode starts, after safety's, tools_vehicles', mechanisms' and
+    pets' prebuilds (orders -100 to -80, which write nothing) and before any hook writes: with nothing journaled the
+    World evaluates their declared-read predicates on the plain records (the cheapest build) instead of through a read
+    view per entity inside the first substep or slow tick (see the note above)."""
+    outdoor = any(room.get("outdoor") for room in w.s["rooms"].values())
+    for name in sorted(PREBUILT):
+        predicate, outdoor_only = PREBUILT[name]
+        if outdoor or not outdoor_only:
+            w.static_index("op:" + name, predicate, predicate.reads)
+    for names in PREBUILT_TYPES:
+        type_index(w, names)
+
+
+@episode_index("windows")
+@index_reads("category")
+def is_window(record):
+    return record.get("category") == "window"
 
 
 def find_types(w, names, room=None):

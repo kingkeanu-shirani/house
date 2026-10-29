@@ -520,17 +520,31 @@ def new_eid(w, stem):
 # ----------------------------------------------------------------------
 # cached lookups (kernel v2.1 static indexes): systems and hot helpers never scan every entity
 
+def reads(*fields):
+    """Declare every record field a static-index predicate can read (World.static_index reads=): the kernel then
+    evaluates it on the plain record where that record is its step-start record, without the read view that notes
+    the fields (the view made each first build of an index about 2.3 times dearer, phase 1, G7). Strict mode checks
+    the declaration on every evaluation through a view; a field missing from it would let the index go stale, so a
+    predicate lists all its fields, whichever entity reads them."""
+    def deco(fn):
+        fn.reads = tuple(fields)
+        return fn
+    return deco
+
+
 def indexed(w, name, predicate):
     """Ids (sorted) of entities matching a predicate over STATIC fields, cached by the kernel until an
     entity is created or destroyed. Callers re-check dynamic fields on the records."""
     ents = w.s["entities"]
-    return [e for e in w.static_index("admin_inventory:" + name, predicate) if e in ents]
+    return [e for e in w.static_index("admin_inventory:" + name, predicate, reads=getattr(predicate, "reads", None))
+            if e in ents]
 
 
 def kids(w, parent, name, predicate):
     """Children of parent among an indexed class (cheap replacement for w.children + a static filter)."""
     ents = w.s["entities"]
-    return [e for e in w.static_index("admin_inventory:" + name, predicate) if e in ents and ents[e].get("location") == parent]
+    return [e for e in w.static_index("admin_inventory:" + name, predicate, reads=getattr(predicate, "reads", None))
+            if e in ents and ents[e].get("location") == parent]
 
 
 DOMAIN_SECTION = "_admin_inventory"   # hidden top-level state section (never observed): small registries

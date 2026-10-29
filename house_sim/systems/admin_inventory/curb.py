@@ -16,7 +16,7 @@ from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, hook
 from ..core import subtree_mass
-from .common import drop_cell, household, indexed, notice, slug, visual_event
+from .common import drop_cell, household, indexed, notice, reads, slug, visual_event
 from .perceive import mass_feel
 
 
@@ -24,6 +24,7 @@ LITTER_GUST_MPS = 7.2       # local gust (m/s at about 1 m) that lifts paper and
                             # 8 m/s 10 m mean with the default 1.5 gust factor and ground exposure (0.6 of the gust)
 
 
+@reads("wheeled_cart", "wheeled", "waste_stream")
 def is_cart(rec):
     """A wheeled curbside cart: this domain's wheeled_cart flag or the cleaning domain's wheeled waste carts."""
     return bool(rec.get("wheeled_cart") or (rec.get("wheeled") and rec.get("waste_stream")))

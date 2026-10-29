@@ -96,7 +96,7 @@ def _unattended(w, dt, ids):
     for eid in ids:
         rec = state["entities"][eid]
         hazard = _is_heat(rec) or bool(rec.get("water_running")) or _is_cold_open(rec)
-        rid = C.root_room(state, eid)
+        rid = C.root_room(state, eid) if hazard else None
         if hazard and rid and not _attended(state, rid):
             t = round(float(rec.get("_unattended_s", 0.0)) + dt, 1)
             w.mut(eid)["_unattended_s"] = t
@@ -108,10 +108,14 @@ def _unattended(w, dt, ids):
         C.ledger(w)["status"]["unattended"] = summary
 
 
+@C.per_substep_index("safety_burners")
+@C.index_reads("safety_burner")
 def _is_safety_burner(rec):
     return bool(rec.get("safety_burner"))
 
 
+@C.per_substep_index("unattended_watch")
+@C.index_reads("safety_burner", "heat_source", "category", "candle", "water_running", "water_source", "cold_storage")
 def _is_watched(rec):
     """Static test for things that can be left on/running/open unattended (re-checked dynamically each tick)."""
     return bool(rec.get("safety_burner") or rec.get("heat_source") or rec.get("category") in HEAT_CATEGORIES or rec.get("candle")

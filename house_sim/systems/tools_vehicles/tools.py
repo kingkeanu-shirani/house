@@ -30,6 +30,8 @@ DRIP_L = 0.015           # what a heavy squirt or a long spray puts down beyond 
 TOOLISH_CATS = ("tool", "hand_tool", "power_tool", "garden_tool")
 
 
+@C.per_step_index("tools")
+@C.index_reads("tool_kind", "tool_category", "tags", "category")
 def is_tool(rec):
     if not rec:
         return False
@@ -745,6 +747,8 @@ def _drip(ctx, eid, notes, liquid="motor_oil"):
     notes.append("excess lubricant dripped on the floor (slippery stain) and ran down the face")
 
 
+@C.per_step_index("hinges")
+@C.index_reads("_hinge")
 def _has_hinge(rec):
     return isinstance(rec.get("_hinge"), dict)
 

@@ -236,7 +236,7 @@ def _seen_only(ctx, state, ids):
     out = [i for i in ids if i in state.get("people", {}) or i in state.get("pets", {}) or C.perceives(env, state, i)]
     realism = getattr(env, "realism", None)
     if realism is not None:
-        out.sort(key=lambda i: realism.handles.handle(i) if i in state["entities"] else i)
+        out.sort(key=lambda i: realism.handles.peek(i) if i in state["entities"] else i)
     return out
 
 

@@ -326,6 +326,7 @@ def frame_analysis(state, cam, subjects, flash=False):
 @action("take_photo", params={"target": "entity", "subjects": "?list", "burst": {"type": "int", "default": 1, "min": 1, "max": 20},
                               "prompt": {"type": "bool", "default": False}, "flash": {"type": "bool", "default": False}},
         duration=lambda ctx: 4.0 + 1.0 * ctx.args["burst"] + (5.0 if ctx.args["prompt"] else 0.0), energy=0.0, category="physical",
+        operates=True,      # works its target as a device: an unfamiliar thing gets the kernel's one identify-first refusal
         doc="Take photo(s) with a held camera/phone or one on a tripod. Framing (field of view, 2 m for standing groups), "
             "occlusion, backlight from windows behind the subjects, low light, and each person's gaze/blinks per shot decide "
             "the result; burst keeps the best shot, prompt ('look here and smile!') draws attention first.")

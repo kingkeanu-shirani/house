@@ -24,6 +24,11 @@ def model(state, rid):
     return room.get("elevator") if isinstance(room.get("elevator"), dict) else None
 
 
+def cars(state):
+    """Sorted ids of the rooms that are elevator cars (an `elevator` record), in one pass over the rooms."""
+    return sorted(rid for rid, room in state["rooms"].items() if isinstance(room.get("elevator"), dict))
+
+
 def elevator_for_landing(state, landing):
     for rid in sorted(state["rooms"]):
         el = model(state, rid)
@@ -137,10 +142,8 @@ def elevator_idle(w):
     close or be held (the system then writes nothing)."""
     state = w.s
     now = C.now(state)
-    for rid in state["rooms"]:
-        el = model(state, rid)
-        if not el:
-            continue
+    for rid in cars(state):
+        el = state["rooms"][rid]["elevator"]
         if el.get("moving_to") is not None and now >= C.num(el.get("arrive_at_s")):
             return False
         if el.get("doors") == "open" and now >= C.num(el.get("doors_close_at_s")):
@@ -152,10 +155,8 @@ def elevator_idle(w):
 def elevator_system(w, dt, tick):
     state = w.s
     now = C.now(state)
-    for rid in sorted(state["rooms"]):
-        el = model(state, rid)
-        if not el:
-            continue
+    for rid in cars(state):
+        el = state["rooms"][rid]["elevator"]
         if el.get("moving_to") is not None and now >= C.num(el.get("arrive_at_s")):
             room = w.room_m(rid)
             m = room["elevator"]

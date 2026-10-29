@@ -16,7 +16,7 @@ dashing around a doorway, and pets that tag along behind the robot (fidelity S/G
 """
 from ...kernel import geometry
 from ...kernel.errors import ActionError, require  # noqa: F401
-from ...kernel.plugins import after, before, hook, system
+from ...kernel.plugins import ACTIONS, after, before, hook, system
 from . import common as C
 
 UNFENCED = ("front_yard", "driveway", "sidewalk", "porch", "building_corridor", "lobby", "street")
@@ -72,7 +72,6 @@ def _moving_door(ctx):
 
 def closer_owned_here():
     """Door closers belong to the mechanisms/safety domains; this domain runs its own only when they are absent."""
-    from ...kernel.plugins import ACTIONS
     return "latch" not in ACTIONS and "discharge" not in ACTIONS
 
 
@@ -92,10 +91,14 @@ def shut(w, door_id, why):
     C.log(w, "door_swung_shut", door=door_id, why=why)
 
 
+@C.per_substep_index("passage_doors")
+@C.index_reads("connects")
 def _is_passage(rec):
     return bool(rec.get("connects"))
 
 
+@C.per_substep_index("vehicles")
+@C.index_reads("vehicle")
 def _is_vehicle(rec):
     return isinstance(rec.get("vehicle"), dict)
 
@@ -144,6 +147,7 @@ def doors_idle(w):
 def doors_system(w, dt, tick):
     state = w.s
     now = C.now(state)
+    closer = closer_owned_here()
     for eid in C.ids_with(w, "passage_doors", _is_passage):
         rec = state["entities"][eid]
         if rec.get("moving") and now >= C.num(rec.get("_motion_end_s")):
@@ -152,7 +156,7 @@ def doors_system(w, dt, tick):
             m["moving"] = None
             C.log(w, "door_stopped", door=eid, open=m["open"])
             continue
-        if closer_owned_here() and rec.get("self_closing") and rec.get("open") and not held_open(rec) \
+        if closer and rec.get("self_closing") and rec.get("open") and not held_open(rec) \
                 and now - C.num(rec.get("_opened_at_s"), now) >= C.num(rec.get("close_delay_s"), 15.0):
             if _doorway_clear(state, eid):
                 shut(w, eid, "self-closing")

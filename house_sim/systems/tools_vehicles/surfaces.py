@@ -701,6 +701,8 @@ def seal_surface(ctx):
 # =============================================================================================
 # cure / dry system
 
+@C.per_step_index("curable")
+@C.index_reads("holes", "caulk_joint", "grout", "seal", "sealable")
 def _curable(rec):
     """Static: surfaces set up with holes, caulk joints, grout or a sealable finish (patch registers others it wets)."""
     return (isinstance(rec.get("holes"), list) or isinstance(rec.get("caulk_joint"), dict) or isinstance(rec.get("grout"), dict)

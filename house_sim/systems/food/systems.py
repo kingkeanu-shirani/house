@@ -25,7 +25,14 @@ Cost control (deterministic, keyed only on simulated time and state):
   with a heated vessel or water, or expected to move > 1 C within 5 min). Every update integrates
   the elapsed interval exactly (closed-form exponentials), so skipping slow items is lossless;
   an item that sat in equilibrium until it was moved is only credited the last substep in its new place;
-* the clocks run once per 300 s with the exact accumulated dt (rates integrated over that interval).
+* the clocks run once per 300 s with the exact accumulated dt (rates integrated over that interval);
+* writes that cannot change anything structural -- a food's temperature and core temperature, food's own thermal
+  bookkeeping (_tt, _amb, _peak_c, _peak_core_c, _tfast, a pack's ice_frac) and the clocks' counters (QUIET_CLOCKS) --
+  go through World.set_quiet, as the kernel thermal system's temperatures do: journaled at field level (rollback,
+  changes(), strict mode and the static indexes see them as any write) without a copy of the record and without a
+  touch (the settle pass compares structural signatures only; the monitor reads quiet writes too). A change of phase
+  (food.ice) and every effect of heat (doneness, cooking flags) stay record writes. The states are byte-identical to
+  record writes; phase 1's G7 bench lost the per-item record copies (catalog/analysis/phase1/finish_food.json).
 """
 import math
 
@@ -45,6 +52,8 @@ SAFETY_PERIOD_S = 300.0
 FAST_MOVE_C = 1.0        # an item expected to change more than this within one full-pass interval is updated every substep
 HOT_C = 40.0             # cooking, hot holding and cooling from hot are tracked every substep
 SYS = M.SYS              # food-owned bookkeeping section (thermal_full_t; air: runtime ice/water baths; labeled)
+# food's own clock counters on food records: read by food alone, never structural, so written with World.set_quiet
+QUIET_CLOCKS = frozenset(("_spoil", "_time_out_s", "_abuse_s"))
 
 
 def _boundary(now, dt):
@@ -135,6 +144,7 @@ def food_thermal(w, dt, tick):
     heat_into = {}
     vessels = {}
     touched = set()
+    quiet = w.set_quiet      # field-level writes, no record copy and no touch (see the module docstring)
     for eid in thermal_ids(w):
         rec = entities.get(eid)
         if rec is None:
@@ -164,10 +174,9 @@ def food_thermal(w, dt, tick):
                 # once per full-pass interval so a later move is never credited with a long stale interval
                 if tt is not None and now - float(tt) < FULL_PASS_S - 1e-6:
                     continue
-                m = w.mut(eid)
-                m["_tt"] = now
-                if m.get("_tfast"):
-                    m["_tfast"] = False
+                quiet(eid, "_tt", now)
+                if rec.get("_tfast"):
+                    quiet(eid, "_tfast", False)
                 continue
             # it sat in equilibrium with its old surroundings until it was moved: only the last substep counts
             elapsed = min(elapsed, dt)
@@ -203,12 +212,11 @@ def food_thermal(w, dt, tick):
             t_new = 100.0
         if sink is not None:
             heat_into[sink] = heat_into.get(sink, 0.0) + released
-        m = w.mut(eid)
-        m["_tt"] = now
-        if abs(float(m.get("_amb", 1e9)) - amb) > 0.05:
-            m["_amb"] = round(amb, 2)
+        quiet(eid, "_tt", now)
+        if abs(float(rec.get("_amb", 1e9)) - amb) > 0.05:
+            quiet(eid, "_amb", round(amb, 2))
         if abs(t_new - t) > 0.002:
-            m["temperature_c"] = round(t_new, 3)
+            quiet(eid, "temperature_c", round(t_new, 3))
         core_new = t_new
         tau_core = 1e9
         if f:
@@ -219,13 +227,13 @@ def food_thermal(w, dt, tick):
             if ice > 0.05:
                 core_new = min(core_new, tf)
             if abs(core_new - core0) > 0.002:
-                m["_core_c"] = round(core_new, 3)
+                quiet(eid, "_core_c", round(core_new, 3))
             if abs(ice - float(f.get("ice", 0.0) or 0.0)) > 1e-5:
-                m["food"]["ice"] = round(max(0.0, min(1.0, ice)), 5)
+                w.mut(eid)["food"]["ice"] = round(max(0.0, min(1.0, ice)), 5)      # a phase change: a real touch
             if t_new > float(rec.get("_peak_c", -99)) + 0.01:
-                m["_peak_c"] = round(t_new, 2)
+                quiet(eid, "_peak_c", round(t_new, 2))
             if core_new > float(rec.get("_peak_core_c", -99)) + 0.01:
-                m["_peak_core_c"] = round(core_new, 2)
+                quiet(eid, "_peak_core_c", round(core_new, 2))
             _cooking_effects(w, eid, core_new, now)
             if max(core_new, t_new) >= 60.0:
                 _doneness(w, eid, t_new, core_new, step)
@@ -233,7 +241,7 @@ def food_thermal(w, dt, tick):
             if rec.get("relation") == "in" and rec.get("location") in entities:
                 touched.add(rec["location"])
         elif abs(ice - float(rec.get("ice_frac", 0.0))) > 1e-5:
-            m["ice_frac"] = round(max(0.0, min(1.0, ice)), 5)
+            quiet(eid, "ice_frac", round(max(0.0, min(1.0, ice)), 5))
         move = abs(t_new - amb) * (1.0 - math.exp(-FULL_PASS_S / tau))
         core_move = abs(core_new - t_new) * (1.0 - math.exp(-FULL_PASS_S / tau_core))
         # food-owned air spaces (lunch box, cooler, ice bath, stand-in fridge) hold little air: their contents
@@ -242,7 +250,7 @@ def food_thermal(w, dt, tick):
                 or move > FAST_MOVE_C or core_move > FAST_MOVE_C
                 or (sink is not None and bool(entities.get(sink, {}).get("food_air_model"))))
         if bool(entities[eid].get("_tfast")) != fast:
-            w.mut(eid)["_tfast"] = fast
+            quiet(eid, "_tfast", fast)
     if full:
         _vessel_taus(w, vessels)
         _passive_vessels(w, None)
@@ -812,9 +820,16 @@ def _clocks(w, dt, now, foods=None, index=None):
             if fnew != f:
                 changes["food"] = fnew
         if changes:
-            m = w.mut(eid)
+            # the clocks' own counters are written field by field without a record copy or a touch (as food.thermal's
+            # temperatures, see the module docstring); anything else (food quality, flags, soil) is a journaled
+            # record write. Keys are written in the same order either way.
+            m = None
             for k, v in changes.items():
-                m[k] = v
+                if k in QUIET_CLOCKS and m is None:
+                    w.set_quiet(eid, k, v)
+                else:
+                    m = m if m is not None else w.mut(eid)
+                    m[k] = v
         # --- a sealed rigid container of freezing liquid food bursts (glass) or bulges (a can) when the ice (+9 %) needs
         # more room than its headspace: the kernel's freeze-burst rule with the food's own fill and ice (checked after
         # this item's own changes are written: a burst package spills and changes the record through phys.broke)

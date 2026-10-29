@@ -274,7 +274,7 @@ def _gate_latch(ctx, eid, engage, lift):
 
 
 @action("latch", params={"target": "entity", "part": "?str", "destination": "?entity", "lift": {"type": "bool", "default": False}},
-        duration=lambda ctx: 3.0 + ctx.data.get("extra_s", 0.0), energy=0.005, category="physical",
+        duration=lambda ctx: 3.0 + ctx.data.get("extra_s", 0.0), energy=0.005, category="physical", operates=True,
         inverse=lambda ctx, before: {"action": "unlatch", "target": ctx.args["target"], "part": ctx.args.get("part")} if not ctx.args.get("destination") else None,
         doc="Engage a latch: a gate/door latch or bolt (lift=true lifts a sagging gate to line the bar up), part=hasp|drop_bolt|"
             "child_lock|child_stop|guard|tieback(s)|tieback_left|cord|frame|frame_left|tray|brakes|harness|panel|hatch|hold_open, "
@@ -346,7 +346,7 @@ def latch(ctx):
 
 
 @action("unlatch", params={"target": "entity", "part": "?str", "code": "?str"},
-        duration=lambda ctx: 3.0 + ctx.data.get("extra_s", 0.0), energy=0.005, category="physical",
+        duration=lambda ctx: 3.0 + ctx.data.get("extra_s", 0.0), energy=0.005, category="physical", operates=True,
         inverse=lambda ctx, before: {"action": "latch", "target": ctx.args["target"], "part": ctx.args.get("part")} if not ctx.args.get("code") else None,
         doc="Release a latch: gate/door latch or bolt, part=hasp|drop_bolt|child_lock|child_stop|guard|tieback(s)|cord|frame|tray|"
             "brakes|panel|hatch|hold_open, clasps or snap tabs; open a padlock with its held key or code=<combination> (three "

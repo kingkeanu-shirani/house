@@ -16,7 +16,7 @@ from ...kernel import physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, inspector, observer
-from .common import (admin_facts, entity_room, household, indexed, kids, notice, require_readable, requester, set_face,
+from .common import (admin_facts, entity_room, household, indexed, kids, notice, reads, require_readable, requester, set_face,
                      sheet_count, sheets_of, slug)
 from .paper import is_document
 from .perceive import dumps, has_read
@@ -32,14 +32,18 @@ DISPLAY = {"off": "Off", "ready": "Ready", "ready_low_ink": "Ready - ink low", "
 PAPER_OK = ("ready", "ready_low_ink")
 
 
+@reads("printer")
 def is_printer(record):
     return bool(record and record.get("printer"))
 
 
+@reads(*PART_FLAGS)
 def _is_part(record):
-    return any(record.get(flag) for flag in PART_FLAGS)
+    return bool(record.get("paper_tray") or record.get("output_tray") or record.get("scanner_glass")
+                or record.get("document_feeder"))       # PART_FLAGS, spelled out (no generator per entity)
 
 
+@reads("paper_stack")
 def _is_paper_stack(record):
     return bool(record.get("paper_stack"))
 

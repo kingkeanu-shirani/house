@@ -1,5 +1,17 @@
 {
  "format": "house-gate-known-failing-v1",
  "about": "The tier-1 gate's dated allowlist of known failures (tools/orchestration/tier1_gate.py; REVIEW_REPORT H12 G2-ABS). Every test passes and every authored spec passes in its own mode, except an entry here: {\"kind\": \"test\", \"test\": \"tests.test_x.Class[.test_name]\", \"modes\": [\"normal\", \"strict\", \"isolated\", \"core\", \"golden\", \"golden_all\"] (default all), \"owner\", \"expires\": \"YYYY-MM-DD\", \"reason\"} or {\"kind\": \"spec\", \"catalog_id\", \"seeds\": [..] or \"all\", \"mode\": \"own\" | \"realistic\" | \"both\" (default own), \"owner\", \"expires\", \"reason\"}. An expired or malformed entry excuses nothing. Main session only: the gate reads the committed version (git HEAD) and fails G10 for any package that edits this file.",
- "entries": []
+ "entries": [
+  {
+   "kind": "spec",
+   "catalog_id": "T-dda4e199f3f5b0-01",
+   "seeds": [
+    1
+   ],
+   "mode": "realistic",
+   "owner": "pets + VERIFY_HARDENING (typed reports / judgement fields)",
+   "expires": "2026-11-30",
+   "reason": "Forced realistic perception only (own mode passes 5/5): the reference's report sets reports.dog_1.urgency, a judgement rather than a perceived value, so the realistic run cannot ground it on seed 1 (variant 0). Fixed by VERIFY_HARDENING's typed report and judgement fields in phase 2; P1F signoff row rejected for this reason."
+  }
+ ]
 }

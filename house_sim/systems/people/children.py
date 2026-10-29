@@ -226,7 +226,7 @@ def _gate_closed(w, conn):
     door = state["entities"].get(conn.get("door") or "")
     if door is not None and not door.get("open"):
         return True
-    for eid in C.static_ids(w, "gates", lambda r: bool(r.get("safety_gate")) or r.get("category") == "safety_gate"):
+    for eid in C.static_ids(w, "gates"):
         rec = state["entities"][eid]
         if rec.get("gate_for") == conn.get("_cid") and not rec.get("open"):
             return True

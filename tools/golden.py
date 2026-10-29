@@ -26,10 +26,13 @@ What tests/data/room_golden.json pins (tests/test_room_golden.py checks it; G8 o
 
 `record` re-runs everything and rewrites the digests (a new file also chooses the scripts and the fixed specs) and
 appends {"by", "classes", "date"} to `history`. It refuses to pin a reference plan that fails (phase-1 red team: the
-golden pinned T-7d4006bda247ba-01's scorch as the expected outcome) unless the spec is on the gate's committed
-allowlist (tools/orchestration/gate_policy/known_failing.json, kind "spec", covering seed 0 in its own mode) or named
-with --known-failing (recorded in `history`); such an entry is stored with "known_failing": true, and once its
-reference passes, `check` reports it as an expected change (to re-record), not as a difference. A package records only when every changed path belongs to its
+golden pinned T-7d4006bda247ba-01's scorch as the expected outcome) unless the main session accepted it: the spec is on
+the gate's committed allowlist (tools/orchestration/gate_policy/known_failing.json, kind "spec", covering seed 0 in its
+own mode) or the committed golden (git HEAD) already pins it known-failing. A recorder cannot excuse a failure itself
+(K-GATE2: FIX2's --known-failing pinned any failing reference its recorder named); --known-failing is an
+acknowledgement checked against those two and refused otherwise. Such an entry is stored with "known_failing": true
+(the history entry lists them), and once its reference passes, `check` reports it as an expected change (to
+re-record), not as a difference. A package records only when every changed path belongs to its
 reviewed classes (3.5): `dump` before the first edit, `dump` again before hand-over, then `diff BEFORE AFTER` prints the
 leaf differences grouped by path pattern (entity, room, person and handle ids and list indexes become `*`, so a
 pattern reads like `entities.*._robot_moved` or `obs.visible_entities.*.state`).
@@ -403,18 +406,42 @@ def allowlisted_failing(keys):
     return {k for k in keys if gate.spec_allowed(allow, str(k).split("#")[0], SPEC_SEED, "own")}
 
 
-def failing_references(specs, known=(), allowlisted=None):
-    """(refused, known) keys of specs whose reference fails: refused unless allowlisted or named in `known`."""
+def committed_known_failing(path=GOLDEN_FILE):
+    """The spec keys the committed golden file (git HEAD of the project) pins with "known_failing": failing
+    references the main session accepted by committing them (K-GATE2). Empty when the file is outside the project,
+    not committed or git is unavailable."""
+    import subprocess
+    try:
+        rel = Path(path).resolve().relative_to(ROOT.resolve()).as_posix()
+    except ValueError:
+        return set()
+    try:
+        show = subprocess.run(["git", "-C", str(ROOT), "show", "HEAD:" + rel], capture_output=True)
+    except OSError:
+        return set()
+    if show.returncode != 0:
+        return set()
+    try:
+        data = json.loads(show.stdout.decode("utf-8"))
+    except ValueError:
+        return set()
+    return {k for k, v in (data.get("specs") or {}).items() if isinstance(v, dict) and v.get("known_failing")}
+
+
+def failing_references(specs, allowlisted=None, committed=()):
+    """(refused, known) keys of specs whose reference fails: refused unless the main session accepted the failure --
+    allowlisted (the gate's committed allowlist) or pinned known-failing in the committed golden (`committed`)."""
     failing = sorted(k for k, v in specs.items() if not v.get("passes"))
-    excused = set(known) | set(allowlisted(failing) if allowlisted is not None and failing else ())
+    excused = set(committed) | set(allowlisted(failing) if allowlisted is not None and failing else ())
     return [k for k in failing if k not in excused and k.split("#")[0] not in excused], \
         [k for k in failing if k in excused or k.split("#")[0] in excused]
 
 
 def record(by, classes, new=False, workers=1, path=GOLDEN_FILE, known_failing=()):
     """Re-run everything and rewrite the digests; a new file (or --new) also chooses the scripts and fixed specs. A
-    failing reference is refused (SystemExit) unless allowlisted or named in known_failing; it is stored with
-    "known_failing": true."""
+    failing reference is refused (SystemExit) unless the gate's committed allowlist excuses it or the committed golden
+    already pins it known-failing; known_failing (--known-failing) names are checked against the same two and refused
+    otherwise. Accepted failing references are stored with "known_failing": true."""
     _quiet_imports()
     if new or not Path(path).exists():
         specs = collect_specs()
@@ -424,11 +451,17 @@ def record(by, classes, new=False, workers=1, path=GOLDEN_FILE, known_failing=()
                   "fixed_specs": choose_fixed_specs(specs)}
     else:
         golden = load(path)
+    committed = committed_known_failing(path)
+    named = [k for k in known_failing if k not in committed and not allowlisted_failing([k])]
+    if named:
+        raise SystemExit("golden: --known-failing {} is neither on the gate's committed allowlist nor pinned "
+                         "known-failing in the committed golden; a recorder cannot excuse a failure itself (ask the "
+                         "main session for a dated allowlist entry)".format(", ".join(named)))
     runs, specs = compute(golden, None, workers)
-    refused, known = failing_references(specs, known_failing, allowlisted_failing)
+    refused, known = failing_references(specs, allowlisted_failing, committed)
     if refused:
-        raise SystemExit("golden: refusing to pin failing reference plan(s) as the expected outcome: {} (fix them, put "
-                         "them on the gate's committed allowlist, or name them with --known-failing)".format(
+        raise SystemExit("golden: refusing to pin failing reference plan(s) as the expected outcome: {} (fix them, or "
+                         "ask the main session for a dated entry on the gate's committed allowlist)".format(
                              ", ".join(refused)))
     golden["runs"] = {key: _strip(value) for key, value in sorted(runs.items())}
     golden["specs"] = {key: dict(_strip(value), **({"known_failing": True} if key in known else {}))
@@ -598,8 +631,9 @@ def main(argv=None):
     rec.add_argument("--by", required=True, help="package id recording (history)")
     rec.add_argument("--classes", required=True, help="comma-separated difference classes reviewed (history)")
     rec.add_argument("--new", action="store_true", help="choose the scripts and the fixed specs again")
-    rec.add_argument("--known-failing", default="", help="comma-separated catalog ids whose failing reference may be "
-                                                         "pinned (recorded in history; else the gate's allowlist)")
+    rec.add_argument("--known-failing", default="",
+                     help="comma-separated catalog ids whose failing reference you expect to pin; each must be on "
+                          "the gate's committed allowlist or pinned known-failing in the committed golden")
     chk = sub.add_parser("check", help="compare fresh results with the file")
     chk.add_argument("--all", action="store_true", help="every spec, not only the fixed ones")
     dmp = sub.add_parser("dump", help="write full checkpoint states and observations")

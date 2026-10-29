@@ -206,7 +206,7 @@ SPIDER_MARKINGS = {"black_widow": "glossy black, red hourglass on the underside"
 @inspector("safety.pest_id", order=80)
 def pest_identification(w, eid, record, details, ctx):
     state = w.s
-    if not is_pest(record):
+    if not is_pest(record) or C.unfamiliar(ctx, eid, record):
         return
     rid = state["robot"]["room"]
     problem = geometry.reach_problem(state, eid)
@@ -271,10 +271,14 @@ def _along_wall(state, eid):
     return any((x + dx, y + dy) in blocked for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))
 
 
+@C.per_substep_index("pests")
+@C.index_reads("pest")
 def _is_pest(rec):
     return bool(rec.get("pest"))
 
 
+@C.per_substep_index("traps")
+@C.index_reads("trap", "pest")
 def _is_trap(rec):
     return bool(rec.get("trap")) and not rec.get("pest")
 

@@ -1282,6 +1282,11 @@ def harden_step(w, days, t_air, sun):
                 C.set_status(w, cid, chilled=True)
 
 
+for _names in (("garden_bed",), ("seed_tray",), ("plant_pot",), ("seedling", "nursery_plant"),
+               ("seed_tray", "plant_pot", "nursery_pot")):
+    C.episode_types(*_names)
+
+
 @system("outdoor_plants.garden", order=122, max_dt=C.SLOW_S, period=C.SLOW_S)
 def garden_system(w, dt, tick):
     """Beds, trays, germination and hardening off: once per 600 s with dt = accumulated time."""

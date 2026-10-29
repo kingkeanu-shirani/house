@@ -1,0 +1,20 @@
+test_reservoir_verbs_refuse_unresolved_spray_bottles_alike_held_or_not (tests.test_climate.Phase1StabiliseTests.test_reservoir_verbs_refuse_unresolved_spray_bottles_alike_held_or_not) ... skipped 'the spray-bottle look-alikes belong to the cleaning domain'
+OK (skipped=1)
+test_a_toaster_heating_up_gets_no_fridge_fields_and_save_load_agrees (tests.test_food.PhaseOneStabilise.test_a_toaster_heating_up_gets_no_fridge_fields_and_save_load_agrees) ... skipped 'the toaster spec needs appliances_cooking (HOUSE_SIM_DOMAINS without it)'
+test_mop_water_poured_over_bread_leaves_it_unsafe (tests.test_food.PhaseOneStabilise.test_mop_water_poured_over_bread_leaves_it_unsafe) ... skipped "the mop bucket is plumbing_liquids' (HOUSE_SIM_DOMAINS without it)"
+OK (skipped=2)
+test_move_lever_and_squeeze_trigger_succeed_in_a_generated_house (tests.test_mechanisms.Phase1StabiliseTests.test_move_lever_and_squeeze_trigger_succeed_in_a_generated_house) ... skipped 'no mixer tap or spray product without the plumbing and cleaning domains'
+OK (skipped=1)
+test_gen2_docks_keep_every_target_reachable_without_hazards (tests.test_navigation_robot.TestPhase1Finish.test_gen2_docks_keep_every_target_reachable_without_hazards) ... skipped "the audit's houses: climate's fans and electrical's receptacles"
+OK (skipped=1)
+red_leaks: a typed report on a thing destroyed out of view was refused ('You have not seen that') while one ... skipped "the auditor's probes spawn types of several domains"
+FIX2's probe compared the two spawn orders only, so a listing by true id (spawn-independent too, and the ... skipped "the auditor's probes spawn types of several domains"
+Phase-1 finish (people's request, INT2): read and read_aloud of an unresolved pill bottle were refused for ... skipped "the auditor's probes spawn types of several domains"
+OK (skipped=3)
+test_an_unidentified_pet_medicine_bottle_reads_and_is_read_aloud_like_a_prescription_bottle (tests.test_pets.Phase1FinishTests.test_an_unidentified_pet_medicine_bottle_reads_and_is_read_aloud_like_a_prescription_bottle) ... skipped "the other pill_bottle members' domains are not loaded"
+test_a_door_opened_by_its_handle_gets_the_pets_door_dash (tests.test_pets.Phase1MechanismsRequestsTests.test_a_door_opened_by_its_handle_gets_the_pets_door_dash) ... skipped "the mechanisms domain's handle verbs are not loaded"
+OK (skipped=2)
+test_the_registered_bread_box_colander_and_napkin_holder_are_not_vessels (tests.test_plumbing_liquids.ReviewPhase1.test_the_registered_bread_box_colander_and_napkin_holder_are_not_vessels) ... skipped "the food domain's types are not loaded"
+OK (skipped=1)
+test_the_alert_verb_warns_only_whom_it_reaches_of_what_it_names (tests.test_safety.Phase1Stabilise.test_the_alert_verb_warns_only_whom_it_reaches_of_what_it_names) ... skipped "the alert verb is the people domain's"
+OK (skipped=1)

@@ -3623,12 +3623,6 @@
   "remote_control_aa": {
    "is_a": "remote_control",
    "props": {
-    "size_m": [
-     0.05,
-     0.22,
-     0.03
-    ],
-    "mass_kg": 0.15,
     "slots": {
      "cell_1": {
       "accepts": [
@@ -3647,7 +3641,8 @@
       "polarity": "upside_down"
      }
     }
-   }
+   },
+   "doc": "IR remote taking two AA cells. Its shell is the size and mass of its look-alike group's (remote_control's 0.045 x 0.2 x 0.025 m, 0.12 kg): remotes of either cell size come in overlapping sizes, so neither size nor heft tells the cell type; opening the battery cover (inspect) does, and the cells it holds weigh what they weigh."
   },
   "rf_remote": {
    "is_a": "remote_base",

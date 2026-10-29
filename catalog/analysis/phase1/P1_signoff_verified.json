@@ -1,0 +1,4070 @@
+{
+ "format": "house-gate-signoff-v1",
+ "gate": "P1F",
+ "prev": "ADOPT",
+ "signed_by": "INT2-verified",
+ "date": "2026-10-28",
+ "about": "Second signatures of gate record P1F vs ADOPT, drafted by `tier1_gate.py signoff ADOPT P1F --package P1` and verified row by row by INT2 (phase-1 finish) against the two records' trials (catalog/analysis/phase1/INT2_evidence/verify_signoff.py; per-row report signoff_report.json there): verdict rows by class (wrong-list: PASS -> PASS, only the wrong-plan list differs, every wrong plan of the new record ran and fails, the reference passes, initial and idle states fail, with the cause -- another variant on that seed or a spec edit; fix: FAIL -> PASS and the new trial passes in full), edit rows (the new hash is the authored spec's, the base is ADOPT's version at 42533e2, the edited JSON paths listed, own mode 5/5), test-removal rows (G1b skip counts that rose only by new phase-1 tests skipping without other domains, skip reasons checked). Only verified rows are in rows; rejected lists the rest with the reason; summary.p1_claims checks the earlier P1 draft's claimed classes against this record. The main session reviews it and commits it as tools/orchestration/gate_policy/signoffs/P1F.json (only the committed version counts).",
+ "rows": [
+  {
+   "kind": "verdict",
+   "key": "A-05a6ff57e7f3fd-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "885290eb498d7cf1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-0fec5aa3d9e10c-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "c729ba4da0e70652",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-0fec5aa3d9e10c-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "e1c5a21cb8216071",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-0fec5aa3d9e10c-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "e1c5a21cb8216071",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-565da7517f3394-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "44b399061a920430",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-565da7517f3394-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "810ada1b37651f83",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-565da7517f3394-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "810ada1b37651f83",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-afe8d8c6d6d883-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "9c6bc0cb50d832eb",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-afe8d8c6d6d883-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "21044028e28cab11",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-afe8d8c6d6d883-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "9c6bc0cb50d832eb",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-afe8d8c6d6d883-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "21044028e28cab11",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-c83efc7adcd8f5-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "cc2908ce3bc3c30e",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-c83efc7adcd8f5-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "01604fd448acb869",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-c83efc7adcd8f5-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "a8dd040beec60292",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-c83efc7adcd8f5-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "a8dd040beec60292",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-d9e7a4d5d112d2-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "a1003fdd464b0bf9",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "P-47196e0991cdf4-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "13d41dd047c106c3",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "P-6f82b375df3cc1-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "e3b706ede412f64f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-03d77bbfc281a4-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "f4eff218fe1ee968",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-03d77bbfc281a4-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "f4eff218fe1ee968",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-03d77bbfc281a4-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "f4eff218fe1ee968",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-03d77bbfc281a4-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "f4eff218fe1ee968",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-03d77bbfc281a4-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "f4eff218fe1ee968",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0908068a0b4269-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "4939e507f88110e9",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0908068a0b4269-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "16bb28acfab81734",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-09ef414351dfae-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "1050fc98950b7d42",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0b4f248ae32c87-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "f30f2b51b9145d36",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0b4f248ae32c87-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "f30f2b51b9145d36",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0bd75d2bb80aab-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "b960ef946ecf525e",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0bd75d2bb80aab-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "53b96862dcc6a7b1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0bd75d2bb80aab-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "b960ef946ecf525e",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0bd75d2bb80aab-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "53b96862dcc6a7b1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0cd7f8f3019b40-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "b2c9d22445378baa",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0cd7f8f3019b40-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "5fb5cdbf88821df3",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0cd7f8f3019b40-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "b2c9d22445378baa",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0cd7f8f3019b40-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "5fb5cdbf88821df3",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0cd7f8f3019b40-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "5fb5cdbf88821df3",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0d397bf9de09a0-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "1e0368bba5c6a850",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0d397bf9de09a0-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "06f09ad5ef2c02b1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-123d987460eb2a-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "3478308617cec616",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-123d987460eb2a-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "696ff130135cddd1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-123d987460eb2a-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "3478308617cec616",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-149e27671dec82-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "452ea22c46c5c064",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-1970299fc6d849-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "d37bc4034617e742",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-1970299fc6d849-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "61b2103314a24735",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-1970299fc6d849-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "d37bc4034617e742",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-1970299fc6d849-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "61b2103314a24735",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-1cd8e5b7e25846-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "f3ea9a27fde2327f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-1cd8e5b7e25846-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "e2c109d607e7f20b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-1cd8e5b7e25846-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "f3ea9a27fde2327f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-1e3f1a4d26121e-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "d57440dfd14df714",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-22bc2280c7e6be-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "45fac147e6ce1bb0",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-22bc2280c7e6be-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "311d4d4cd90c95bd",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-2b7563797edbfd-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "e13e79d0b0caf200",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-2b7563797edbfd-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "b6ade97cf00cf01a",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-2b7563797edbfd-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "e13e79d0b0caf200",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-2d08289a6d709f-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "639642362c4fa07f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-2d08289a6d709f-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "a94359ab1f5f961b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-2d08289a6d709f-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "639642362c4fa07f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-2d08289a6d709f-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "a94359ab1f5f961b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-2e07f1f4626671-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "252d1fb33f4b797c",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-301e5aee8a71a0-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "b331e8375e8c817c",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-301e5aee8a71a0-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "33b4d50a16ba4916",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-301e5aee8a71a0-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "33b4d50a16ba4916",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-3b1a4024d46110-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "7b69d2d2dc2b426b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-3b1a4024d46110-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "ba6e8f51a0fa862c",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-3b1a4024d46110-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "7b69d2d2dc2b426b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-3b1a4024d46110-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "ba6e8f51a0fa862c",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-457afb032d7be7-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "9f199dd1ade7c103",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-457afb032d7be7-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "ddcd8bcd05769764",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-47d0adb37bc85e-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "58181380150bcc11",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5ad61b6881821b-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "6bc60a1abd1f7c9f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5ad61b6881821b-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "25a7177deffa02d0",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5ad61b6881821b-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "6bc60a1abd1f7c9f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5ad61b6881821b-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "25a7177deffa02d0",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5ceae2cfd3be19-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "7ac556a15b7fd4e4",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5ceae2cfd3be19-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "946cb5f1bd709604",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5d2d79cc6ec2ca-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "912147a2993459d7",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5d2d79cc6ec2ca-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "cc929bd9d2eaa9dc",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5d2d79cc6ec2ca-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "cc929bd9d2eaa9dc",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5d2d79cc6ec2ca-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "cc929bd9d2eaa9dc",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5d63abe55f7147-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "26804a3ca2dfce7d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-635020bcc39fc6-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "2d93e15ec01cc368",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-63b5495ec1360b-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "a7d2d81aaafb58f2",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-63b5495ec1360b-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "0af5b68029a6c0b1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-6af2ea41755bbe-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "0d2ecb5a14335060",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-6af2ea41755bbe-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "7797715a26c43d78",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-73a13fb297c40f-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "401f0987633c0c64",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-73a13fb297c40f-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "8570ee11589d03a2",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-73a13fb297c40f-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "8570ee11589d03a2",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-79a861877a2a67-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "9b48b95d4a3e9b80",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-7d4006bda247ba-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "cf8ecb4813ddb727",
+   "class": "fix",
+   "evidence": "FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-7d4006bda247ba-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "bae94883979a2f18",
+   "class": "fix",
+   "evidence": "FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-7d4006bda247ba-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "cf8ecb4813ddb727",
+   "class": "fix",
+   "evidence": "FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8181b198c09f12-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "2ca367cea57038d4",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8181b198c09f12-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "8950568646d1b790",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8181b198c09f12-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "8950568646d1b790",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-89d7a649052266-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "a3e1d0dc5ee4d124",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-89d7a649052266-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "6e76aeab02a1073b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-89d7a649052266-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "a3e1d0dc5ee4d124",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-89d7a649052266-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "6e76aeab02a1073b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8b457901ef8a04-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "0f9d4824c14e96b6",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8b457901ef8a04-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "e1e7ebd56428c10e",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8b457901ef8a04-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "479ee8a06b818ebb",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8b457901ef8a04-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "479ee8a06b818ebb",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8e57df5742271b-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "c99bda2a1606dda4",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8e57df5742271b-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "b829eae67d772dd7",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8e57df5742271b-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "b829eae67d772dd7",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8e57df5742271b-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "b829eae67d772dd7",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8e57df5742271b-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "b829eae67d772dd7",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-92f2736b7f949c-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "4f3420c64665340c",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-92f2736b7f949c-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "39a49d89466b19b5",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-92f2736b7f949c-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "39a49d89466b19b5",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-92f2736b7f949c-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "39a49d89466b19b5",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-946704aff89ecf-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "04f80b213a7899b5",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-946704aff89ecf-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "ee88e33f7a0db735",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-946704aff89ecf-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "fbb1a23138dd5deb",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-94a0a940224c22-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "06f034d424e4fb6d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-94a0a940224c22-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "ee7bb2f744d86ad2",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-954f0fa3af60ac-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "4304585d0fb4829f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-a56d991fe37401-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "a7258004c004584e",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-a56d991fe37401-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "0907d4eb2ac45d57",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-a56d991fe37401-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "ec8ecfac8ff7b6c1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-a56d991fe37401-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "ec8ecfac8ff7b6c1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-a56d991fe37401-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "a7258004c004584e",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ab9a26cd6a795e-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "8a4b024f411fad3b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ab9a26cd6a795e-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "8d088658d4184b95",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ad17030a2c3223-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "5557a3d64119256b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-b122adaae3586f-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "b833aa9fb14d2fe9",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-b122adaae3586f-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "8759b4bbae7f369c",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-bfd811b2d14e62-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "1eaf320bcab50495",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-bfd811b2d14e62-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "2d1910855c2f03ba",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-bfd811b2d14e62-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "2d1910855c2f03ba",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c072906a11f55c-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "fb5e65aad06ab214",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c072906a11f55c-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "0f8453b6587a32ef",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c072906a11f55c-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "493415c10bc562d7",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c12fbedcf2888d-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "a80c46eacf347b8f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c12fbedcf2888d-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "3d401a1dd5d94368",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c12fbedcf2888d-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "3d401a1dd5d94368",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c12fbedcf2888d-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "3d401a1dd5d94368",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c49fadcea69182-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "90942258274ae6b1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c49fadcea69182-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "90942258274ae6b1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c49fadcea69182-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "90942258274ae6b1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c49fadcea69182-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "90942258274ae6b1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c49fadcea69182-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "90942258274ae6b1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c541cb694906f5-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "7be4875d5d9262b5",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c541cb694906f5-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "5b9da711a4ec3380",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c541cb694906f5-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "7be4875d5d9262b5",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c541cb694906f5-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "5b9da711a4ec3380",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ca8e88d719c9ff-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "6cf64be423acb9e6",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ca8e88d719c9ff-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "8a740e230aeb80b4",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ca8e88d719c9ff-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "4dc4d9482b797b5b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ca8e88d719c9ff-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "6cf64be423acb9e6",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ce25a2474ffb3d-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "fe5d060232b69036",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ce25a2474ffb3d-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "1efd9dba0ed9d05d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ce25a2474ffb3d-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "1efd9dba0ed9d05d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ce25a2474ffb3d-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "1efd9dba0ed9d05d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ce25a2474ffb3d-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "1efd9dba0ed9d05d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d1f9385dbb80fc-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "feeb00fc2410b4ba",
+   "class": "fix",
+   "evidence": "FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d25af2202bc025-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "123ebfaac5cd66fe",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 3 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d25af2202bc025-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "1ac61175384c8374",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d25af2202bc025-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "a4db5b7daf735fe9",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d25af2202bc025-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "1ac61175384c8374",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d25af2202bc025-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "a978003a76994a9d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d8355138bcf9fb-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "89df987b0f996c32",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d901f3b7dda58a-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "c51b0fb26a9a067f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d901f3b7dda58a-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "f5f5b29cdacabaf2",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d901f3b7dda58a-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "65ff87d44378a784",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d901f3b7dda58a-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "65ff87d44378a784",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-dda4e199f3f5b0-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "d7d3c56088ad51d7",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-dda4e199f3f5b0-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "e3f4b17b0b6071fb",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-dda4e199f3f5b0-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "a34b1c2f138172c3",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-dde0975c7a26b8-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "97d3217b42a6f941",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-e9cf6ca709ec77-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "39be011875b7f328",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-e9cf6ca709ec77-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "5d6667f0c230e056",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-e9cf6ca709ec77-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "5d6667f0c230e056",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ec38fe45bca9ab-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "15311871593c0df9",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ec38fe45bca9ab-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "f4544ecf27cae9a8",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ec38fe45bca9ab-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "f4544ecf27cae9a8",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ec38fe45bca9ab-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "f4544ecf27cae9a8",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-f036622c9240b7-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "74555ea74378c43d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-f82f0ec54a8efb-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "5dd11a679dce7d88",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-f82f0ec54a8efb-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "b50a64ce0d38b7e5",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-f82f0ec54a8efb-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "f0e893f828a9ca88",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-f82f0ec54a8efb-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "b50a64ce0d38b7e5",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-fa29fd5df0e544-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "3d44d132108cd596",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-fa29fd5df0e544-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "13931967e2feb6c1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-fa29fd5df0e544-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "ea85b17b2ce5aeea",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "V-10424aa789320a-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "566ff944366c705d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-001428fe447c0f-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "555eafcb7b0808d4",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-001428fe447c0f-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "8dc70a7cf89487ff",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-001428fe447c0f-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "555eafcb7b0808d4",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-001428fe447c0f-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "8dc70a7cf89487ff",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-001428fe447c0f-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "8dc70a7cf89487ff",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-1c71303328a5b8-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "55e3931731e917fc",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-1c71303328a5b8-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "55e3931731e917fc",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-9cb1ee87e09363-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "e8b34f2e52d865c6",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-9cb1ee87e09363-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "e8b34f2e52d865c6",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-bf82170244be22-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "927096fe826ce10a",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-bf82170244be22-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "ba7ed4ce7de24975",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-bf82170244be22-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "d5fef92a6a5a1333",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-c77e2cbe7181f0-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "b3bfd03ba5a3a9ea",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-c77e2cbe7181f0-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "4b4f1c66aba8ee67",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-c77e2cbe7181f0-01",
+   "seed": 2,
+   "mode": "own",
+   "digest": "b3bfd03ba5a3a9ea",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-c77e2cbe7181f0-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "4b4f1c66aba8ee67",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-d734ea3e299b16-01",
+   "seed": 0,
+   "mode": "own",
+   "digest": "6dc20b62c4652649",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-d734ea3e299b16-01",
+   "seed": 1,
+   "mode": "own",
+   "digest": "3c98d1d957c8860c",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-d734ea3e299b16-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "3c98d1d957c8860c",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-d734ea3e299b16-01",
+   "seed": 97,
+   "mode": "own",
+   "digest": "3c98d1d957c8860c",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-fee35ef3aac659-01",
+   "seed": 41,
+   "mode": "own",
+   "digest": "9dc59b60c4ae6754",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-05a6ff57e7f3fd-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "7de3cfcf72605e70",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-0fec5aa3d9e10c-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "5aa10828ff6bf2ce",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-0fec5aa3d9e10c-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "7cac0fd7a52d0a89",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-0fec5aa3d9e10c-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "7cac0fd7a52d0a89",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-565da7517f3394-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "44b399061a920430",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-565da7517f3394-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "810ada1b37651f83",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-565da7517f3394-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "810ada1b37651f83",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-afe8d8c6d6d883-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "bf444e0024380f80",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-afe8d8c6d6d883-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "b56f569b92b14642",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-afe8d8c6d6d883-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "bf444e0024380f80",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-afe8d8c6d6d883-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "b56f569b92b14642",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-c83efc7adcd8f5-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "cc2908ce3bc3c30e",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-c83efc7adcd8f5-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "01604fd448acb869",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-c83efc7adcd8f5-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "a8dd040beec60292",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-c83efc7adcd8f5-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "a8dd040beec60292",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "A-d9e7a4d5d112d2-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "f9dcf695957a641d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "P-47196e0991cdf4-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "8d34a90220d7563b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "P-6f82b375df3cc1-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "c9614304d84ca294",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-03d77bbfc281a4-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "73b32db81ca58c6f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-03d77bbfc281a4-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "73b32db81ca58c6f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-03d77bbfc281a4-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "73b32db81ca58c6f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-03d77bbfc281a4-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "73b32db81ca58c6f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-03d77bbfc281a4-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "73b32db81ca58c6f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0908068a0b4269-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "84f962de45dc7f52",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0908068a0b4269-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "bd35f6a4094ece47",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-09ef414351dfae-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "55203497f772cfa4",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0b4f248ae32c87-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "71bb25b76a6f8480",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0b4f248ae32c87-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "71bb25b76a6f8480",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0bd75d2bb80aab-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "b57eca23d8361ae1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0bd75d2bb80aab-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "084d84efdc96fa0d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0bd75d2bb80aab-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "b57eca23d8361ae1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0bd75d2bb80aab-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "084d84efdc96fa0d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0cd7f8f3019b40-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "d79a864839866460",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0cd7f8f3019b40-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "91ad58bf14450478",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0cd7f8f3019b40-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "d79a864839866460",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0cd7f8f3019b40-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "91ad58bf14450478",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0cd7f8f3019b40-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "91ad58bf14450478",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0d397bf9de09a0-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "1b943bb4f55ec4ef",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0d397bf9de09a0-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "78f1e6ce29dd66bd",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-123d987460eb2a-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "fb2328600041bd0b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-123d987460eb2a-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "01e8db82b02403af",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-123d987460eb2a-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "fb2328600041bd0b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-149e27671dec82-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "67c96f91c3ca520d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-1970299fc6d849-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "06de474f00a3d72c",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-1970299fc6d849-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "bed5c595c765fbff",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-1970299fc6d849-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "06de474f00a3d72c",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-1970299fc6d849-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "bed5c595c765fbff",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-1cd8e5b7e25846-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "f3ea9a27fde2327f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-1cd8e5b7e25846-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "e2c109d607e7f20b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-1cd8e5b7e25846-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "f3ea9a27fde2327f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-1e3f1a4d26121e-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "d57440dfd14df714",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-22bc2280c7e6be-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "45fac147e6ce1bb0",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-22bc2280c7e6be-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "311d4d4cd90c95bd",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-28ff695081cd2c-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "e0bc26ddbf8e9d2f",
+   "class": "fix",
+   "evidence": "FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-28ff695081cd2c-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "e0bc26ddbf8e9d2f",
+   "class": "fix",
+   "evidence": "FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-2b7563797edbfd-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "a1708297e4d06bc0",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-2b7563797edbfd-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "9b1716ef464b8400",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-2b7563797edbfd-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "a1708297e4d06bc0",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-2d08289a6d709f-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "33c72ae0daf2222d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-2d08289a6d709f-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "5ac37edec86ceea5",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-2d08289a6d709f-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "33c72ae0daf2222d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-2d08289a6d709f-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "5ac37edec86ceea5",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-2e07f1f4626671-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "252d1fb33f4b797c",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-301e5aee8a71a0-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "a1e53892dd17ae76",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-301e5aee8a71a0-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "e775407adc6b3066",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-301e5aee8a71a0-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "e775407adc6b3066",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-3b1a4024d46110-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "7b69d2d2dc2b426b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-3b1a4024d46110-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "ba6e8f51a0fa862c",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-3b1a4024d46110-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "7b69d2d2dc2b426b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-3b1a4024d46110-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "ba6e8f51a0fa862c",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-457afb032d7be7-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "c0dcaf1afb898153",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-457afb032d7be7-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "0db1cf7f5b6114d6",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-47d0adb37bc85e-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "58181380150bcc11",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5ad61b6881821b-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "6d8c961a566b8bc1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5ad61b6881821b-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "026bb01962a286d6",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5ad61b6881821b-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "6d8c961a566b8bc1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5ad61b6881821b-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "026bb01962a286d6",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5ceae2cfd3be19-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "35fa3848d1f5cc63",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5ceae2cfd3be19-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "c057493876824b90",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5d2d79cc6ec2ca-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "c7299d5e31c3b180",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5d2d79cc6ec2ca-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "07c262697dd656d7",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5d2d79cc6ec2ca-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "07c262697dd656d7",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5d2d79cc6ec2ca-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "07c262697dd656d7",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-5d63abe55f7147-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "26804a3ca2dfce7d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-635020bcc39fc6-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "f3d583d1aa4c711b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-63b5495ec1360b-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "e42f9b2bf4f54ca8",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-63b5495ec1360b-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "424c002e30f9e57c",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-6af2ea41755bbe-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "0f26b9268067ecc4",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-6af2ea41755bbe-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "4f271c80c2502a95",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-73a13fb297c40f-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "5c0490c809e88475",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-73a13fb297c40f-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "4e61ce22c16b55dd",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-73a13fb297c40f-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "4e61ce22c16b55dd",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-79a861877a2a67-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "c813bd01c943583a",
+   "class": "fix",
+   "evidence": "FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False; not perceivable"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-79a861877a2a67-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "c813bd01c943583a",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-79a861877a2a67-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "c813bd01c943583a",
+   "class": "fix",
+   "evidence": "FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False; not perceivable"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-79a861877a2a67-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "c813bd01c943583a",
+   "class": "fix",
+   "evidence": "FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False; not perceivable"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-7d4006bda247ba-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "0c7c1042228923a3",
+   "class": "fix",
+   "evidence": "FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-7d4006bda247ba-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "955be6deba2f034a",
+   "class": "fix",
+   "evidence": "FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-7d4006bda247ba-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "0c7c1042228923a3",
+   "class": "fix",
+   "evidence": "FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8181b198c09f12-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "aef13f04d9e6c9d3",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8181b198c09f12-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "81411da5fd01c3fa",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8181b198c09f12-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "81411da5fd01c3fa",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-89d7a649052266-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "844d266bafa511a3",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-89d7a649052266-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "a64f346447e833cc",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-89d7a649052266-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "844d266bafa511a3",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-89d7a649052266-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "a64f346447e833cc",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8b457901ef8a04-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "0f9d4824c14e96b6",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8b457901ef8a04-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "e1e7ebd56428c10e",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8b457901ef8a04-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "479ee8a06b818ebb",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8b457901ef8a04-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "479ee8a06b818ebb",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8e57df5742271b-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "b38fee606ac6429f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8e57df5742271b-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "86fba04e51bc8d7b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8e57df5742271b-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "86fba04e51bc8d7b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8e57df5742271b-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "86fba04e51bc8d7b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-8e57df5742271b-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "86fba04e51bc8d7b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-92f2736b7f949c-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "4710bfa930203c49",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-92f2736b7f949c-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "ad9ee131f572e360",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-92f2736b7f949c-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "ad9ee131f572e360",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-92f2736b7f949c-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "ad9ee131f572e360",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-946704aff89ecf-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "bfe430b84ded6a1e",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-946704aff89ecf-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "a9323d64e2332374",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-946704aff89ecf-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "d07c49e00bf2e3c5",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-94a0a940224c22-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "06f034d424e4fb6d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-94a0a940224c22-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "ee7bb2f744d86ad2",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-954f0fa3af60ac-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "4e4b26ae1d01a003",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-a56d991fe37401-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "a7258004c004584e",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-a56d991fe37401-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "0907d4eb2ac45d57",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-a56d991fe37401-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "ec8ecfac8ff7b6c1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-a56d991fe37401-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "ec8ecfac8ff7b6c1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-a56d991fe37401-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "a7258004c004584e",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ab9a26cd6a795e-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "8a4b024f411fad3b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ab9a26cd6a795e-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "8d088658d4184b95",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ad17030a2c3223-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "19029e05444eb6d1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-b122adaae3586f-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "9e6bb54d5cebf261",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-b122adaae3586f-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "73cd2b93d4b96681",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-bfd811b2d14e62-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "ce97b357ea4404c8",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-bfd811b2d14e62-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "3edeaa736d0991bb",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-bfd811b2d14e62-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "3edeaa736d0991bb",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c072906a11f55c-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "dd9e55ef82c315c3",
+   "class": "fix",
+   "evidence": "FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False; not perceivable"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c072906a11f55c-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "c98efb9693adf42b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c072906a11f55c-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "c6653da007483821",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c12fbedcf2888d-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "a3c8fdd20cb82ecc",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c12fbedcf2888d-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "447434e27c95bcf3",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c12fbedcf2888d-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "447434e27c95bcf3",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c12fbedcf2888d-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "447434e27c95bcf3",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c49fadcea69182-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "90942258274ae6b1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c49fadcea69182-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "90942258274ae6b1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c49fadcea69182-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "90942258274ae6b1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c49fadcea69182-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "90942258274ae6b1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c49fadcea69182-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "90942258274ae6b1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c541cb694906f5-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "18602546804b7931",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c541cb694906f5-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "3296b62a4cb0b619",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c541cb694906f5-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "18602546804b7931",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-c541cb694906f5-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "3296b62a4cb0b619",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ca8e88d719c9ff-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "2ce8292f85fb5583",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ca8e88d719c9ff-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "2b5b31a2a334be97",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ca8e88d719c9ff-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "ca7a209fc3aaa0cb",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ca8e88d719c9ff-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "2ce8292f85fb5583",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ce25a2474ffb3d-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "c4406a18696fcd88",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ce25a2474ffb3d-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "614a1ef77ad9102f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ce25a2474ffb3d-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "614a1ef77ad9102f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ce25a2474ffb3d-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "614a1ef77ad9102f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ce25a2474ffb3d-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "614a1ef77ad9102f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d1f9385dbb80fc-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "feeb00fc2410b4ba",
+   "class": "fix",
+   "evidence": "FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d25af2202bc025-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "24e7cc13c3793f85",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 3 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d25af2202bc025-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "1aebb5707304d1ca",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d25af2202bc025-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "9e7df7e498937f7d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d25af2202bc025-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "1aebb5707304d1ca",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d25af2202bc025-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "f79376cb1911317c",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d8355138bcf9fb-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "4ecaa0ad24d5a598",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d901f3b7dda58a-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "cb99f92fca21c642",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d901f3b7dda58a-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "33f4445b2b3d2d26",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d901f3b7dda58a-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "3640e8f284015b60",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-d901f3b7dda58a-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "3640e8f284015b60",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-dda4e199f3f5b0-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "56a3addedf8fc07c",
+   "class": "fix",
+   "evidence": "FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False; not perceivable"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-dda4e199f3f5b0-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "7993a21553c887e2",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-dda4e199f3f5b0-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "7993a21553c887e2",
+   "class": "fix",
+   "evidence": "FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False; not perceivable"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-dde0975c7a26b8-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "9282c3b37c449b7b",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-e9cf6ca709ec77-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "3ca51b9c51e93a20",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-e9cf6ca709ec77-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "09b0c94495ac0e59",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-e9cf6ca709ec77-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "09b0c94495ac0e59",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ec38fe45bca9ab-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "dcc8c86de1c9059a",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ec38fe45bca9ab-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "cbe9919eda04054e",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ec38fe45bca9ab-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "cbe9919eda04054e",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-ec38fe45bca9ab-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "cbe9919eda04054e",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-f036622c9240b7-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "c2424221ac443e02",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-f82f0ec54a8efb-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "84b54961241450ff",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-f82f0ec54a8efb-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "3d74b4c10754abcd",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-f82f0ec54a8efb-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "da8af3ca98936360",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-f82f0ec54a8efb-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "3d74b4c10754abcd",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-fa29fd5df0e544-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "3d44d132108cd596",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-fa29fd5df0e544-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "13931967e2feb6c1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-fa29fd5df0e544-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "ea85b17b2ce5aeea",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "V-10424aa789320a-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "e5377bb286b2465d",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-001428fe447c0f-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "35a1705bd0b4d23f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-001428fe447c0f-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "064718200706ceac",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-001428fe447c0f-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "35a1705bd0b4d23f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-001428fe447c0f-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "064718200706ceac",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-001428fe447c0f-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "064718200706ceac",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-1c71303328a5b8-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "34396da5fb772ce1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-1c71303328a5b8-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "34396da5fb772ce1",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-9cb1ee87e09363-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "92becfc30eb07a6f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-9cb1ee87e09363-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "92becfc30eb07a6f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-bf82170244be22-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "7c073915763cb64a",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-bf82170244be22-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "3909947551252c3e",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-bf82170244be22-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "be5d8dc5ea9da9d0",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-c77e2cbe7181f0-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "97e080b33a17c6f7",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-c77e2cbe7181f0-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "a16885391456e00f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-c77e2cbe7181f0-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "97e080b33a17c6f7",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-c77e2cbe7181f0-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "a16885391456e00f",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-d734ea3e299b16-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "1231924b57922f23",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-d734ea3e299b16-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "3fdf30783824e6ad",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-d734ea3e299b16-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "3fdf30783824e6ad",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-d734ea3e299b16-01",
+   "seed": 97,
+   "mode": "realistic",
+   "digest": "3fdf30783824e6ad",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-fee35ef3aac659-01",
+   "seed": 0,
+   "mode": "realistic",
+   "digest": "1b7ebf4fe2078370",
+   "class": "fix",
+   "evidence": "FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-fee35ef3aac659-01",
+   "seed": 2,
+   "mode": "realistic",
+   "digest": "1b7ebf4fe2078370",
+   "class": "fix",
+   "evidence": "FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False"
+  },
+  {
+   "kind": "verdict",
+   "key": "X-fee35ef3aac659-01",
+   "seed": 41,
+   "mode": "realistic",
+   "digest": "1b7ebf4fe2078370",
+   "class": "wrong-list",
+   "evidence": "PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+  },
+  {
+   "kind": "edit",
+   "key": "A-d66994a566899c-01",
+   "spec_hash": "834d20f7d98edcdd49be0780979372f396420c61c9c9c51a8ab099c8202c2725",
+   "file": "textiles_laundry__examples.json",
+   "evidence": "edited vs 42533e2: notes, variants[0].reference[6].steps[1].do, variants[0].reference[6].steps[1].garment, variants[0].reference[6].steps[1].skill, variants[0].reference[6].steps[1].target, variants[0].reference[6].steps[1].where, variants[2].reference[6].steps[1].do, variants[2].reference[6].steps[1].garment (+3 more); own mode 5/5 seeds pass"
+  },
+  {
+   "kind": "edit",
+   "key": "T-0383801c7466a3-01",
+   "spec_hash": "e80ec4e16b28843fcde71e29b68cc77e3bb8bc21729c8fdcb57a48e1483b2a0b",
+   "file": "navigation_robot__examples.json",
+   "evidence": "edited vs 42533e2: reference[0].do, reference[0].note, reference[0].skill; own mode 5/5 seeds pass"
+  },
+  {
+   "kind": "edit",
+   "key": "T-03d77bbfc281a4-01",
+   "spec_hash": "4344f540ab095ef0cfc231bcee445e22148c003285631e22a1ca41126c08a84d",
+   "file": "navigation_robot__examples.json",
+   "evidence": "edited vs 42533e2: wrong[0].name, wrong[0].plan; own mode 5/5 seeds pass"
+  },
+  {
+   "kind": "edit",
+   "key": "T-089c40fb507289-01",
+   "spec_hash": "5d03a13279be1896ce54541d90eb5f6e23ede6e83b032d91ce62d2714fd1a61d",
+   "file": "navigation_robot__examples.json",
+   "evidence": "edited vs 42533e2: reference[0].do, reference[0].note, reference[0].skill; own mode 5/5 seeds pass"
+  },
+  {
+   "kind": "edit",
+   "key": "T-0908068a0b4269-01",
+   "spec_hash": "b633c243d1662f0834c2a18cdbb3f108282c2aa0d4488c4465cee13a502b260b",
+   "file": "people__examples.json",
+   "evidence": "edited vs 42533e2: wrong[0].plan; own mode 5/5 seeds pass"
+  },
+  {
+   "kind": "edit",
+   "key": "T-151f6733397156-01",
+   "spec_hash": "0db11de88a919b35861967e187fc4f1172801ea669fdccb05abfa2d6c00bb695",
+   "file": "plumbing_liquids__examples.json",
+   "evidence": "edited vs 42533e2: setup[4].props.category; own mode 5/5 seeds pass"
+  },
+  {
+   "kind": "edit",
+   "key": "T-28ff695081cd2c-01",
+   "spec_hash": "d067f5e75ceccab3fd96e956dd1cd21d3bc2dcba7921d345a04afdff599d0887",
+   "file": "textiles_laundry__examples.json",
+   "evidence": "edited vs 42533e2: notes, reference[0].obj, reference[0].skill, reference[0].target, reference[1].do, reference[1].skill, reference[2].do, reference[2].seconds (+8 more); own mode 5/5 seeds pass"
+  },
+  {
+   "kind": "edit",
+   "key": "T-5a9598c809336a-01",
+   "spec_hash": "c8b723dd745028d43813887faa152ecd8dd1200b30c2293840c47279d279493f",
+   "file": "tools_vehicles__perception.json",
+   "evidence": "edited vs 42533e2: notes, wrong[3].plan; own mode 5/5 seeds pass"
+  },
+  {
+   "kind": "edit",
+   "key": "T-8e57df5742271b-01",
+   "spec_hash": "bf90aec7e7d047672efb9fc6deffd1dfa3e305aed1111b10e9ada0fad3009eaa",
+   "file": "electrical__examples.json",
+   "evidence": "edited vs 42533e2: wrong[0].name, wrong[0].plan; own mode 5/5 seeds pass"
+  },
+  {
+   "kind": "edit",
+   "key": "T-9615ae9f7570b4-01",
+   "spec_hash": "6cb0f9760c8460699cde327e70545bd31f9f194b0c16d439b2fa91901d6c17c1",
+   "file": "navigation_robot__perception.json",
+   "evidence": "edited vs 42533e2: wrong[2].plan; own mode 5/5 seeds pass"
+  },
+  {
+   "kind": "edit",
+   "key": "T-a31398ab2abf54-01",
+   "spec_hash": "b2eeb3661edc579097985650c322573f2e231a6cafb15a60bd9b36ad922feecf",
+   "file": "climate__perception.json",
+   "evidence": "edited vs 42533e2: wrong[0].name, wrong[0].plan[3].from; own mode 5/5 seeds pass"
+  },
+  {
+   "kind": "edit",
+   "key": "T-c072906a11f55c-01",
+   "spec_hash": "f7115f7b5e5012c64eefe13e93e6b4f160df868afb1ef7ff4360c881faa74865",
+   "file": "people__examples.json",
+   "evidence": "edited vs 42533e2: instruction, phrasings[0], phrasings[1], phrasings[2], variants[0].reference; own mode 5/5 seeds pass"
+  },
+  {
+   "kind": "edit",
+   "key": "T-c49fadcea69182-01",
+   "spec_hash": "d10bee614625d8e95a4e84f101b6e5b2ff7521a462f2a7aebd4701d02865475a",
+   "file": "cleaning__perception.json",
+   "evidence": "edited vs 42533e2: notes, wrong[0].name, wrong[0].plan; own mode 5/5 seeds pass"
+  },
+  {
+   "kind": "edit",
+   "key": "T-ce25a2474ffb3d-01",
+   "spec_hash": "6b8c89d3573a1d084b62d4955414b02b5dee13eac2136975d0f402420c691c7a",
+   "file": "manipulation__examples.json",
+   "evidence": "edited vs 42533e2: notes, wrong[1].name, wrong[1].plan[0].do, wrong[1].plan[0].grip, wrong[1].plan[0].obj, wrong[1].plan[0].skill, wrong[1].plan[0].target, wrong[1].plan[1].obj (+9 more); own mode 5/5 seeds pass"
+  },
+  {
+   "kind": "test-removal",
+   "test": "tests.test_climate",
+   "mode": "isolated",
+   "evidence": "G1b isolated run: skipped 1 -> 2 (counts only: ADOPT's tests.json has no per-test ids); every test skipped now that is not in tests/test_climate.py at 42533e2 (ADOPT's base) is new in phase 1 and skips because it needs other domains loaded: Phase1StabiliseTests.test_reservoir_verbs_refuse_unresolved_spray_bottles_alike_held_or_not; the tests skipped that existed then: Round3FixTests.test_portable_fan_keeps_electricals_cord_run; skip reasons in that run (verified): test_reservoir_verbs_refuse_unresolved_spray_bottles_alike_held_or_not: 'the spray-bottle look-alikes belong to the cleaning domain'"
+  },
+  {
+   "kind": "test-removal",
+   "test": "tests.test_food",
+   "mode": "isolated",
+   "evidence": "G1b isolated run: skipped 2 -> 4 (counts only: ADOPT's tests.json has no per-test ids); every test skipped now that is not in tests/test_food.py at 42533e2 (ADOPT's base) is new in phase 1 and skips because it needs other domains loaded: PhaseOneStabilise.test_a_toaster_heating_up_gets_no_fridge_fields_and_save_load_agrees, PhaseOneStabilise.test_mop_water_poured_over_bread_leaves_it_unsafe; the tests skipped that existed then: Packaging.test_removing_outer_packaging_keeps_needed_information, Transfers.test_strained_liquid_keeps_its_provenance; skip reasons in that run (verified): test_a_toaster_heating_up_gets_no_fridge_fields_and_save_load_agrees: 'the toaster spec needs appliances_cooking (HOUSE_SIM_DOMAINS without it)'; test_mop_water_poured_over_bread_leaves_it_unsafe: 'the mop bucket is plumbing_liquids' (HOUSE_SIM_DOMAINS without it)'"
+  },
+  {
+   "kind": "test-removal",
+   "test": "tests.test_mechanisms",
+   "mode": "isolated",
+   "evidence": "G1b isolated run: skipped 2 -> 3 (counts only: ADOPT's tests.json has no per-test ids); every test skipped now that is not in tests/test_mechanisms.py at 42533e2 (ADOPT's base) is new in phase 1 and skips because it needs other domains loaded: Phase1StabiliseTests.test_move_lever_and_squeeze_trigger_succeed_in_a_generated_house; the tests skipped that existed then: AuditMechanicsTests.test_taping_a_safety_sensor_when_manipulation_is_loaded, SecondarySupportTests.test_wiping_a_touch_panel_presses_it_unless_locked; skip reasons in that run (verified): test_move_lever_and_squeeze_trigger_succeed_in_a_generated_house: 'no mixer tap or spray product without the plumbing and cleaning domains'"
+  },
+  {
+   "kind": "test-removal",
+   "test": "tests.test_navigation_robot",
+   "mode": "isolated",
+   "evidence": "G1b isolated run: skipped 0 -> 1 (counts only: ADOPT's tests.json has no per-test ids); every test skipped now that is not in tests/test_navigation_robot.py at 42533e2 (ADOPT's base) is new in phase 1 and skips because it needs other domains loaded: TestPhase1Finish.test_gen2_docks_keep_every_target_reachable_without_hazards; the tests skipped that existed then: none; skip reasons in that run (verified): test_gen2_docks_keep_every_target_reachable_without_hazards: 'the audit's houses: climate's fans and electrical's receptacles'"
+  },
+  {
+   "kind": "test-removal",
+   "test": "tests.test_perception",
+   "mode": "core",
+   "evidence": "G1b core run: skipped 1 -> 5 (counts only: ADOPT's tests.json has no per-test ids); every test skipped now that is not in tests/test_perception.py at 42533e2 (ADOPT's base) is new in phase 1 and skips because it needs other domains loaded: AuditorProbeTests.test_the_echo_battery_compares_reports_and_asks_on_destroyed_and_out_of_view_things, AuditorProbeTests.test_the_hazard_order_probe_checks_the_order_of_handles, AuditorProbeTests.test_the_read_probe_compares_the_outcome_form_of_every_member; the tests skipped that existed then: KernelRound5RedTeamFixTests.test_free_text_ids_are_neutralised_whether_or_not_they_exist (one more skip is a wall-clock bound moved to G7's perf job, which ran it); skip reasons in that run (verified): 'the auditor's probes spawn types of several domains'"
+  },
+  {
+   "kind": "test-removal",
+   "test": "tests.test_pets",
+   "mode": "isolated",
+   "evidence": "G1b isolated run: skipped 0 -> 2 (counts only: ADOPT's tests.json has no per-test ids); every test skipped now that is not in tests/test_pets.py at 42533e2 (ADOPT's base) is new in phase 1 and skips because it needs other domains loaded: Phase1FinishTests.test_an_unidentified_pet_medicine_bottle_reads_and_is_read_aloud_like_a_prescription_bottle, Phase1MechanismsRequestsTests.test_a_door_opened_by_its_handle_gets_the_pets_door_dash; the tests skipped that existed then: none; skip reasons in that run (verified): test_a_door_opened_by_its_handle_gets_the_pets_door_dash: 'the mechanisms domain's handle verbs are not loaded'; test_an_unidentified_pet_medicine_bottle_reads_and_is_read_aloud_like_a_prescription_bottle: 'the other pill_bottle members' domains are not loaded'"
+  },
+  {
+   "kind": "test-removal",
+   "test": "tests.test_plumbing_liquids",
+   "mode": "isolated",
+   "evidence": "G1b isolated run: skipped 0 -> 1 (counts only: ADOPT's tests.json has no per-test ids); every test skipped now that is not in tests/test_plumbing_liquids.py at 42533e2 (ADOPT's base) is new in phase 1 and skips because it needs other domains loaded: ReviewPhase1.test_the_registered_bread_box_colander_and_napkin_holder_are_not_vessels; the tests skipped that existed then: none; skip reasons in that run (verified): test_the_registered_bread_box_colander_and_napkin_holder_are_not_vessels: 'the food domain's types are not loaded'"
+  },
+  {
+   "kind": "test-removal",
+   "test": "tests.test_safety",
+   "mode": "isolated",
+   "evidence": "G1b isolated run: skipped 2 -> 3 (counts only: ADOPT's tests.json has no per-test ids); every test skipped now that is not in tests/test_safety.py at 42533e2 (ADOPT's base) is new in phase 1 and skips because it needs other domains loaded: Phase1Stabilise.test_the_alert_verb_warns_only_whom_it_reaches_of_what_it_names; the tests skipped that existed then: CrossDomainRound.test_safety_does_not_override_a_mechanisms_latch_that_failed, PeopleCare.test_moving_injured_person_hook; skip reasons in that run (verified): test_the_alert_verb_warns_only_whom_it_reaches_of_what_it_names: 'the alert verb is the people domain's'"
+  }
+ ],
+ "rejected": [
+  {
+   "kind": "verdict",
+   "key": "T-dda4e199f3f5b0-01",
+   "seed": 1,
+   "mode": "realistic",
+   "digest": "d31b4c8327091f0d",
+   "class": "both-fail",
+   "why": "claimed class holds (fails on both sides) but not signed: signing accepts a failing trial. Forced realistic only (G3): ADOPT ran variant 1 on this seed, P1F runs variant 0 (K-LEAK's hashed variant rule); both fail because the reference's report (reports.dog_1.urgency 'urgent') is a judgement, not a perceived value (pets' not_fixed; VERIFY_HARDENING typed reports / judgement fields). Own mode passes 5/5. To accept it as a known forced-realistic failure, add this row to rows (and a reviewed row with code P1 to gate/P1F/reviewed.json): {\"kind\": \"verdict\", \"key\": \"T-dda4e199f3f5b0-01\", \"seed\": 1, \"mode\": \"realistic\", \"digest\": \"d31b4c8327091f0d\"}"
+  }
+ ],
+ "summary": {
+  "signed": {
+   "verdict:wrong-list:own": 206,
+   "verdict:fix:own": 4,
+   "verdict:wrong-list:realistic": 203,
+   "verdict:fix:realistic": 14,
+   "edit:edit:": 14,
+   "test-removal:test-removal:isolated": 7,
+   "test-removal:test-removal:core": 1
+  },
+  "rejected": 1,
+  "p1_claims": {
+   "holds": 410,
+   "class holds, verdict digest changed since P1": 2,
+   "claim does not hold": 2,
+   "class holds": 1
+  }
+ },
+ "p1_claims_not_holding_as_drafted": [
+  {
+   "kind": "verdict",
+   "key": "T-0908068a0b4269-01",
+   "seed": 97,
+   "mode": "own",
+   "claimed": "wrong-list",
+   "status": "class holds, verdict digest changed since P1 (25bf4c285dba42eb -> 16bb28acfab81734): P1's signature would not apply"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-7d4006bda247ba-01",
+   "seed": 41,
+   "mode": "own",
+   "claimed": "both-fail",
+   "status": "claim does not hold: final class fix (claimed both-fail)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-0908068a0b4269-01",
+   "seed": 97,
+   "mode": "realistic",
+   "claimed": "wrong-list",
+   "status": "class holds, verdict digest changed since P1 (0f80bd8cf2f9f1ab -> bd35f6a4094ece47): P1's signature would not apply"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-7d4006bda247ba-01",
+   "seed": 41,
+   "mode": "realistic",
+   "claimed": "both-fail",
+   "status": "claim does not hold: final class fix (claimed both-fail)"
+  },
+  {
+   "kind": "verdict",
+   "key": "T-dda4e199f3f5b0-01",
+   "seed": 1,
+   "mode": "realistic",
+   "claimed": "both-fail",
+   "status": "class holds (both-fail), not signed: the trial fails in the final record"
+  }
+ ]
+}

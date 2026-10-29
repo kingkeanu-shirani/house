@@ -985,6 +985,11 @@ class LawbookTests(unittest.TestCase):
             self.assertEqual(row["duplicated_by"] == (), law_id in self.ACTIVE, law_id)
         self.assertEqual(set(lawbook.LAWS["furniture_tip"]["duplicated_by"]),
                          {"mechanisms", "manipulation", "safety", "climate"})
+        # every legacy copy of contact_heat, the list of copies to retire when the law flips (phase-1 finish, food's
+        # request: admin_inventory's handling._hot_contact and tools_vehicles' tools._hot_on_support were missing; food
+        # keeps one for worlds without the others and steps aside while one of them is loaded)
+        self.assertEqual(set(lawbook.LAWS["contact_heat"]["duplicated_by"]),
+                         {"manipulation", "appliances_cooking", "admin_inventory", "tools_vehicles", "food"})
 
     def test_settle_order_follows_tier1_physics_6_1(self):
         order = {law: row["order"] for law, row in lawbook.LAWS.items() if row["order"] is not None}

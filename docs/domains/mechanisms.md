@@ -8,8 +8,9 @@ and fixtures are operated with: knobs, dials, valves, switches (incl. 3-way), bu
 hold), touchscreens, levers, handles, trigger sprayers and pumps.
 
 Code: `house_sim/systems/mechanisms/` (package). Types: `house_sim/data/types/mechanisms.json` (72 types).
-Tests: `tests/test_mechanisms.py` (194 tests, 18 of them for the tier-1 adoption in `Tier1PhysicsAdoptionTests`,
-`Tier1BodyAdoptionTests`, `Tier1CameraAdoptionTests`, `Tier1SweepAdoptionTests`; pass isolated
+Tests: `tests/test_mechanisms.py` (221 tests, 18 of them for the tier-1 adoption in `Tier1PhysicsAdoptionTests`,
+`Tier1BodyAdoptionTests`, `Tier1CameraAdoptionTests`, `Tier1SweepAdoptionTests`, 27 for the stabilisation phase 1 in
+`Phase1StabiliseTests` and `Phase1FinishTests`, sections 18 and 19; pass isolated
 (`HOUSE_SIM_DOMAINS=core,mechanisms`), strict, with all 16 domains loaded, and with the furniture_tip, hang, wind and rain
 laws forced on). Examples: `tasks/authored/mechanisms__examples.json` (12 specs, oracle; A-8910a09f802fbf-01 is schema 3)
 and `tasks/authored/mechanisms__perception.json` (3 realistic-perception specs, section 14); all pass `--check` on seeds
@@ -43,8 +44,12 @@ sub-stepped at 1 s internally so perturbations land mid-travel; each 1 s step ma
 obstructions); `mechanisms.slow` runs every 300 s with the accumulated dt (both of its processes are linear in dt).
 Every invariant takes the World as its third argument (`fn(state, baseline, world)`, kernel v2.3) and reads its
 static indexes (`common.ids_for`); the constant baseline side is computed once per episode (`world.baseline_value`).
-Benchmark (`tools/bench_systems.py 20`, all 16 domains): `mechanisms.tick` 0.04 ms and `mechanisms.slow` 0.01 ms per
-30 s substep (whole engine ~5 ms); the domain's invariants cost ~0.02 ms per evaluation.
+Benchmark (`tools/bench_systems.py 40 0 1 2 3`, all 16 domains, phase-1 finish): `mechanisms.tick` 0.02 ms and
+`mechanisms.slow` 0.003 ms per 30 s substep (whole engine ~3.7 ms); its code costs ~2 ms of a 1 h wait (the idle
+probes); the domain's invariants cost ~0.02 ms per evaluation. Every index predicate declares the fields it reads
+(`common.INDEX_READS`), and the indexes the systems, their idle probes and the episode start look up
+(`common.PER_SUBSTEP_INDEXES`) are built by `world._prebuild_indexes` (episode_start, order -80) before any hook
+writes, on the plain records (section 19).
 
 -----------------------------------------------------------------------------------------------
 
@@ -139,11 +144,16 @@ appliance with `panel`, a food jar with `mech: {"kind": "screw_lid"}`, a compost
 | `lower` | target, to_frac, part, speed controlled/release/drop, force | blinds (stops on sill objects; release crushes them), sashes, hinged lids (drop slams), `part=security_bar` on sliders, `part=flag` | 4 s |
 | `tilt_slats` | target, angle_deg (-80..80) or direction open/closed_down/closed_up | venetian/vertical blinds and shutters; +80 is the privacy direction | 2.5 s |
 
+Every verb works a mechanism or a device, so every one is declared `operates=True` (phase-1 finish, section 19): with
+realistic perception the kernel refuses it on a thing the robot takes for an unfamiliar (novel) thing with its one
+identify-first message, before any hook of this domain (the operation rule in docs/PERCEPTION.md: unfamiliar things are
+moved and inspected, not operated). Inspect or read it first. Not part of the action fingerprint.
+
 ### Hooks on core verbs
 
 | Core verb | Mechanisms behaviour |
 |---|---|
-| `open` (before/after, order 50) | refuses: engaged magnetic/strap child locks (latch-type is pressed through), explicit latches, closed clasps, hidden catch, intact tamper band, derailed track, childproof knob cover, locked sash, stuck sash/lid, sticking drawer (resistance message), filing-cabinet interlock. After: open_frac (child window stops limit it), unlatch, swing contacts with people/pets standing in the swing on the far side (collision; injury if fast/small), items standing in the swing are knocked over, door dash of escape-prone pets toward an escape zone, leaning items fall out of cabinets (unless opened <= 25 %), items resting on hinged lids slide off, unanchored dressers tip, upper cabinet doors swing toward people, clamshell cases opened upright tip, snap lids squeezed open spill |
+| `open` (before/after, order 50) | refuses: engaged magnetic/strap child locks (latch-type is pressed through), explicit latches, closed clasps, hidden catch, intact tamper band, derailed track, childproof knob cover, locked sash, stuck sash/lid, sticking drawer (resistance message), filing-cabinet interlock. After: open_frac (child window stops limit it), unlatch, swing contacts with people/pets standing in the swing on the far side (collision; injury if fast/small), items standing in the swing are knocked over, door dash of escape-prone pets toward an escape zone (standalone only: with the pets domain loaded its dash after `open`, `pull_handle` and `push_handle` is the one draw), leaning items fall out of cabinets (unless opened <= 25 %), items resting on hinged lids slide off, unanchored dressers tip, upper cabinet doors swing toward people, clamshell cases opened upright tip, snap lids squeezed open spill |
 | `close` (before 50 / after 90) | refuses when a person/pet is in the jamb or on the sill, contents protrude, an item lies in the path or across the threshold, something is caught behind a drawer, someone is using it, an AC unit sits in the window. After: latch catch (sag, offsets, bounce, faults), slam at fast speed, child locks re-engage (latch/magnetic), double-leaf order, auto-lock, freezer-lid seal, lid seals, cabinet hinge misadjustment leaves it ajar, forced-entry evidence on windows |
 | `move` | before: a door open less than the robot's width refuses; after: self-closing doors/gates close (and latch) behind the robot unless propped/held; passing a door marked `forced_entry` counts a safety violation |
 | `lock`/`unlock` | strike offset and bolt seating, faults, padlocked hasps, admission approval, window keeper alignment, lock points, smart-lock display, auto-relock |
@@ -176,7 +186,10 @@ appliance with `panel`, a food jar with `mech: {"kind": "screw_lid"}`, a compost
   (Wetness is only added here, never dried, so no `drying_owner` is claimed.)
 * Pets with `escape_risk` slip out of open passages toward escape zones; cats through open,
   unscreened windows. Only without the pets domain: with it loaded its own systems draw these escapes (pets.agents,
-  pets.exposure) and this domain stands down (`world.pets_own_escapes`), so the hazard is not counted twice.
+  pets.exposure) and this domain stands down (`common.pets_own_escapes`), so the hazard is not counted twice; the same
+  holds for the door dash when the robot opens a door (`closures._door_dash`, section 19). Escapes this domain's own
+  mechanics cause (a dog pushing through an unlatched gate in a load test) go through pets' escape
+  path with this domain's attribution (`behavior.escape(robot=)`).
 * Pet doors admitting entry at night with `wildlife_risk` -> wildlife intrusion.
 * Armed-away alarm panels with interior motion and a pet/person moving -> `false_alarms`.
 * Only while a flame is lit or a heater runs: closed curtains over a lit flame on the sill ignite in ~1 s,
@@ -673,7 +686,9 @@ inspect), `combination_padlock`, `child_lock_part` (spring vs magnetic child-loc
 (soap / lotion / sanitizer pump bottles, resolve read, `label_fields: ["label_text"]` so only the printed label
 identifies one; the dispenser helper prints a `label_text`), and `trigger_bottle` joins the kernel's `spray_bottle`
 group (unlabeled stays "spray bottle of liquid"; core `read` refuses an unlabeled bottle, so its `liquid` is never
-read). The magnetic lock key is in the kernel's `key` group.
+read), and `magnetic_lock_key` (a round plastic-cased magnet, `round magnet key` until inspected, candidates
+`magnetic lock key`; phase-1 finish: it was in the kernel's `key` group, whose record showed one size for a 6 x 2 x
+0.3 cm metal key and a 5 x 5 x 1.5 cm disc that the geometric camera, like a person, tells apart at a glance).
 
 **Actions that reveal information:** `inspect` (core grant + the seen view above); `pull_handle`/`push_handle
 test=true` grants touch knowledge of `latched`/`locked` (it holds or it moves); `pull_handle force=gentle` on a
@@ -975,15 +990,16 @@ phase's.
   kind / level / description / break once). The harm-attribution rule of the whole domain is section 5.
 * **Pet escapes without pets' path** (adoption breakage): `closures.escape` set `escaped` directly. With the pets
   domain loaded it now goes through `pets.behavior.escape` (where the pet lands and runs off, its hiding and view
-  fields, the bolt as a visual event at the opening), and pets' count of `pet_escape` is corrected to this domain's
-  attribution (a scene's gate a dog pushes through is exogenous); standalone it moves the pet and the geometric camera
+  fields, the bolt as a visual event at the opening), with this domain's attribution (a scene's gate a dog pushes
+  through is exogenous; phase-1 finish: passed as `behavior.escape(robot=)`, where this phase corrected pets' count
+  after the call, section 19); standalone it moves the pet and the geometric camera
   may witness the bolt (`pets.harm_escape`). Scripted moves of pets (`agent_to`, dashing under a garage door) sync
   pets' hiding fields at once (`common.agent_moved`).
 * **Pet escapes counted twice** (review M4, duplicated mechanics): the time-driven escapes through open passages and
   unscreened windows were drawn here and by pets (pets.agents, pets.exposure) when both are loaded. With pets loaded
   this domain stands down (`world.pets_own_escapes`; its idle probe too); standalone it keeps its model. The door dash
-  when the robot opens a door stays here (it also covers `pull_handle` / `push_handle` opens, which pets does not
-  hook); pets' own dash on core `open` draws as well (request below).
+  when the robot opens a door was drawn by both domains until the phase-1 finish (section 19: pets owns it while
+  loaded, after `open`, `pull_handle` and `push_handle`).
 * **The app view was assigned** (adoption breakage): `obs.smart_home_app` is merged key by key with what other app
   observers (electrical's hub) put there.
 * **Exogenous harms** (review M9 / P1 C8): section 5. A probe of every authored spec (243 x 5 seeds: idle, reference,
@@ -1013,8 +1029,61 @@ phase's.
   point with no listener today (a pulse button: blenders, food processors).
 * **Docs**: sections 3, 3a, 5, 16 and 17 updated (attribution; the vocabulary file and core key rings exist now).
 
-Not changed here (requests filed in catalog/analysis/phase1/mechanisms.json): pets' `behavior.escape` taking an
-attribution (so the stat correction above can go) and one owner for the door dash on core `open`; safety's
+Not changed here (requests filed in catalog/analysis/phase1/mechanisms.json; the first two and the operation rule were
+settled by the phase-1 finish, section 19): pets' `behavior.escape` taking an attribution (so the stat correction
+above can go) and one owner for the door dash on core `open`; safety's
 `fire_developed` counting `fire` for a fire whose ignition was exogenous; the kernel's capability registry and its
 generic refusal for unfamiliar (novel) things (review I4: mechanisms verbs will call `ctx.refuse_unidentified` before
 their type-dependent guards once the kernel decides how an unfamiliar thing may be operated).
+
+## 19. Phase-1 finish (breakages, red-team findings and the G7 substep cost)
+
+The phase-1 integration (catalog/analysis/phase1/STATUS.md, breakages.json) left this domain three rows -- the door
+dash drawn twice with its escape attribution corrected after the call, unfamiliar things told apart by this domain's
+verbs, and the key group's size spread -- plus its share of the P1 gate's G7 regression. Each has a regression test in
+`Phase1FinishTests`; result: catalog/analysis/phase1/finish_mechanisms.json.
+
+* **One door dash per opening** (breakage; pets' phase-1 requests 1 and 2): with the pets domain loaded
+  `closures._door_dash` stands down (`common.pets_own_escapes`, the same switch as the time-driven escapes of
+  section 3), so pets' dash after `open`, `pull_handle` and `push_handle` is the one draw from the step's random
+  numbers; standalone this domain's dash is (an opening of 30 % or more, within 3 cells, `max(escape_risk, 0.85 for a
+  door_dash pet)`). Before, both drew for the same opening.
+* **Escape attribution through pets' path**: `closures.escape` passes this domain's judgment to
+  `pets.behavior.escape(..., robot=)`, and pets keeps the one record (the global `pet_escape` flag or
+  `pet_care.exogenous`, and the `pets.harm_escape` event with its `by`). The correction of `stats.pet_escape` after
+  the call, the duplicate `harm_pet_escape` event and this section's exogenous count of the same escape are gone.
+  Standalone, `common.harm` keeps the record as before (event `harm_pet_escape`, `mechanisms.exogenous`).
+* **Unfamiliar things are not operated** (breakage from the red team's novel sweep; review I4): `pull_handle` and
+  `push_handle` opened only an unfamiliar kettle ("Pulled ... open to 100%" vs "Nothing here opens by pulling") and
+  every verb here judged an unidentified thing by its true type. All 14 verbs are declared `operates=True` (section 2),
+  so the kernel answers its one identify-first refusal before any hook of this domain; oracle mode operates them as
+  before. The red team's sweep (twins_generic.py novel_sweep --sweep, six unfamiliar types, 597 commands): this
+  domain's differences 2 -> 0 in room mode, and 0 in geometric mode too.
+* **The magnet key's own group** (red team, review L2 residual): `magnetic_lock_key` (5 x 5 x 1.5 cm) joined the
+  kernel's `key` group (a 6 x 2 x 0.3 cm metal key) through its category, so the record showed one size while the
+  geometric camera's geometry told them apart, and the group's candidates never named it. A magnetic lock key is a
+  round plastic-cased magnet that nobody takes for a metal key: its own group (`round magnet key`, candidates
+  `magnetic lock key`, resolved by inspect), confused only with other magnet keys. `registry.lookalike_spreads` no
+  longer lists `key`.
+* **G7, the substep cost** (no result changed): the domain's per-substep systems cost the same as at ADOPT in steady
+  state; the regression was the first builds of the static indexes inside the first substep of an episode (pet doors,
+  touchscreens, flames and heaters, paint cans), which the kernel's read views (review M3) made dearer, and
+  `kind_of` building a tag set for every record a door, window or pet-door index judged. Now `kind_of` rejects a
+  record none of whose tags its inference tests before building the set (exactly the same answers:
+  `test_kind_of_answers_as_before_on_every_record`), every index predicate declares the fields it reads
+  (`common.INDEX_READS`), and `world._prebuild_indexes` (episode_start, order -80, before any hook writes) builds the
+  per-substep indexes on the plain records. Driven as `tools/bench_systems.py 40 0 1 2 3` drives them (best of 3 on
+  the same machine): `mechanisms.tick` 0.043 -> 0.017 ms and `mechanisms.slow` 0.0077 -> 0.0025 ms per substep
+  (ADOPT 0.029 / 0.005); this domain's code in a 1 h wait (its idle probes) 3.6 -> 2.1 ms (ADOPT 2.7 ms); its index
+  builds over reset, an observation and a 6 h wait 8.1 -> 2.5 ms per episode (generation 1 and 2, oracle and
+  realistic). The early build changes no state or observation (digests with and without it are equal:
+  `test_building_the_indexes_at_episode_start_changes_no_result`). Before / after this section's changes (two
+  snapshots of the same tree): the verdict rows of all 243 authored specs x 5 seeds in their own mode are identical
+  (reference, idle and every wrong plan), and so are the room golden's 8 runs and 243 reference-plan states
+  (`tools/golden.py dump --all` + `diff`: 0 changed); T-c541cb694906f5-01's wrong plan that opens the front door
+  before clipping the leash on still fails (pets' dash).
+
+Left to others (requests in finish_mechanisms.json): pets now owns the door dash while loaded, and its dash after
+`pull_handle` / `push_handle` fires for any opening those verbs leave, including the 10 % a test pull swings an
+unlatched door (`test=true`: "it swung open a little"), where this domain's dash needs 30 %; the free-text echo of
+an unresolved target's true type (red team, kernel `realism.inbound`; no verb here has a free-text parameter).

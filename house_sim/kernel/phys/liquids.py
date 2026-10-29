@@ -235,9 +235,16 @@ def pour_rate_lps(src, opening=None):
 
 
 def hold_capacity_l(state, eid, phys=None):
-    """Litres an entity can hold as a pool: its capacity_l, else top area x rim_m for a rimmed support (tray, saucer,
-    sink); None when it cannot hold liquid at all."""
+    """Litres an entity can hold as a pool: its pool_l when it has one, else its capacity_l, else top area x rim_m
+    for a rimmed support (tray, saucer, sink); None when it cannot hold liquid at all.
+
+    pool_l (phase 1, appliances_cooking's request): the litres a cavity pools before liquid runs over its lip, for a
+    holder whose capacity_l is a storage volume, not a vessel's (an opened oven holds about a litre on its floor, not
+    its 75 L); 0 holds nothing."""
     rec = state["entities"][eid]
+    pool = finite(rec.get("pool_l"))
+    if pool is not None and pool >= 0:
+        return pool if pool > 0 else None
     cap = num(rec.get("capacity_l"))
     if cap > 0:
         return cap
@@ -387,9 +394,10 @@ def pour_in(w, dst, liters, liquid="water", temp_c=None, source=None, density=No
 
     A destination that drains through (perforated, an open weave: drains_through) lets everything through to what is
     below it; a non-holder (not liquid-tight: a roll-top bread box, a soft-sided bag) is spilled onto. Into a
-    holder: the thermal-shock check runs first while the thermal_shock law is active (thermal.pour_shock_check: cold
-    into a hot vessel couples 1.0, hot into a colder one 0.6; a cracked holder spills it all), the bulk temperature
-    mixes by heat capacity, the liquid is added, and what does not fit overflows where dst stands."""
+    holder: a domain that models the holder's contents itself takes its share first (arrives: phys.liquid_arrives),
+    then the thermal-shock check runs while the thermal_shock law is active (thermal.pour_shock_check: cold into a hot
+    vessel couples 1.0, hot into a colder one 0.6; a cracked holder spills the rest), the bulk temperature mixes by
+    heat capacity, the liquid is added, and what does not fit overflows where dst stands."""
     liters = max(0.0, num(liters))
     if liters <= 0:
         return 0.0, 0.0
@@ -403,18 +411,23 @@ def pour_in(w, dst, liters, liquid="water", temp_c=None, source=None, density=No
     if not holds_liquid(state, dst, p):
         spill(w, liters, liquid, onto=dst, source=origin, by=by)
         return 0.0, round(liters, 4)
+    taken = arrives(w, dst, liters, liquid, origin, by)
+    if taken > 0:
+        liters -= taken
+        if liters <= 1e-9:
+            return round(taken, 4), 0.0
     take = round(min(liters, max(0.0, hold_capacity_l(state, dst, p) - num(rec.get("liquid_l")))), 4)
     if take > 0 and temp_c is not None:
         if thermal.pour_shock_check(w, dst, temp_c, by=by):
             deposit_below(w, dst, liters, liquid, source=origin, by=by)
-            return 0.0, round(liters, 4)
+            return round(taken, 4), round(liters, 4)
         thermal.mix_in(w, dst, take, temp_c, liquid)
     if take > 0:
         _mix_into(w, dst, take, liquid, density)
     over = liters - take
     if over > 1e-9:
         deposit_below(w, dst, over, liquid, source=dst, by=by, cause="overflow")
-    return round(take, 4), round(over, 4)
+    return round(take + taken, 4), round(over, 4)
 
 
 def transfer(w, src, dst, liters, by=None):
@@ -502,17 +515,29 @@ def absorb(w, absorber, source=None, liters=None):
     return wet(w, absorber, take, liquid, source=source)
 
 
-def _catch(w, eid, liters, liquid, source):
-    """eid catches liquid from above: a holder pools it up to its capacity, anything else is wetted.
-    Returns (litres kept, "held" | "soaked" | "film")."""
+def arrives(w, eid, liters, liquid, source=None, by=None):
+    """Litres of liquid arriving in holder eid that a domain modelling eid's contents itself takes, before the kernel
+    pools the rest (phase 1, outdoor_plants' request: a pour, drip or overflow into a plant pot wets its soil and drains
+    to the saucer instead of standing as liquid_l): the first answer of @hook("phys.liquid_arrives") fn(w, eid, liters,
+    liquid, source, by) -> litres taken (None: not this hook's), clamped to [0, liters]. 0.0 without such a hook."""
+    for taken in run_hooks("phys.liquid_arrives", w, eid, round(liters, 4), liquid, source, by):
+        if taken is not None:
+            return round(min(liters, max(0.0, num(taken))), 4)
+    return 0.0
+
+
+def _catch(w, eid, liters, liquid, source, by=None):
+    """eid catches liquid from above: a holder pools it up to its capacity (after a phys.liquid_arrives hook took its
+    share: arrives), anything else is wetted. Returns (litres kept, "held" | "soaked" | "film")."""
     state = w.s
     p = props.props(state, eid)
     if holds_liquid(state, eid, p):
+        taken = arrives(w, eid, liters, liquid, source, by)
         room = max(0.0, hold_capacity_l(state, eid, p) - num(state["entities"][eid].get("liquid_l")))
-        take = round(min(liters, room), 4)
+        take = round(min(liters - taken, room), 4)
         if take > 0:
             _mix_into(w, eid, take, liquid)
-        return take, "held"
+        return round(take + taken, 4), "held"
     return wet(w, eid, liters, liquid, source=source), "soaked" if absorb_capacity_l(p) > 0 else "film"
 
 
@@ -646,7 +671,7 @@ def _run_down(w, onto, liters, liquid, source, by, above=None):
     for level in range(MAX_CHAIN):
         if node not in entities or left <= 1e-9:
             break
-        taken, mode = _catch(w, node, left, liquid, source)
+        taken, mode = _catch(w, node, left, liquid, source, by)
         if level == 0:
             caught_first = taken > 0
         if mode == "film" and above in entities:

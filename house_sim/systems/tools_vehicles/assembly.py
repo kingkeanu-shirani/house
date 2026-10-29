@@ -467,6 +467,8 @@ def inspect_assembly(w, eid, record, details, ctx):
         details["pin_holes"] = sorted(s for s, i in (record.get("slots") or {}).items() if PIN_SLOT.match(s) and not i.get("item"))
 
 
+@C.per_step_index("tall_assemblies")
+@C.index_reads("assembly")
 def _tall_assembly(rec):
     return isinstance(rec.get("assembly"), dict) and bool(rec["assembly"].get("tall"))
 

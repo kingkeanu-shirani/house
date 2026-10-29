@@ -99,6 +99,30 @@ Phase-1 red team (catalog/analysis/phase1/red_defects.json; FIX2):
   through git, not with the copy's own manifest. `compare` refuses a --root other than the project unless
   --foreign-root is given; meta.json records the policy root.
 
+Phase-1 red team, second pass (K-GATE2: the holes FIX2's fixes left open):
+* Hand-over base. A record or a comparison is a hand-over only against its package's base: the stage's default
+  previous gate, or the base of a sub-stage the package runs in (SUBSTAGE_BASE: phase 1's ADOPT for ADOPT:<domain>
+  and the P1 packages). Recorded with `--prev none` while a base exists, or against any other record (an agent's own
+  earlier record already carrying the regression, a copy of the record itself) it ends INCOMPLETE: the delta rules
+  passed against a record nobody accepted. `--stage` is for main-session ids only (a package's stage is its own:
+  `--stage A0` dropped the previous gate and every later feature requirement); fewer seeds than 0 1 2 41 97 or fewer
+  extras than the package's are narrowed records (INCOMPLETE).
+* The tree a record describes is this project or an isolated copy made from one of its commits; any other folder
+  (a copy with its own git history) fails TREE in `compare`.
+* `compare` recomputes what made the record's own G3 / G4 / G6 fail beyond the deltas: the G2/G3 determinism check
+  of the realistic specs, spec-worker crashes and the fuzz and audit variants the package requires (coverage,
+  --camera geometric, --battery) even when the previous record lacks them too.
+* Per-test ids, once a record has them, are required: a later record whose test file reports counts only is a
+  regression (a test deleted and another added kept the count).
+* Wall-clock bounds are no correctness test. G1 / G1b / G8 and the G9 test extras run with HOUSE_SIM_PERF_TESTS=0
+  (the bounds skip with "wall-clock bound off"; the worker records them as outcome "perf"); G7 runs them alone after
+  the benchmarks (`green_tests.py --perf`: each bound passes when one of 3 attempts meets it) into tests.json "perf".
+  A test moved to the perf job is excused against the previous record only when that job ran it; a bound that fails
+  every attempt fails G7 (and compare's PERF). A tests.json row whose counts disagree with its own per-test outcomes
+  is a regression too, and compare's G5 fails on layout counts or generation-1 digests the record does not carry.
+* Every check result also carries the previous record it was judged against: a partial run against another previous
+  record than the merged checks' is STALE like one on another tree.
+
 Stdlib only; Python 3.9+. No network. Worker processes import house_sim from --root.
 """
 import argparse
@@ -132,7 +156,13 @@ KERNEL_TESTS = ("test_kernel*.py", "test_perception.py", "test_physics_*.py", "t
                 "test_body_*.py", "test_timeline.py", "test_world_savepoint.py", "test_monitor.py", "test_phases.py",
                 "test_clock.py", "test_predicates_v3.py", "test_dialogue.py", "test_reports.py", "test_mind.py",
                 "test_requests_obs.py")
-RUNTIME_ENV = ("HOUSE_SIM_DOMAINS", "HOUSE_SIM_STRICT", "HOUSE_SIM_SAFE", "HOUSE_SIM_GOLDEN_ALL")
+RUNTIME_ENV = ("HOUSE_SIM_DOMAINS", "HOUSE_SIM_STRICT", "HOUSE_SIM_SAFE", "HOUSE_SIM_GOLDEN_ALL",
+               "HOUSE_SIM_PERF_TESTS")
+# wall-clock bounds (K-GATE2): off in the correctness runs (G1, G1b, G8, the G9 test extras), on in G7's perf job
+PERF_ENV = "HOUSE_SIM_PERF_TESTS"
+PERF_OFF = {PERF_ENV: "0"}
+PERF_SKIP_REASON = "wall-clock bound off"       # the skip message every bound gives with HOUSE_SIM_PERF_TESTS=0
+PERF_ATTEMPTS = 3
 TRANSIENT = ("tools/.fuzz_replay_*.json",)        # written and removed by tools/fuzz.py while G6 runs
 CATALOG_ID = re.compile(r"\b[A-Z]-[0-9a-f]{14}-\d{2}\b")
 CODE = re.compile(r"(?<![\w-])(?:[A-Z]-)?R\d+(?![\w-])|(?<![\w-])(?:D[123]|ADOPT|P1)(?![\w-])")
@@ -440,8 +470,23 @@ PACKAGES["P1-ALL"] = _pkg("P1", sorted(set(PACKAGES["ADOPT-ALL"]["files"]) | set
                           allow=["state", "obs", "verdict", "fingerprint", "gen1"], codes=["ADOPT", "P1"], aka=["P1"],
                           extras=["physics", "camera", "body", "sweep", "gen"], policy=True,
                           note="phase 1 of the stabilisation, merged (16 domains' fixes, kernel agents, K-GATE)")
+# the phase-1 red team's second gate pass (K-GATE2: catalog/analysis/phase1/finish_K-GATE2.json): the gate and process
+# tooling, the verifier's interim never-acted rule, the golden policy, the auditor's hazard-order probe and CI. Its
+# verify.py change fails wrong plans that never act (verdict changes of specs it does not own: reviewed rows, code P1,
+# and the main session's signatures like any other package's)
+PACKAGES["K-GATE2"] = _pkg("P1", sorted(set(PACKAGES["K-GATE"]["files"]) | {
+    "tools/golden.py", "tools/perception_audit.py", "house_sim/kernel/reports.py", "house_sim/kernel/realism.py",
+    ".github/workflows/*", "tests/test_perception.py", "catalog/analysis/phase1/finish_K-GATE2.json"}),
+    allow=["verdict"], codes=["P1"], policy=True,
+    note="phase-1 red team, second gate pass: hand-over bases, perf job, never-acted wrong plans, golden policy")
+PACKAGES["P1-ALL"]["files"] = sorted(set(PACKAGES["P1-ALL"]["files"]) | set(PACKAGES["K-GATE2"]["files"]))
 STAGE_ORDER = ("A0", "A", "B0", "B1", "B2", "B3", "B4", "B5", "B6", "C", "C1", "ADOPT", "P1", "D1", "D2", "D3")
 DEFAULT_PREV = {"A": "A0", "B0": "A0", "B1": "B0", "ADOPT": "C1", "P1": "ADOPT"}
+# the record every package of a sub-stage hands over against (K-GATE2): a package's hand-over base is its stage's
+# default previous gate or the base of a sub-stage it runs in -- phase 1's domain owners record ADOPT:<domain> (stage
+# ADOPT) against ADOPT. A comparison with any other record (an agent's own earlier record, a copy of the record) is an
+# iteration aid, never a hand-over: the delta rules passed against a record nobody accepted
+SUBSTAGE_BASE = {"A": "A0", "ADOPT": "C1", "P1": "ADOPT"}
 # packages that run in parallel inside one sub-stage (G10 --shared-tree attributes their files instead of failing)
 SUBSTAGES = {"A": ("PHYS-DATA", "PHYS-STATICS", "PHYS-FLUIDS", "CAM-SIGHT", "BODY-MODEL", "GEN", "TIME-EVAL-LIB",
                    "PEOPLE-IO-LIB"),
@@ -449,7 +494,7 @@ SUBSTAGES = {"A": ("PHYS-DATA", "PHYS-STATICS", "PHYS-FLUIDS", "CAM-SIGHT", "BOD
              "B5": ("BODY-CORE", "NAV-M5", "BODY-FAULTS"), "C": ("TIME-EVAL", "PEOPLE-IO"),
              "ADOPT": tuple(["ADOPT:" + _d for _d in DOMAINS] + ["K-EVAL", "K-CAM", "ADOPT-INT"]),
              # phase 1: the 16 domain owners fix their own files (their ADOPT:<domain> packages) beside K-GATE
-             "P1": tuple(["ADOPT:" + _d for _d in DOMAINS] + ["K-GATE"])}
+             "P1": tuple(["ADOPT:" + _d for _d in DOMAINS] + ["K-GATE", "K-GATE2"])}
 
 
 def gate_dirname(name):
@@ -577,6 +622,20 @@ def short(value, n=400):
 
 def match_any(path, patterns):
     return any(fnmatch.fnmatchcase(path, p) for p in patterns)
+
+
+_GREEN = []
+
+
+def _green_tests():
+    """tools/orchestration/green_tests.py (its perf job: perf_tests, run_perf), loaded once from beside this script."""
+    if not _GREEN:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("green_tests_for_gate", str(HERE / "green_tests.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _GREEN.append(module)
+    return _GREEN[0]
 
 
 def source_has(root, rel, needle):
@@ -980,11 +1039,13 @@ def worker_trials(chunk_path, out_path):
                 out.flush()
 
 
-def worker_unittest(out_path, target):
-    """Run one test target exactly as `python -m unittest <target>` does (the same report on stderr, exit status 0 /
-    1, and 5 when no test ran) and write every test's outcome to out_path: {"tests": {test id: "ok" | "skip" | "xfail"
-    | "xpass" | "fail" | "error"}, "ran"} (FIX2: the gate only read exit codes, so a failing test skipped with
-    @unittest.skip, or a deleted test file, passed). Returns the exit status."""
+def worker_unittest(out_path, *targets):
+    """Run test targets exactly as `python -m unittest <target> ...` does (the same report on stderr, exit status 0 /
+    1, and 5 when no test ran) and write every test's outcome to out_path: {"tests": {test id: "ok" | "skip" | "perf"
+    | "xfail" | "xpass" | "fail" | "error"}, "ran"} (FIX2: the gate only read exit codes, so a failing test skipped
+    with @unittest.skip, or a deleted test file, passed). "perf" is a wall-clock bound skipped because
+    HOUSE_SIM_PERF_TESTS=0 (its skip message starts with PERF_SKIP_REASON): moved to G7's perf job, not skipped
+    (K-GATE2). Returns the exit status."""
     import unittest
     sys.path[:] = [p for p in sys.path if p and Path(p).resolve() != HERE]
     sys.path.insert(0, os.getcwd())          # like `python -m unittest`: the project (cwd) first, not this folder
@@ -1010,7 +1071,7 @@ def worker_unittest(out_path, target):
 
         def addSkip(self, test, reason):
             super().addSkip(test, reason)
-            note(test, "skip")
+            note(test, "perf" if str(reason).startswith(PERF_SKIP_REASON) else "skip")
 
         def addExpectedFailure(self, test, err):
             super().addExpectedFailure(test, err)
@@ -1028,7 +1089,7 @@ def worker_unittest(out_path, target):
     class Runner(unittest.TextTestRunner):
         resultclass = Result
 
-    program = unittest.main(module=None, argv=["python -m unittest", target], testRunner=Runner, exit=False)
+    program = unittest.main(module=None, argv=["python -m unittest"] + list(targets), testRunner=Runner, exit=False)
     result = program.result
     write_json(out_path, {"tests": dict(sorted(outcomes.items())), "ran": result.testsRun})
     if result.testsRun == 0 and not result.skipped:
@@ -1190,14 +1251,35 @@ def _named(test, names):
     return any(test == n or test.startswith(n + ".") for n in names)
 
 
+def perf_ran(tests):
+    """{test id: passed} of the wall-clock bounds G7's perf job ran (tests.json "perf"; K-GATE2)."""
+    out = {}
+    for r in (tests or {}).get("perf") or []:
+        failed = set(r.get("failed") or [])
+        for tid in r.get("ids") or []:
+            out[tid] = out.get(tid, False) or tid not in failed
+    return out
+
+
+def perf_failures(tests):
+    """The wall-clock bounds that failed every attempt of G7's perf job: [(file, mode, test id)]."""
+    return [(r.get("file"), r.get("mode"), tid) for r in (tests or {}).get("perf") or []
+            for tid in r.get("failed") or []]
+
+
 def test_regressions(prev, cur, allow=None, signoff=None, checks=("G1", "G1b", "G8")):
     """Tests that went quiet between two tests.json records (FIX2: a failing test skipped with @unittest.skip, or a
     test file deleted, passed both record and compare): ([(check, file, mode, test, what)] not excused, [...] excused).
     With per-test ids on both sides: every id of the previous record that is gone, or that became skipped or an
-    expected failure; otherwise the counts: a file that is gone, ran fewer tests or skipped more. Excused by an
-    allowlist entry of kind "skip" or a committed signoff row {"kind": "test-removal", "test", "mode"?} naming the
-    test, its class or its module. A check missing from `cur` is not compared here (missing data is reported)."""
+    expected failure; otherwise the counts: a file that is gone, ran fewer tests or skipped more -- and once the
+    previous record has per-test ids, a file reporting counts only is itself a regression (K-GATE2: a deleted test
+    and an added one kept the count). A wall-clock bound skipped as outcome "perf" (HOUSE_SIM_PERF_TESTS=0) moved to
+    G7's perf job: excused when that job ran it (tests.json "perf"; pass or fail is G7's), a regression when it ran
+    nowhere. Excused by an allowlist entry of kind "skip" or a committed signoff row {"kind": "test-removal", "test",
+    "mode"?} naming the test, its class or its module. A check missing from `cur` is not compared here (missing data
+    is reported)."""
     signed = (signoff or {}).get("tests") or set()
+    in_perf = perf_ran(cur)
     bad, excused = [], []
     for check in checks:
         a_rows, b_rows = (prev or {}).get(check) or [], (cur or {}).get(check)
@@ -1218,15 +1300,36 @@ def test_regressions(prev, cur, allow=None, signoff=None, checks=("G1", "G1b", "
                 found += [(t, "removed") for t in sorted(before - now)]
                 found += [(t, "now skipped or an expected failure") for t in sorted(quiet_new - quiet_old)
                           if t in before]
+                # a wall-clock bound skipped here (outcome "perf") moved to G7's perf job: fine when that job ran it
+                found += [(t, "a wall-clock bound skipped here (HOUSE_SIM_PERF_TESTS=0) that G7's perf job did not "
+                              "run") for t in sorted(set((new.get("outcomes") or {}).get("perf", [])) & before)
+                          if t not in in_perf]
             else:
+                if old.get("ids") is not None and new.get("ids") is None and not new.get("rc"):
+                    found.append((_module_of(file), "per-test outcomes missing (the previous record has them; a "
+                                                    "count alone hides a deleted test replaced by another)"))
+                moved = [t for t in (new.get("outcomes") or {}).get("perf", []) if t in in_perf]
+                skipped_now = int(new.get("skipped") or 0) - len(moved)     # bounds G7's perf job ran are no skips
                 if int(new.get("ran") or 0) < int(old.get("ran") or 0):
                     found.append((_module_of(file), "ran {} -> {} test(s)".format(old.get("ran"), new.get("ran"))))
-                if int(new.get("skipped") or 0) > int(old.get("skipped") or 0):
-                    found.append((_module_of(file), "skipped {} -> {}".format(old.get("skipped"), new.get("skipped"))))
+                if skipped_now > int(old.get("skipped") or 0):
+                    found.append((_module_of(file), "skipped {} -> {}".format(old.get("skipped"), skipped_now)))
             for test, what in found:
                 ok = skip_allowed(allow, test, mode) is not None or \
                     _named(test, [t for t, m in signed if m in (None, mode)])
                 (excused if ok else bad).append((check, file, mode, test, what))
+    # a row whose counts disagree with its own per-test outcomes was not written by one unittest run (K-GATE2: a record
+    # with "skipped" raised or "ran" lowered but its ids untouched passed, the ids being compared instead of counts)
+    for check in checks:
+        for r in (cur or {}).get(check) or []:
+            if r.get("ids") is None or r.get("rc"):
+                continue
+            quiet = (r.get("outcomes") or {})
+            skips = len(quiet.get("skip") or []) + len(quiet.get("perf") or [])
+            if int(r.get("ran") or 0) != len(r["ids"]) or int(r.get("skipped") or 0) != skips:
+                bad.append((check, r.get("file"), r.get("mode"), _module_of(r.get("file")),
+                            "counts (ran {}, skipped {}) disagree with its per-test outcomes ({} tests, {} skipped)".format(
+                                r.get("ran"), r.get("skipped"), len(r["ids"]), skips)))
     return bad, excused
 
 
@@ -1616,6 +1719,44 @@ def coverage_loss(prev, cur, signoff=None):
     return [x for x in lost if x not in signed], [x for x in lost if x in signed]
 
 
+def required_variants(policy, root):
+    """{"G4": [...], "G6": [...]}: the perception-audit and fuzz variants a package's record must have run (the room
+    variants always; --camera geometric from CAM-RENDER on, --battery from BODY-FAULTS on, the coverage fuzz once
+    tools/fuzz.py has it) -- shared by `record` (collect_tools) and `compare` (K-GATE2)."""
+    out = {"G4": ["room"], "G6": ["room"]}
+    if "camera_tools" in policy["requires"]:
+        if source_has(root, "tools/perception_audit.py", "--camera"):
+            out["G4"].append("geometric")
+        if source_has(root, "tools/fuzz.py", "--camera"):
+            out["G6"].append("geometric")
+    if "fuzz_battery" in policy["requires"] and source_has(root, "tools/fuzz.py", "--battery"):
+        out["G6"].append("battery")
+    if source_has(root, "tools/fuzz.py", "--coverage"):
+        out["G6"].append("coverage")
+    return out
+
+
+def realistic_mismatch(own_rows, realistic_rows):
+    """The realistic-own-mode trials whose G2 and G3 records differ ("key seed N"): the two runs of one spec in one
+    process configuration must agree (a free cross-process determinism check; `record` and `compare`)."""
+    own = index_trials(own_rows)
+    strip = ("mode", "secs")
+    out = []
+    for r in realistic_rows:
+        a = own.get((r["key"], r["seed"]))
+        if a is None or a.get("perception") != "realistic":
+            continue
+        if {k: v for k, v in a.items() if k not in strip} != {k: v for k, v in r.items() if k not in strip}:
+            out.append("{} seed {}".format(r["key"], r["seed"]))
+    return out
+
+
+def worker_crashes(rows):
+    """Trial rows the gate filled in because their spec worker died ("key seed N")."""
+    return ["{} seed {}".format(r["key"], r["seed"]) for r in rows
+            if str(r.get("error") or "").startswith("worker failed")]
+
+
 RECORD_ONLY = ("G1c", "G9", "G10")       # checks compare does not recompute at all (their own status: OWN_STATUS)
 
 
@@ -1715,6 +1856,16 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=Non
                                                                                     describe_failing(failing)))
             if excused:
                 lines.append("  allowlisted failing specs ({}): {}".format(len(excused), describe_failing(excused)))
+        # what failed the record's own G2 / G3 beyond the deltas (K-GATE2: a crash or a nondeterministic pair the
+        # previous record shared passed compare)
+        crashed = worker_crashes(b)
+        if crashed:
+            problems.append("{} trial(s) lost to a spec-worker crash: {}".format(len(crashed), ", ".join(crashed[:5])))
+        if check == "G3":
+            mismatch = realistic_mismatch(scoped_rows(read_jsonl(cur_dir / "specs_own.jsonl"), globs), b)
+            if mismatch:
+                problems.append("NONDETERMINISTIC: {} realistic-spec trial(s) differ between the G2 and G3 runs "
+                                "({})".format(len(mismatch), ", ".join(mismatch[:5])))
         for p in problems:
             lines.append("  problem: " + p)
         add(check, "FAIL" if problems else "PASS", lines)
@@ -1723,6 +1874,10 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=Non
     if pa.get("G5") and ca.get("G5"):
         lines, bad = [], False
         pl, cl = pa["G5"].get("layout", {}), ca["G5"].get("layout", {})
+        if pl and not cl:
+            # K-GATE2: a record without its layout counts compared equal on nothing
+            bad = True
+            lines.append("layout counts missing in this record (the previous gate has them)")
         if pl and cl:
             if pl.get("by_kind_owner") != cl.get("by_kind_owner"):
                 bad = bad or "layout" not in policy["allow"]
@@ -1737,6 +1892,16 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=Non
         pg, cg = pa["G5"].get("gen1", {}).get("digests", {}), ca["G5"].get("gen1", {}).get("digests", {})
         common = sorted(set(pg) & set(cg))
         diff = [k for k in common if pg[k] != cg[k]]
+        # K-GATE2: digests the previous gate has, or the pinned entries this record counted, that it does not carry
+        lost = sorted(set(pg) - set(cg))
+        entries = ca["G5"].get("gen1", {}).get("entries")
+        short_of = isinstance(entries, int) and len(cg) < entries
+        if lost or short_of:
+            # a pinned entry re-keyed by a new house block is a generation-1 change (allowed for "gen1" packages);
+            # fewer digests than the record's own pinned entries is missing data
+            bad = bad or short_of or "gen1" not in policy["allow"]
+            lines.append("generation-1 digests missing: {} of the previous gate's, {} of {} pinned entries "
+                         "present".format(len(lost), len(cg), entries))
         if common:
             if diff:
                 bad = bad or "gen1" not in policy["allow"]
@@ -1752,6 +1917,13 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=Non
                 missing(check, label + " results")
             continue
         lines, bad = audit_regressions(check, pa.get(check), ca.get(check))
+        # the variants the package requires, whatever the previous record ran (K-GATE2: a record whose own G6 failed
+        # for a missing variant passed compare when the previous record lacked it too)
+        absent = [v for v in required_variants(policy, root)[check] if not isinstance(ca[check].get(v), dict)]
+        if absent:
+            bad = True
+            lines.append("required variant(s) missing: {} (the record's own {} fails for them)".format(
+                ", ".join(absent), check))
         if check == "G6":
             cov = ca[check].get("coverage")
             if isinstance(cov, dict) and cov.get("actions_registered"):
@@ -1789,6 +1961,14 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=Non
         add("G7", "FAIL" if bad else "PASS", lines)
     elif explicit and "G7" in recorded and not cb.get("G7"):
         missing("G7", "benchmark results")
+    # G7's perf job (K-GATE2): the wall-clock bounds alone, best of PERF_ATTEMPTS; one failing every attempt fails
+    perf_rows = (read_json(cur_dir / "tests.json", {}) or {}).get("perf")
+    if perf_rows is not None:
+        failed = perf_failures({"perf": perf_rows})
+        lines = ["wall-clock bounds alone: {} run(s) of {} bound(s), {} failing every attempt".format(
+            len(perf_rows), len({t for r in perf_rows for t in r.get("ids") or []}), len(failed))]
+        lines += ["  {} ({})".format(t, m) for _, m, t in failed[:20]]
+        add("PERF", "FAIL" if failed else "PASS", lines)
     # tests: every test passes except the dated allowlist (absolute); no test removed, skipped or turned into an
     # expected failure against the previous record (FIX2); the counts (informational)
     pt, ct = read_json(prev_dir / "tests.json", {}), read_json(cur_dir / "tests.json", {})
@@ -1850,7 +2030,8 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=Non
     ok = not any(s["status"] in FAILING for s in sections)
     return sections, ok
 def record_incomplete(meta):
-    """Why a record can never be a hand-over (some checks not recorded, or the specs narrowed), or None."""
+    """Why a record can never be a hand-over (some checks not recorded, the specs, the verification seeds or the
+    package's extras narrowed), or None."""
     meta = meta or {}
     recorded = meta.get("recorded") or list(CHECKS)
     why = []
@@ -1858,7 +2039,49 @@ def record_incomplete(meta):
         why.append("recorded " + ",".join(recorded))
     if meta.get("spec_files"):
         why.append("specs limited to " + meta["spec_files"])
+    seeds = meta.get("seeds")
+    if isinstance(seeds, list) and set(SEEDS) - set(seeds):
+        # K-GATE2: `--seeds 0` ran a fifth of the trials and passed G2-ABS on them
+        why.append("seeds limited to " + " ".join(map(str, seeds)))
+    packages = [p for p in meta.get("packages") or [] if p in PACKAGES]
+    if "extras" in meta and packages:
+        # K-GATE2: `--extras ''` left G9 N/A (no extra ran)
+        lacking = [e for e in policy_for(packages)["extras"] if e not in (meta.get("extras") or [])]
+        if lacking:
+            why.append("extras without " + ",".join(lacking))
     return "; ".join(why) or None
+
+
+def handover_bases(policy, gates_root, exclude=None):
+    """The records a package hands over against (K-GATE2), as existing resolved folders: its stage's default previous
+    gate (default_prev_dir) and the base of every sub-stage one of its packages runs in (SUBSTAGE_BASE)."""
+    gates_root = Path(gates_root)
+    out = []
+    first = default_prev_dir(gates_root, policy["stage"], exclude=exclude)
+    if first is not None:
+        out.append(Path(first).resolve())
+    for sub, base in sorted(SUBSTAGE_BASE.items()):
+        if any(p in SUBSTAGES.get(sub, ()) for p in policy["packages"]):
+            path = gates_root / gate_dirname(base)
+            if (path / "meta.json").exists() and path.resolve() not in out and \
+                    (exclude is None or path.resolve() != Path(exclude).resolve()):
+                out.append(path.resolve())
+    return out
+
+
+def base_problem(prev, policy, gates_root, exclude=None):
+    """Why a comparison with `prev` is no hand-over (K-GATE2), or None: there is a hand-over base and the record was
+    compared with none, or with another record (an agent's own earlier record already carrying the regression, or a
+    copy of the record itself: the delta rules then pass against a record nobody accepted)."""
+    bases = handover_bases(policy, gates_root, exclude)
+    if not bases:
+        return None
+    names = " or ".join(p.name for p in bases)
+    if prev is None:
+        return "compared with no previous record although its hand-over base {} exists".format(names)
+    if Path(prev).resolve() not in bases:
+        return "previous record {} is not the package's hand-over base ({})".format(Path(prev).name, names)
+    return None
 
 
 def compare_verdict(ok, incomplete):
@@ -2024,6 +2247,26 @@ def tree_fingerprint(root):
     return digest.hexdigest()
 
 
+def foreign_tree(where, root):
+    """Why the tree a record describes is neither the project `root` nor an isolated copy made from one of the
+    project's commits (cmd_isolate), or None (K-GATE2: a record made with --root on any folder with its own git history
+    passed TREE and G10 there, and described nothing that is handed over)."""
+    where, root = Path(where).resolve(), Path(root).resolve()
+    if where == root:
+        return None
+    manifest = read_json(where / ISOLATE_MANIFEST)
+    if not isinstance(manifest, dict) or manifest.get("format") != ISOLATE_FORMAT:
+        return "the record describes {}, which is neither this project ({}) nor an isolated copy of it".format(
+            where, root)
+    base = str(manifest.get("base") or "")
+    probe = subprocess.run(["git", "-C", str(policy_root()), "cat-file", "-e", base + "^{commit}"],
+                           capture_output=True) if base else None
+    if probe is None or probe.returncode != 0:
+        return "the record describes the isolated copy {}, whose base commit {!r} is not a commit of the " \
+               "project".format(where, base[:12])
+    return None
+
+
 def tree_check(meta, root, any_tree=False):
     """(section or None, incomplete reason or None) of a record against the tree it describes (FIX2): the
     fingerprint of the record's tree now (meta "tree_root", else `root`) must equal the record's, and every check
@@ -2041,6 +2284,9 @@ def tree_check(meta, root, any_tree=False):
     if not where.exists():
         return {"check": "TREE", "status": "N/R", "lines": ["the record's tree {} is gone".format(where)]}, \
             "the record's tree is gone"
+    foreign = foreign_tree(where, root)
+    if foreign:
+        return {"check": "TREE", "status": "FAIL", "lines": [foreign]}, None
     now = tree_fingerprint(where)
     stale = sorted(c for c, v in ((meta or {}).get("checks") or {}).items()
                    if isinstance(v, dict) and v.get("tree") != tree)
@@ -2051,6 +2297,13 @@ def tree_check(meta, root, any_tree=False):
     if stale:
         lines.append("STALE: check(s) {} ran on another tree than the record's (a partial re-run merged with an "
                      "earlier run)".format(",".join(stale)))
+    # K-GATE2: every check was judged against the record's previous record (results from before K-GATE2 carry none)
+    other_prev = sorted(c for c, v in ((meta or {}).get("checks") or {}).items()
+                        if isinstance(v, dict) and "prev" in v and v.get("prev") != (meta or {}).get("prev_path"))
+    if other_prev:
+        lines.append("STALE: check(s) {} were judged against another previous record than the record's {} (a "
+                     "partial re-run merged with an earlier run)".format(",".join(other_prev),
+                                                                         (meta or {}).get("prev")))
     if lines:
         return {"check": "TREE", "status": "FAIL", "lines": lines}, None
     return {"check": "TREE", "status": "PASS", "lines": ["the record was made on this tree ({}; {})".format(
@@ -2154,6 +2407,11 @@ class Gate:
                 names.append(pid)
         if not names and resolve_package(self.id):
             names = [resolve_package(self.id)]
+        if args.stage and names and args.stage != policy_for(names)["stage"]:
+            # K-GATE2: `--package P1 --stage A0` dropped the previous gate and every feature requirement of the later
+            # stages (golden, kernel_core, camera tools); a package's stage is its own
+            raise SystemExit("--stage {} contradicts the stage of {} ({}); --stage is for main-session gate ids "
+                             "without a package".format(args.stage, "+".join(names), policy_for(names)["stage"]))
         stage = args.stage or (None if names else (self.id if self.id in STAGE_ORDER else "A0"))
         self.policy = policy_for(names, stage)
         self.selected = self._selected(args.only, args.skip)
@@ -2251,7 +2509,7 @@ class Gate:
         if "G1" in self.selected:
             for name in tests:
                 for mode in ("normal", "strict"):
-                    extra = {"HOUSE_SIM_STRICT": "1"} if mode == "strict" else None
+                    extra = dict(PERF_OFF, **({"HOUSE_SIM_STRICT": "1"} if mode == "strict" else {}))
                     cmd, meta = unit("G1", "tests/" + name, name, mode)
                     jobs.append(Job("G1 {} {}".format(name, mode), "G1", cmd, self.env(extra),
                                     est=est.get((name, mode), est.get((name, "normal"), 30.0)) * 1.1,
@@ -2261,17 +2519,19 @@ class Gate:
                 name = "test_{}.py".format(d)
                 if name in tests:
                     cmd, meta = unit("G1b", "tests.test_" + d, name, "isolated")
-                    jobs.append(Job("G1b {} isolated".format(name), "G1b", cmd, self.env({"HOUSE_SIM_DOMAINS": d}),
+                    jobs.append(Job("G1b {} isolated".format(name), "G1b", cmd,
+                                    self.env(dict(PERF_OFF, HOUSE_SIM_DOMAINS=d)),
                                     est=est.get((name, "isolated"), est.get((name, "normal"), 30.0) * 0.7),
                                     timeout=self.args.test_timeout, meta=meta))
             for name in tests:
                 if any(fnmatch.fnmatchcase(name, p) for p in KERNEL_TESTS):
                     cmd, meta = unit("G1b", "tests/" + name, name, "core")
-                    jobs.append(Job("G1b {} core".format(name), "G1b", cmd, self.env({"HOUSE_SIM_DOMAINS": "core"}),
+                    jobs.append(Job("G1b {} core".format(name), "G1b", cmd,
+                                    self.env(dict(PERF_OFF, HOUSE_SIM_DOMAINS="core")),
                                     est=est.get((name, "core"), est.get((name, "normal"), 30.0) * 0.5),
                                     timeout=self.args.test_timeout, meta=meta))
         if "G8" in self.selected and (self.root / "tests" / "test_room_golden.py").exists():
-            for mode, extra in (("golden", None), ("golden_all", {"HOUSE_SIM_GOLDEN_ALL": "1"})):
+            for mode, extra in (("golden", PERF_OFF), ("golden_all", dict(PERF_OFF, HOUSE_SIM_GOLDEN_ALL="1"))):
                 cmd, meta = unit("G8", "tests.test_room_golden", "test_room_golden.py", mode)
                 jobs.append(Job("G8 test_room_golden.py {}".format(mode), "G8", cmd, self.env(extra),
                                 est=est.get(("test_room_golden.py", mode), 60.0), timeout=self.args.test_timeout,
@@ -2406,8 +2666,9 @@ class Gate:
             elif extra == "gen" and not quiet:
                 for name in ("test_generator_compat", "test_generator_gen2"):
                     if (self.root / "tests" / (name + ".py")).exists():
+                        # correctness only: its wall-clock bounds run in G7's perf job (K-GATE2)
                         jobs.append(Job("G9 {}".format(name), "G9", self.py("-m", "unittest", "tests." + name),
-                                        self.env(), est=60.0, meta={"extra": "gen", "test": name}))
+                                        self.env(PERF_OFF), est=60.0, meta={"extra": "gen", "test": name}))
                 if source_has(self.root, "tools/layout_audit.py", "--gen"):
                     jobs.append(Job("G9 layout_audit gen 2", "G9", self.py("tools/layout_audit.py", "40", "--gen", "2",
                                     "--json", str(audit / "g9_layout_gen2.json")), self.env(), est=150.0,
@@ -2422,9 +2683,8 @@ class Gate:
         return jobs
 
     # ---- evaluation of finished jobs
-    def collect_tests(self, jobs, prev=None):
-        """G1, G1b, G8: every test passes (absolute) except entries of the dated allowlist; a new failure against the
-        previous gate is named in the note."""
+    def collect_tests(self, jobs):
+        """The tests.json rows of G1, G1b and G8 (evaluate_tests judges them once G7's perf job has run)."""
         rows = defaultdict(list)
         for job in jobs:
             if job.check in ("G1", "G1b", "G8"):
@@ -2432,10 +2692,23 @@ class Gate:
         for check in rows:
             rows[check].sort(key=lambda r: (r["file"], r["mode"]))
         self.data["tests"].update(rows)
+
+    def evaluate_tests(self, prev=None):
+        """G1, G1b, G8: every test passes (absolute) except entries of the dated allowlist; a new failure against the
+        previous gate is named in the note; no test went quiet against it (judged after G7's perf job, which runs
+        the wall-clock bounds the correctness runs skip: K-GATE2)."""
+        rows = {c: self.data["tests"][c] for c in ("G1", "G1b", "G8") if c in self.data["tests"]}
         allow = self.allow
-        # tests that went quiet against the previous record (FIX2): removed, skipped, expected failures, files gone
+        # tests that went quiet against the previous record (FIX2): removed, skipped, expected failures, files gone;
+        # the bounds G7's perf job ran are not quiet (this run's perf rows, else a partial run's earlier ones)
         prev_tests = read_json(prev / "tests.json", {}) if prev else None
-        quiet, quiet_ok = test_regressions(prev_tests, rows, allow, self.signoff)
+        cur_tests = dict(rows)
+        perf = self.data["tests"].get("perf")
+        if perf is None and self.selected != list(CHECKS):
+            perf = (read_json(self.out / "tests.json", {}) or {}).get("perf")
+        if perf is not None:
+            cur_tests["perf"] = perf
+        quiet, quiet_ok = test_regressions(prev_tests, cur_tests, allow, self.signoff)
         quiet_by = defaultdict(list)
         for item in quiet:
             quiet_by[item[0]].append(item)
@@ -2536,17 +2809,8 @@ class Gate:
                              "failing": failing}
         self.spec_rows, self.spec_summary, self.spec_crashes = rows, summary, crashed
         # determinism: realistic-own specs appear in both runs and must give identical records
-        mismatch = []
-        if rows["own"] and rows["realistic"]:
-            own = index_trials(rows["own"])
-            for r in rows["realistic"]:
-                a = own.get((r["key"], r["seed"]))
-                if a is None or a.get("perception") != "realistic":
-                    continue
-                strip = ("mode", "secs")
-                if {k: v for k, v in a.items() if k not in strip} != {k: v for k, v in r.items() if k not in strip}:
-                    mismatch.append("{} seed {}".format(r["key"], r["seed"]))
-        self.spec_mismatch = mismatch
+        self.spec_mismatch = realistic_mismatch(rows["own"], rows["realistic"]) if rows["own"] and rows["realistic"] \
+            else []
 
     def evaluate_specs(self, prev):
         """G2 / G3: the delta rule against the previous gate (verdict changes reviewed by the package and signed by
@@ -2650,7 +2914,8 @@ class Gate:
                             ", {} of {} actions succeed".format(s["actions_succeeded"], s.get("actions_registered"))
                             if s.get("actions_succeeded") is not None else ""))
                 missing = []
-                if check == "G6" and source_has(self.root, "tools/fuzz.py", "--coverage") and "coverage" not in variants:
+                required = required_variants(self.policy, self.root)[check]
+                if check == "G6" and "coverage" in required and "coverage" not in variants:
                     missing.append("the coverage fuzz (--coverage) did not run")
                 if check == "G4" and "camera_tools" in self.policy["requires"] and "geometric" not in variants:
                     missing.append("--camera geometric missing from tools/perception_audit.py")
@@ -2658,6 +2923,8 @@ class Gate:
                     missing.append("--camera geometric missing from tools/fuzz.py")
                 if check == "G6" and "fuzz_battery" in self.policy["requires"] and "battery" not in variants:
                     missing.append("--battery/--faults missing from tools/fuzz.py")
+                missing += ["the {} variant did not run".format(v) for v in required
+                            if v not in variants and v not in ("coverage", "geometric", "battery")]
                 coverage = ""
                 if check == "G6":
                     union = action_coverage(variants)
@@ -2829,6 +3096,35 @@ class Gate:
         elif self.results.get("G7", {}).get("status") != "FAIL":
             self.set("G7", "INFO", note + " (baseline recorded)")
 
+    def perf_bounds(self):
+        """{test file: [test ids]} of the wall-clock bounds G7's perf job runs: every test method reading
+        HOUSE_SIM_PERF_TESTS (green_tests.perf_tests) and every test this run's G1 reported as outcome "perf"."""
+        bounds = {name: set(ids) for name, ids in
+                  _green_tests().perf_tests(glob.glob(str(self.root / "tests" / "test_*.py"))).items()}
+        for r in self.data["tests"].get("G1") or []:
+            for tid in (r.get("outcomes") or {}).get("perf", []):
+                bounds.setdefault(r["file"], set()).add(tid)
+        return {name: sorted(ids) for name, ids in sorted(bounds.items())}
+
+    def run_perf_job(self):
+        """G7's perf job (K-GATE2; phase-1 red team: wall-clock bounds failed under the parallel load of G1 and of CI):
+        every bound alone, after the benchmarks, normal and HOUSE_SIM_STRICT=1, best of PERF_ATTEMPTS
+        (green_tests.run_perf) into tests.json "perf". A bound that fails every attempt fails G7."""
+        bounds = self.perf_bounds()
+        self.log("phase 3: wall-clock bounds alone ({} in {} files, normal + strict, best of {})".format(
+            sum(len(v) for v in bounds.values()), len(bounds), PERF_ATTEMPTS))
+        rows = _green_tests().run_perf(bounds, ("normal", "strict"), PERF_ATTEMPTS, str(self.root),
+                                       str(self.work / "perf"), base_env=self.env())
+        self.data["tests"]["perf"] = rows
+        failed = perf_failures({"perf": rows})
+        retried = sum(1 for r in rows for n in (r.get("attempts") or {}).values() if n > 1)
+        note = "; wall-clock bounds alone: {} x 2 modes, {} failing every one of {} attempts{}{}".format(
+            sum(len(v) for v in bounds.values()), len(failed), PERF_ATTEMPTS,
+            " ({})".format(short(["{} ({})".format(t, m) for _, m, t in failed], 300)) if failed else "",
+            ", {} passed on a retry".format(retried) if retried else "")
+        current = self.results.get("G7") or {"status": "INFO", "note": "benchmarks did not run"}
+        self.set("G7", "FAIL" if failed else current["status"], current["note"] + note)
+
     def run_info(self):
         path = self.work / "info.json"
         res = run_job(Job("G0 info", "G0", self.py(self.script, "_info", str(self.root), str(path)), self.env(),
@@ -2874,7 +3170,7 @@ class Gate:
         if jobs:
             self.log("phase 1: {} jobs (unit tests G1/G1b/G8, spec trials G2/G3) on {} slots".format(len(jobs), self.jobs_n))
             schedule(jobs, self.jobs_n, self.root, self.progress)
-        self.collect_tests(jobs, prev)
+        self.collect_tests(jobs)
         if any(c in self.selected for c in ("G2", "G3")):
             self.gather_specs(jobs)
             self.evaluate_specs(prev)
@@ -2892,6 +3188,9 @@ class Gate:
             for job in quiet:
                 job.result = run_job(job, self.root)
                 self.record_extra(job)
+        if "G7" in self.selected:
+            self.run_perf_job()
+        self.evaluate_tests(prev)
         self.evaluate_extras()
         # phase 4: scope
         if "G10" in self.selected:
@@ -2951,20 +3250,31 @@ class Gate:
         write_json(out / "scope.json", merged("scope.json", self.data["scope"]))
         tree_now = tree_fingerprint(self.root)
         tree = tree_now if tree_now == getattr(self, "tree_start", tree_now) else None
+        prev_name = str(prev) if prev else None
         for result in self.results.values():
             result["tree"] = tree           # None: the tree changed while this run's checks ran
+            result["prev"] = prev_name      # the previous record this run's checks were judged against (K-GATE2)
         checks = dict(old_meta.get("checks", {})) if partial else {}
         checks.update(self.results)
         statuses = {c: checks[c]["status"] for c in CHECKS if c in checks}
         failing = [c for c, s in statuses.items() if s in FAILING]
         counts = Counter(statuses.values())
         # FIX2: every check of a hand-over ran on the tree the record describes (a partial re-run merged with an
-        # earlier run on another tree, or edits while the gate ran, are STALE)
-        stale = [c for c in recorded if c in checks and checks[c].get("tree") != tree_now]
-        incomplete = record_incomplete({"recorded": recorded, "spec_files": self.args.spec_files})
+        # earlier run on another tree, or edits while the gate ran, are STALE); K-GATE2: and was judged against this
+        # run's previous record (a full run against the package's own earlier record, then `--only G10 --prev ADOPT`,
+        # merged into a record whose deltas no check ran against ADOPT)
+        stale = [c for c in recorded if c in checks and (checks[c].get("tree") != tree_now or
+                                                         checks[c].get("prev", prev_name) != prev_name)]
+        incomplete = record_incomplete({"recorded": recorded, "spec_files": self.args.spec_files,
+                                        "seeds": list(self.seeds), "extras": self.extras,
+                                        "packages": self.policy["packages"]})
         if prev is not None and record_incomplete(read_json(prev / "meta.json", {})):
             incomplete = "; ".join(x for x in (incomplete, "previous record {} is partial or narrowed".format(
                 prev.name)) if x)
+        # K-GATE2: a hand-over compares with the package's hand-over base, never with no record or another one
+        not_base = base_problem(prev, self.policy, self.gates_root, exclude=self.out)
+        if not_base:
+            incomplete = "; ".join(x for x in (incomplete, not_base) if x)
         files, _ = changed_files(self.root)
         isolated = read_json(self.root / ISOLATE_MANIFEST)
         head = subprocess.run(["git", "-C", str(self.root), "rev-parse", "HEAD"], capture_output=True, text=True)
@@ -3028,10 +3338,12 @@ class Gate:
             ("; this run: " + ",".join(self.selected) if partial else "") +
             ("; record incomplete: " + ",".join(recorded) if recorded != list(CHECKS) else "") +
             ("; specs limited to " + self.args.spec_files if self.args.spec_files else "") +
-            ("; STALE (checks run on another tree: {}{})".format(",".join(stale), "; the tree changed while the gate "
+            ("; STALE (checks run on another tree or against another previous record: {}{})".format(
+                ",".join(stale), "; the tree changed while the gate "
                                                                 "ran" if tree is None else "") if stale else "") +
-            ("; never a hand-over" if incomplete and self.passed else ""))
-        meta.update(summary=summary, verdict=word, handover=word == "PASS", compare_ok=compare_ok)
+            ("; never a hand-over ({})".format(incomplete) if incomplete and self.passed else ""))
+        meta.update(summary=summary, verdict=word, handover=word == "PASS", compare_ok=compare_ok,
+                    incomplete=incomplete)
         write_json(out / "meta.json", meta)
         lines += ["", summary]
         write_text(out / "summary.txt", "\n".join(lines))
@@ -3175,6 +3487,9 @@ def cmd_compare(args):
             Path(prev).name, prev_narrow)) if x)
     if tree_incomplete:
         incomplete = "; ".join(x for x in (incomplete, tree_incomplete) if x)
+    not_base = base_problem(prev, policy, gates_root, exclude=cur)
+    if not_base:
+        incomplete = "; ".join(x for x in (incomplete, not_base) if x)
     print(render_compare(prev, cur, policy, sections, ok, incomplete))
     return compare_verdict(ok, incomplete)[1]
 
@@ -3503,7 +3818,7 @@ def main(argv):
     if argv and argv[0].startswith("_"):
         name, rest = argv[0], argv[1:]
         if name == "_unittest":
-            return worker_unittest(rest[0], rest[1])
+            return worker_unittest(rest[0], *rest[1:])
         if name == "_trials":
             worker_trials(rest[0], rest[1])
         elif name == "_gen1":

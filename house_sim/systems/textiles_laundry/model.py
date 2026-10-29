@@ -10,7 +10,7 @@ Every function here is pure or mutates only through the journaled World API.
 """
 import math
 
-from ...kernel import clock, geometry
+from ...kernel import clock, geometry, physics
 from ...kernel.actions import lookalike_group
 from ...kernel.errors import ActionError
 from ...kernel.predicates import root_room
@@ -136,9 +136,26 @@ def is_heater_like(rec):
     return bool(rec.get("heat_source") or rec.get("category") in HEATER_CATEGORIES)
 
 
-def heater_active(rec):
-    return bool(rec.get("on") or rec.get("lit") or rec.get("burning")
-                or (rec.get("category") == "radiator" and float(rec.get("temperature_c", 21) or 21) > 45))
+ELECTRIC_KEYS = ("plug_required", "hardwired", "circuit", "battery_powered")
+
+
+def is_electric_heater(rec):
+    """A corded heater (plug_required, hardwired or on a circuit) or a battery one: its switch heats only with power."""
+    return any(rec.get(key) for key in ELECTRIC_KEYS)
+
+
+def heater_active(w, eid, rec):
+    """Whether a heater-like thing heats now. A fire (lit, burning) needs no power and a radiator hotter than 45 C keeps
+    heating while its water or oil is hot; a switched-on heater heats when it is not electric or has power (kernel
+    physics.is_powered: unplugged, grid outage, electrical's tripped breakers and switched strips; phase 1, electrical's
+    request: a space heater left on behind a tripped breaker scorched and lit the rug under it)."""
+    if rec.get("lit") or rec.get("burning"):
+        return True
+    if rec.get("category") == "radiator" and float(rec.get("temperature_c", 21) or 21) > 45:
+        return True
+    if not rec.get("on"):
+        return False
+    return not is_electric_heater(rec) or physics.is_powered(w, eid)
 
 
 # ---------------------------------------------------------------------------
@@ -615,9 +632,10 @@ def is_kind(rec, *names):
 
 
 def heat_sources(w):
-    """Space heaters, radiators, fireplaces, fire pits, burners that are on or burning (static index + dynamic check)."""
+    """Space heaters, radiators, fireplaces, fire pits, burners that heat now (static index + heater_active)."""
     ents = w.s["entities"]
-    return [eid for eid in w.static_index("textiles_laundry.heaters", is_heater_like) if eid in ents and heater_active(ents[eid])]
+    return [eid for eid in w.static_index("textiles_laundry.heaters", is_heater_like)
+            if eid in ents and heater_active(w, eid, ents[eid])]
 
 
 def bed_occupant(w, bed):

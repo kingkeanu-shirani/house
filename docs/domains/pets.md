@@ -49,10 +49,15 @@ fields (`common.sindex(state, name, predicate)`; helpers that only receive `stat
 registry filled by `episode_start` and the systems, and fall back to a scan without one) and dynamic fields are
 re-checked on the few records returned (e.g. `behavior.STATIC_SETS`: noisy devices, white-noise maskers, bowls, water
 sources, litter boxes, appealing/toxic items, cords; pet doors, windows, rugs, bedding, wraps, cage trays, seed dishes,
-nest boxes, fans, shade, habitats and their devices, wet food/bowls/feeders, concealable waste). Slow water aging runs
-every 120 s (`pets.water`, closed form in dt). `python tools/bench_systems.py 40 0 1 2 3 --domain pets`: all pets
-systems together ~0.15 ms per 30 s substep (was ~2.0 ms; `pets.agents` 0.12 ms); with every domain loaded
-(`python tools/bench_systems.py 20`) all pets systems ~0.21 ms (`pets.agents` 0.16 ms) of a 5.4 ms engine substep. The
+nest boxes, fans, shade, habitats and their devices, wet food/bowls/feeders, concealable waste). Every predicate
+declares the fields it reads (`common.index_reads`; World.static_index `reads=`, checked by strict mode and by
+`Phase1FinishTests` against every registered type), and the indexes the time systems and idle probes look up every
+substep (`common.PREBUILT`, `@per_substep_index`) are built by `common.prebuild_indexes` at `episode_start` (order
+-80, before any hook writes), from the plain records; the water holders and litter boxes are one index each (the agents'
+sets share them). Slow water aging runs
+every 120 s (`pets.water`, closed form in dt). `python tools/bench_systems.py 40 0 1 2 3 --domain pets` (every domain
+loaded): all pets systems together ~0.10 ms per 30 s substep (`pets.agents` 0.07 ms; phase 1 before its finish 0.19 ms,
+ADOPT 0.14 ms on the same machine; section 12). The
 invariants compare two harm counters (O(1)) and take the World as their third argument. Placement helpers that score
 floor cells (`standing_tiers`) run only at episode start and when a pet relocates, never per tick.
 
@@ -106,12 +111,12 @@ outdoor room (`room.fenced`, `room.escape_zone`); for indoor-only pets (cats by 
 | Food | `pet_food_bag` > `dog_kibble_bag` (6.8 kg, 3.6 kcal/g, 0.43 g/ml, label feeding guide), `cat_kibble_bag`, `rx_kibble_bag`, `bird_seed`, `chicken_feed_bag`; `pet_food_bin` (airtight, pet-proof); `wet_food_can` > `cat_wet_food_can` (85 g), `dog_wet_food_can` (370 g) (`opened`, `covered`, `spoiled`); `pet_food_can_lid`; `pet_treat_jar` (40 x 4 g, 15 kcal), `cat_treat_pouch`, `pill_pocket_pack`; `pet_food_scoop` (237 ml); `automatic_pet_feeder` (hopper, `settings.times/portion_g`, display); `feeding_mat` (0.6 x 0.38 m); `pet_care_log` (`entries`, `logged ["pet:slot"]`, `text`); `pet_care_note` (`text`) |
 | Litter & waste | `litter_box` (inner 0.171 m2, `litter_kg`, `litter_kind`, `litter_mix`, `clumps`, `feces`, `_buried`, `_abnormal`, `observed_abnormal`, `odor`, `wet`, `residue`, `home`, `home_pos`, `depth_cm`), `litter_scoop`, `cat_litter_bag` (9 kg), `litter_mat`, `poop_bag_roll` (`count`), `pet_waste_bag` (`tied`, `contents`, `waste_g`, `waste_stream` trash, or compost for herbivore bedding where the household rule allows), `dog_waste` (floor hazard `waste`, `concealed`), `pooper_scooper` |
 | Gear & walks | `dog_collar` (`settings.length_cm`, rings `d_ring` load-rated, `tag_ring` not, `buckled`), `dog_harness`, `cat_harness` (`settings.girth_cm`, `buckles_closed`, `species_fit`), `leash` (1.8 m, `attached_to`, `ring`), `walk_bag` (wearable belt pouch), `dog_travel_bottle`, `collapsible_bowl`, `pet_reflective_vest`, `clip_on_light`, `dog_coat`, `dog_booties` (`walk_item`), `pressure_wrap` |
-| Confinement | `pet_crate` (`crate_size`, `occupant`, `latched`), `pet_carrier`, `pet_bed`, `pet_blanket` |
+| Confinement | `pet_crate` (`crate_size`, `occupant`, `latched`; wire walls, `watertight: false`), `pet_carrier` (vent slots and a wire door, `watertight: false`), `pet_bed`, `pet_blanket` |
 | Toys | `pet_toy` > `fetch_ball`, `rope_toy`, `squeaky_toy`, `plush_dog_toy`, `chew_toy`, `cat_wand_toy` (string), `catnip_mouse` (`toy_owner` pet, `damaged`, `damage`); `pet_toy_basket` |
 | Grooming & health | `pet_brush` > `slicker_brush`, `bristle_brush`, `deshedding_tool`, `rubber_curry_brush` (`hair_g`); `flea_comb`, `tick_remover`, `pet_wipes` (pet-safe, moist), `paw_towel`, `pet_shampoo`, `pet_dryer` (heat cool/low/high, 80 dB); `pet_medication` (`prescribed_for`, `drug`, `schedule`, `dose_units`, `form`, `water_ok`, `missed`); `ir_thermometer` |
 | Aquarium | `aquarium` (75 l: `water {temp_c, ammonia_ppm, nitrite_ppm, chlorine_ppm, clarity}`, `stock [{species, count, level, ration_g, mass_g, health, fed_frac, got_sinking_food}]`, `uneaten_g`, `detritus`, `algae`, `_bacteria`, `fed_slots`, `fed_g_total`, `light_s_today`), `aquarium_heater` (100 W, `settings.temp_c`), `aquarium_filter` (HOB 380 l/h, slots sponge/bio_media/cartridge, `primed`, `flow`, inline switch), `filter_sponge`, `bio_media`, `filter_cartridge` (`bacteria`, `clog`), `fish_food`, `sinking_pellets` (`g_per_pinch`), `water_conditioner` (0.67 ml per 10 l), `gravel_siphon`, `fish_net`, `aquarium_test_strips` |
 | Reptile | `reptile_enclosure` (`zones {basking, warm, cool: {surface_c, air_c}}`, `species_ranges`, `approved_setpoints`, `out_of_range`, `latched`), `basking_lamp` (100 W, `burnt_out`), `ceramic_heat_emitter` (`settings.setpoint_c`), `terrarium_thermometer` (`display`) |
-| Birds, small animals, chickens | `bird_cage` (door = open, `occupant`), `cage_tray` (open = slid out; slot `liner`), `cage_liner`, `scented_cage_liner`; `small_animal_cage` (`substrate {kind, depth_cm, soiled, nest_g}`, `_stash_g`), `bedding_bag` (paper/aspen/cedar/pine); `chicken_coop` (`hens`, `flock_inside`, `hens_lost`, `_predator_s`), `nest_box` (`broody`), `coop_egg` (the food domain's `hen_egg` is used when loaded), `egg_basket` |
+| Birds, small animals, chickens | `bird_cage` (door = open, `occupant`; wire, `watertight: false`), `cage_tray` (open = slid out; slot `liner`), `cage_liner`, `scented_cage_liner`; `small_animal_cage` (`substrate {kind, depth_cm, soiled, nest_g}`, `_stash_g`), `bedding_bag` (paper/aspen/cedar/pine); `chicken_coop` (`hens`, `flock_inside`, `hens_lost`, `_predator_s`), `nest_box` (`broody`), `coop_egg` (the food domain's `hen_egg` is used when loaded), `egg_basket` |
 
 Other domains' objects are recognised by fields, not types: water sources (`water_source`), bins (`waste_stream`
 trash/recycling/compost, non-portable), toilets (`toilet` or category toilet), fridges (`internal_temp_c` <= 7),
@@ -372,9 +377,11 @@ a dog jumps on a frail visitor at a scripted arrival) still happens in the state
 whose entry is about preventing it names it, VERIFY_HARDENING_DECISIONS 3), the pets event log carries `by: exogenous`,
 `pet_care.exogenous {stat: n}` counts the flag that was not raised, and `pet_care.robot_harms` (what the invariants read)
 does not grow. `behavior.escape(w, pid, room, via=, robot=)` takes another domain's own judgment (mechanisms'
-`closures.escape`). A person a pet knocks down falls through the people domain's fall event (`event:people.fall`: the
-posture, condition, the thud and call for help the robot can hear, the people log; its `falls` flag only when the robot
-caused it), or directly when the people domain is not loaded (`common.person_knocked_down`).
+`closures.escape`). A person a pet knocks down falls through the people domain's fall event (`event:people.fall` with
+`robot_caused`, this domain's attribution: the posture, condition, the thud and call for help the robot can hear, the
+people log; a robot-caused fall counts `falls` and `injury` there, once for the strike, so this domain's own harm entry
+then raises no second `injury`), or directly when the people domain is not loaded (`common.person_knocked_down`: the
+`falls` flag here, the injury through the harm entry).
 
 Entity fields follow the amended conventions: `damage` is a dict `{kind: severity}` (`common.damage_with` /
 `add_damage`: chewed, chewed_through (cords), torn_open (food bags), shattered (fetch), pump_warped / pump_burnt_dry /
@@ -879,3 +886,21 @@ success paths, from a scenario helper (section 7) and a unit test:
 **Not changed here:** the shared `rooms.<r>.wet_cells` convention (bowl overflows, a bath's splashes, a fountain over its
 MAX line) stays the convention every water-writing domain uses; dark coats driving the camera's contrast (`coat_color`,
 kernel request pets-5 applied) need a coat colour per pet, which would change generation-1 pet records (left for D2).
+
+### Phase 1 finish (2026-10-28)
+
+The pets rows of `catalog/analysis/phase1/breakages.json`, the red team's pets finding (`red_leaks.json` 9), the people
+domain's request and the pets share of the P1 gate's G7 regression. Regression tests: `Phase1FinishTests`
+(`tests/test_pets.py`); handoff: `catalog/analysis/phase1/finish_pets.json`.
+
+| Item | Root cause | Fix |
+|---|---|---|
+| Kernel pours, spills, drips and rain pooled in the wire crate (300 l), the vented carrier (35 l) and an open bird cage (200 l) (breakages, review L3) | the kernel's `phys.liquids.holds_liquid` follows plumbing's liquid-tightness rule, and these types carried none of its flags (steel and plastic are waterproof) | `pet_crate`, `pet_carrier` and `bird_cage` are `watertight: false`; a test pins the 17 pets types the kernel lets liquid pool in (bowls, waterers, tanks, tubs, pouches, the cage tray) |
+| A knock-down the robot caused was logged as not robot-caused (the people domain's request) | `person_knocked_down` passed only `count_harm` to `event:people.fall` | it passes `robot_caused`; the people domain then counts the fall and its injury, and this domain's harm entry raises no second `injury` (one per strike; unchanged totals) |
+| Pill-bottle look-alikes: `read_aloud` of an unresolved pet medicine bottle answered differently (red_leaks 9) | people's `read_aloud` read only label text; the pet bottle's print is its dosing schedule | fixed by the people domain (`read_aloud` reads what `read` reads); a pets test checks the pet medicine, prescription and expired bottles read and are read aloud alike, room and geometric camera |
+| G7: pets systems 0.19 ms per substep against ADOPT's 0.14 (the gate record: 0.190 vs 0.141) | the kernel's static indexes (review M3) evaluate a first build inside a busy substep through a read view per entity: pets' per-substep indexes (15) cost about 3 ms per house in its first substep (0.085 ms per substep of the bench's 40); the steady state was as at ADOPT | declared reads on every pets index predicate (`common.index_reads`), the per-substep ones built at `episode_start` (`common.prebuild_indexes`, order -80) from the plain records; the agents' water and litter-box sets share the water systems' and litter system's indexes; `common.pet_rooms` gathers each room's connections in one pass instead of one scan per room. Results unchanged: golden dump `--all` of the two pets versions on one snapshot of everything else, 0 of 275 files differ |
+
+Measured on one snapshot of the tree with only the pets code differing (best of 5, three interleaved rounds, the
+`bench_systems.py` loop): all pets systems 0.211-0.213 -> 0.114-0.116 ms per substep (steady state 0.122 -> 0.111,
+first-substep index builds 0.089 -> 0.003); pets' index builds over seeds 0-3, 15.8 ms (1.9 at reset, 13.9 in the first
+substep) -> 5.6 ms, all at reset. The state digests after a 1 h wait on seeds 0-3 are identical.

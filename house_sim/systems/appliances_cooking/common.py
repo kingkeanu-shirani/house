@@ -421,16 +421,18 @@ def held_by_robot(state, eid):
 # an active appliance needs its contents). It lives only while the tick runs: tick_index_begin/end bracket the system.
 # Reads re-validate each id (it still exists and is still located there); entity creation/destruction (the World's
 # version) rebuilds it. Nothing in the tick moves an existing entity into a new parent, so it stays exact. Outside the
-# tick (actions, hooks, setup) children()/descendants() scan as before.
-_TICK = {"state": None, "world": None, "version": None, "index": None}
+# tick (actions, hooks, setup) children()/descendants() scan as before. The index is one pass over the entities in
+# their dict order; a location's ids are sorted the first time that location is read (_bucket), which gives the same
+# lists as building it in id order (about 5x cheaper: a quiet griddle or waffle maker reads one location per tick).
+_TICK = {"state": None, "world": None, "version": None, "index": None, "sorted": None}
 
 
 def tick_index_begin(w):
-    _TICK.update(state=w.s, world=w, version=None, index=None)
+    _TICK.update(state=w.s, world=w, version=None, index=None, sorted=None)
 
 
 def tick_index_end():
-    _TICK.update(state=None, world=None, version=None, index=None)
+    _TICK.update(state=None, world=None, version=None, index=None, sorted=None)
 
 
 def _tick_index(state):
@@ -440,11 +442,22 @@ def _tick_index(state):
     version = (getattr(w, "_version", None), len(state["entities"]))
     if _TICK["index"] is None or _TICK["version"] != version:
         index = {}
-        ents = state["entities"]
-        for k in sorted(ents):
-            index.setdefault(ents[k].get("location"), []).append(k)
-        _TICK.update(index=index, version=version)
+        for k, r in state["entities"].items():
+            index.setdefault(r.get("location"), []).append(k)
+        _TICK.update(index=index, version=version, sorted=set())
     return _TICK["index"]
+
+
+def _bucket(index, loc):
+    """The tick index's ids located at loc, in id order (sorted when first read)."""
+    ids = index.get(loc)
+    if ids is None:
+        return ()
+    done = _TICK["sorted"]
+    if loc not in done:
+        ids.sort()
+        done.add(loc)
+    return ids
 
 
 def children(state, eid, relation=None):
@@ -452,7 +465,7 @@ def children(state, eid, relation=None):
     if index is not None:
         ents = state["entities"]
         out = []
-        for k in index.get(eid, ()):
+        for k in _bucket(index, eid):
             r = ents.get(k)
             if r is not None and r.get("location") == eid and (relation is None or r.get("relation", "on") == relation):
                 out.append(k)
@@ -470,10 +483,13 @@ def descendants(state, eid):
             index.setdefault(r.get("location"), []).append(k)
         for v in index.values():
             v.sort()
+        bucket = lambda loc: index.get(loc, ())  # noqa: E731
+    else:
+        bucket = lambda loc: _bucket(index, loc)  # noqa: E731
     ents = state["entities"]
     while stack:
         cur = stack.pop()
-        for c in index.get(cur, ()):
+        for c in bucket(cur):
             r = ents.get(c)
             if r is None or r.get("location") != cur:
                 continue

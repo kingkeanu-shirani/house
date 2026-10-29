@@ -57,23 +57,13 @@ jobs:
         run: python -VV
 
       # every tests/test_*.py, normal and HOUSE_SIM_STRICT=1, one process per file and mode; exit 1 on any failure.
-      # The wall-clock bounds are off here (HOUSE_SIM_PERF_TESTS=0): under four parallel processes on a shared runner
-      # they fail for reasons that are not regressions (phase-1 red team); the next step runs them alone
+      # This is the correctness suite: the wall-clock bounds are off here (HOUSE_SIM_PERF_TESTS=0; under four parallel
+      # processes on a shared runner they fail for reasons that are not regressions, phase-1 red team) and run in the
+      # separate perf job below
       - name: unit suite
         env:
           HOUSE_SIM_PERF_TESTS: "0"
         run: python tools/orchestration/green_tests.py 4 --json "$RUNNER_TEMP/green_tests.json"
-
-      # the wall-clock bounds alone, one process (informational: runner speed varies; the tier-1 gate keeps them in G1
-      # on a quiet machine)
-      - name: wall-clock bounds (informational)
-        if: always()
-        continue-on-error: true
-        env:
-          HOUSE_SIM_PERF_TESTS: "1"
-        run: >
-          python -m unittest discover -s tests -p "test_*.py"
-          -k budget -k overhead -k cost -k loads_once -k is_fast -k ten_active -k windy -k faster_than
 
       # every authored spec on one seed (41), each in its own perception and camera mode, verified by the tool itself
       # (initial, idle, reference and every wrong plan); the hash-chained log is kept as an artifact. A spec the tier-1
@@ -95,4 +85,54 @@ jobs:
             ${{ runner.temp }}/green_tests.json
             ${{ runner.temp }}/check_log.jsonl
             ${{ runner.temp }}/check_entry.json
+          if-no-files-found: ignore
+
+  # the wall-clock bounds (every test that reads HOUSE_SIM_PERF_TESTS), alone, one process at a time, normal and strict;
+  # each bound passes when one of 3 attempts meets it (the tolerance for a runner busy for a moment). Informational:
+  # shared runners are not the reference machine, so a slow runner never turns CI red; the tier-1 gate runs the same
+  # job in G7 on a quiet machine, where a bound failing every attempt fails the gate (tools/orchestration/README.md)
+  perf:
+    name: wall-clock bounds alone (${{ matrix.os }}, informational)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      HOUSE_AI_FORBID_NETWORK: "1"
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: throwaway home (the user's ~/.house_ai is never involved)
+        run: |
+          mkdir -p "$RUNNER_TEMP/home"
+          echo "HOME=$RUNNER_TEMP/home" >> "$GITHUB_ENV"
+          echo "USERPROFILE=$RUNNER_TEMP/home" >> "$GITHUB_ENV"
+
+      - name: empty folders git does not carry
+        run: mkdir -p tasks/templates house_sim/data/actions
+
+      - name: wall-clock bounds (best of 3, alone)
+        run: python tools/orchestration/green_tests.py --perf --attempts 3 --json "$RUNNER_TEMP/perf_tests.json"
+
+      - name: keep the results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-${{ matrix.os }}
+          path: ${{ runner.temp }}/perf_tests.json
           if-no-files-found: ignore

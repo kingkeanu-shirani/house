@@ -100,7 +100,7 @@ def _onion_quality(rec, cv, extra, style="dice"):
                        "size_mm": {"type": "number", "default": 0, "min": 0, "max": 200},
                        "axis": "?str:lengthwise|crosswise", "angle_to_grain_deg": {"type": "number", "default": 90, "min": 0, "max": 90},
                        "offset_deg": {"type": "number", "default": 0, "min": 0, "max": 359}},
-        duration=C.duration(8.0), irreversible=True, noise=0.05,
+        duration=C.duration(8.0), irreversible=True, operates=True, noise=0.05,
         doc="Cut a food item on a cutting board with a held knife: halve/quarter (axis lengthwise|crosswise), wedges, strips "
             "(meat: angle_to_grain_deg 90 = across the grain), chunks/pieces (pieces=n or size_mm), flat_side (stabilise round "
             "produce), julienne, shred (cooked meat), radial (round cakes/pizzas into equal wedges from offset_deg) or portions.")
@@ -201,7 +201,7 @@ def _fair_split(rec, n, offset, style):
 @action("slice", params={"target": "entity", "tool": "?entity", "technique": TECH,
                          "thickness_mm": {"type": "number", "default": 5.0, "min": 0.5, "max": 40.0},
                          "form": "?str:rounds|half_moons|bias|planks|wedges"},
-        duration=C.duration(10.0), irreversible=True, noise=0.05,
+        duration=C.duration(10.0), irreversible=True, operates=True, noise=0.05,
         doc="Slice a food item into slices of thickness_mm (rounds, half_moons, bias, planks) with a held knife, or with a "
             "mandoline set on the board (hold its guard or wear a cut glove). Round produce needs a flat side first.")
 @P.perceived_result
@@ -267,7 +267,8 @@ def _mandoline(ctx):
     rec = ctx.obj(tid, touch=True)
     require(not ctx.holding(tid), "Set the mandoline down on a board or over a bowl first", "precondition")
     require(not rec.get("broken"), "The mandoline blade is damaged; do not use it", "safety")
-    guard = any(w.ent(h).get("tool_kind") == "mandoline_guard" for h in w.held_items()) or         "cut_resistant_gloves" in w.robot.get("wearing", [])
+    guard = any(w.ent(h).get("tool_kind") == "mandoline_guard" for h in C.held_known(ctx)) or \
+        "cut_resistant_gloves" in w.robot.get("wearing", [])
     ctx.data["mandoline_id"] = tid
     ctx.data["mandoline_surface"] = rec.get("location") if rec.get("location") in w.s["entities"] else None
     return {"guarded": guard}
@@ -275,7 +276,7 @@ def _mandoline(ctx):
 
 @action("dice", params={"target": "entity", "tool": "?entity", "technique": TECH,
                         "size": "?str:brunoise|small|medium|large", "size_mm": {"type": "number", "default": 0, "min": 0, "max": 40}},
-        duration=C.duration(30.0), irreversible=True, noise=0.05,
+        duration=C.duration(30.0), irreversible=True, operates=True, noise=0.05,
         doc="Dice into near-cubes (brunoise 3, small 6, medium 12, large 20 mm). For onions keep the root end on while "
             "making the cuts; peel first; halve round produce first so it does not roll.")
 @P.perceived_result
@@ -296,7 +297,7 @@ def dice(ctx):
 
 @action("mince", params={"target": "entity", "tool": "?entity", "technique": TECH,
                          "size_mm": {"type": "number", "default": 2.0, "min": 0.3, "max": 6.0}, "method": "?str:knife|press|grater"},
-        duration=C.duration(40.0), irreversible=True, noise=0.05,
+        duration=C.duration(40.0), irreversible=True, operates=True, noise=0.05,
         doc="Mince aromatics to ~1-3 mm with a rocking knife (or a garlic press). Finer than ~1 mm ruptures cells into a "
             "watery paste; peel cloves first.")
 @P.perceived_result
@@ -331,7 +332,7 @@ def mince(ctx):
 
 @action("chop", params={"target": "entity", "tool": "?entity", "technique": TECH,
                         "size": "?str:fine|medium|coarse", "method": "?str:rock|chiffonade"},
-        duration=C.duration(25.0), irreversible=True, noise=0.05,
+        duration=C.duration(25.0), irreversible=True, operates=True, noise=0.05,
         doc="Roughly chop (fine 4, medium 8, coarse 15 mm). Herbs: dry them first, strip woody stems; chiffonade basil.")
 @P.perceived_result
 def chop(ctx):
@@ -362,7 +363,7 @@ def chop(ctx):
 
 @action("cube", params={"target": "entity", "tool": "?entity", "technique": TECH,
                         "size_mm": {"type": "number", "default": 25.0, "min": 10.0, "max": 50.0}},
-        duration=C.duration(30.0), irreversible=True, noise=0.05,
+        duration=C.duration(30.0), irreversible=True, operates=True, noise=0.05,
         doc="Cut into 15-40 mm cubes (melon, pineapple, meat for stew, cheese, bread). Remove rind/core first; wash melon "
             "rind before the first cut.")
 @P.perceived_result
@@ -386,7 +387,7 @@ def cube(ctx):
                         "part": "str:ends|stem_end|woody_base|root|top|fat|blemishes|crust|outer_leaves|flat_side|dark_green_top",
                         "method": "?str:cut|snap", "length_mm": {"type": "number", "default": 0, "min": 0, "max": 300},
                         "scraps_to": "?entity"},
-        duration=C.duration(10.0), irreversible=True, noise=0.03,
+        duration=C.duration(10.0), irreversible=True, operates=True, noise=0.03,
         doc="Trim inedible ends/bases/blemishes. Asparagus snaps at its natural woody point (method=snap); a fixed "
             "length_mm cut can over- or under-trim. Keep the onion root on if it will be diced.")
 @P.perceived_result
@@ -435,7 +436,7 @@ def trim(ctx):
 @action("peel", params={"target": "entity", "tool": "?entity", "direction": "?str:away|toward",
                         "thickness_mm": {"type": "number", "default": 0, "min": 0, "max": 15}, "grip": "?str:gentle|normal|firm",
                         "scraps_to": "?entity"},
-        duration=C.duration(30.0), irreversible=True, noise=0.03,
+        duration=C.duration(30.0), irreversible=True, operates=True, noise=0.03,
         doc="Peel produce: a held peeler (thin, ~1 mm) or paring knife (~2.5 mm), stroking away from the hand; citrus and "
             "bananas by hand (no tool). Soft fruit needs grip=gentle. Potato eyes and green patches need remove_part.")
 @P.perceived_result
@@ -512,7 +513,7 @@ METHOD_LOSS = {("calyx", "huller"): 0.01, ("calyx", "paring_knife"): 0.04, ("cal
 @action("remove_part", params={"target": "entity", "part": "str", "tool": "?entity",
                                "method": "?str:huller|paring_knife|slice_top|cherry_pitter|spoon|knife_tap|knife_strike|twist|cut_around|cut_away|boning_knife|chef_knife|strip|pull|tweezers|corkscrew|center|angled|corer|cut|hands",
                                "count": {"type": "int", "default": 0, "min": 0, "max": 500}, "scraps_to": "?entity"},
-        duration=C.duration(15.0), irreversible=True, noise=0.03,
+        duration=C.duration(15.0), irreversible=True, operates=True, noise=0.03,
         doc="Remove one part of produce/meat/fish: stem, seeds, pit, leaves, hull (calyx), bone, pin_bones, shell, core, rib, "
             "woody_stem, membrane, pith, eyes, green_patch, crust, cork (wine, method center), clove (split a garlic head; "
             "count=n). The removed part goes to the scraps pile on the board (or scraps_to). Method sets yield loss and safety.")
@@ -706,7 +707,7 @@ def _split_cloves(ctx, fid, rec):
 @action("carve", params={"target": "entity", "tool": "?entity", "technique": TECH,
                          "direction": "?str:across_grain|with_grain", "thickness_mm": {"type": "number", "default": 6.0, "min": 2.0, "max": 30.0},
                          "style": "?str:slices|joints"},
-        duration=C.duration(90.0), irreversible=True, noise=0.03,
+        duration=C.duration(90.0), irreversible=True, operates=True, noise=0.03,
         doc="Carve a cooked roast or bird on a board: slices across the grain (tender) or joints (breast, thighs, wings). "
             "Let it rest ~10 min after cooking or the juices run out.")
 @P.perceived_result
@@ -750,7 +751,7 @@ def carve(ctx):
 
 
 @action("fillet", params={"target": "entity", "tool": "?entity", "technique": TECH, "scraps_to": "?entity"},
-        duration=C.duration(240.0), irreversible=True, noise=0.03,
+        duration=C.duration(240.0), irreversible=True, operates=True, noise=0.03,
         doc="Fillet a whole fish with a flexible fillet knife: two boneless-side fillets (pin bones remain until removed with "
             "tweezers), frame/head/skin to scraps (or a stock bag).")
 @P.perceived_result
@@ -785,7 +786,7 @@ def fillet(ctx):
 
 @action("shuck", params={"target": "entity", "tool": "?entity", "method": "?str:hinge|side|husk",
                          "count": {"type": "int", "default": 0, "min": 0, "max": 100}, "scraps_to": "?entity"},
-        duration=C.duration(30.0), irreversible=True, noise=0.05,
+        duration=C.duration(30.0), irreversible=True, operates=True, noise=0.05,
         doc="Shuck oysters/clams with an oyster knife at the hinge (protect the holding hand: cut-resistant glove or the "
             "oyster in a folded towel) or husk corn (husk and silk to compost).")
 @P.perceived_result
@@ -842,7 +843,7 @@ def shuck(ctx):
 @action("grate", params={"target": "entity", "tool": "?entity", "destination": "entity",
                          "side": "?str:coarse|medium|fine|zest", "amount_g": {"type": "number", "default": 0, "min": 0, "max": 2000},
                          "stop_at_mm": {"type": "number", "default": 25, "min": 0, "max": 100}},
-        duration=C.duration(40.0), irreversible=True, noise=0.15,
+        duration=C.duration(40.0), irreversible=True, operates=True, noise=0.15,
         doc="Grate (or shred, coarse side) a held block/vegetable on a held grater braced on the destination board/bowl. "
             "Stop while >= ~20 mm remains (the nub) unless wearing a cut glove; soft cheese needs chilling first.")
 @P.perceived_result
@@ -901,7 +902,7 @@ def grate(ctx):
 
 @action("zest", params={"target": "entity", "tool": "?entity", "destination": "entity",
                         "amount_g": {"type": "number", "default": 0, "min": 0, "max": 100}, "pressure": "?str:light|firm"},
-        duration=C.duration(40.0), irreversible=True, noise=0.03,
+        duration=C.duration(40.0), irreversible=True, operates=True, noise=0.03,
         doc="Zest a held citrus fruit on a microplane/zester over the destination: light pressure takes only the coloured "
             "peel; firm pressure digs into bitter white pith. Wash waxed fruit first; zest before juicing.")
 @P.perceived_result
@@ -942,7 +943,7 @@ def zest(ctx):
 
 @action("juice", params={"target": "entity", "tool": "?entity", "destination": "entity",
                          "strain": "?entity", "pulp": "?str:keep|remove"},
-        duration=C.duration(30.0), irreversible=True, noise=0.05,
+        duration=C.duration(30.0), irreversible=True, operates=True, noise=0.05,
         doc="Juice halved citrus with a held reamer/press (or by hand) into the destination. Seeds fall into the juice unless "
             "a strainer is used (strain=<sieve on the destination> or a citrus press). Halve the fruit first.")
 @P.perceived_result
@@ -995,7 +996,7 @@ def juice(ctx):
 
 @action("crush", params={"target": "entity", "tool": "?entity", "force": "?str:light|firm",
                          "passes": {"type": "int", "default": 6, "min": 1, "max": 60}},
-        duration=C.duration(20.0), irreversible=True, noise=0.3,
+        duration=C.duration(20.0), irreversible=True, operates=True, noise=0.3,
         doc="Crush with a rolling pin (crackers/cookies inside a closed bag), the flat of a knife (garlic) or a mortar "
             "(peppercorns). Crushing in an open bag sprays crumbs; glassware used as a hammer breaks.")
 @P.perceived_result
@@ -1054,7 +1055,7 @@ def _grind_db(ctx):
 
 @action("grind", params={"target": "entity", "tool": "?entity", "setting": "?str:fine|medium|coarse",
                          "seconds": {"type": "number", "default": 0, "min": 0, "max": 120}},
-        duration=C.duration(20.0), irreversible=True, noise=0.6, timing="commanded", noise_db=_grind_db,
+        duration=C.duration(20.0), irreversible=True, operates=True, noise=0.6, timing="commanded", noise_db=_grind_db,
         doc="Grind whole spices/peppercorns/coffee beans inside a grinder (lid closed, powered) or mortar (target = the "
             "grinder/mortar holding them). Particle size follows setting/time; the grinder keeps the flavour of what it ground.")
 @P.perceived_result
@@ -1107,7 +1108,7 @@ def grind(ctx):
 
 
 @action("mash", params={"target": "entity", "tool": "?entity", "strokes": {"type": "int", "default": 40, "min": 1, "max": 400}},
-        duration=C.duration(30.0), irreversible=True, noise=0.1,
+        duration=C.duration(30.0), irreversible=True, operates=True, noise=0.1,
         doc="Mash cooked potatoes, avocado, banana or beans in a bowl/pot with a masher, ricer or fork. Work potatoes hot; "
             "overworking (or a blender) makes them gluey.")
 @P.perceived_result

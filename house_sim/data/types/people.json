@@ -172,7 +172,8 @@
     "prescription_bottle": {
       "is_a": "medication_container",
       "props": {"label": "prescription bottle", "material": "polypropylene", "color": "amber", "mass_kg": 0.05, "size_m": [0.04, 0.04, 0.08], "volume_l": 0.1,
-                "doses_left": 30}
+                "doses_left": 30, "label_text": "Rx - pharmacy label - take as directed"},
+      "doc": "A pharmacy bottle always carries its printed Rx label: a scene that names no patient or drug still gets the generic label_text, so reading an unidentified pill bottle succeeds (and resolves it) for this member as for the other pill_bottle look-alikes (phase-1 breakages: the member without print was refused 'nothing legible' before resolution)."
     },
     "pill_organizer": {
       "is_a": "medication_container",

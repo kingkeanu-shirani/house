@@ -272,6 +272,17 @@ def mechanisms_slow(w, dt, tick):
 refresh_sun = V.refresh_sun
 
 
+@hook("episode_start", order=-80)
+def _prebuild_indexes(w, env):
+    """Build the static indexes the time systems, their idle probes and the episode start look up
+    (C.PER_SUBSTEP_INDEXES) before any episode-start hook writes: with nothing journaled the World evaluates their
+    declared-read predicates on the plain records, the cheapest build, instead of through a read view per entity in the
+    first substep (phase-1 G7). An index's content is a pure function of the state (World.static_index), so nothing any
+    system computes changes."""
+    for name in C.PER_SUBSTEP_INDEXES:
+        C.ids(w, name)
+
+
 @hook("episode_start")
 def _episode_start(w, env):
     """Derived values exist from the first observation (and in the evaluation baseline); self-closing doors that a
@@ -539,11 +550,7 @@ def _kernel_rain(w, eid, mm_h, dt):
         w.mut(eid)["water_damaged"] = True
 
 
-def pets_own_escapes():
-    """The pets domain is loaded: its own systems draw a loose pet's escape through an open passage (pets.agents) and
-    a cat's through an open unscreened window (pets.exposure), so this domain's draws stand down -- both at once would
-    count the same hazard twice (one owner each). Standalone, _pets below models them."""
-    return C.domain_module("pets", "behavior") is not None
+pets_own_escapes = C.pets_own_escapes      # with the pets domain loaded _pets below stands down (one owner each)
 
 
 def _pets(w, dt, tick):

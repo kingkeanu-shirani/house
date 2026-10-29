@@ -8,9 +8,9 @@ through windows and doors, weather exposure (rain driven through open windows, c
 (position, solar gain, direct-beam glare, outdoor shade), occupant thermal comfort and the household energy ledger.
 
 Code: `house_sim/systems/climate/` (package). Types: `house_sim/data/types/climate.json` (41 types).
-Tests: `tests/test_climate.py` (108 tests: 14 realistic-perception tests, 16 for the tier-1 adoption in `Tier1PhysicsAdoptionTests`,
+Tests: `tests/test_climate.py` (112 tests: 14 realistic-perception tests, 16 for the tier-1 adoption in `Tier1PhysicsAdoptionTests`,
 `Tier1CameraAdoptionTests`, `Tier1BodyAndSweepAdoptionTests`, `Tier1ResidualTests`, 10 for phase 1 in `Phase1StabiliseTests`
-(section 18); green isolated
+and 4 for its finish in `Phase1FinishTests` (section 18); green isolated
 (`HOUSE_SIM_DOMAINS=core,climate`), with `HOUSE_SIM_STRICT=1`, with all 16 domains loaded, and with the `furniture_tip` and
 `carry` laws forced on).
 Examples: `tasks/authored/climate__examples.json` (12 specs on generation-2 houses, `"house": {"gen": 2}`; all pass `--check` on
@@ -40,7 +40,12 @@ section 5 and section 18.
 All iteration is over sorted ids; randomness only through the setup rng (helpers/furnishers). No system walks every
 entity: they read kernel static indexes (`w.static_index`, via `common.static_ids`: windows, climate devices, heat-gain
 candidates, metered devices, screens, shade-watched items, path-blocking furniture/rugs, combustibles, candles/papers,
-mist-sensitive electronics, floors, window covers) and re-check dynamic fields on the records. Groupings that only
+mist-sensitive electronics, floors, window covers) and re-check dynamic fields on the records. Every index predicate
+declares the record fields it reads (`common.index_reads`; the World then evaluates it on the plain record, strict mode
+checks the declaration), and the eight looked up on every substep (`common.PER_STEP`: windows, climate devices, heat
+gains, hot showers, metered devices, screens, shade-watched items, floor cover) are built by an `episode_start` hook
+(order -90) while nothing is journaled, not inside the first substep through the kernel's read views (phase-1 G7;
+section 18). Groupings that only
 actions change (windows per room, devices by kind, entity -> room, glazing UA, light lists, screen glare points,
 register floor cover, dehumidifier intake clearance) are memoized per env step (`model.step_memo`: keyed on
 `steps`, the world version and the entity count, so actions, rollbacks and created/destroyed entities refresh it).
@@ -243,7 +248,8 @@ cue), window `rain_in_l` (the sill looks wet or dry) and `u_value`.
 furnace filters, "pleated air filter in a cardboard frame"; the camera's 5 cm size estimate is the only glance hint),
 `purifier_cartridge` (the purifier's own cartridge and another model's, "cylindrical air-filter cartridge") and
 `purifier_panel` (AP-500 pre-filter / carbon / HEPA panels in printed bags and another model's panel, "flat air-filter
-panel"; the helper tags the other model's panel with `looks_like`). An unread member shows the descriptor, the group kind
+panel"; the AP-500 takes its three layers as framed cassettes of one size, 350 x 230 x 40 mm, so no member hides another
+true size from the geometric camera; the helper tags the other model's panel with `looks_like`). An unread member shows the descriptor, the group kind
 and only the shared fields; on inspect its `climate` details are identity-neutral: only `looks` (wrap or dust loading),
 the moulded orientation cue (`arrow` for furnace filters, `pull_tab` for purifier filters) - the same keys for every
 member of the group - and never the printed size, MERV, model, layer or washable notice (the kernel keeps inspector
@@ -957,3 +963,50 @@ Checks (phase 1): `python -m unittest tests/test_climate.py` 108 tests OK, also 
 and `python tools/layout_audit.py 20 --domain climate` (generations 1 and 2) attribute nothing to climate; generated
 houses (generations 1 and 2, 25 seeds each) are identical with and without this phase's climate changes;
 `tools/bench_systems.py 40 0 1 2 3 --domain climate`: `climate.house` 0.69 ms per substep (0.70 before).
+
+### Phase 1 finish (2026-10-28)
+
+Inputs: `catalog/analysis/phase1/` (`breakages.json`, the red team's `red_defects.json` / `red_leaks.json`, `FIX2.json`,
+the P1 gate's G7). Result: `catalog/analysis/phase1/finish_climate.json`.
+
+* **Look-alike size spread (breakages.json, FIX2; review L2 residual).** The `purifier_panel` members hid different true
+  sizes behind one look: pre-filter 8 mm, carbon 15 mm, HEPA 40 mm thick (`registry.lookalike_spreads`:
+  "purifier_panel: size 0.01-0.04 m"). With the geometric camera the HEPA panel's range bucket on approach ("near" against
+  "mid" for the others, same spot) told it apart before its bag was read. The AP-500 now takes its three layers as framed
+  cassettes of one size (350 x 230 x 40 mm, bulk 3.3 L; the slots' fit is 352 x 232 x 45 mm, and fit only ever compared
+  the face, so installs, bypass gaps and layer checks are unchanged); the masses still differ (0.1 / 0.3 / 0.45 kg, all
+  "light" to heft). No climate group is listed by `registry.lookalike_spreads` any more (the remaining entry, `remote`, is
+  electrical's). `T-94bc2f055e3996-01` (the layered purifier swap) keeps PASS on every seed in both camera modes; only
+  its scene's state digest changes (the old pre-filter and carbon panels' size and volume).
+* **The spray bottle's heft (red_leaks L4 residual, owner "cleaning / climate").** Cleaning's type (`spray_bottle`) was
+  fixed by cleaning (it now comes full, as heavy as its look-alikes); climate's reservoir verbs already refuse every
+  unresolved member alike (section 18 above), and that test still passes against the new type.
+* **G7 (the P1 gate's substep cost, 3.85 against ADOPT's 3.21 ms).** Climate's share was `climate.house` 0.585 -> 0.625 ms
+  per substep in the gate records. Measured on the bench loop of `tools/bench_systems.py` (40 substeps x seeds 0-3,
+  first substep apart): the whole increase was the first substep, where the per-substep indexes were first built through
+  the kernel's read views (review M3): 0.04-0.05 ms per substep amortized on the ADOPT tree, 0.07 on phase 1 (steady
+  state equal within the noise of a machine loaded by other owners' runs). Every climate index predicate now declares
+  the fields it reads (`common.index_reads`), and the eight looked up on every substep (`common.PER_STEP`) are built by
+  an `episode_start` hook (order -90) on the plain records: 0.027 ms, below ADOPT (climate's systems together, best of
+  four concurrent rounds: 0.69 -> 0.64 ms per substep). The steady state lost a few exact per-substep costs too: the open-door zones of the air pass are joined only when a window
+  is open (cross ventilation and window fans are their only readers), a window's facing is read only when it is open,
+  the window-kind opening shares are a module constant, the fan list is built once per substep for all occupants
+  (about 10 us per substep together on the bench houses, ~2 %). Nothing computed changes: state and observation digests
+  of 27 runs (generation-1 seeds 0-5 and generation-2 seeds 0-2, oracle/room, realistic/room, realistic/geometric; reset,
+  2 h and a day) and the golden rows of the 14 climate specs are identical with and without these changes.
+
+Tests (`Phase1FinishTests`): the panels share one true size and the geometric camera sees them alike (look around, face,
+approach: the same view and lidar for all three members; the registry lists no climate group); every climate index
+predicate declares every field it reads (read views over generated and scenario houses, plus a spy that every climate
+lookup in several episodes passes declared reads); the per-substep indexes exist after reset with a fresh scan's content
+and a 2 h wait ends in the same state with and without the prebuild; a window fan still forces air through its open
+window (the lazily joined zones).
+
+Checks (phase 1 finish): `python -m unittest tests/test_climate.py` 112 tests OK, also with `HOUSE_SIM_STRICT=1` and with
+`HOUSE_SIM_DOMAINS=core,climate` (2 skips); `python -m house_sim --check tasks/authored/climate__examples.json` 12/12,
+`... climate__perception.json` 2/2 in its own mode and with `--camera geometric` (seeds 0 1 2 41 97);
+`python tools/perception_audit.py 20 80 --verbose` (room, `--camera geometric`, `--gen 2`): 0 leaks, 0 crashes;
+`python tools/layout_audit.py 20 --domain climate` (generation 1: 120 houses, generation 2: 220 houses): 0 problems, 0
+domain follow-ups; `python tools/fuzz.py --coverage`: 0 defects, 0 nondeterministic replays (climate's
+`refill_reservoir` 7/7, `empty_reservoir` 7/7, `reverse_fan` 1/2 succeeded); generated houses (generations 1 and 2, 25
+seeds each) identical with and without these changes.

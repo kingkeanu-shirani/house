@@ -24,6 +24,10 @@ part of the state, none is saved, and strict mode is unaffected:
     w.touched_since(cursor, consumer=None) -> (ids, cursor)
                             the ids appended since an absolute cursor; a named consumer's cursor is remembered so
     w.trim_touched()        can drop the prefix every consumer has read (the engine trims after each substep)
+    w.touch_log_complete()  True while touched_since(0) is the step's whole log (nothing trimmed since begin() or
+                            rollback(); rollback_to truncates without moving absolute cursors)
+    w.journaled_entities()  ids of the entities journaled as whole records this step (mut, create, destroy,
+                            mut_quiet), without the set_quiet-only ones
     w.mut_quiet(eid)        journals like mut but is not a touch (writes that change nothing structural)
     w.set_quiet(eid, f, v)  one field, journaled at field level and not a touch (kernel thermal's temperatures)
     w.phys_scratch          the settle pass's transient dict (signatures, ledger, phase, cursor); cleared by begin()
@@ -257,6 +261,19 @@ class World:
 
     def journal_keys(self):
         return list(self._journal) + [("entities", eid) for eid in self._quiet if ("entities", eid) not in self._journal]
+
+    def journaled_entities(self):
+        """Ids of the entities whose whole record was journaled this step (mut, create, destroy, mut_quiet), in the
+        order of their first write; entities with only quiet field writes (set_quiet: kernel thermal's temperatures)
+        are not listed. With a static index over step-start records, `index | journaled` is every entity whose current
+        record can match (cleaning's phase-1 finish request)."""
+        return [name for kind, name in self._journal if kind == "entities"]
+
+    def touch_log_complete(self):
+        """True when touched_since(0) returns every entity write of the step so far: nothing was trimmed since the last
+        begin() or rollback() (trim_touched drops read prefixes; rollback_to truncates the log without moving any
+        absolute cursor). textiles_laundry's phase-1 request: the contract its scan filter relies on, made explicit."""
+        return self._touched_base == 0
 
     def _with_quiet(self, record, eid):
         """A record as it was at step start: its quiet fields put back to their journaled values."""
@@ -641,27 +658,39 @@ class World:
 
     def _matching(self, name, predicate, ids, reads=None):
         """The ids among `ids` whose step-start record matches the predicate. The fields it reads (through a read
-        view; `reads`: the fields the caller declares it reads) join the index's read set."""
+        view; `reads`: the fields the caller declares it reads) join the index's read set.
+
+        With declared reads the predicate sees a plain record wherever that record is the entity's step-start record
+        for the declared fields (phase-1 finish, seven domains' request: the read views made every build inside a step
+        two to three times dearer): an entity not journaled this step is its own record, a journaled one its journal
+        snapshot (one created this step: as it is), and a quiet write (set_quiet) matters only when it wrote a declared
+        field -- only such an entity is read through a start view. Strict mode reads every entity through a view, also
+        between steps, and checks the declaration (electrical's request: a plain-record build no longer escapes it)."""
         entities, journal, quiet = self.s["entities"], self._journal, self._quiet
         keys, out = set(), set()
+        plain = reads is not None and not STRICT_INDEX
+        declared = frozenset(reads) if plain and quiet else None
         for eid in ids:
             record = entities.get(eid)
             if record is None:
                 continue
-            if reads is not None and not (journal or quiet):
-                if predicate(record):
-                    out.add(eid)
-                continue
+            if plain:
+                start = quiet.get(eid) if quiet else None
+                if not start or declared.isdisjoint(start):
+                    before = journal.get(("entities", eid)) if journal else None
+                    if predicate(record if before is None or before is MISSING else before):
+                        out.add(eid)
+                    continue
             view = self._start_view(eid, record, keys) if journal or quiet else _ReadView(record, keys)
             try:
                 result = predicate(view)
             except Exception:  # noqa: BLE001 -- a predicate that needs a real dict reads it whole (real errors re-raise)
-                plain = view._whole() if isinstance(view, _StartView) else view._record
-                result = predicate(plain)
+                whole = view._whole() if isinstance(view, _StartView) else view._record
+                result = predicate(whole)
                 keys.add(READS_ALL)
             if STRICT_INDEX:
-                plain = view._whole() if isinstance(view, _StartView) else view._record
-                if bool(result) != bool(predicate(plain)):
+                whole = view._whole() if isinstance(view, _StartView) else view._record
+                if bool(result) != bool(predicate(whole)):
                     raise RuntimeError("Static index {!r}: its predicate answers differently on a read view".format(name))
             if result:
                 out.add(eid)

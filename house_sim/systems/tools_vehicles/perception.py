@@ -207,6 +207,8 @@ def _lots_settle(w, node, ctx):
                 refresh_sorted(w, child)
 
 
+@C.per_step_index("hazmat")
+@C.index_reads("automotive", "toxic_to_pets", "chemical", "hazards")
 def is_hazmat(rec):
     return bool(rec.get("automotive") or rec.get("toxic_to_pets") or (rec.get("chemical") and set(rec.get("hazards") or []) & {"toxic", "flammable", "corrosive"}))
 

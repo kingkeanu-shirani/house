@@ -96,7 +96,7 @@ def _grill_seconds(ctx):
 
 @action("light_grill", params={"target": "entity", "method": {"type": "str", "default": "igniter", "choices": ["igniter", "lighter", "chimney", "lighter_fluid"]},
                                "burner": {"type": "int", "default": 0, "min": 0, "max": 6}},
-        duration=_grill_seconds, energy=0.005, category="physical",
+        duration=_grill_seconds, energy=0.005, category="physical", operates=True,
         doc="Light an outdoor grill. Gas: open the lid and the tank valve first, then press the igniter (or use a held long "
             "lighter) - burner 0 = all burners on high. Charcoal: method chimney lights the briquettes in a chimney starter "
             "set on the grate (hold a lighter); lighter_fluid only on unlit coals. Needs an adult's approval "

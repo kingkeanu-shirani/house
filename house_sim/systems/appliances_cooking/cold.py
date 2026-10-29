@@ -23,6 +23,7 @@ import math
 from ...kernel import geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
+from ...kernel.phys import lawbook
 from ...kernel.phys import thermal as kthermal
 from ...kernel.plugins import after, before, hook
 from . import common as C
@@ -163,17 +164,19 @@ def item_heat_load_w(state, eid, cabinet_c, dt, contents=None):
     (thermal_owner, food while the food domain is loaded) are that model's business. contents: the unit's contents
     when the caller has them (contents_of_units)."""
     food_model = C.food_safety_loaded()
+    lumped = lawbook.active("thermal_tau")          # asked once, not per item (kernel_tau_s takes it)
+    ents, settled = state["entities"], kthermal.SETTLED_K
     total = 0.0
     for c in (unit_contents(state, eid) if contents is None else contents):
-        rec = state["entities"][c]
+        rec = ents[c]
         if rec.get("temperature_c") is None or (food_model and C.is_food(rec)):
             continue
         delta = C.num(rec.get("temperature_c")) - cabinet_c
         if rec.get("_phys_phase"):
             total += kthermal.phase_conductance_w_k(rec) * delta          # freezing or thawing on its plateau
-        elif not kthermal.domain_owned(rec) and abs(delta) >= kthermal.SETTLED_K:
+        elif not kthermal.domain_owned(rec) and abs(delta) >= settled:
             heat = kthermal.heat_capacity_j_k(rec) * delta
-            total += heat * (1.0 - math.exp(-dt / max(1.0, kthermal.kernel_tau_s(rec)))) / dt
+            total += heat * (1.0 - math.exp(-dt / max(1.0, kthermal.kernel_tau_s(rec, lumped)))) / dt
     return total
 
 
@@ -202,7 +205,8 @@ def step_cold(w, eid, dt, contents=None):
         cooling *= 0.4
     if C.hidden(rec, "_fridge").get("evaporator_punctured") or rec.get("broken"):
         cooling = 0.0
-    on = powered(state, eid) and not C.hidden(rec, "_defrost").get("active")
+    supplied = powered(state, eid)          # asked once; again only after a defrost tick (its meltwater may wet things)
+    on = supplied and not C.hidden(rec, "_defrost").get("active")
     comp = bool(hf.get("compressor"))
     if on:
         if T > sp + 0.5:
@@ -231,9 +235,9 @@ def step_cold(w, eid, dt, contents=None):
         hf["open_total_s"] = C.rnd(C.num(hf.get("open_total_s")) + dt, 1)
     else:
         hf["open_s"] = 0.0
-    alarm_on = ((rec.get("settings") or {}).get("door_alarm", "on") != "off") and powered(state, eid)
+    alarm_on = ((rec.get("settings") or {}).get("door_alarm", "on") != "off") and supplied
     door_alarm = bool(is_open and alarm_on and C.num(hf["open_s"]) >= C.num(p.get("alarm_after_s"), 120.0))
-    if T_new > TEMP_ALARM.get(kind, 8.0) and powered(state, eid):
+    if T_new > TEMP_ALARM.get(kind, 8.0) and supplied:
         hf["hot_s"] = C.rnd(C.num(hf.get("hot_s")) + dt, 1)
     else:
         hf["hot_s"] = 0.0
@@ -254,6 +258,7 @@ def step_cold(w, eid, dt, contents=None):
     defrost = dict(rec.get("_defrost") or {})
     if defrost.get("active"):
         frost = _defrost_tick(w, eid, rec, defrost, frost, dt, room_c, rid)
+        supplied = powered(state, eid)
     m = w.mut(eid)
     m["internal_temp_c"] = C.rnd(T_new, 3)
     m["_fridge"] = hf
@@ -269,10 +274,10 @@ def step_cold(w, eid, dt, contents=None):
         m["temp_alarm"] = temp_alarm
         if temp_alarm:
             C.notice(w, "alarm", eid, "temp_alarm")
-    shown = "{:.0f} C".format(round(T_new)) if powered(state, eid) else ""
+    shown = "{:.0f} C".format(round(T_new)) if supplied else ""
     if m.get("display") != shown:
         m["display"] = shown
-    m["light_on"] = bool(is_open and powered(state, eid))
+    m["light_on"] = bool(is_open and supplied)
 
 
 def _defrost_tick(w, eid, rec, defrost, frost, dt, room_c, rid):
@@ -529,7 +534,7 @@ def _defrost_seconds(ctx):
 @action("defrost", params={"target": "entity",
                            "method": {"type": "str", "default": "passive",
                                       "choices": ["passive", "hot_water", "fan", "scrape", "hair_dryer", "ice_pick", "knife"]}},
-        duration=_defrost_seconds, energy=0.01, category="physical",
+        duration=_defrost_seconds, energy=0.01, category="physical", operates=True,
         doc="Defrost a manual-defrost freezer: it must be switched off (or unplugged) with the door/lid open and the food moved "
             "to coolers first. method passive (start melting; put trays/towels in place), hot_water (bowls of hot water "
             "inside speed it up), fan, scrape (hold a plastic scraper; removes frost once it has softened ~20 min), hair_dryer "

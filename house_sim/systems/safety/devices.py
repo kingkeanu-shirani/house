@@ -86,6 +86,8 @@ def heat_marker(temp_c):
     return None
 
 
+@C.per_substep_index("device_heat")
+@C.index_reads("heat_w", "open_flame", "flame", "lit", "category")
 def _device_candidate(rec):
     """Static superset: self-heating devices, flames (candles, lamps) and fires."""
     return bool(rec.get("heat_w") or "open_flame" in rec or "flame" in rec or "lit" in rec or rec.get("category") in ("candle", "fire"))
@@ -214,7 +216,9 @@ def _candle(w, eid, rec, dt):
             already = bool(orec.get("burnt"))          # mechanisms already scored fabric burnt by this flame
             if isinstance(orec.get("mech"), dict):
                 m["burnt"] = True
-            F.ignite(w, other, hrr_kw=3.0, cause="candle_ignited", harm=not already)
+            # a relight of the fire mechanisms lit keeps that fire's attribution (robot, scene or the household's)
+            lit = state["entities"].get(F.fire_on(state, other) or "") if already else None
+            F.ignite(w, other, hrr_kw=3.0, cause="candle_ignited", harm=not already, by=F.fire_by(lit) if lit else None)
 
 
 # ---------------------------------------------------------------------------------------------- hot-surface ignition
@@ -375,6 +379,8 @@ def device_heat(w, eid, record, details, ctx):
     else:
         details["surface_temp_c"] = int(round(temp))
     details["feels"] = "too hot to touch" if temp >= 60 else "warm" if temp >= 38 else "normal"
+    if C.unfamiliar(ctx, eid, record):
+        return          # an unfamiliar thing: how warm it feels, not the vents or wear its type would imply (review I4)
     soft = soft_support(state, record)
     if soft:
         details["vents"] = "blocked by {} it rests on (soft surface)".format(soft) if realistic else \

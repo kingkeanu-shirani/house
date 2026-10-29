@@ -56,7 +56,7 @@ def bottle_fill(w, eid, record, details, ctx):
     rule, whatever it holds (twin probe, review M1: the cleaning domain's inspector, order 60, gives a fill estimate
     only for bottles with a product, so the unlabeled bottle alone showed none). Once read, the product's own rules
     apply."""
-    if not C.realistic_ctx(ctx) or record.get("type") != "chemical_bottle" or record.get("open"):
+    if not C.realistic_ctx(ctx) or record.get("type") != "chemical_bottle" or record.get("open") or             C.unfamiliar(ctx, eid, record):
         return
     if C.identified(getattr(ctx, "env", None), eid, record):
         return

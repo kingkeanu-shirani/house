@@ -182,7 +182,8 @@ def _hold(ctx, eid, hold_s):
                                "grip": {"type": "str", "default": "handle", "choices": GRIPS}, "part": "?str",
                                "side": "?str:left|right|both|fixed|active", "hold_s": {"type": "number", "default": 0.0, "min": 0.0, "max": 600.0},
                                "test": {"type": "bool", "default": False}, "lift": {"type": "bool", "default": False}},
-        duration=lambda ctx: 2.5 + ctx.data.get("extra_s", 0.0), energy=0.01, noise=0.02, category="physical", timing="commanded",
+        duration=lambda ctx: 2.5 + ctx.data.get("extra_s", 0.0), energy=0.01, noise=0.02, category="physical",
+        operates=True, timing="commanded",
         doc="Pull a handle (door, drawer, cabinet, fridge/oven/dishwasher door, sliding lid, curtain wand) to an opening extent "
             "0..1 with a force level; test=true is a gentle pull test of a latch/lock; hold_s holds it open; side picks a curtain "
             "panel or a double-door leaf; part=seal pulls a tamper band; part=knob_cover pulls a childproof cover (removes it).")
@@ -297,7 +298,8 @@ def pull_handle(ctx):
                                "hold_s": {"type": "number", "default": 0.0, "min": 0.0, "max": 600.0},
                                "test": {"type": "bool", "default": False}, "lift": {"type": "bool", "default": False},
                                "tool": "?entity", "angle_deg": {"type": "number", "default": 0.0, "min": 0.0, "max": 80.0}},
-        duration=lambda ctx: 2.5 + ctx.data.get("extra_s", 0.0), energy=0.01, noise=0.02, category="physical", timing="commanded",
+        duration=lambda ctx: 2.5 + ctx.data.get("extra_s", 0.0), energy=0.01, noise=0.02, category="physical",
+        operates=True, timing="commanded",
         doc="Push a handle, bar, panel or door edge: open a door that swings away, push a door/drawer/lid/gate shut (force=firm "
             "seats weatherstripped doors; forcing past an obstruction crushes it), pop a push-to-open front, push test a latch "
             "or lock (test=true), hold a door open (hold_s), push a window screen out (part=screen), cut a painted sash free "

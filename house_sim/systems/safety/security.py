@@ -169,7 +169,7 @@ def no_approach(ctx, result):
 
 @inspector("safety.gate_test", order=75)
 def gate_test(w, eid, record, details, ctx):
-    if not (record.get("self_closing") or "latched" in record):
+    if not (record.get("self_closing") or "latched" in record) or C.unfamiliar(ctx, eid, record):
         return
     if ctx is None or ctx.args.get("where") != "closely":
         return
@@ -571,7 +571,7 @@ def outside_view(env, w, obs):
 
 @inspector("safety.doorbell_camera", order=85)
 def doorbell_camera(w, eid, record, details, ctx):
-    if not (record.get("camera") or record.get("category") in ("doorbell", "camera")):
+    if not (record.get("camera") or record.get("category") in ("doorbell", "camera")) or C.unfamiliar(ctx, eid, record):
         return
     state = w.s
     room = record.get("location") if record.get("location") in state["rooms"] else C.root_room(state, eid)

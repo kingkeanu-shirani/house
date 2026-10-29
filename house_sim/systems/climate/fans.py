@@ -249,6 +249,7 @@ def window_fan_flow(state, eid, windows=None):
 # ---------------------------------------------------------------------------------------------
 # consequences of airflow on light objects, flames, infants, stability
 
+@C.index_reads("category", "tags", "mass_kg")
 def _light_or_flame(rec):
     """Static pre-filter: candles and light papers (<= 50 g) a fan can blow about."""
     cat = rec.get("category")

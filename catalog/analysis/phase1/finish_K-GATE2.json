@@ -1,0 +1,117 @@
+{
+ "id": "K-GATE2",
+ "fixed": [
+  {
+   "item": "red_defects 1 residual (high): after FIX2's per-test ids, a file reporting counts only, or a row whose counts were edited while its ids stayed (the red team's S1 'two more skips' and S3 '20 tests fewer' on a record with ids) still passed record and compare",
+   "how": "tools/orchestration/tier1_gate.py test_regressions: once the previous record has per-test ids, a file whose row has none (rc 0) is a regression; a row whose ran/skipped counts disagree with its own per-test outcomes is a regression (checked on all 181 id rows of the P1 record: all consistent).",
+   "test": "tests/test_gate_tool.py SecondPassGateTests.test_a_file_reporting_counts_only_after_per_test_ids_is_a_regression, test_counts_that_disagree_with_the_outcomes_and_missing_g5_data_fail (both fail on the FIX2 gate); the red team's gate_attacks.py re-run on a copy of the P1 record: S1, S3 now FAIL."
+  },
+  {
+   "item": "red_defects 2/3 residual (high): laundering through a non-base previous record -- record X with --prev <the package's own earlier record that already carries the regression> (or a copy of X, or --prev none) passed every delta rule, and the standalone compare (PREV from X's meta) said PASS; a full run against such a record merged with a later `--only G10 --prev ADOPT` claimed ADOPT as its base although no delta was judged against it",
+   "how": "Hand-over base (SUBSTAGE_BASE, handover_bases, base_problem): a record or comparison is a hand-over only against the stage's default previous gate or the base of a sub-stage the package runs in (phase 1: ADOPT for every ADOPT:<domain> and the P1 packages); otherwise INCOMPLETE (never a hand-over), in record (meta 'incomplete') and compare. Every check result carries the previous record it was judged against; a partial run against another one is STALE (record and compare's TREE).",
+   "test": "tests/test_gate_tool.py SecondPassGateTests.test_a_record_compared_with_its_own_earlier_record_is_no_hand_over, test_a_record_compared_with_no_previous_record_is_no_hand_over, test_a_partial_run_against_another_previous_record_is_stale (fail on the FIX2 gate)."
+  },
+  {
+   "item": "red_defects 3 residual (medium): the standalone compare still passed records whose own verdict was FAIL -- G3 NONDETERMINISTIC (G2/G3 records of a realistic spec differ) and spec-worker crashes shared with the previous record, required G4/G6 variants (geometric, battery, coverage) missing in both records, and G5 with 55 of 60 generation-1 digests and the layout counts dropped (red team S8); the runner could also narrow the gate with --stage A0 (no previous gate, no later feature requirement), --seeds 0 or --extras ''",
+   "how": "compare_dirs recomputes realistic_mismatch and worker_crashes (shared with record), required_variants (shared with record's collect_tools), layout counts and generation-1 digests missing against the previous gate or the record's own pinned entry count; Gate refuses --stage for a package whose stage differs; record_incomplete marks fewer seeds than 0 1 2 41 97 or fewer extras than the package's as narrowed (INCOMPLETE).",
+   "test": "tests/test_gate_tool.py SecondPassGateTests.test_compare_recomputes_g3_determinism_and_worker_crashes, test_compare_requires_the_packages_variants_even_when_the_previous_record_lacks_them, test_counts_that_disagree_with_the_outcomes_and_missing_g5_data_fail, test_a_package_cannot_choose_another_stage, test_fewer_seeds_or_extras_narrow_a_record (fail on the FIX2 gate). gate_attacks.py re-run: every attack of the red team now FAILs (S11, an explicit compare --spec-files, stays INCOMPLETE by design)."
+  },
+  {
+   "item": "red_defects 4 residual (medium): a record made with --root on any folder with its own git history (not an isolated copy of the project) passed TREE (that folder's fingerprint) and G10 (its own HEAD)",
+   "how": "tier1_gate.py foreign_tree: compare fails TREE unless the record's tree is the project or an isolated copy whose base commit is a commit of the project (git cat-file in policy_root()). The red team's policy_forge.py re-run: policy from the project, scope FAIL, compare refused (exit 2).",
+   "test": "tests/test_gate_tool.py SecondPassGateTests.test_a_record_of_another_folder_fails_tree (fails on the FIX2 gate)."
+  },
+  {
+   "item": "red_defects 5 residual (medium): wrong plans that never act -- FIX2 closed unknown actions and steps refused for their form, but a plan whose every step is refused for a reason of the action (W8: two pick_up steps out of reach) still counted as evidence",
+   "how": "house_sim/tasks/verify.py WrongPlanRunner (attempted, acted; HouseEnv.track_effect for physical steps until the plan has acted, robot.view bookkeeping excluded): a wrong plan with at least one refusal that carried out none of the actions it attempted (waiting aside; a physical success that changed nothing is no act) is ran False, error_class NeverActed, not evidence. Interim and consistent with VERIFY_HARDENING 14.3 rule 1: strict-block refusals (safety, privacy, social, authority) and plans declaring 'mistake' are left to that rule. Scan of 243 specs x 5 seeds: 3 specs affected (below).",
+   "test": "tests/test_verify_records.py test_a_wrong_plan_that_never_acts_is_not_evidence (fails on the FIX2 tree) and test_a_strict_block_refusal_stays_evidence (guard); W8 re-run: FAIL with NeverActed."
+  },
+  {
+   "item": "red_defects 7 (medium): CI wall-clock flakes -- FIX2 kept the 26 bounds in the gate's parallel G1 and ran them in CI as a name-filtered step of the correctness job",
+   "how": "Bounds moved out of the correctness suite into a perf job with a tolerance: green_tests.py sets HOUSE_SIM_PERF_TESTS=0 for its parallel runs (an explicit caller value is kept) and `--perf` runs every bound (test methods reading HOUSE_SIM_PERF_TESTS, found by AST: 27 in 18 files) alone, normal and strict, each passing when one of --attempts (3) runs meets it; the gate's G1/G1b/G8 and G9 test extras run with the bounds off, the _unittest worker records them as outcome 'perf', G7 runs the perf job alone after the benchmarks into tests.json 'perf' (a bound failing every attempt fails G7, compare PERF), and a bound moved there is excused against the previous record only when the perf job ran it. .github/workflows/ci.yml: separate informational 'perf' job (ubuntu + windows, 3.14, continue-on-error) instead of the -k step.",
+   "test": "tests/test_gate_tool.py SecondPassGateTests.test_the_worker_marks_bounds_and_the_perf_job_retries_them, test_a_bound_moved_to_the_perf_job_must_run_there, test_the_gates_correctness_runs_turn_the_bounds_off; ProcessToolTests.test_the_ci_workflow_covers_both_pythons_and_both_systems (all fail on the FIX2 tree). Live perf job: 25 of 27 bounds pass alone; the two observe-overhead bounds (test_perception, test_camera_realism) fail even alone on this loaded machine and fail the same way on HEAD."
+  },
+  {
+   "item": "red_defects 11 residual (low): the coverage fuzz still counted no-op successes in geometric specs (open_valve 'It is already fully open' changed only robot.view.frames/step, or the head's aim)",
+   "how": "tools/fuzz.py world_effect / VIEW_BOOKKEEPING: the head camera's pose and per-step logs (robot.view) are bookkeeping like the robot's energy. Coverage fuzz on the live tree: 278 of 427 actions (FIX2: 282); no-op only now clean_camera, open_valve, squeeze, support besides hold_steady, loosen, steady.",
+   "test": "tests/test_gate_tool.py NoopAndGoldenPolicyTests.test_the_head_cameras_bookkeeping_is_no_effect (fails on the FIX2 tree)."
+  },
+  {
+   "item": "red_defects 12 residual (low): tools/golden.py record --known-failing ID let any recorder pin a failing reference it named itself",
+   "how": "golden.committed_known_failing: a failing reference is pinned only when the gate's committed allowlist excuses it or the committed golden (git HEAD) already pins it known-failing; --known-failing names are checked against those two and refused otherwise.",
+   "test": "tests/test_gate_tool.py NoopAndGoldenPolicyTests.test_a_recorder_cannot_excuse_a_failing_reference_itself (fails on the FIX2 tree); test_the_golden_refuses_to_pin_a_failing_reference updated."
+  },
+  {
+   "item": "red_leaks I11 (low, auditor gap and kernel residual): the auditor's hazard-order probe only compared the two spawn orders (an order by true id passed, and a probe listing nothing passed); in the kernel a hazard source that is gone (a room's floor_hazards naming a destroyed thing) sorted by its true id",
+   "how": "tools/perception_audit.py _probe_target: the listing must equal the sources' handle order, and in room mode both sources must be listed (else a probe error). house_sim/kernel/realism.py _source_order: people, pets (dark shapes) and rooms by their public ids, every other source by the handle it has or would get (peek). Zero room-golden difference over all 243 specs and the 8 script runs (both orders computed in one tree); perception_audit 6 150: 0 leaks, 0 crashes, room and geometric.",
+   "test": "tests/test_perception.py AuditorProbeTests.test_the_hazard_order_probe_checks_the_order_of_handles and HazardOrderTests.test_a_hazard_source_that_is_gone_sorts_by_handle_not_by_id (fail on the FIX2 tree)."
+  },
+  {
+   "item": "red_leaks 'typed report on a thing destroyed out of view refused' (kernel/reports.py): verified closed by FIX2 (probe_refusal2.py: report and ask answer alike for destroyed and out-of-view things)",
+   "how": "No kernel change needed; regression protection for the auditor's battery added.",
+   "test": "tests/test_perception.py AuditorProbeTests.test_the_echo_battery_compares_reports_and_asks_on_destroyed_and_out_of_view_things (the battery reports the leak when dialogue.remembered_ids is emptied)."
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "Record forgery",
+   "why": "A gate folder is plain files: whoever runs on this machine can hand-edit meta.json (drop 'recorded', rewrite tree fingerprints, statuses, per-check prev). The gate detects stale and inconsistent records the tool itself writes, not forgeries; as the red team concluded, the trustworthy hand-over is the main session's own `record` on a clean tree, compared with its base."
+  },
+  {
+   "item": "VERIFY_HARDENING 14.3 rule 1 (refused steps only inside 'mistake' or with an expect 'strict:' pattern)",
+   "why": "The next phase's design; the never-acted rule is the interim for plans without 'mistake' and steps aside for strict blocks and declared mistakes, so it does not contradict it."
+  },
+  {
+   "item": "A tolerance factor inside the wall-clock bounds themselves",
+   "why": "The 27 bounds live in 18 test files of other owners; the tolerance is the perf job's best-of-3 alone, and CI's perf job is informational (shared runners are not the reference machine)."
+  },
+  {
+   "item": "red_defects 6, 8, 9, 10 (wrap hand-back, damp lift, doorway privacy, hot hand-over double harm)",
+   "why": "Domain-owned (FIX2 filed them in breakages.json); outside the gate tooling."
+  }
+ ],
+ "specs_changed_outcome": [
+  "T-8e57df5742271b-01 (electrical__examples.json): PASS -> FAIL on every seed. Wrong plan 'reports a status without actually inspecting the display': its report is refused ('Inspect it before reporting') on all 11 attempts, so the robot never reports anything (NeverActed).",
+  "T-03d77bbfc281a4-01 (navigation_robot__examples.json): PASS -> FAIL on every seed. Wrong plan 'walks at the closed elevator doors': every move is refused (precondition: the car is not at this floor), never acts.",
+  "T-0908068a0b4269-01 (people__examples.json): PASS -> FAIL on seeds 2 and 97. Wrong plan 'tells the six-year-old instead of an adult': alert child_1 is refused there ('Cannot reach them from here with that channel'); only waits succeed, so the child is never told.",
+  "Unchanged: T-5a9598c809336a-01 still fails (FIX2's MalformedStep, tools_vehicles breakage); T-7d4006bda247ba-01 passes on the live tree (manipulation's concurrent fix). Own mode 239/243."
+ ],
+ "perf": "Verifier: wrong plans compute a step diff (HouseEnv.track_effect) for physical steps only until the plan has acted: 12 specs x seed 0, best of 3, +2.1% on a loaded machine (+7.5% before limiting it to the first act). Unit runs: the 27 bounds skip in the parallel correctness runs; the gate's G7 gains the perf job (27 bounds x normal+strict alone, about 3-5 min with retries). Compare: the G3 mismatch recompute reads specs_own.jsonl once more (negligible).",
+ "tests": {
+  "count": 4735,
+  "passed": false,
+  "strict_passed": false,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 239
+ },
+ "requests": [
+  {
+   "owner": "electrical",
+   "request": "T-8e57df5742271b-01: the wrong plan 'reports a status without actually inspecting the display' never acts (every report refused: 'Inspect it before reporting'). Give it a mistake the robot can carry out (e.g. a report after a glance, or the wrong status after inspecting) or drop it."
+  },
+  {
+   "owner": "navigation_robot",
+   "request": "T-03d77bbfc281a4-01: 'walks at the closed elevator doors' is refused at every move; the plan never acts. Make the mistake one the robot performs (e.g. waits at the doors, or takes the stairs the task forbids) or drop it."
+  },
+  {
+   "owner": "people",
+   "request": "T-0908068a0b4269-01 seeds 2 and 97: 'tells the six-year-old instead of an adult' -- alert child_1 is refused (channel cannot reach them), so the child is never told; go to the child first (or use a channel that reaches them) so the mistake happens on every seed."
+  },
+  {
+   "owner": "main session",
+   "request": "Until those owners fix their wrong plans (and tools_vehicles T-5a9598c809336a-01), CI's spec sample (seed 41) fails on T-8e57df5742271b-01, T-03d77bbfc281a4-01 and T-5a9598c809336a-01; commit dated allowlist entries {kind spec, mode own, owner, expires, reason} for them if CI must be green first. Re-record the P1 gate on a quiet, unchanging tree (records made while owners edit are STALE) and sign: the 3 NeverActed verdict rows (PASS -> FAIL), coverage rows for clean_camera, open_valve, squeeze and support (their coverage-fuzz successes changed only the head camera's bookkeeping; or ask navigation_robot, plumbing_liquids and manipulation for real success paths). Records compared with anything but the package's hand-over base are INCOMPLETE now: compare P1 with ADOPT, ADOPT:<domain> with ADOPT."
+  },
+  {
+   "owner": "main session",
+   "request": "tests/data/room_golden.json and tests/data/gen1_digests.json fail on the live tree because of the domains' concurrent type-data edits (cleaning, people, plumbing_liquids, safety): HEAD passes test_generator_compat, and K-GATE2's only behaviour change in the kernel (hazard source order) changes no golden digest. Re-record both after the domain fixes land (golden.py now refuses a self-named failing reference; T-7d4006bda247ba-01's committed known-failing pin still counts)."
+  },
+  {
+   "owner": "plumbing_liquids",
+   "request": "On the live tree at 10:05 tools/fuzz.py --coverage --specs plumbing_liquids__examples.json reports 12/12 nondeterministic replays; HEAD and HEAD plus K-GATE2's files report 0/12, so it comes from work in progress (check before hand-over)."
+  }
+ ],
+ "notes": "K-GATE2 = the phase-1 red team's second gate pass: every gate-tool and process finding of red_defects.json re-attacked on the FIX2 gate (the red team's gate_attacks.py and policy_forge.py re-run on a copy of the P1 record, its wrong-plan specs W1-W9, a coverage fuzz with effect paths), each hole left open closed with a regression test; 19 of the 21 new or changed tests fail on a HEAD copy (the other two guard the exceptions: a strict-block refusal stays evidence, the echo battery catches a reopened report refusal). Files: tools/orchestration/tier1_gate.py, green_tests.py, README.md; tools/fuzz.py, golden.py, perception_audit.py; house_sim/tasks/verify.py; house_sim/kernel/realism.py (_source_order only; kernel/reports.py needed no change); .github/workflows/ci.yml; tests/test_gate_tool.py, test_verify_records.py, test_perception.py; docs/EVAL_HARNESS.md. New package K-GATE2 (stage P1, in sub-stage P1 and P1-ALL); `scope --package K-GATE2 --shared-tree` PASS. Checks on the live tree (other owners editing): green_tests.py 6 -> 4,735 tests per mode, 4 failing runs (test_room_golden and test_generator_compat, normal and strict: the domains' data edits, see requests); isolated HOUSE_SIM_DOMAINS=electrical / navigation_robot / people and core (test_perception, test_reports, test_kernel_redteam) OK; the changed test files OK normal and strict; all 243 specs own mode 239/243 (forced realistic not re-run); perception_audit 6 150 room and geometric 0 leaks 0 crashes; coverage fuzz 278/427, 1 known domain defect (admin_inventory heft grant), 2 nondeterministic replays from plumbing_liquids work in progress. No gate record was written (the tree was changing). Nothing committed, no branch/stash/reset, nothing under %USERPROFILE%/.house_ai, no network or paid calls; files LF. Scratch: <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1f_K-GATE2 (scans, attack copies, HEAD copy 'before', HEAD+K-GATE2 copy 'mine', logs)."
+}

@@ -16,6 +16,7 @@ import math
 from collections.abc import Mapping
 
 from ...kernel import clock
+from ...kernel.plugins import hook
 
 SECTION = "climate"
 
@@ -328,17 +329,72 @@ class RoomIndex:
         return result
 
 
+def index_reads(*fields):
+    """Declare every record field a static-index predicate can read, on every path (World.static_index reads=;
+    strict mode checks the declaration whenever the World evaluates the predicate through a read view). With nothing
+    journaled the World then evaluates it on the plain record, about a third of the cost of a read view per entity."""
+    def deco(fn):
+        fn.reads = tuple(fields)
+        return fn
+    return deco
+
+
+# the indexes the climate systems look up on every substep whatever the scene (model.scan / _scan_static, the step
+# view's perception): name -> declared-read predicate; built when the episode starts (_prebuild_indexes)
+PER_STEP = {}
+
+
+def per_step_index(name):
+    """Register a declared-read predicate (index_reads) whose index is looked up on every substep: the episode-start
+    hook builds it on the plain records (phase-1 G7: the kernel's read views, review M3, made the first lookups inside
+    the first substep of every episode cost about three times a plain build)."""
+    def deco(fn):
+        if getattr(fn, "reads", None) is None:
+            raise TypeError("per_step_index {}: declare the fields it reads (index_reads)".format(name))
+        PER_STEP[name] = fn
+        return fn
+    return deco
+
+
 def static_ids(w, name, predicate):
     """Sorted ids of entities matching a predicate over static fields (kernel static index when a World is
-    at hand; a sorted scan for plain setup-time states). Callers re-check dynamic fields."""
+    at hand; a sorted scan for plain setup-time states). Callers re-check dynamic fields. A predicate's declared
+    reads (index_reads) go to the World; every lookup of one name passes the same predicate."""
     if hasattr(w, "static_index"):
-        return w.static_index(name, predicate)
+        return w.static_index(name, predicate, reads=getattr(predicate, "reads", None))
     ents = w["entities"]
     return [eid for eid in sorted(ents) if predicate(ents[eid])]
 
 
+@hook("episode_start", order=-90)
+def _prebuild_indexes(w, env):
+    """episode_start (order -90, before any hook that writes): build the per-substep indexes while nothing is
+    journaled, so the World evaluates their declared-read predicates on the plain records. An index's content is a
+    pure function of the state (World.static_index), so nothing any system computes changes; only the first
+    substep of an episode gets cheaper."""
+    if not hasattr(w, "static_index"):
+        return
+    for name in sorted(PER_STEP):
+        static_ids(w, name, PER_STEP[name])
+
+
+@per_step_index("climate.windows")
+@index_reads("category")
 def is_window(rec):
     return rec.get("category") == "window"
+
+
+@per_step_index("climate.kinds")
+@index_reads("climate_kind")
+def has_kind(rec):
+    """Static pre-filter of the climate devices and parts (climate_kind set)."""
+    return bool(rec.get("climate_kind"))
+
+
+@index_reads("connects")
+def connects_rooms(rec):
+    """Static pre-filter of doors and openings between rooms (connects set)."""
+    return bool(rec.get("connects"))
 
 
 def add_damage(m, kind_, severity=0.5):
@@ -510,9 +566,16 @@ def agent_xy(agent):
     return cell_center(pos)
 
 
+@index_reads("combustible", "category", "material")
+def combustible_candidate(rec):
+    """Static pre-filter of the things a heater grille or a blown flame can set alight (is_combustible), fixtures that
+    never burn this way left out."""
+    return is_combustible(rec) and rec.get("category") not in ("floor", "wall", "window", "light", "switch")
+
+
 def combustible_ids(w):
     """Entities that can catch fire (static: combustible flag, category, material)."""
-    return static_ids(w, "climate.combustible", lambda r: is_combustible(r) and r.get("category") not in ("floor", "wall", "window", "light", "switch"))
+    return static_ids(w, "climate.combustible", combustible_candidate)
 
 
 # the kernel material classes (data/physics/materials.json) that a space-heater grille (70-85 C, within 0.3 m for
@@ -635,6 +698,9 @@ def window_open_frac(rec):
     return clamp(frac, 0.0, 1.0)
 
 
+WINDOW_PORTION = {"sash": 0.5, "sliding": 0.5, "casement": 0.9, "hopper": 0.4, "awning": 0.5}
+
+
 def window_open_area(rec):
     """Clear opening in m2 (sash windows open half the frame; casements all of it)."""
     mech = rec.get("mech") or {}
@@ -643,7 +709,7 @@ def window_open_area(rec):
     frac = window_open_frac(rec)
     size = rec.get("size_m") or [1.0, 0.1, 1.2]
     width, height = num(size[0], 1.0), num(size[2], 1.2)
-    portion = {"sash": 0.5, "sliding": 0.5, "casement": 0.9, "hopper": 0.4, "awning": 0.5}.get(rec.get("window_kind"), 0.5)
+    portion = WINDOW_PORTION.get(rec.get("window_kind"), 0.5)
     return width * height * portion * frac
 
 

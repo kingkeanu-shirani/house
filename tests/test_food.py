@@ -1877,8 +1877,11 @@ class RealisticPerception(unittest.TestCase):
         self.assertEqual(realism.tier(scale, "tare_g"), "never")
         groups = realism.groups()
         for name in ("flour_sugar_bag", "small_baking_box", "nut_butter_jar", "beverage_can", "dairy_tub", "spice_jar",
-                     "measuring_cup", "egg_in_shell"):
+                     "egg_in_shell"):
             self.assertIn(name, groups)
+        # measures of different sizes are told apart by their size (phase-1 red team: the geometric camera did)
+        self.assertNotIn("measuring_cup", groups)
+        self.assertNotIn("measuring_spoon", groups)
 
 
 class RealisticLeaks(unittest.TestCase):
@@ -3016,17 +3019,13 @@ class PhaseOneStabilise(unittest.TestCase):
         liquids.spill(w, 0.3, "water", onto=b["colander"])
         self.assertFalse(ent(env, b["colander"]).get("liquid_l"))
 
-    # look-alike groups whose members are tools of different sizes (the size is the measure): a 1-cup measure is
-    # visibly bigger than a 1/4-cup one; only the stamped size needs a close look
-    SIZED_TOOL_GROUPS = ("measuring_cup", "measuring_spoon")
-
     def _food_groups(self):
         from pathlib import Path
         from house_sim.kernel.registry import default_registry
         path = Path(__file__).resolve().parent.parent / "house_sim" / "data" / "types" / "food.json"
         names = sorted(json.loads(path.read_text(encoding="utf-8"))["looks_like"])
         reg = default_registry()
-        return reg, {g: reg.lookalike_types()[g] for g in names if g not in self.SIZED_TOOL_GROUPS}
+        return reg, {g: reg.lookalike_types()[g] for g in names}
 
     def test_look_alike_members_share_one_package(self):
         # L2 / L4 / I9 / L5: members of a food look-alike group differed in true size (pixels, placement), mass (touch
@@ -3055,31 +3054,218 @@ class PhaseOneStabilise(unittest.TestCase):
             self.assertEqual(len({proprio.bucket_load(m / 8.0) for m in masses}), 1, (group, masses))   # load word
             self.assertLessEqual(masses[-1] - masses[0], max(0.05, 0.06 * masses[-1]), (group, masses))
         self.assertEqual(reg.lookalike_warnings, [])
+        # no food group shows one size for members of different true size (the registry's LookalikeSizeWarning)
+        self.assertEqual([s for s in reg.lookalike_spreads if s.split(":")[0] in groups], [])
 
     def test_look_alike_members_cannot_be_told_apart_by_handling(self):
         # the same scene with each member in the same spot: what the robot sees, holds, hears and where it lies are the
-        # same (handles mapped back to true ids, analysis side only) until the member is identified
+        # same (handles mapped back to true ids, analysis side only) until the member is identified. With the geometric
+        # camera the whole observation is compared: a member of another true size turns the robot to another facing
+        # when it approaches, frames it in other pixels and at another bearing (phase-1 red team: the measuring cups
+        # and spoons, 1 cup vs 1/4 cup, were one group and told apart this way)
         reg, groups = self._food_groups()
 
         def canon(env, value):
             text = json.dumps(value, sort_keys=True)
             for handle, eid in sorted(env.realism.handles.by_handle.items()):
                 text = text.replace(handle, eid)
-            return text
-        for group, members in sorted(groups.items()):
-            seen = {}
-            for t in members:
-                env, b, r = scene([{"op": "spawn", "var": "probe", "type": t, "on": "{counter2}", "eid": "probe_item"}],
-                                  perception="realistic")
-                h = env.realism.handles.handle(b["probe"])
-                trail = [env.observe()["visible_entities"].get(h)]
-                for action, args in (("approach", (h,)), ("pick_up", (h,)), ("place", (h, env.realism.handles.handle(b["counter2"])))):
-                    out = env.step(action, *args)
-                    obs = env.observe()
-                    trail.append([out["ok"], out["message"], obs["visible_entities"].get(h), obs["robot"].get("load"),
-                                  obs.get("sounds"), obs.get("smells"), (obs.get("grid") or {}).get("hazards")])
-                seen[t] = canon(env, trail)
-            self.assertEqual(len(set(seen.values())), 1, (group, sorted(seen)))
+            return json.dumps(json.loads(text), sort_keys=True)     # keyed by id, not by the episode's handles
+        for camera in (None, "geometric"):
+            for group, members in sorted(groups.items()):
+                seen = {}
+                for t in members:
+                    env, b, r = scene([{"op": "spawn", "var": "probe", "type": t, "on": "{counter2}", "eid": "probe_item"}],
+                                      perception="realistic", camera=camera)
+                    h = env.realism.handles.handle(b["probe"])
+                    trail = [env.observe()["visible_entities"].get(h)]
+                    for action, args in (("approach", (h,)), ("pick_up", (h,)),
+                                         ("place", (h, env.realism.handles.handle(b["counter2"])))):
+                        out = env.step(action, *args)
+                        obs = env.observe()
+                        if camera:
+                            trail.append([out["ok"], out["message"],
+                                          {k: v for k, v in obs.items() if k not in ("time", "time_s", "steps")}])
+                        else:
+                            trail.append([out["ok"], out["message"], obs["visible_entities"].get(h), obs["robot"].get("load"),
+                                          obs.get("sounds"), obs.get("smells"), (obs.get("grid") or {}).get("hazards")])
+                    seen[t] = canon(env, trail)
+                self.assertEqual(len(set(seen.values())), 1, (camera, group, sorted(seen)))
+
+
+class PhaseOneFinish(unittest.TestCase):
+    """Phase 1 finish: food's adoption breakages and red-team findings (catalog/analysis/phase1/breakages.json,
+    red_leaks.json), each with its regression."""
+
+    HOT = {"temperature_c": 80.0, "max_touch_temp_c": 250.0}      # a hot dish with stay-cool handles (no mitts needed)
+
+    def _contact_scene(self):
+        return scene([{"op": "spawn", "var": "plastic", "type": "cutting_board_plastic", "on": "{counter2}"},
+                      {"op": "spawn", "var": "chili", "type": "chili", "on": "{counter}", "props": dict(self.HOT)},
+                      {"op": "spawn", "var": "pan", "type": "frying_pan", "on": "{counter}",
+                       "props": {"temperature_c": 200.0, "fixed_temperature": True, "max_touch_temp_c": 250.0}}])
+
+    def test_the_legacy_contact_heat_copy_uses_the_kernels_limits_and_every_domains_claim(self):
+        # breakage (T-7d4006bda247ba-01, appliances_cooking's request): food's legacy copy of contact_heat marked any
+        # item above 70 C set on wood, laminate or plastic with heat_mark 0.4 and a damage count on every placement,
+        # whatever the support's heat limit and whoever claimed the contact. The copy itself, on records laid out
+        # analysis-side (other domains' place hooks, which keep copies of their own, do not run)
+        from unittest import mock
+        from house_sim.kernel import plugins
+        from house_sim.kernel.phys import lawbook, thermal
+        from house_sim.systems.food import physical as PH
+        env, b, r = self._contact_scene()
+        w = env.world
+        claimed = set()
+
+        def claim(w_, hot, support, temp_c, severity):          # another domain's claim (a heel rest, its own burner)
+            return (hot, support) in claimed
+
+        def rest(item, support):
+            w.begin()
+            m = w.mut(item)
+            m["location"], m["relation"] = support, "on"
+            m.pop("spos", None)
+            out = PH.hot_contact(w, item, support)
+            w.commit()
+            return out
+        entry = (100, "tests.food_claim", claim)
+        plugins.HOOKS["phys.contact_heat"].append(entry)
+        try:
+            with lawbook.forced(contact_heat=False), mock.patch.object(PH, "other_copy_loaded", lambda law: False):
+                limit = thermal.heat_limit_c(w.s, b["board"])                 # finished wood, about 60 C
+                before = w.s["stats"].get("damage", 0)
+                self.assertEqual(rest(b["chili"], b["board"]), "ring_stain")   # a heat ring, not heat_mark 0.4
+                self.assertEqual(ent(env, b["board"])["damage"], {"ring_stain": round(min(1.0, (80.0 - limit) / 100.0), 4)})
+                self.assertEqual(w.s["stats"]["damage"], before + 1)
+                self.assertIsNone(rest(b["chili"], b["board"]))                # again: nothing new to mark or count
+                self.assertEqual(w.s["stats"]["damage"], before + 1)
+                self.assertIsNone(rest(b["chili"], b["plastic"]))              # 80 C is under plastic's 100 C limit
+                claimed.add((b["pan"], b["plastic"]))
+                self.assertIsNone(rest(b["pan"], b["plastic"]))                # 200 C, but another domain owns it
+                self.assertFalse(ent(env, b["plastic"]).get("damage"))
+                claimed.clear()
+                with lawbook.forced(contact_heat=True):                         # the law active: the kernel's alone
+                    self.assertIsNone(rest(b["pan"], b["plastic"]))
+                self.assertEqual(rest(b["pan"], b["plastic"]), "melted")        # nobody claims it: plastic melts
+        finally:
+            plugins.HOOKS["phys.contact_heat"].remove(entry)
+        # one copy per contact: food's steps aside while a domain laws.json lists as keeping its own copy is loaded
+        others = [d for d in lawbook.LAWS["contact_heat"]["duplicated_by"] if d != "food"]
+        loaded = any(str(owner).startswith(tuple("house_sim.systems.{}.".format(d) for d in others))
+                     for owner in plugins.OWNERS.values())
+        self.assertEqual(PH.other_copy_loaded("contact_heat"), loaded)
+
+    def test_a_hot_dish_set_on_a_wooden_board_is_marked_once(self):
+        # end to end through place: with only core and food loaded (HOUSE_SIM_DOMAINS=core,food) food's copy marks the
+        # board once and counts it once however often the dish is set down; with every domain loaded it leaves the
+        # contact to the domains that keep their own copies (no extra mark, no extra count from food)
+        from unittest import mock
+        from house_sim.kernel.phys import lawbook
+        from house_sim.systems.food import physical as PH
+        real, marks = PH.hot_contact, []
+
+        def spy(w, hot, support, by="robot"):
+            out = real(w, hot, support, by)
+            marks.append(out)
+            return out
+        env, b, r = self._contact_scene()
+        with lawbook.forced(contact_heat=False), mock.patch.object(PH, "hot_contact", spy):
+            r.skill("put", obj=b["chili"], dest=b["board"])
+            r.skill("put", obj=b["chili"], dest=b["board"])
+        self.assertEqual(len(marks), 2)
+        if PH.other_copy_loaded("contact_heat"):
+            self.assertEqual(marks, [None, None])
+        else:
+            self.assertEqual(marks, ["ring_stain", None])
+            self.assertEqual(sorted(ent(env, b["board"])["damage"]), ["ring_stain"])
+            self.assertEqual(env.world.s["stats"]["damage"], 1)
+
+    NOVEL_LOOK = {"novel": True, "size_m": [0.2, 0.15, 0.25], "color": "gray", "material": "plastic"}
+    # food and core things an unfamiliar object may really be: a knife, a closed package, an empty bowl, a kitchen
+    # scale, a pot of soup and a cucumber
+    NOVEL_KINDS = (("chef_knife", {}), ("all_purpose_flour", {"open": False}), ("mixing_bowl", {}),
+                   ("kitchen_scale", {"on": True}), ("stock_pot", {}), ("cucumber", {}))
+
+    def _novel_scene(self, kind, props):
+        ops = [{"op": "spawn", "var": "thing", "type": kind, "on": "{counter}", "eid": "thing_1",
+                "props": dict(props, **self.NOVEL_LOOK)},
+               {"op": "spawn", "var": "bowl", "type": "mixing_bowl", "on": "{counter}", "eid": "partner_1"},
+               {"op": "spawn", "var": "cuc", "type": "cucumber", "on": "{board}", "eid": "cucumber_1"}]
+        if kind == "stock_pot":
+            ops.append({"op": "spawn", "var": "soup", "type": "chili", "in": "{thing}", "eid": "soup_1"})
+        return scene(ops, perception="realistic")
+
+    def _food_verbs(self):
+        from house_sim.kernel import plugins
+        return sorted((n, s) for n, s in plugins.ACTIONS.items() if s.fn.__module__.startswith(FOOD + ".actions_"))
+
+    def test_every_food_verb_refuses_an_unfamiliar_thing_alike(self):
+        # review I4 / phase-1 red team novel sweep: garnish, plate, portion, scoop and transfer said "Open it first" for
+        # an unfamiliar (openable, closed) kettle and "It is empty" for every other unfamiliar thing; now every food
+        # verb gives the kernel's one identify-first refusal for an unfamiliar thing in any entity parameter (the
+        # verbs operate their target: operates=True), and weigh weighs one as an object (never reads it as a scale)
+        from house_sim.kernel.actions import NOVEL_OPERATE_MESSAGE
+        verbs = self._food_verbs()
+        self.assertTrue(verbs)
+        self.assertEqual([n for n, s in verbs if not s.operates], ["weigh"])
+        answers = {}
+        for kind, props in self.NOVEL_KINDS:
+            env, b, r = self._novel_scene(kind, props)
+            r.skill("approach", target=b["thing"])
+            rows = []
+            for name, spec in verbs:
+                for pname, p in sorted(spec.params.items()):
+                    if p.get("type") not in ("entity", "list"):
+                        continue
+                    args = {}
+                    for key, q in spec.params.items():
+                        if q.get("type") == "entity" and (not q.get("optional") or key == pname):
+                            args[key] = b["thing"] if key == pname else b["bowl"]
+                        elif q.get("type") == "list" and (not q.get("optional") or key == pname):
+                            args[key] = [b["thing"]] if key == pname else [b["bowl"]]
+                        elif not q.get("optional"):
+                            args[key] = q["choices"][0] if "choices" in q else "shell"
+                    out = r.do(name, expect="fail", **args)
+                    message = out["agent_message"].replace(env.realism.handles.handle(b["thing"]), "THING")
+                    rows.append((name, pname, out["category"], message))
+                    if name != "weigh":
+                        self.assertEqual(message, NOVEL_OPERATE_MESSAGE, (kind, name, pname))
+            answers[kind] = rows
+        self.assertEqual(len({json.dumps(rows) for rows in answers.values()}), 1,
+                         {k: [row for row in v if row not in answers["chef_knife"]] for k, v in answers.items()})
+
+    def test_an_unfamiliar_food_or_container_shows_no_food_view(self):
+        # found by the phase-1 finish probe: inspecting an unfamiliar cucumber gave a food view (appearance, approx_ml,
+        # odor) and an unfamiliar pot of chili its food contents, an unfamiliar knife neither; an unfamiliar thing now
+        # shows the kernel's fixed key set only (what lies in it can still be inspected on its own)
+        for kind, props in self.NOVEL_KINDS:
+            env, b, r = self._novel_scene(kind, props)
+            r.skill("approach", target=b["thing"])
+            for where in (None, "closely", "inside"):
+                out = r.do("inspect", target=b["thing"], **({"where": where} if where else {}))
+                details = msg_json(out["agent_message"])
+                self.assertFalse({"food_view", "food_contents", "whole_items", "probe_temp_c"} & set(details),
+                                 (kind, where, sorted(details)))
+            if kind == "stock_pot":
+                soup = msg_json(r.do("inspect", target=b["soup"])["agent_message"])
+                self.assertIn("food_view", soup)                  # the chili itself is food the robot can look at
+
+    def test_an_unfamiliar_thing_in_hand_is_no_tool(self):
+        # an unfamiliar chef's knife in hand cut the cucumber, an unfamiliar kettle did not: what the robot cannot
+        # identify is no tool, utensil, opener or probe it knows of
+        answers = {}
+        for kind, props in self.NOVEL_KINDS:
+            if kind in ("stock_pot", "kitchen_scale"):
+                continue                                      # too big for one hand beside the steadying one
+            env, b, r = self._novel_scene(kind, props)
+            r.skill("fetch", obj=b["thing"])
+            r.skill("approach", target=b["cuc"])
+            rows = []
+            for name in ("slice", "peel", "cut", "dice"):
+                out = r.do(name, target=b["cuc"], expect="fail")
+                rows.append((name, out["category"], out["agent_message"]))
+            answers[kind] = rows
+        self.assertEqual(len({json.dumps(rows) for rows in answers.values()}), 1, answers)
 
 
 if __name__ == "__main__":

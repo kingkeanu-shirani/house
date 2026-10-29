@@ -15,8 +15,9 @@ laundry, `wash` washers, `dry` dryers + racks + air drying + the fabric system, 
 rules, `bedding`, `care` iron/steam/stains/soak/lint/pilling, `sewing`, `shoes`, `senses`
 observer/inspector/answerer/invariants, `routes` canonical questions to the answerer, `events`, `furnish`, `helpers`,
 `skills`). Types: `house_sim/data/types/textiles_laundry.json` (176 types).
-Tests: `tests/test_textiles_laundry.py` (147 tests incl. `RealisticPerceptionTests`, `PerceptionHardeningTests`,
-`RoundThreeFixTests`, `TierOneAdoptionTests` and `PhaseOneStabiliseTests`; pass with every domain loaded, normally and
+Tests: `tests/test_textiles_laundry.py` (151 tests incl. `RealisticPerceptionTests`, `PerceptionHardeningTests`,
+`RoundThreeFixTests`, `TierOneAdoptionTests`, `PhaseOneStabiliseTests` and `PhaseOneFinishTests`; pass with every
+domain loaded, normally and
 with `HOUSE_SIM_STRICT=1`, with the domain loaded alone, `HOUSE_SIM_DOMAINS=core,textiles_laundry`, and with every
 deferred physics law forced on).
 Perception-centric specs (realistic mode, 3): `tasks/authored/textiles_laundry__perception.json` (section 4a; also
@@ -136,7 +137,7 @@ tasks/authored/textiles_laundry__examples.json --workers 4`.
 | Lint, pills | `lint_roller` (`sheets`, `sheet_load`), `clothes_brush`, `fabric_shaver`, `sweater_comb`, `sweater_stone` | |
 | Sewing | `sewing_kit`, `pincushion`, `sewing_needle`, `fine_needle` (eye too small for frayed thread), `thread_spool` (`color`, `frayed_end`), `needle_threader`, `thread_snips`, `sewing_button` (`size_mm`, `button_holes`: named so to stay clear of tools_vehicles' wall `holes` list) | needle `threaded {color, length_cm, knot, doubled}` |
 | Shoe care | `shoe_polish` (colour), `shoe_brush`, `suede_brush`, `buffing_cloth`, `shoe_care_mat`, `shoe_tree` | |
-| Containers | `hamper` (70 l), `sorter_hamper` with `hamper_section`s (whites/darks/colors), `laundry_bag`, `mesh_laundry_bag` (halves agitation), `garment_bag` (breathable), `wash_basin`, `laundry_basket` (core) | `designated: dirty|clean`, `owner` |
+| Containers | `hamper` (70 l), `sorter_hamper` with `hamper_section`s (whites/darks/colors), `laundry_bag`, `mesh_laundry_bag` (halves agitation), `garment_bag` (breathable), `wash_basin`, `laundry_basket` (core); liquid: only the basin (and the washer drums, jugs, tanks, dispenser) holds it - the wicker hamper drains through, the bags are soft-sided, and `hamper_section`, `garment_pocket`, `sandal` and `dryer_sheet_box` are `watertight: false` (kernel `phys.liquids.liquid_tight`) | `designated: dirty|clean`, `owner` |
 | Other | `garment_pocket` (fixture child of a garment), `moth_repellent` (cedar/lavender) | |
 
 Furnishers: `textiles_laundry.appliances` (order 45) puts a washer/dryer pair with its detergent drawer, drain
@@ -214,21 +215,36 @@ skipped). `python tools/layout_audit.py 30 --domain textiles_laundry` reports no
   (drip targets), `textiles_laundry.sound_sources` and `textiles_laundry.mats`; dynamic fields are re-checked on the
   returned records. `textiles_laundry.fabric` runs every substep but only for event-sensitive textiles
   (`dry._needs_tick`: wet or damp core, `_hang_risk`, `soaking`, `pretreat`, `drying_mode`, `_pop_at`, `_watch`,
-  moved by another domain's wind, or in a room with an active heater) plus the devices. Dry idle textiles are
+  moved by another domain's wind, out in the rain (`dry.rain_rooms`, below), or in a room with an active heater) plus
+  the devices. While no heater is active and it does not rain, `_needs_tick` reads only the textile's own record
+  (`dry._record_ticks`), so a run reads only the textiles of the static index `textiles_laundry.ticking` (records
+  that asked for a tick when the step began; fields declared) plus the textiles written since the step began (the
+  touch log, through the transient note `dry._WRITTEN` and its own consumer, also refreshed inside the run and by the
+  idle probe when it skips a substep); every other textile is passed by unread (phase 1, G7). The note is never state;
+  when the step's log is no longer complete from its start (trimmed, then rolled back to a savepoint) the run reads
+  every textile, as it does with a heater on or rain. The filter changes no result: the same waits with it off end in
+  identical states (unit test, and bench-loop / 1 h wait / scenario digests in the phase-1 evidence). Dry idle textiles are
   handled by **`textiles_laundry.fabric_idle`** (order 116, `period` 300 s, dt = accumulated time): heaped/held
   wrinkle-prone items crease at 0.03 x proneness per hour up to 0.8 x proneness + 0.1 and hung ones relax at
   0.03 x (1.2 - proneness) per hour down to 0.1 x proneness - linear with a cap, so exact for any dt.
 * **`textiles_laundry.fabric`** (system, order 115, max_dt 30 s): every active textile (wet, drying, hung with a
   risk, soaking, pretreated, near a running heater) updates by its **drying mode** (`hung` 1.0, `pinned` 1.0,
   `spread` 0.8, `flat` 0.7, `draped` 0.45, `worn` 0.3, `held` 0.15, `bunched` 0.08, `enclosed` 0.02, `appliance`
-  0.02) x room factor (temperature, humidity, airflow, sun, wind) x fabric factor. Outdoors: rain re-wets exposed
-  laundry to 0.95, dew at night, sun fades darks (cosmetic), wind blows unpinned items down (pins needed by area and
+  0.02) x room factor (temperature, humidity, airflow, sun, wind) x fabric factor. Outdoors: rain wets exposed
+  laundry to 0.95 - dry laundry too: while the kernel's rain law is deferred, every textile out in the weather (the
+  kernel's exposure rule; hung, lying or heaped) in an uncovered outdoor room where it rains (`dry.rain_rooms`) needs a
+  tick (phase 1: before, a dry shirt left on the lawn in the rain stayed dry, since only wet or set-out textiles were
+  looked at); with the law active the kernel wets it and this rule stands down -, dew at night (on laundry already
+  being dried), sun fades darks (cosmetic), wind blows unpinned items down (pins needed by area and
   wind: 1-4 + 1 at >= 6 m/s + 1 at >= 10 m/s) onto the ground (dirt/mud, creases); insects and pollen settle at
   dusk/spring; airing for 3 h clears musty smells. Damp items bunched/enclosed for 8 h sour (`musty`, `odor`), 24 h
   grow mildew (damage). Dripping laundry indoors (hung, pinned, draped or spread above the floor - not a heap
   lying on it or kicked under furniture) wets floor cells (water damage on wood/carpet, judged from the floor entity
   `floor_<room>`'s material, `model.floor_material`; electrical hazard over devices). Damp mats on wood floors for 4 h damage the floor. Hanger risks play out over time (slip off,
-  shoulder bumps, hanger bends, hem on floor). Heat sources by kind (`dry.heater_kind`): space heaters and wood
+  shoulder bumps, hanger bends, hem on floor). A heat source is active (`model.heater_active`) when lit or burning
+  (no power needed), a radiator above 45 C, or switched on - and then a corded or battery heater (`plug_required`,
+  `hardwired`, a `circuit`, `battery_powered`) only with power (kernel `physics.is_powered`: unplugged, grid outage,
+  electrical's tripped breakers and strips; phase 1, electrical's request). Heat sources by kind (`dry.heater_kind`): space heaters and wood
   stoves - a textile on or within 2 cells (the 0.9 m clearance rule) is a safety violation, on it 10 min
   heat-cracks leather/heat-sensitive fabric, 30 min scorches and ignites (`fire`); fireplaces and fire pits - same
   within 4 cells; burners and other `heat_source` cooking appliances - only contact counts (a towel on the lit
@@ -593,6 +609,12 @@ skills `run_washer`/`wait_cycle`. Prefer predicates on outcomes (soil, wetness, 
   `T-7d4006bda247ba-01` fails on seeds 0 and 41 (variant 0 under the hashed variants) until it does. It passes with
   `contact_heat` forced on, and in its own mode with only manipulation's copy made to ask `contact_claimed` (phase 1,
   section 11; `PhaseOneStabiliseTests` pins this domain's half of the contract with the law deferred and active).
+  Manipulation's copy asks it since the phase-1 finish: the ironing spec passes 5/5 seeds.
+* Weather on dry textiles that are not being dried (limit): rain wets every exposed textile (section 3), but dew,
+  sun fade, insects and pollen reach only textiles the fabric system already processes (wet, set out with
+  `hang_dry`, soaking, ...). A dry dark shirt lying on a garden chair does not fade, and a dry doormat stays dry at
+  night; extending them to every outdoor textile would also age outdoor furnishings (the generated front-yard
+  doormats) on idle days, which needs its own review of exogenous changes.
 
 ## 10. Tier-1 adoption (kernel v3.0 physics, camera and body; v3.1 sweep)
 
@@ -670,10 +692,11 @@ The adoption round of docs/design/TIER1_INTEGRATION.md section 6 ("textiles_laun
   told them apart before the label was read). Washer and dryer drum loads are `wash_capacity_kg` /
   `dry_capacity_kg` (read tier).
 * **Ready to flip** (TIER1_PHYSICS 10.3; `lawbook.forced`, every domain loaded): all 19 deferred laws are ready,
-  `stack` included since phase 1 (laws.json now lists this domain under `stack` and `melt`). The 147 tests pass with
+  `stack` included since phase 1 (laws.json now lists this domain under `stack` and `melt`). The 151 tests pass with
   `stack` forced on and with all 19 deferred laws forced on together, and both spec files (15 specs x seeds 0, 1, 2,
-  41, 97, own modes, generation 2) pass with `stack` alone forced (14: the ironing spec fails as it does unforced,
-  section 9) and with all 19 forced together (15/15): carry, contact_heat, crush, edge, furniture_tip, handle, hang,
+  41, 97, own modes, generation 2) pass with `stack` alone forced and with all 19 forced together (15/15 each, re-run
+  at the phase-1 finish; at phase 1 the ironing spec failed with `stack` forced as it did unforced, section 9): carry,
+  contact_heat, crush, edge, furniture_tip, handle, hang,
   melt, open_spill, overload, phase, rain, setdown, slope, stack, thermal_shock, thermal_tau, wet_contact and wind.
   `stack` was not ready at the adoption round (the kernel toppled a receipt lying wholly on a tray: fixed by the
   kernel's "a member wholly on the one below stays" rule and K-FIX's top/contact sizes) and the domain's clearance
@@ -812,6 +835,40 @@ The review of 2026-10-22 (docs/reviews/2026-10-22_independent_review) and the ad
   balled up"). Every one has a unit-tested success path from this domain's scenario helpers (`tuck` and
   `unroll_sleeves`, untested before, from phase 1 on); a spec that exercises each in a generated house is authoring
   work for a later round.
+
+### Phase 1 finish (2026-10-28)
+
+The rows of catalog/analysis/phase1/breakages.json that are this domain's, the P1 gate's G7 substep cost and the
+defects found while finishing them; each has a regression test in `PhaseOneFinishTests`. Hand-off:
+catalog/analysis/phase1/finish_textiles_laundry.json.
+
+* **Unpowered heaters (electrical's request).** `model.heater_active(w, eid, rec)` asks the kernel's
+  `physics.is_powered` for a switched-on corded or battery heater (section 3): a space heater left on behind a tripped
+  breaker, unplugged or in an outage no longer scorches and lights the rug under it (T-702453ef553c00-01 seed 41
+  before electrical's setup fix); a lit fire and a hot hydronic radiator still heat without power.
+* **Holders that hold no liquid (INT; review L3).** The kernel's holders follow plumbing_liquids' liquid-tightness
+  rule; the sorter's fabric `hamper_section` carried none of its flags and pooled kernel pours, spills, drips and rain
+  (so did an open `garment_pocket`, a `sandal` and the paperboard `dryer_sheet_box`, found with the same probe over all
+  176 of this domain's types). All four are `watertight: false`; the remaining kernel holders among this domain's types
+  hold liquid in reality (washer drums, the wash basin, jugs and tanks, the dispenser drawer, rubber boots, the rimmed
+  boot tray, the umbrella stand's drip tray, the plastic pod tub and sewing box). `dryer_sheet_box` is furnished in
+  every generation-1 laundry room: its records gain the field (generation-1 digests and room golden re-record, class
+  type data; no placement changes).
+* **Dry laundry in the rain (found here).** With the kernel's rain law deferred, `_tick_textile`'s rain rule only
+  reached textiles the fabric system already processed, so a dry shirt left on the lawn in the rain stayed dry
+  however long it rained (dew and sun on dry laundry not being dried are still not modelled; section 9). `_needs_tick`
+  now ticks every textile out in the weather in `dry.rain_rooms` (it rains by the weather record, the room is not
+  covered, `physical.kernel_rain` is false); the idle probes and notes treat a textile in such a room like an active
+  heater (`dry.textiles_in_rain`), so they stay exact.
+* **Substep cost (G7).** The scan filter of section 3. Measured with tools/bench_systems.py's loop (40 substeps x
+  seeds 0-3, best of 5 interleaved runs on paired tree copies differing only in this domain's files): fabric 0.069 ->
+  0.047 ms per substep, fabric_idle 0.024 -> 0.025 (unchanged code; noise), together 0.093 -> 0.072 (ADOPT's tree:
+  0.089). Engine 1 h wait (seeds 0-3, idle probes on): the two systems' bodies 29.9 -> 23.0 ms, probes 1.3 -> 1.4 ms.
+  The remaining fabric cost is the device tickers (the iron's temperature chases a drifting room, so the fabric system
+  is rarely idle in a generated house).
+* **The ironing spec passes.** `T-7d4006bda247ba-01` passes on all five seeds in its own mode now that manipulation's
+  legacy contact-heat copy asks `phys.thermal.contact_claimed` (breakages row 0); both spec files pass 15/15 (own
+  modes; the perception file also with `--camera geometric`).
 * **Not changed (out of this phase).** Sofa cushions in generation 2 (K-FIX's request: layer the throw and pillows on
   the cushions and let the generator place the cushions first): it changes every generation-2 living room, so every
   domain's generation-2 spec house, and needs the generator's order and `furnishings.json` (main session); it stays

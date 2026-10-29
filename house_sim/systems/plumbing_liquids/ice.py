@@ -21,6 +21,7 @@ damages the cartridge; a new cartridge's first fills carry carbon fines when its
 """
 import math
 
+from ...kernel import physics
 from ...kernel.errors import ActionError, require
 from ...kernel.phys import lawbook
 from ...kernel.phys import thermal as PT
@@ -281,7 +282,7 @@ def tray_placed(ctx, result):
         if holder in w.s["entities"]:
             hm = w.mut(holder)
             hm["frozen_spill_l"] = C.rnd(C.num(hm.get("frozen_spill_l")) + parcel["liters"], 4)
-            C.wet(w, dest, 0.6)
+            C.wet(w, dest, parcel["liters"], L.parcel_name(parcel), source=eid)     # the kernel's wetting and hooks
         C.plog(w, "tray_tilted_spill", tray=eid, liters=C.rnd(parcel["liters"], 4))
         w.stat("spills")
         ctx.note("the tray sits tilted and water ran out of the low cells")
@@ -371,7 +372,6 @@ def cartridge_in(ctx, device_id, slot, part_id):
 # freezing, melting, ice makers (called by the master system)
 
 def ambient_c(w, eid):
-    from ...kernel import physics
     temp, _ = physics.ambient(w.s, eid)
     return temp
 
@@ -480,9 +480,15 @@ def freeze_step(w, eid, dt):
     """Water in a container below 0 C turns to ice; ice above 0 C melts. With the kernel's phase law active only ice
     trays freeze here (domain_freezes)."""
     rec = w.ent(eid)
-    amb = ambient_c(w, eid)
     have = L.liters(rec)
-    freezing = have > 0 and amb <= -1.0 and rec.get("liquid") in WATERS and domain_freezes(rec)
+    water = have > 0 and rec.get("liquid") in WATERS and domain_freezes(rec)
+    ice = C.num(rec.get("ice_g"))
+    # the ambient matters only to water this domain may freeze, ice that may melt, a part-frozen holder or an ice
+    # tray's warm clock: a cup of coffee or a bottle of cleaner skips the lookup (the same steps, less work)
+    needs_ambient = water or ice > 0 or (have > 0 and 0.0 < C.num(rec.get("frozen_frac")) < 1.0) or \
+        (rec.get("ice_tray") and rec.get("_warm_s") is not None)
+    amb = ambient_c(w, eid) if needs_ambient else None
+    freezing = water and amb <= -1.0
     if not freezing and rec.get("thermal_owner") == OWNER:
         _own_plateau(w, eid, False)
     if freezing:

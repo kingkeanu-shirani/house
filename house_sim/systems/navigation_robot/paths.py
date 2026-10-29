@@ -713,6 +713,25 @@ def _social_walk(ctx, goal_cells, avoid, speed):
     return _walk_cells(ctx, path, avoid, speed)
 
 
+def _near_known(ctx, entity, avoid, speed):
+    """Geometric camera: go_to arrived in the room of a thing whose place the robot knows (_resolve: inspected, or a
+    fixed thing on its map such as its own dock) but which its cameras cannot make out from where it stands (a dock
+    plate across the room is below the detection resolution, camera.can_see), while a core approach needs the thing in
+    view. It walks by its map to a free cell beside the thing first (core walk_to, adjacent, with the go_to's avoid and
+    speed: every hazard applies), from where the approach can see it -- as a robot that knows its house does. A thing
+    still not in view there is refused by the approach as before. The room camera sees the whole room: never needed."""
+    room, cells = geometry.anchor(ctx.w.s, entity)
+    if not cells or room != ctx.w.robot["room"]:
+        return
+    cell = sorted(cells)[0]
+    args = {"action": "walk_to", "cell": [int(cell[0]), int(cell[1])], "adjacent": True}
+    if avoid:
+        args["avoid"] = list(avoid)
+    if speed:
+        args["speed"] = speed
+    ctx.env.perform(args, ctx)
+
+
 @action("go_to", params={"target": "target", "avoid": "?list", "speed": "?str:careful|normal|fast",
                          "restore_doors": {"type": "bool", "default": False}, "social": {"type": "bool", "default": False}},
         duration=lambda ctx: 0.5, energy=0.0, category="physical", timing="speed",
@@ -762,6 +781,9 @@ def go_to(ctx):
         if reopened and ctx.args["restore_doors"]:
             ctx.env.perform({"action": "close", "target": door_id}, ctx)
     if entity is not None:
+        if C.geometric(w.s) and entity in w.s["entities"] and w.robot["room"] == room and not ctx.args["social"] \
+                and not ctx.visible(entity):
+            _near_known(ctx, entity, avoid, speed)
         if ctx.args["social"]:
             room_rec = w.s["rooms"][room]
             _, cells = geometry.anchor(w.s, entity)
@@ -1078,8 +1100,10 @@ def patrol(ctx):
                 rec = w.s["entities"][door]
                 if not rec.get("locked") and not rec.get("expected_unlocked"):
                     found.append((door, "exterior_door_unlocked"))
-            # the sweep reports what it noticed in handle order (true-id order would hint at identities)
-            found.sort(key=lambda f: (ctx.env.realism.handles.handle(f[0]) if f[0] in w.s["entities"] else f[0], f[1]))
+            # the sweep reports what it noticed in handle order (true-id order would hint at identities); peek, not
+            # handle: handle() issues one, and an issued handle is one the agent may act on -- this list still holds
+            # anomalies the sweep never noticed (K-LEAK)
+            found.sort(key=lambda f: (ctx.env.realism.handles.peek(f[0]) if f[0] in w.s["entities"] else f[0], f[1]))
         for eid, kind in found:
             if not noticed(ctx, rid, eid, kind, seen_from, caught) and not (real and kind == "exterior_door_unlocked"):
                 continue

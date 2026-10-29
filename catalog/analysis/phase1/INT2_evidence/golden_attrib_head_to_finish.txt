@@ -1,0 +1,497 @@
+  2367  entities.*.watertight
+        files (251): runs/0_oracle, runs/0_realistic, runs/1_oracle, runs/1_realistic, runs/2_oracle, runs/2_realistic, runs/3_oracle, runs/3_realistic, specs/A-04b40946bea880-01, specs/A-05a6ff57e7f3fd-01, specs/A-0fec5aa3d9e10c-01, specs/A-1895a81a5051bd-01, specs/A-2bbd9d39ff1512-01, specs/A-338a38bf770c8e-01, specs/A-350cc067998929-01, specs/A-4ddd51894095c7-01, specs/A-565da7517f3394-01, specs/A-601417cc8c5d4d-01, specs/A-8220afe27c03e7-01, specs/A-83f6ca95b72b85-01, specs/A-8910a09f802fbf-01, specs/A-926bc611ae9158-01, specs/A-a67431128da2e1-01, specs/A-afe8d8c6d6d883-01, specs/A-b4642738e5e520-01, specs/A-b
+        types: {'dryer_sheet_box': 450, 'mail_organizer': 259, 'toaster': 254, 'garment_pocket': 236, 'inbox_tray': 198, 'apartment_mailbox': 192, 'document_feeder': 189, 'printer_paper_tray': 189, 'printer_output_tray': 189, 'hardware_organizer': 68, 'curbside_mailbox': 67, 'napkin_holder': 67, 'garbage_disposal': 8, 'pet_carrier': 1}
+  1092  visible_entities.*.openable
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+  1092  visible_entities.*.kind
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+  1092  visible_entities.*.location
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+  1092  visible_entities.*.size_m
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+  1092  visible_entities.*.portable
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+  1092  visible_entities.*.label
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+  1092  visible_entities.*.temperature_c
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+  1092  visible_entities.*.relation
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+  1092  visible_entities.*.color
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+  1092  visible_entities.*.size_class
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+  1092  visible_entities.*.open
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+  1078  entities.*.size_m
+        files (251): runs/0_oracle, runs/0_realistic, runs/1_oracle, runs/1_realistic, runs/2_oracle, runs/2_realistic, runs/3_oracle, runs/3_realistic, specs/A-04b40946bea880-01, specs/A-05a6ff57e7f3fd-01, specs/A-0fec5aa3d9e10c-01, specs/A-1895a81a5051bd-01, specs/A-2bbd9d39ff1512-01, specs/A-338a38bf770c8e-01, specs/A-350cc067998929-01, specs/A-4ddd51894095c7-01, specs/A-565da7517f3394-01, specs/A-601417cc8c5d4d-01, specs/A-8220afe27c03e7-01, specs/A-83f6ca95b72b85-01, specs/A-8910a09f802fbf-01, specs/A-926bc611ae9158-01, specs/A-a67431128da2e1-01, specs/A-afe8d8c6d6d883-01, specs/A-b4642738e5e520-01, specs/A-b
+        types: {'flange_plunger': 284, 'screwdriver_flat_large': 262, 'cup_plunger': 260, 'screwdriver_flat_small': 69, 'antifreeze_jug': 62, 'washer_fluid_jug': 61, 'motor_oil_jug': 56, 'hen_egg': 6, 'electric_kettle': 6, 'electric_pressure_cooker': 4, 'screwdriver_phillips_1': 2, 'screwdriver_torx_t20': 2, 'purifier_carbon_filter': 2, 'purifier_prefilter': 1, 'stovetop_kettle': 1}
+  1076  visible_entities.*.soil.overall
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+  1068  visible_entities.*.wetness
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+  1032  visible_entities.*.accepts_items
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+   738  entities.*.holes_mm
+        files (251): runs/0_oracle, runs/0_realistic, runs/1_oracle, runs/1_realistic, runs/2_oracle, runs/2_realistic, runs/3_oracle, runs/3_realistic, specs/A-04b40946bea880-01, specs/A-05a6ff57e7f3fd-01, specs/A-0fec5aa3d9e10c-01, specs/A-1895a81a5051bd-01, specs/A-2bbd9d39ff1512-01, specs/A-338a38bf770c8e-01, specs/A-350cc067998929-01, specs/A-4ddd51894095c7-01, specs/A-565da7517f3394-01, specs/A-601417cc8c5d4d-01, specs/A-8220afe27c03e7-01, specs/A-83f6ca95b72b85-01, specs/A-8910a09f802fbf-01, specs/A-926bc611ae9158-01, specs/A-a67431128da2e1-01, specs/A-afe8d8c6d6d883-01, specs/A-b4642738e5e520-01, specs/A-b
+        types: {'coffee_filter_basket': 246, 'dishwasher_utensil_basket': 244, 'air_fryer_basket': 241, 'portafilter': 6, 'skimmer_basket': 1}
+   508  visible_entities.*.pos
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+   392  visible_entities.*.container
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+   300  visible_entities.*.mount_height_m
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+   284  visible_entities.*.mounted
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+   276  visible_entities.*.spos
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+   226  visible_entities.*.rot
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+   182  visible_entities.*.surface
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+   112  entities.*._expires
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 38, 'pasta_box': 4, 'butter_unsalted': 4, 'orange_juice_carton': 4, 'yogurt_tub': 4, 'cinnamon_jar': 4, 'canned_beans': 4, 'egg_carton': 4, 'cheddar_block': 4, 'vinegar_bottle': 4, 'ketchup_bottle': 2, 'ice_cream_tub': 2, 'mustard_bottle': 2, 'veggie_patties_box': 2, 'frozen_peas_bag': 2, 'mayonnaise_jar': 2, 'rice_bag': 2, 'baking_powder_can': 2, 'baking_soda_box': 2, 'cereal_box': 2, 'all_purpose_flour': 2, 'crackers_box': 2, 'canned_tomatoes': 2, 'olive_oil_bottle': 2, 'salt_canister': 2, 'peanut_butter_jar': 2, 'milk_carton': 2, 'honey_jar': 2, 'ground_cumin_jar': 2}
+   108  entities.*._food_status.days_left
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 38, 'canned_beans': 4, 'vinegar_bottle': 4, 'yogurt_tub': 4, 'cheddar_block': 4, 'cinnamon_jar': 4, 'butter_unsalted': 4, 'orange_juice_carton': 4, 'pasta_box': 4, 'ketchup_bottle': 2, 'mayonnaise_jar': 2, 'rice_bag': 2, 'ice_cream_tub': 2, 'mustard_bottle': 2, 'veggie_patties_box': 2, 'frozen_peas_bag': 2, 'canned_tomatoes': 2, 'baking_powder_can': 2, 'ground_cumin_jar': 2, 'baking_soda_box': 2, 'crackers_box': 2, 'milk_carton': 2, 'olive_oil_bottle': 2, 'salt_canister': 2, 'cereal_box': 2, 'honey_jar': 2, 'all_purpose_flour': 2, 'peanut_butter_jar': 2}
+    98  visible_entities.*.surface_size_m
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    80  visible_entities.*.tool_kind
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    74  entities.*.date_label
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'butter_unsalted': 4, 'pasta_box': 4, 'orange_juice_carton': 4, 'yogurt_tub': 4, 'cinnamon_jar': 4, 'canned_beans': 4, 'egg_carton': 4, 'cheddar_block': 4, 'vinegar_bottle': 4, 'ketchup_bottle': 2, 'mustard_bottle': 2, 'ice_cream_tub': 2, 'veggie_patties_box': 2, 'frozen_peas_bag': 2, 'mayonnaise_jar': 2, 'rice_bag': 2, 'baking_powder_can': 2, 'baking_soda_box': 2, 'cereal_box': 2, 'all_purpose_flour': 2, 'crackers_box': 2, 'canned_tomatoes': 2, 'salt_canister': 2, 'peanut_butter_jar': 2, 'olive_oil_bottle': 2, 'milk_carton': 2, 'honey_jar': 2, 'ground_cumin_jar': 2}
+    68  visible_entities.*.on
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    64  visible_entities.*.liquid_l
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    60  visible_entities.*.candidates
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    56  grid.hazards.*.source
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    50  visible_entities.*.window
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    50  visible_entities.*.shelf
+        files (3): runs/0_realistic, runs/1_realistic, runs/2_realistic
+    40  visible_entities.*.brightness
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    40  visible_entities.*.covered
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    36  visible_entities.*.yaw_deg
+        files (3): runs/0_realistic, runs/2_realistic, runs/3_realistic
+    30  visible_entities.*.near_connection
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    24  visible_entities.*.dim_level
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    24  visible_entities.*.lit
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    24  visible_entities.*.flicker
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    24  visible_entities.*.folded
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    20  visible_entities.*.features.front
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    18  entities.*.location
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6, 'canned_beans': 4, 'ground_cumin_jar': 2, 'cinnamon_jar': 2, 'salt_canister': 2, 'juice_box': 2}
+    16  visible_entities.*.hazards
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    16  visible_entities.*.wear_slot
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    16  visible_entities.*.locked
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    16  visible_entities.*.capacity_l
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    16  visible_entities.*.fragile
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    16  visible_entities.*.broken
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    16  visible_entities.*.low_glare
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    16  visible_entities.*.material
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    16  visible_entities.*.soil
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    16  visible_entities.*.water_safe
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    16  visible_entities.*.gear_kind
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    16  visible_entities.*.switchable
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    14  visible_entities.*.affordances
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    14  visible_entities.*.tags
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    14  visible_entities.*.package
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+    13  entities.*.temperature_c
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6, 'fridge_door_bin': 2, 'cabinet': 1, 'crisper_drawer': 1, 'door_gasket': 1, 'egg_carton': 1, 'upper_cabinet': 1}
+    12  visible_entities.*.fabric
+        files (3): runs/0_realistic, runs/1_realistic, runs/3_realistic
+    12  entities.*.thermal_tau_s
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'cabinet': 4, 'egg_carton': 4, 'upper_cabinet': 4}
+    11  entities.*.base_diameter_m
+        files (9): runs/1_oracle, runs/1_realistic, specs/T-03d77bbfc281a4-01, specs/T-0b4f248ae32c87-01, specs/T-3c114c8e4796ec-01, specs/T-73a13fb297c40f-01, specs/T-7673a125fe70cd-01, specs/T-b122adaae3586f-01, specs/T-b1456a2d293d2f-01
+        types: {'electric_kettle': 11}
+    11  entities.*.inner_size_m
+        files (9): runs/1_oracle, runs/1_realistic, specs/T-03d77bbfc281a4-01, specs/T-0b4f248ae32c87-01, specs/T-3c114c8e4796ec-01, specs/T-73a13fb297c40f-01, specs/T-7673a125fe70cd-01, specs/T-b122adaae3586f-01, specs/T-b1456a2d293d2f-01
+        types: {'electric_kettle': 11}
+    10  visible_entities.*.features.good_side
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+     9  entities.*.wetness
+        files (6): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-9a6cc7b8c7cefc-01, specs/T-a56d991fe37401-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6, 'ice_cube_tray': 2, 'dog_water_bowl': 1}
+     9  entities.*.volume_l
+        files (5): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-94bc2f055e3996-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6, 'purifier_carbon_filter': 2, 'purifier_prefilter': 1}
+     8  visible_entities.*.fill_level
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+     8  visible_entities.*.water_running
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+     8  visible_entities.*.blocks_path
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+     8  visible_entities.*.board_use
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+     8  visible_entities.*.floor_scratch_risk
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+     8  visible_entities.*.surface_height_m
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+     8  visible_entities.*.movable
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+     8  robot.home
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+     8  visible_entities.*.finish
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+     8  visible_entities.*.roll_orientation
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+     8  nav.dock
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+     8  visible_entities.*.mass_kg
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+     8  visible_entities.*.connects
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+     8  visible_entities.*.orientation
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+     8  visible_entities.*.game
+        files (3): runs/0_realistic, runs/1_realistic, runs/2_realistic
+     8  visible_entities.*.game_kind
+        files (3): runs/0_realistic, runs/1_realistic, runs/2_realistic
+     8  visible_entities.*.hang_slots
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+     8  visible_entities.*.aid_kind
+        files (3): runs/1_realistic, runs/2_realistic, runs/3_realistic
+     8  entities.*._spoil
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'cheddar_block': 4, 'mayonnaise_jar': 2, 'milk_carton': 2}
+     7  entities.*.category
+        files (5): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-151f6733397156-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6, 'generic_item': 1}
+     6  climate.sunlit_windows
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+     6  visible_entities.*.text
+        files (3): runs/0_realistic, runs/1_realistic, runs/2_realistic
+     6  visible_entities.*.stackable
+        files (3): runs/0_realistic, runs/1_realistic, runs/2_realistic
+     6  visible_entities.*.edge_margin_m
+        files (3): runs/0_realistic, runs/1_realistic, runs/2_realistic
+     6  visible_entities.*.lever
+        files (3): runs/0_realistic, runs/1_realistic, runs/3_realistic
+     6  visible_entities.*.status_light
+        files (3): runs/0_realistic, runs/1_realistic, runs/3_realistic
+     6  visible_entities.*.steps
+        files (3): runs/1_realistic, runs/2_realistic, runs/3_realistic
+     6  visible_entities.*.climbable
+        files (3): runs/1_realistic, runs/2_realistic, runs/3_realistic
+     6  entities.*.sentimental
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.food.density
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.food.ice
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.locked
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.private
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.waste_stream
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.food.rte
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*._food_status.reasons
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.freshness
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.tags
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.max_touch_temp_c
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.soil
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.relation
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.food.raw
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.perishable
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.affordances
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.value
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.food.qty_g
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.openable
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*._amb
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.no_door
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.food.cat
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.fixed_temperature
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.food.kind
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*._peak_core_c
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.food_thermal
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.portable
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.hazards
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.diet_tags
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.food.phase
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.capacity_l
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*._food_status.class
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.off_limits
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.label
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.appearance
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.broken
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.food.cut
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.home
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.secret_fields
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.fragile
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*._storage_issue
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.type
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.is_a
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*._peak_c
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.owner
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.opened_on
+        files (2): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01
+        types: {'ketchup_bottle': 2, 'mustard_bottle': 2, 'mayonnaise_jar': 2}
+     6  entities.*.storage
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.contamination
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.material
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.allergens
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.food.parts
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*._food_odor
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.water_safe
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*._tt
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.food.needs_cooking
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.risk
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.requires_approval
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.open
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*._storage_ok
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.mass_kg
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*._zone
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.color
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     6  entities.*.accepts_items
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'hen_egg': 6}
+     5  entities.*._wet_mine_t
+        files (1): specs/T-702453ef553c00-01
+        types: {'decorative_pillow': 2, 'throw_blanket': 1, 'rug': 1, 'sofa_cushion': 1}
+     4  visible_entities.*.holes_mm
+        files (4): runs/0_oracle, runs/1_oracle, runs/2_oracle, runs/3_oracle
+     4  visible_entities.*.inflated
+        files (2): runs/0_realistic, runs/1_realistic
+     4  connections.*.door
+        files (4): runs/0_realistic, runs/1_realistic, runs/2_realistic, runs/3_realistic
+     4  visible_entities.*.count
+        files (2): runs/1_realistic, runs/3_realistic
+     4  visible_entities.*.rv_dock
+        files (2): runs/1_realistic, runs/2_realistic
+     4  entities.*.shelf
+        files (4): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'cinnamon_jar': 4}
+     4  entities.*.pos
+        files (2): specs/T-8df3105ebc8486-01, specs/T-d1f9385dbb80fc-01
+        types: {'ball': 2, 'wall_outlet': 1, 'power_strip': 1}
+     3  visible_entities.*.watertight
+        files (3): runs/0_oracle, runs/1_oracle, runs/3_oracle
+     3  entities.*.heat_load_w
+        files (3): specs/A-c0f8c53da99d24-01, specs/P-47196e0991cdf4-01, specs/T-8df3105ebc8486-01
+        types: {'refrigerator': 3}
+     2  visible_entities.*.zipped
+        files (1): runs/0_realistic
+     2  visible_entities.*.tagged
+        files (1): runs/0_realistic
+     2  visible_entities.*.spinning
+        files (1): runs/2_realistic
+     2  visible_entities.*.light_lit
+        files (1): runs/2_realistic
+     2  visible_entities.*.product
+        files (1): runs/3_realistic
+     2  visible_entities.*.label_text
+        files (1): runs/3_realistic
+     2  visible_entities.*.mobility_aid
+        files (1): runs/3_realistic
+     2  visible_entities.*.tip
+        files (1): runs/3_realistic
+     2  visible_entities.*.running
+        files (1): runs/3_realistic
+     2  event_log.*.source_kind
+        files (1): specs/T-7d4006bda247ba-01
+     2  event_log.*.kind
+        files (1): specs/T-7d4006bda247ba-01
+     2  event_log.*.target
+        files (1): specs/T-7d4006bda247ba-01
+     2  event_log.*.db
+        files (1): specs/T-7d4006bda247ba-01
+     2  entities.*.cord_length_used_m
+        files (1): specs/T-d1f9385dbb80fc-01
+        types: {'wifi_router': 1, 'power_strip': 1}
+     2  entities.*.cord_cells
+        files (1): specs/T-d1f9385dbb80fc-01
+        types: {'wifi_router': 1, 'power_strip': 1}
+     1  visible_entities.*.base_diameter_m
+        files (1): runs/1_oracle
+     1  visible_entities.*.inner_size_m
+        files (1): runs/1_oracle
+     1  people.*._space_jn
+        files (1): specs/A-c0f8c53da99d24-01
+     1  entities.*.damage_notes.*.detail
+        files (1): specs/T-7d4006bda247ba-01
+        types: {'ironing_board': 1}
+     1  event_log.*.step
+        files (1): specs/T-7d4006bda247ba-01
+     1  entities.*.damage_notes.*.time_s
+        files (1): specs/T-7d4006bda247ba-01
+        types: {'ironing_board': 1}
+     1  stats.damage
+        files (1): specs/T-7d4006bda247ba-01
+     1  event_log.*.room
+        files (1): specs/T-7d4006bda247ba-01
+     1  entities.*.scorched
+        files (1): specs/T-7d4006bda247ba-01
+        types: {'ironing_board': 1}
+     1  event_log.*.damage_kind
+        files (1): specs/T-7d4006bda247ba-01
+     1  entities.*.damage.scorch
+        files (1): specs/T-7d4006bda247ba-01
+        types: {'ironing_board': 1}
+     1  event_log.*.time_s
+        files (1): specs/T-7d4006bda247ba-01
+     1  entities.*.damage_notes.*.kind
+        files (1): specs/T-7d4006bda247ba-01
+        types: {'ironing_board': 1}
+     1  event_log.*.detail
+        files (1): specs/T-7d4006bda247ba-01
+     1  entities.*.fill_level
+        files (1): specs/T-94bc2f055e3996-01
+        types: {'generic_item': 1}
+     1  entities.*.pack_z_m
+        files (1): specs/T-94bc2f055e3996-01
+        types: {'purifier_hepa_filter': 1}
+     1  entities.*.cord_route
+        files (1): specs/T-d1f9385dbb80fc-01
+        types: {'wifi_router': 1}
+     1  entities.*.internal_temp_c
+        files (1): specs/T-d1f9385dbb80fc-01
+        types: {'refrigerator': 1}

@@ -179,9 +179,10 @@ def play_fetch(ctx):
             frail = person.get("role") in ("child", "toddler", "infant", "elderly") or (person.get("abilities") or {}).get("mobility") in ("cane", "walker", "wheelchair")
             w.stat("collisions")
             if frail:
-                # the robot's throw: its fall (the people domain's record, notices and falls flag) and the injury
-                C.person_knocked_down(w, qid, "knocked down by {} chasing a thrown toy".format(pet.get("label", pid)), True)
-                C.harm(w, "dog_knocked_person", stat="injury", robot=True, person=qid, pet=pid)
+                # the robot's throw: its fall (the people domain's record, notices, falls and injury flags; without
+                # that domain the injury is counted here), one injury for the strike
+                counted = C.person_knocked_down(w, qid, "knocked down by {} chasing a thrown toy".format(pet.get("label", pid)), True)
+                C.harm(w, "dog_knocked_person", stat=None if counted else "injury", robot=True, person=qid, pet=pid)
                 notes.append("{} charged into {} and knocked them down".format(pet.get("label", pid), person.get("label", qid)))
             else:
                 C.harm(w, "dog_bumped_person", person=qid, pet=pid)

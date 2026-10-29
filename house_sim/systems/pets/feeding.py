@@ -493,7 +493,7 @@ def _uncovering(ctx, result):
     eid = ctx.args.get("target")
     rec = state["entities"].get(eid) or {}
     if rec.get("can_cover"):
-        lids = C.sindex(state, "can_lids", lambda r: bool(r.get("can_cover")))
+        lids = C.sindex(state, "can_lids", _is_can_lid)
         for can in C.sindex(state, "food", _food_candidate):
             crec = state["entities"][can]
             if crec.get("covered") and (crec.get("pet_food") or {}).get("wet") and not C.located_in(state, lids, can):
@@ -508,6 +508,13 @@ def _cold(state, eid):
     return C.num(rec.get("temperature_c"), 21.0) <= 7.0
 
 
+@C.index_reads("can_cover")
+def _is_can_lid(rec):
+    return bool(rec.get("can_cover"))
+
+
+@C.per_substep_index("food", always=True)
+@C.index_reads("pet_food", "bowl_kind", "pet_item", "hopper_g")
 def _food_candidate(rec):
     """Static: wet pet food (cans/pouches), pet bowls and automatic feeders."""
     pf = rec.get("pet_food")

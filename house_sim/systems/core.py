@@ -688,6 +688,8 @@ def inspect(ctx):
 
 CONTENT_FIELDS = {"liquid", "contents", "product", "chemical", "substance", "ingredient", "ingredients", "medication", "drug",
                   "active_ingredient", "species", "variety", "flavor", "kind"}
+# what read shows of an unfamiliar (novel) thing: its printed text alone, the same key set whatever it is
+NOVEL_PRINT = ("text", "label_text")
 
 
 @action("read", params={"target": "entity"}, duration=4.0, energy=0.0, category="perception",
@@ -713,6 +715,11 @@ def read(ctx):
             continue
         if k in record and record[k] not in (None, "", [], {}):
             text[k] = copy.deepcopy(record[k])
+    novel = getattr(getattr(ctx.env, "realism", None), "novel_unidentified", None)
+    if ctx.realistic and (novel(target, record) if callable(novel) else bool(record.get("novel"))):
+        # an unfamiliar thing (review I4; food's phase-1 request): only its printed text, whatever it is -- its true
+        # type's read-tier fields (a flour bag's allergens and net weight) told the types apart
+        text = {k: v for k, v in text.items() if k in NOVEL_PRINT}
     if geometric:
         # TIER1_CAMERA 9.2: the head camera (10 px a character, the face seen, lit, no glare, a clean lens) or the
         # wrist within reach (+2 s; a held item turned to a free angle, +1 s); only what that camera can read

@@ -17,11 +17,20 @@ import re
 
 from ...kernel import clock, geometry
 from ...kernel.errors import ActionError, require
-from ...kernel.plugins import after, before, hook
+from ...kernel.plugins import ACTIONS, after, before, hook
 from . import common as C
 from . import data as D
 from . import model as M
+from . import percept as P
 from . import physical as PH
+
+
+# ----------------------------------------------------------------------
+# unfamiliar things: one identify-first refusal on every food verb, before any guard reads what the thing is
+# (percept.unfamiliar_first; the verbs' own targets are the kernel's: operates=True)
+
+for _name in sorted(n for n, s in ACTIONS.items() if s.fn.__module__.startswith(__package__ + ".actions_")):
+    before(_name, order=1)(P.unfamiliar_first)
 
 
 # ----------------------------------------------------------------------
@@ -108,12 +117,10 @@ def _after_place(ctx, result):
                 w.mut(eid).pop("inner_spos", None)      # no free spot: the camera's automatic packing places it
         elif M.food(rec) and rec.get("inner_spos") is not None:
             w.mut(eid).pop("inner_spos", None)          # a row in the container it came from means nothing here
-        if float(rec.get("temperature_c", 21.0)) > 70.0 and parent.get("material") in ("wood", "laminate", "plastic") and \
-                not parent.get("heat_resistant") and rec.get("relation") == "on":
-            m = w.mut(dest)
-            M.add_damage(m, "heat_mark", 0.4)
-            w.stat("damage")
-            w.emit("heat_mark", target=dest, source=eid)
+        if rec.get("relation") == "on":
+            # a hot dish set down on a finish: the kernel's contact_heat law (this domain's legacy copy while it is
+            # deferred: the kernel's heat limits, every domain's claims; physical.hot_contact)
+            PH.hot_contact(w, eid, dest)
         if M.food(rec) and parent.get("container"):
             from . import mixing as X
             X.log(w, dest, "add", kind=M.kind(rec), g=round(M.qty(rec), 1))
@@ -144,7 +151,7 @@ def _open_package(ctx):
     # (realistic perception: whether a can is bulging is a close-look question, so the opener is needed either way --
     # skipping it would reveal the hidden defect)
     if need and (ctx.realistic or not rec.get("_bulging")):
-        require(any(w.ent(h).get("tool_kind") == need or need in w.ent(h).get("capabilities", []) for h in w.held_items()),
+        require(any(w.ent(h).get("tool_kind") == need or need in w.ent(h).get("capabilities", []) for h in C.held_known(ctx)),
                 "Hold a {} to open it".format(need.replace("_", " ")), "capability")
     if "cork" in (M.food(rec) or {}).get("parts", []):
         raise ActionError("Remove the cork with a corkscrew (remove_part part=cork)", "precondition")
@@ -508,7 +515,7 @@ def _uses_soap(ctx):
             rec = w.ent(val)
             if any(s in (rec.get("type", "") + " " + (rec.get("label") or "") + " " + str(rec.get("cleaner_kind", ""))).lower() for s in SOAP_WORDS):
                 return True
-    for h in w.held_items():
+    for h in C.held_known(ctx):
         rec = w.ent(h)
         if any(s in (rec.get("type", "") + " " + (rec.get("label") or "") + " " + str(rec.get("cleaner_kind", ""))).lower() for s in SOAP_WORDS):
             return True

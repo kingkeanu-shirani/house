@@ -551,7 +551,7 @@ def inv_guest_items(state, baseline, world=None):
     if not any(C.is_guest(o) for o in people.values()):
         return None
     if world is not None:
-        owned = world.static_index("people.owned", lambda r: bool(r.get("owner")))
+        owned = C.static_ids(world, "owned")
     else:
         owned = sorted(state["entities"])
     for eid in owned:

@@ -62,6 +62,12 @@ def settle(config):
     return config
 
 
+@hook("episode_start", order=-100)
+def _prebuild_indexes(w, env):
+    """Build the electrical static indexes before any episode_start hook writes (common.prebuild_indexes)."""
+    C.prebuild_indexes(w)
+
+
 @hook("episode_start")
 def _settle_at_start(w, env):
     """Kernel v2.1 episode_start: derive every electrical field from the final setup (setup ops that edit plugs,

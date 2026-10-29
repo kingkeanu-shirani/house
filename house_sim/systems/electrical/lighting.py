@@ -72,8 +72,9 @@ def lamp_level(rec):
     return None
 
 
-def dim_for(state, light_id, rec, index=None):
-    """Effective dim level from dimmers, lamp levels and smart bulbs."""
+def dim_for(state, light_id, rec, index=None, work=None):
+    """Effective dim level from dimmers, lamp levels and smart bulbs (work: working_bulbs(state, light_id) when the
+    caller has it)."""
     level = 1.0
     for sid in controllers(state, light_id, index):
         s = state["entities"][sid]
@@ -85,7 +86,7 @@ def dim_for(state, light_id, rec, index=None):
     sd = (rec.get("settings") or {}).get("dim")
     if isinstance(sd, (int, float)) and not isinstance(sd, bool):
         level = min(level, float(sd))
-    work = working_bulbs(state, light_id)
+    work = working_bulbs(state, light_id) if work is None else work
     for b in work:
         brec = state["entities"][b]
         if brec.get("smart") and not smart_off(brec):
@@ -109,21 +110,35 @@ def dimmed_by_control(state, light_id, rec, index=None):
     return False
 
 
+def _working(ents, rec, slots):
+    """working_bulbs of a light whose record is rec and whose bulb_slots are slots."""
+    out = []
+    for s in slots:
+        item = (rec["slots"][s] or {}).get("item")
+        if item and item in ents:
+            brec = ents[item]
+            if not brec.get("burnt_out") and not brec.get("broken"):
+                out.append(item)
+    return out
+
+
 @C.refresher(20)
 def sync_lights(w):
     state = w.s
     ents = state["entities"]
     index = switch_index(state, w)
+    set_if = C.set_if
     for eid in C.ids(w, "lights"):
         rec = ents.get(eid)
         if rec is None or rec.get("category") != "light":
             continue
+        get = rec.get           # rec is the live record: C.set_if is called only when a field's value would change
         slots = bulb_slots(rec)
-        powered = rec.get("powered", True)
-        on = bool(rec.get("on"))
-        dim = dim_for(state, eid, rec, index)
+        powered = get("powered", True)
+        on = bool(get("on"))
+        work = _working(ents, rec, slots) if slots else []
+        dim = dim_for(state, eid, rec, index, work)
         if slots:
-            work = working_bulbs(state, eid)
             lumens = 0.0
             watts = 0.0
             ccts = set()
@@ -140,42 +155,53 @@ def sync_lights(w):
                     three_way_ok = False
                 t = C.num(brec.get("op_temp_c"), 55.0)
                 hottest = t if hottest is None else max(hottest, t)
-            nominal = C.num(rec.get("nominal_lumens"), 800.0 * max(1, len(slots)))
-            base = C.num(rec.get("base_brightness"), C.num(rec.get("brightness"), 0.5))
-            C.set_if(w, eid, "burnt_out", not work)
-            C.set_if(w, eid, "brightness", round(min(1.0, base * (lumens / nominal if nominal else 1.0)), 3))
-            C.set_if(w, eid, "_bulb_w", round(watts, 1))
-            C.set_if(w, eid, "cct_mismatch", bool(ccts) and (max(ccts) - min(ccts) > 300))
+            nominal = C.num(get("nominal_lumens"), 800.0 * max(1, len(slots)))
+            base = C.num(get("base_brightness"), C.num(get("brightness"), 0.5))
+            value = not work
+            if get("burnt_out") != value:
+                set_if(w, eid, "burnt_out", value)
+            value = round(min(1.0, base * (lumens / nominal if nominal else 1.0)), 3)
+            if get("brightness") != value:
+                set_if(w, eid, "brightness", value)
+            value = round(watts, 1)
+            if get("_bulb_w") != value:
+                set_if(w, eid, "_bulb_w", value)
+            value = bool(ccts) and (max(ccts) - min(ccts) > 300)
+            if get("cct_mismatch") != value:
+                set_if(w, eid, "cct_mismatch", value)
             if not three_way_ok and dim < 0.99 and dim > 0:
                 # a standard bulb in a 3-way socket lights only on the middle position
                 dim = 1.0 if lamp_level(rec) == LEVELS["medium"] else 0.0
         else:
             hottest = None
-            work = []
-        lit = bool(on and powered and not rec.get("burnt_out") and dim > 0.0)
+        lit = bool(on and powered and not get("burnt_out") and dim > 0.0)
         if slots:
-            lit = bool(on and powered and working_bulbs(state, eid) and dim > 0.0)
-        if rec.get("_fault") == "internal" or C.dead(rec):
+            lit = bool(on and powered and work and dim > 0.0)       # work: the bulbs are as they were above
+        if get("_fault") == "internal" or C.dead(rec):
             lit = False
-        if rec.get("photocell"):
-            mode = (rec.get("settings") or {}).get("mode", "auto")
+        if get("photocell"):
+            mode = (get("settings") or {}).get("mode", "auto")
             daylit = clock.daylight(state) >= C.DARK
             if mode == "off" or (mode == "auto" and daylit):
                 lit = False
-            C.set_if(w, eid, "photocell_waiting", bool(on and powered and mode == "auto" and daylit))
-        C.set_if(w, eid, "dim_level", dim if dim > 0 else (1.0 if not on else 0.0))
-        C.set_if(w, eid, "lit", lit)
+            set_if(w, eid, "photocell_waiting", bool(on and powered and mode == "auto" and daylit))
+        value = dim if dim > 0 else (1.0 if not on else 0.0)
+        if get("dim_level") != value:
+            set_if(w, eid, "dim_level", value)
+        if get("lit") is not lit:
+            set_if(w, eid, "lit", lit)
         nondim = [b for b in work if not ents[b].get("dimmable", True)]
         flicker = bool(lit and nondim and (dimmed_by_control(state, eid, rec, index) or (dim < 0.99 and lamp_level(rec) is None and not any(ents[b].get("smart") for b in work))))
-        C.set_if(w, eid, "flicker", flicker)
+        if get("flicker") is not flicker:
+            set_if(w, eid, "flicker", flicker)
         # bulb heat through the fixture's internal temperature
         target = hottest if (lit and hottest is not None) else None
         if target is not None and dim < 1.0:
             from ...kernel.physics import room_temperature
             amb = room_temperature(state, C.room_of(state, eid) or "")
             target = round(amb + (target - amb) * max(0.3, dim), 1)
-        if slots:
-            C.set_if(w, eid, "internal_temp_c", target)
+        if slots and get("internal_temp_c") != target:
+            set_if(w, eid, "internal_temp_c", target)
 
 
 def _over_wattage(state, eid):

@@ -141,7 +141,9 @@ controls: a regression over a few distances recovered the true size to millimetr
   show one fixed key set whatever the thing is (`realism.NOVEL_FIELDS`: label, kind, shape, material_guess, color,
   size, place, held hand, soil, wetness, temperature, broken/shattered, printed text once read): no `openable`,
   `container`, `surface`, `portable`, fill or domain inspector extra (review I4: a kettle's glance `openable`, a jug's
-  fill and a lamp's `bulb_hot` told the types apart). Instrument readings a domain passes as exact stay.
+  fill and a lamp's `bulb_hot` told the types apart). Instrument readings a domain passes as exact stay. `read` of
+  one shows its printed text alone (`core.NOVEL_PRINT`: text, label_text), else "There is nothing legible to read on
+  it", whatever it is (phase-1 finish, food's request: an unfamiliar flour bag read out its allergens and net weight).
 * An unfamiliar thing is handled as an object -- looked at, inspected, moved, carried, placed -- but not operated:
   an action registered with `operates=True` (core: open, close, open_cover, close_cover, lock, unlock, switch_on,
   switch_off, set, start, pause, cancel, set_mode) on one is refused before any domain hook with one message for
@@ -287,7 +289,10 @@ whole rooms for it), and each run adds differential probes in its camera mode (`
 true size and unfamiliar things with the same visual props: rendering, listing, and what the view's pixels imply
 about the size; `--twin-fields` compares every field of look-alike twins; unfamiliar twins -- electric kettle,
 smartphone, hair dryer, remote control, all required with every domain loaded -- are always compared on every field
-and on what operating them answers), `episode` (a handle of another episode accepted; handles shared by episodes with
+and on what operating them and reading them answers), `read` (every member of every look-alike group in turn, read
+and read aloud to a resident while unresolved: the same outcome form, ok and category, for every member -- the printed
+text may differ, it is how a read-resolved look-alike is told apart; phase-1 finish, people's request: the pill-bottle
+members refused alone were found by hand while G4 stayed green), `episode` (a handle of another episode accepted; handles shared by episodes with
 different nonces), `echo` (replies to id-shaped words that exist or not, and to the handle of a thing destroyed out
 of view: speak, explain, remember, recall, report's subject, ask's about, wait) and `target` (free text naming every
 member type of an unresolved look-alike; the hazard order of one cell). The per-output rules could not see these classes (review H13): differential leaks, the

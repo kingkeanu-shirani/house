@@ -160,6 +160,8 @@ def _pad_removed(ctx, device_id, slot, part_id):
     refresh_pads(w, device_id)
 
 
+@C.per_step_index("legged")
+@C.index_reads("_legs", "slots")
 def _has_legs(rec):
     return bool(rec.get("_legs") and rec.get("slots"))
 
@@ -351,6 +353,8 @@ def _seal_removed(ctx, device_id, slot, part_id):
     refresh_latch(w, device_id)
 
 
+@C.per_step_index("sealed_openings")
+@C.index_reads("_seal")
 def _has_seal(rec):
     return isinstance(rec.get("_seal"), dict)
 
@@ -535,6 +539,8 @@ def _flush_target(w, outlet):
     return None
 
 
+@C.per_step_index("water_filter_hosts")
+@C.index_reads("slots")
 def _water_filter_host(rec):
     return filter_slot(rec) is not None
 
@@ -717,6 +723,8 @@ for _verb in ("flip", "rotate"):
     after(_verb, order=140)(_flip_arrow)
 
 
+@C.per_step_index("air_filter_hosts")
+@C.index_reads("slots")
 def _air_filter_host(rec):
     return any((i or {}).get("fit") for i in (rec.get("slots") or {}).values())
 

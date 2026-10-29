@@ -40,6 +40,8 @@ def surface_finish(rec):
     return rec.get("finish") or ("tile" if rec.get("material") == "tile" else "painted")
 
 
+@C.per_step_index("hardware")
+@C.index_reads("hardware_kind", "tape_kind")
 def is_hardware(rec):
     return bool(rec) and (rec.get("hardware_kind") is not None or rec.get("tape_kind") is not None)
 

@@ -3102,6 +3102,165 @@ class PhaseOneStabiliseTests(unittest.TestCase):
                                      (law_state, orientation))
 
 
+class PhaseOneFinishTests(unittest.TestCase):
+    """The end of phase 1 (catalog/analysis/phase1/breakages.json rows for this domain, the G7 substep cost) and the
+    defects found while finishing it, each pinned here."""
+
+    def _heater_case(self, props, utilities=None):
+        config, p, s = build(people={}, pets={})
+        config["utilities"].update(utilities or {})
+        heater = p.floor_item("bedroom", "portable_object", label="space heater", category="heater", heat_source=True,
+                              on=True, surface=True, accepts_items=True, size_m=[0.4, 0.3, 0.5], near=[1, 1],
+                              portable=False, **props)
+        towel = p.on(heater, "hand_towel")
+        return config, heater, towel
+
+    def test_a_switched_on_heater_without_power_neither_scorches_nor_ignites_what_lies_on_it(self):
+        """Breakage (electrical's request; T-702453ef553c00-01 seed 41 before electrical's setup fix: textile_near_heat
+        at 300 s and a fire at 1800 s with the breaker tripped from the start): heater_active read the switch only. A
+        corded heater (plug_required, hardwired, on a circuit) heats only with power (kernel physics.is_powered); a fire
+        and a hot radiator need none."""
+        from house_sim.kernel import physics
+        cases = (("unplugged", dict(plug_required=True, plugged_in=False), None, False),
+                 ("plugged in", dict(plug_required=True, plugged_in=True), None, True),
+                 ("grid outage", dict(plug_required=True, plugged_in=True), {"power": False}, False),
+                 ("hardwired, outage", dict(hardwired=True), {"power": False}, False),
+                 ("not electric", {}, {"power": False}, True))
+        for name, props, utilities, heats in cases:
+            config, heater, towel = self._heater_case(props, utilities)
+            env = env_of(config)
+            if props:
+                self.assertEqual(physics.is_powered(env.world, heater), heats, name)
+            self.assertEqual(M.heat_sources(env.world), [heater] if heats else [], name)
+            ok(env, "wait", seconds=3600)
+            events = [e for e in env.world.s.get("event_log", []) if e.get("kind") == "textile_near_heat"]
+            self.assertEqual(bool(events), heats, name)
+            self.assertEqual(stat(env, "fire") > 0, heats, name)
+            self.assertEqual("scorched" in (ent(env, towel).get("damage") or {}), heats, name)
+        # without grid power a lit fireplace and a hot (hydronic) radiator still heat; an electric fire insert does not
+        config, p, s = build(people={}, pets={})
+        config["utilities"]["power"] = False
+        fire = p.floor_item("bedroom", "portable_object", label="fireplace", category="fireplace", lit=True,
+                            size_m=[0.9, 0.4, 0.9], near=[0, 0], portable=False)
+        insert = p.floor_item("bedroom", "portable_object", label="electric fire", category="fireplace", on=True,
+                              hardwired=True, size_m=[0.6, 0.3, 0.5], near=[3, 0], portable=False)
+        radiator = p.floor_item("bedroom", "portable_object", label="radiator", category="radiator", temperature_c=65.0,
+                                fixed_temperature=True, size_m=[0.8, 0.1, 0.6], near=[0, 4], portable=False)
+        env = env_of(config)
+        self.assertEqual(M.heat_sources(env.world), sorted([fire, radiator]))
+        self.assertNotIn(insert, M.heat_sources(env.world))
+
+    def test_the_hamper_bag_pocket_sandal_and_sheet_carton_hold_no_liquid(self):
+        """Breakage (INT: the kernel's holders follow plumbing_liquids' liquid-tightness rule; review L3): a sorter's
+        fabric hamper section pooled kernel pours, spills, drips and rain (and so did an open garment pocket, a sandal
+        and a paperboard dryer-sheet carton). They are watertight false: a spill onto them runs through to the floor,
+        while a wash basin still holds it."""
+        from house_sim.kernel.phys import liquids
+        reg = default_registry()
+        for name in ("hamper_section", "garment_pocket", "sandal", "dryer_sheet_box"):
+            rec = reg.make(name, "laundry")
+            if rec.get("openable"):
+                rec["open"] = True
+            rec["id"] = "x"
+            state = {"entities": {"x": rec}, "rooms": {"laundry": {}}}
+            self.assertFalse(liquids.holds_liquid(state, "x"), name)
+            self.assertFalse(liquids.liquid_tight(rec), name)
+        config, p, s = build(people={}, pets={})
+        bag = p.floor_item("laundry", "hamper_section", near=[0, 3])
+        basin = p.floor_item("laundry", "wash_basin", near=[3, 3])
+        env = env_of(config)
+        w = env.world
+        w.begin()
+        self.assertIsNotNone(liquids.spill(w, 0.5, "water", onto=bag))          # through the bag onto the floor
+        self.assertLess(float(ent(env, bag).get("liquid_l", 0.0) or 0.0), 0.01)
+        self.assertIsNone(liquids.spill(w, 0.5, "water", onto=basin))           # the basin holds it
+        self.assertAlmostEqual(float(ent(env, basin)["liquid_l"]), 0.5)
+        w.commit()
+
+    def _rain_scene(self):
+        config, p, s = build(people={}, pets={}, weather={"condition": "rain", "temperature_c": 12.0, "wind_mps": 3.0})
+        lawn = p.floor_item("yard", "t_shirt", near=[2, 2])
+        box = p.floor_item("yard", "portable_object", label="storage bin", container=True, accepts_items=True,
+                           openable=True, open=False, capacity_l=60.0, inner_size_m=[0.5, 0.4, 0.3],
+                           size_m=[0.55, 0.45, 0.35], near=[5, 4])
+        boxed = p.inside(box, "t_shirt")
+        indoors = p.on(s["table"], "t_shirt")
+        return config, lawn, boxed, indoors
+
+    def test_dry_laundry_left_out_in_the_rain_is_soaked_and_sheltered_laundry_stays_dry(self):
+        """Found while measuring the fabric system (phase 1): with the kernel's rain law deferred this domain's rain rule
+        wet only textiles the system already looked at (wet ones, ones set out to dry), so a dry shirt left on the lawn
+        in the rain stayed dry however long it rained. It is soaked now; one in a closed bin or indoors stays dry; with
+        the rain law forced the kernel wets it and this rule stands down; the idle probes stay exact in the rain."""
+        from house_sim.kernel import plugins
+        from house_sim.kernel.phys import lawbook
+        from house_sim.kernel.predicates import digest
+        results = {}
+        for probes in (True, False):
+            saved = plugins.IDLE_PROBES[0]
+            plugins.IDLE_PROBES[0] = probes
+            try:
+                config, lawn, boxed, indoors = self._rain_scene()
+                env = env_of(config)
+                ok(env, "wait", seconds=1800)
+            finally:
+                plugins.IDLE_PROBES[0] = saved
+            self.assertGreaterEqual(ent(env, lawn)["wetness"], 0.9, probes)
+            self.assertIsNotNone(ent(env, lawn).get("rained_on"), probes)
+            self.assertLess(float(ent(env, boxed).get("wetness", 0.0) or 0.0), 0.01, probes)
+            self.assertLess(float(ent(env, indoors).get("wetness", 0.0) or 0.0), 0.01, probes)
+            results[probes] = digest(env.world.s)
+        self.assertEqual(results[True], results[False])
+        with lawbook.forced(rain=True):
+            config, lawn, boxed, indoors = self._rain_scene()
+            config["weather"]["rain_mm_h"] = 4.0
+            env = env_of(config)
+            from house_sim.systems.textiles_laundry import dry as D
+            self.assertEqual(D.rain_rooms(env.world), frozenset())      # the kernel's law wets things itself
+            ok(env, "wait", seconds=1800)
+            self.assertGreaterEqual(ent(env, lawn)["wetness"], 0.9)
+            self.assertLess(float(ent(env, boxed).get("wetness", 0.0) or 0.0), 0.01)
+
+    def test_the_fabric_run_reads_only_textiles_that_can_need_a_tick_and_changes_nothing_by_it(self):
+        """G7 (phase 1 substep cost): the fabric system read every textile on every 30 s substep. With no heater on and
+        no rain it now passes by the textiles that neither asked for a tick when the step began (the static index
+        textiles_laundry.ticking) nor were written since (the touch log). The same wait with the filter off ends in the
+        same state, also when another system wets a dry towel in the middle of the one long wait step."""
+        from house_sim.kernel import plugins
+        from house_sim.kernel.predicates import digest
+        from house_sim.systems.textiles_laundry import dry as D
+
+        def run(filtered):
+            config, p, s = build(people={}, pets={})
+            wet = p.on(s["table"], "t_shirt", wetness=0.8)
+            towel = p.on(s["table"], "bath_towel")
+            for _ in range(3):
+                p.on(s["table"], "t_shirt")
+            env = env_of(config)
+            w = env.world
+            self.assertEqual(set(D._ticking(w)), {wet})            # the dry ones are not in the index
+            start, fired = w.s["time_s"], []
+
+            def wetter(world, dt, tick):
+                if not fired and world.s["time_s"] >= start + 900:
+                    world.mut(towel)["wetness"] = 0.6
+                    fired.append(world.s["time_s"])
+            saved, ticking = list(plugins.SYSTEMS), D._ticking
+            plugins.SYSTEMS.append((50, "test.wetter", 30.0, wetter))
+            plugins.SYSTEMS.sort(key=lambda t: (t[0], t[1]))
+            if not filtered:
+                D._ticking = lambda world: None
+            try:
+                ok(env, "wait", seconds=3600)
+            finally:
+                plugins.SYSTEMS[:] = saved
+                D._ticking = ticking
+            self.assertTrue(fired)
+            self.assertLess(ent(env, towel)["wetness"], 0.6)       # dried within the step that wetted it
+            return digest(env.world.s)
+        self.assertEqual(run(True), run(False))
+
+
 def sewing_kit_for(config, p, s):
     from house_sim.systems.textiles_laundry.helpers import sewing_kit
     return sewing_kit(Ctx(config, p), s["table"], frayed=False)

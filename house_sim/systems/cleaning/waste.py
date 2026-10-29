@@ -589,6 +589,9 @@ def empty_into(ctx):
     require(drec is not None, "That is not visible here", "perception")
     if dest not in w.held_items():
         ctx.obj(dest, touch=True)
+    # an unfamiliar thing is neither tipped out nor emptied into (the kernel's operation rule, review I4): one refusal
+    # before any check whose outcome depends on what it is (a kettle's lid, a bleach bottle's liquid)
+    S.refuse_unfamiliar(ctx, target, dest)
     require(not (drec.get("openable") and not drec.get("open")) or drec.get("water_source") or drec.get("toilet"),
             "Open the lid of {} first".format(dest if S.realistic(ctx) else drec.get("label", dest)), "precondition")
     require(not trec.get("vacuum_kind"), "Take the bin or bag out of the vacuum first (uninstall)", "precondition")

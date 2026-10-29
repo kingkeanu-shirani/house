@@ -102,15 +102,16 @@ def _routines_at_start(w, env):
 def routine_system(w, dt, tick):
     state = w.s
     clock_now = None
+    day = []
     for pid in sorted(state.get("people", {})):
         p = state["people"][pid]
         mode = routine_mode(state, p)
         if mode is None:
             continue
         if clock_now is None:       # the clock does not move inside a tick: read it once for everyone
-            clock_now = (C.minute_of_day(state), C.weekday(state), clock.daylight(state))
+            clock_now = C.minute_and_weekday(state)
         _schedule(w, pid, p, mode, clock_now)
-        _dusk(w, pid, state["people"][pid], clock_now[2])
+        _dusk(w, pid, state["people"][pid], day)
         _heat(w, pid, state["people"][pid])
 
 
@@ -271,7 +272,7 @@ def _plain_switches(w, rid):
     state = w.s
     ents = state["entities"]
     out = []
-    for sid in C.static_ids(w, "switches", lambda r: r.get("category") == "switch" and bool(r.get("controls"))):
+    for sid in C.static_ids(w, "switches"):
         rec = ents[sid]
         if rec.get("location") != rid or rec.get("three_way_with"):
             continue
@@ -289,7 +290,7 @@ def _set_lights(w, sid, lights, on):
     for lid in lights:
         if bool(ents[lid].get("on")) != bool(on):
             w.mut(lid)["on"] = bool(on)
-    for other in C.static_ids(w, "switches", lambda r: r.get("category") == "switch" and bool(r.get("controls"))):
+    for other in C.static_ids(w, "switches"):
         rec = ents[other]
         if other != sid and not rec.get("three_way_with") and set(rec.get("controls") or []) & set(lights) and bool(rec.get("on")) != bool(on):
             w.mut(other)["on"] = bool(on)
@@ -313,7 +314,7 @@ def light_up(w, pid):
             C.log_event(w, "person_lights", person=pid, room=rid, switch=sid, on=True)
             return True
     ents = state["entities"]
-    for lid in C.static_ids(w, "lights", lambda r: r.get("category") == "light"):
+    for lid in C.static_ids(w, "lights"):
         rec = ents[lid]
         if rec.get("location") == rid and rec.get("switchable") and not rec.get("on") and not rec.get("night_light") \
                 and not rec.get("mounted") and (is_powered(w, lid) or rec.get("battery_powered")):
@@ -333,19 +334,26 @@ def _lights_out(w, pid, rid):
         if any(ents[l].get("on") for l in lights):
             _set_lights(w, sid, lights, False)
             C.log_event(w, "person_lights", person=pid, room=rid, switch=sid, on=False)
-    for lid in C.static_ids(w, "lights", lambda r: r.get("category") == "light"):
+    for lid in C.static_ids(w, "lights"):
         rec = ents[lid]
         if rec.get("location") == rid and rec.get("on") and rec.get("switchable") and not rec.get("night_light") and not rec.get("mounted"):
             w.mut(lid)["on"] = False
 
 
 def _dusk(w, pid, p, day=None):
-    """Fading daylight darkens an awake resident's room: they switch a light on."""
+    """Fading daylight darkens an awake resident's room: they switch a light on. day: the daylight when the caller has
+    it, or a list the first awake resident's check fills with it (routine_system reads it once per tick, and only when
+    someone is up to notice)."""
     state = w.s
     rid = p.get("location")
     if not C.present(p) or S.asleep(p) or rid not in state["rooms"] or state["rooms"][rid].get("outdoor"):
         return
-    day = clock.daylight(state) if day is None else day
+    if isinstance(day, list):
+        if not day:
+            day.append(clock.daylight(state))
+        day = day[0]
+    elif day is None:
+        day = clock.daylight(state)
     seen = p.get("_seen_light")
     fresh = isinstance(seen, list) and len(seen) == 3 and seen[0] == rid
     if fresh and abs(float(seen[2]) - day) < 1e-9:

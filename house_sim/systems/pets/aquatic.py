@@ -38,6 +38,8 @@ def _device_kind(rec):
     return rec.get("aquarium_device") or rec.get("enclosure_device") or ("light" if rec.get("purpose") == "aquarium" else None)
 
 
+@C.per_substep_index("habitats", always=True)
+@C.index_reads("category", "serves", "aquarium_device", "enclosure_device", "purpose")
 def _habitat_candidate(rec):
     """Static: tanks, enclosures and the devices serving them."""
     return rec.get("category") in ("aquarium", "reptile_enclosure") or bool(rec.get("serves") and _device_kind(rec))         or rec.get("aquarium_device") == "filter"

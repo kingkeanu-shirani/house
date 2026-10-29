@@ -1,0 +1,150 @@
+{
+ "id": "INT2",
+ "fixed": [
+  {
+   "item": "Kernel request of seven domains (admin_inventory, cleaning, outdoor_plants, people, pets, safety, tools_vehicles; G7 groundwork): World._matching evaluated a declared-reads predicate on the plain record only when nothing at all was journaled, so every static-index build or pending re-check inside a step paid a _ReadView / _StartView per entity (2-3x a plain scan); six domains worked around it by prebuilding at episode start",
+   "how": "house_sim/kernel/world.py _matching: with declared reads (outside strict mode) the predicate sees a plain record wherever it is the step-start record for those fields: an entity not journaled this step is its own record, a journaled one its journal snapshot (a created one: as it is), and a quiet write matters only when it wrote a declared field (only then a _StartView). Exact by construction: golden dump of all 8 runs and 243 specs identical before and after (275 files, 0 changed). Micro-bench (generated house 2, 929 entities, a busy step with 20 journaled and 380 quiet-written entities): 0.393 -> 0.222 ms per declared build.",
+   "test": "tests/test_kernel_contracts.py StaticIndexTests.test_declared_reads_mid_step_give_the_step_start_content (counts plain vs view evaluations; fails on the domains' tree) and test_declared_reads_follow_later_writes_from_the_next_step_on"
+  },
+  {
+   "item": "Electrical's request: strict mode never checked a declaration that was only ever built between steps (the plain path), so an incomplete declaration went stale silently outside strict mode",
+   "how": "Strict mode (HOUSE_SIM_STRICT=1) now reads every entity through a view, between steps too, and fails a predicate that reads beyond its declaration (the existing checks). The whole strict suite (65 files) and the coverage fuzz (which runs strict) pass: no domain declaration was incomplete.",
+   "test": "tests/test_kernel_contracts.py StaticIndexTests.test_strict_mode_checks_a_declaration_between_steps_too (fails on the domains' tree)"
+  },
+  {
+   "item": "Cleaning's request (World.journaled_entities) and textiles_laundry's request (pin the touch-log contract its scan filter relies on, a public touch_log_complete)",
+   "how": "house_sim/kernel/world.py journaled_entities() (entities journaled as whole records this step: mut, create, destroy; not set_quiet-only ones) and touch_log_complete() (touched_since(0) is the step's whole log: nothing trimmed since begin() / rollback()); docs/KERNEL_API.md states the contract (rollback_to truncates without moving absolute cursors, phys_scratch is a new object after begin / rollback / rollback_to, every entity write but set_quiet / mut_quiet is a touch)",
+   "test": "tests/test_kernel_contracts.py StaticIndexTests.test_journaled_entities_and_the_complete_touch_log (errors on the domains' tree)"
+  },
+  {
+   "item": "outdoor_plants' request (phase 1, still open): publish phys.environment._cannot_move and _free_to_move",
+   "how": "house_sim/kernel/phys/environment.py cannot_move / free_to_move public (the kernel's own callers and phys/events.py use them); the private names stay as aliases (outdoor_plants' pin test keeps passing); docs/PHYSICS.md",
+   "test": "tests/test_physics_fluids.py WindTests.test_the_wind_gates_are_public"
+  },
+  {
+   "item": "appliances_cooking's request: an opened cavity (range oven 75 L, microwave, dishwasher tub, air-fryer drawer) pooled a kernel pour up to its storage capacity_l",
+   "how": "house_sim/kernel/phys/liquids.py hold_capacity_l: an optional pool_l (litres a cavity pools before liquid runs over its lip) wins over capacity_l; pool_l 0 holds nothing. No type sets it yet (appliances_cooking can now); docs/PHYSICS.md",
+   "test": "tests/test_physics_fluids.py PourTests.test_a_cavity_pools_its_pool_l_not_its_storage_capacity"
+  },
+  {
+   "item": "outdoor_plants' request: a kernel pour, drip or overflow into a plant pot (a kernel holder) pooled liquid_l the soil-water model never read; no hook for a domain that models a holder's contents",
+   "how": "house_sim/kernel/phys/liquids.py arrives(): @hook('phys.liquid_arrives') fn(w, eid, liters, liquid, source, by) -> litres taken, asked by pour_in and by the spill walk's _catch (deposit_below, drips, overflows) before the kernel pools the rest; without a hook nothing changes (golden identical). docs/PHYSICS.md hook list",
+   "test": "tests/test_physics_fluids.py PourTests.test_a_domain_hook_takes_liquid_arriving_in_a_holder_first"
+  },
+  {
+   "item": "food's request: laws.json contact_heat duplicated_by listed manipulation and appliances_cooking only, though admin_inventory (handling._hot_contact) and tools_vehicles (tools._hot_on_support) keep general legacy copies on every core place too, and food one for worlds without the others",
+   "how": "house_sim/data/physics/laws.json contact_heat duplicated_by: manipulation, appliances_cooking, admin_inventory, tools_vehicles, food (the list of copies to retire when the law flips); food's own step-aside rule reads it (one mark per contact). No change with every domain loaded (golden identical); HOUSE_SIM_DOMAINS=food unchanged",
+   "test": "tests/test_physics_data.py LawbookTests.test_states_at_landing_follow_tier1_physics_10_2 (pins the row); tests/test_food.py's other_copy_loaded check passes"
+  },
+  {
+   "item": "food's request (red_leaks I4): read of an unfamiliar (novel) thing returned its true type's read-tier fields (an unfamiliar flour bag: allergens, date_type, diet_tags, full_g) while an unfamiliar knife was 'nothing legible'",
+   "how": "house_sim/systems/core.py read: for a thing the robot takes for an unfamiliar object (realism.novel_unidentified) only its printed text (core.NOVEL_PRINT: text, label_text), else the one refusal; docs/PERCEPTION.md. No authored spec uses novel things (golden identical); tools/perception_audit.py's unfamiliar-twin battery now also reads (NOVEL_OPERATE)",
+   "test": "tests/test_kernel_redteam.py UnfamiliarThingTests.test_glance_inspect_and_operating_answer_alike (new 'printed' variant and read; fails on the domains' tree)"
+  },
+  {
+   "item": "people's request: the perception auditor's twin battery never read look-alike members (the pill-bottle refusals were found by hand while G4 stayed green)",
+   "how": "tools/perception_audit.py read probe (_probe_reads, one job per look-alike group, 78 groups): every member in turn at the same place under the same id with a resident beside it; approach, read, read_aloud; while unresolved before the step every member must answer in the same form (ok, category; the text may differ); attributed to the type data of the member that answers otherwise. It finds 3 leaks (5 with the geometric camera): felt_marker (admin_inventory), robot_vacuum (navigation_robot), spray_bottle's trigger_bottle (mechanisms' type in cleaning's group) -- rows in finish_breakages.json. Docs: the auditor's docstring and docs/PERCEPTION.md",
+   "test": "tests/test_perception.py AuditorProbeTests.test_the_read_probe_compares_the_outcome_form_of_every_member (the pill-bottle group is clean; a member refused alone is caught; the job is scheduled)"
+  },
+  {
+   "item": "people's request: tests/test_kernel_redteam.py RememberedSubjectTests lacked ask aspect owner (people's answerer said 'Which one?' for a destroyed thing; fixed by people this round)",
+   "how": "('ask', aspect='owner') added to the destroyed-vs-out-of-view battery, the stale comment replaced",
+   "test": "tests/test_kernel_redteam.py RememberedSubjectTests.test_a_destroyed_thing_is_reported_and_asked_about_like_one_out_of_view (fails on HEAD: 'Which one?' vs 'I don't know.'); passes normal, strict and HOUSE_SIM_DOMAINS=core"
+  },
+  {
+   "item": "navigation_robot's request: docs/GENERATOR.md's furnisher list lacked navigation_robot.dock_check (order 120, generation 2)",
+   "how": "docs/GENERATOR.md generation-2 pipeline line",
+   "test": "docs only"
+  },
+  {
+   "item": "Re-records requested by admin_inventory, appliances_cooking, climate, outdoor_plants, pets, plumbing_liquids, textiles_laundry, tools_vehicles, manipulation and K-GATE2 (test_generator_compat and test_room_golden failed on the finished tree: 4 failing runs of 4,811 x 2)",
+   "how": "Attribution first (three frozen trees: HEAD, the domains' finished tree, the integrated tree). tests/data/gen1_digests.json (60 entries; `gen1-digests --write --by INT2`): HEAD -> finish differs only in 3 record-field classes, no placement -- watertight (admin_inventory trays/feeders/mailboxes/napkin holder, appliances_cooking toaster, textiles dryer_sheet_box, plumbing garbage_disposal, tools_vehicles hardware_organizer), holes_mm (appliances_cooking baskets/portafilter, outdoor_plants skimmer_basket), size_m (plumbing plungers, tools_vehicles flathead screwdrivers and automotive jugs); the new digests equal the attributed dump 60/60. tests/data/room_golden.json (`golden.py record --by INT2`, 8 runs, 243 specs): 43 path patterns HEAD -> finish, every one an owner's reported class (type data; realistic handle renames; appliances_cooking's four generation-2 knock-on houses; climate's purifier panels; textiles' heater fix; plumbing's edited T-151f6733397156-01; manipulation's T-7d4006bda247ba-01 now passing, its known-failing pin dropped) except one class plumbing_liquids did not list: wetness of water vessels in T-9a6cc7b8c7cefc-01 (ice_cube_tray 0.3 -> 0.2165) and T-a56d991fe37401-01 (dog_water_bowl 0.3 -> 0.1157), attributed by A/B to plumbing's code (its splashes now go through the kernel's wetting; types alone give 0.3). finish -> integrated: 0 of 275 files changed. tasks/specs.jsonl recompiled (`--compile`): exactly the 5 specs edited this round. Evidence: catalog/analysis/phase1/INT2_evidence/",
+   "test": "tests/test_generator_compat.py and tests/test_room_golden.py (also HOUSE_SIM_GOLDEN_ALL=1) pass; golden.py check --all: equal"
+  },
+  {
+   "item": "Sign-off verification of the P1 gate's drafted second signatures (P1_signoff_draft.json: 406 verdict + 9 edit rows with claimed classes) for the final record P1F",
+   "how": "P1F recorded on the quiet final tree (2,921 s, tree unchanged during the run); `signoff ADOPT P1F --package P1` drafted 428 verdict and 14 edit rows; each verified against the two records' trials (INT2_evidence/verify_signoff.py): 409 wrong-list rows (PASS -> PASS, only the wrong-plan list differs, every wrong plan ran and fails, reference passes, initial/idle fail; cause: another variant on that seed -- K-LEAK's hashed variants -- or a spec edit), 18 FAIL -> PASS fixes (all claimed in STATUS plus T-7d4006bda247ba-01 seeds 0 and 41 by manipulation's finish), 14 edits (hash = the authored spec's, base = ADOPT's version at 42533e2 matched by hash, edited JSON paths listed, own mode 5/5), 8 test-removal rows (G1b skip counts that rose only by new phase-1 tests skipping without other domains; skip reasons read). 1 rejected: T-dda4e199f3f5b0-01 seed 1 forced realistic fails on both sides (claim holds, not signed; the row to add is given). Of the P1 draft's 415 claims: 410 hold in P1F, 2 hold but their digest changed (T-0908068a0b4269-01 seed 97 own/realistic: people's edit), 2 no longer hold because they were fixed (T-7d4006bda247ba-01 seed 41: claimed both-fail, now FAIL -> PASS), 1 holds as both-fail (not signed). Written: P1_signoff_verified.json (signed_by INT2-verified, gate P1F) and the package's first signature (gate/P1F/reviewed.json, tracked copy P1F_reviewed.json: 308 rows, code P1); compare ADOPT P1F with them: 210/210 own and 217/218 realistic verdict changes reviewed, only the main session's signatures missing",
+   "test": "tier1_gate.py compare ADOPT P1F --package P1 (INT2_evidence/compare_P1F_with_reviews.txt)"
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "G4: the new read probe's 3 leaks (5 with the geometric camera): felt_marker washable_marker, robot_vacuum, spray_bottle trigger_bottle read refused for one member alone",
+   "why": "Domain type data (admin_inventory, navigation_robot, mechanisms with cleaning as the group's owner); rows in finish_breakages.json. G4 and, through it, G9's camera extra fail until they are fixed; the probe stays (the same class people fixed for the pill bottles)."
+  },
+  {
+   "item": "people's request: run the microphone capture rule in room mode (camera._mic_captures / _log_capture) and make CameraModeHarmTests compare the modes (KNOWN_LIMITS 6)",
+   "why": "Room-mode states carry no camera_log by contract (the room golden asserts it on every run; D3 keeps room mode unchanged); logging mic captures there changes room-mode privacy counts of every episode where the robot hears a private moment, so it needs a room-mode home for the capture keys and a re-verification -- a decision for the verifier-hardening ledger, which counts each harm once. The documented camera-mode difference stays."
+  },
+  {
+   "item": "manipulation's request: lift plan two-handed on slippery surfaces (forces.lift_plan, core pick_up thresholds)",
+   "why": "A behaviour change of the kernel's hand choice and core pick_up; outside PHYSICS.md 8's clean, dry contract, kept deliberately by the red team's fix text and by manipulation; needs its own re-verification."
+  },
+  {
+   "item": "textiles_laundry's request (K-CAM, restated): camera._within_wrist_depth from a lifted cover's overhanging edge (T-ed45170be6256e-01 fails only under forced realistic + geometric)",
+   "why": "A geometric-camera rule decision (measure from the support's edge or clip a cover's box) for D3; the spec passes in its own mode and forced realistic room mode. Deferred as in INT."
+  },
+  {
+   "item": "cleaning / textiles_laundry: an unresolved look-alike source's puddle kind in grid.hazards (review L4)",
+   "why": "Needs the domains' path_blocked / visible_floor_hazard hooks and data/physics/liquids.json together (INT's reason); the next phase."
+  },
+  {
+   "item": "appliances_cooking: touch log across begin() (step-qualified cursors or a location epoch); climate: field-level quiet writes for rooms",
+   "why": "Optional performance (about 0.03 ms per substep each) with semantics risk (journal, rollback, changes); G7 is well within budget (2.69 ms/substep vs ADOPT 3.21, limit 3.371)."
+  },
+  {
+   "item": "food: Realism._label_substitution rewrites a kind word anywhere in a domain message; registry.lookalike_size_spreads vs the geometric facing resolution",
+   "why": "Not precise enough to apply (which words are the domain's references to the entity; round the facing or lint every size difference); food worded its refusal without the noun and no group has a size spread now (registry lists none)."
+  },
+  {
+   "item": "people: a bookkeeping record of destroyed entities (world.gone_record); safety: capability registry (review M2)",
+   "why": "Design items (a never-perceived state section; plugins.provides / capable) best done with the verifier-hardening ledger; low priority / open since phase 1."
+  },
+  {
+   "item": "admin_inventory: key bowl fallback in generation 2 (29 of 330 gen-2 houses: 'no spot for key_bowl'); gen-2 notes for sofa_cushions (330) and the missing indoor_mat type (275)",
+   "why": "K-FIX's SPOT_FALLBACKS already apply; a new spot class or a new core type changes generation-2 houses (233 specs) and needs a re-verification round (GEN follow-up), not a finish-round change."
+  },
+  {
+   "item": "G3: T-dda4e199f3f5b0-01 seed 1 under forced realistic perception",
+   "why": "A judgement (reports.dog_1.urgency) is not a perceived value; pets' not_fixed; VERIFY_HARDENING typed reports / judgement fields. Own mode passes 5/5; the verdict row is not signed (its row is given in P1_signoff_verified.json rejected)."
+  }
+ ],
+ "specs_changed_outcome": [
+  "INT2's own changes changed no spec outcome: golden dump of all 243 references and the 8 scripted runs identical before and after (0 of 275 files); own mode 243/243 before and after; the 51 realistic specs with --camera geometric 51/51.",
+  "This round's owners (verified on P1F vs ADOPT): T-7d4006bda247ba-01 FAIL -> PASS on seeds 0 and 41 (manipulation's contact-claim fix; no spec edited); edited specs T-8e57df5742271b-01 (electrical), T-03d77bbfc281a4-01 (navigation_robot), T-0908068a0b4269-01 (people), T-151f6733397156-01 (plumbing_liquids), T-5a9598c809336a-01 (tools_vehicles): PASS on all seeds in own mode, wrong-plan-list verdict changes vs ADOPT."
+ ],
+ "perf": "G7 of P1F (quiet machine, alone): 2.69 ms per substep (best of 5; ADOPT 3.21, limit 3.371) and a 1 h wait of 1.020 s over seeds 0-3 (ADOPT 1.133, limit 1.189); the 27 wall-clock bounds alone, normal and strict: 0 failing every attempt. INT2's World._matching fast path: a declared-reads index build inside a busy step 0.393 -> 0.222 ms (929 entities); same-day bench A/B 2.75 -> 2.73 ms/substep (most domains prebuild at episode start). The read probe adds about 70 s of CPU per perception-audit run (78 groups), spread over the audit's workers.",
+ "tests": {
+  "count": 4819,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 243
+ },
+ "requests": [
+  {
+   "owner": "main session",
+   "request": "Review and commit catalog/analysis/phase1/P1_signoff_verified.json as tools/orchestration/gate_policy/signoffs/P1F.json (449 rows: 427 verdict, 14 edit, 8 test-removal; signed_by INT2-verified). Decide on the one rejected row (T-dda4e199f3f5b0-01 seed 1 forced realistic, fails on both sides: the exact row to add is in its 'why'). The package's first signature is gate/P1F/reviewed.json (tracked copy catalog/analysis/phase1/P1F_reviewed.json; pass it with --reviewed when re-recording). After that commit P1F fails only G4 / G9 (the read probe's domain leaks) and, unless the row is added, G3's one unsigned row (simulated with INT2_evidence/simulate_signed.py, which reads the file as if committed: G1b and G2 PASS, G3 217/218 signed)."
+  },
+  {
+   "owner": "main session",
+   "request": "If the main session re-records P1 itself: `python tools/orchestration/tier1_gate.py record --id P1 --package P1 --prev ADOPT --reviewed catalog/analysis/phase1/P1F_reviewed.json` on a quiet, unchanged tree, then `signoff ADOPT P1 --package P1` and re-run INT2_evidence/verify_signoff.py on it (the digests are the same when the tree is)."
+  },
+  {
+   "owner": "admin_inventory, navigation_robot, mechanisms, cleaning, manipulation, pets, electrical",
+   "request": "The 10 domain-side rows in catalog/analysis/phase1/finish_breakages.json (3 read-probe leaks; manipulation's perforated tear, unfamiliar inspector/shake and destroyed-thing answers; pets' 10 % crack door dash; admin_inventory's unfamiliar count; electrical's ingress accumulation and stale doc)."
+  },
+  {
+   "owner": "appliances_cooking, outdoor_plants",
+   "request": "The kernel hooks you asked for exist now: pool_l on cavities (appliances_cooking: set it on oven, microwave, dishwasher tub, air-fryer drawer types) and @hook('phys.liquid_arrives') (outdoor_plants: take pours, drips and overflows into pots through your soil model; outdoor_plants.weather can import phys.environment.cannot_move / free_to_move). Using them changes your own records and reference digests (re-record classes)."
+  },
+  {
+   "owner": "admin_inventory, cleaning, outdoor_plants, people, pets, safety, tools_vehicles",
+   "request": "Declared-reads index builds are cheap inside a step now; the episode-start prebuilds are optional. Strict mode checks every declaration, also between steps (the whole strict suite passes)."
+  }
+ ],
+ "notes": "INT2 = the phase-1 finish integrator. Inputs read: all 17 finish_*.json (16 domains, K-GATE2), STATUS.md, breakages.json, P1_signoff_draft.json. Checks on the domains' finished tree first (baseline): green_tests.py 5 -> 4,811 tests x normal+strict, 4 failing runs (the two pending re-records); own mode 243/243. Final tree: green_tests.py 5 -> 4,819 tests per mode in 65 files, 0 failing runs normal and strict; all 243 authored specs own mode (combined file, --check --workers 4) 243/243; the 51 realistic specs --camera geometric (each spec's own generation) 51/51; perception_audit 60 80 room gen 1: 0 walk leaks, 3 read-probe leaks, 0 crashes; geometric gen 1: 0 / 5 / 0; gen 2 room 0 / 3 / 0, geometric 0 / 5 / 0 (all probe leaks are the 3 domain rows); layout_audit 30: gen 1 180 houses 0 problems, gen 2 330 houses 0 problems, 0 domain follow-ups (INT: 4), 709 notes (sofa cushions, indoor mat type, diaper bag, key bowl, stroller); fuzz 12 300: 3,600 commands, 0 defects, 0 nondeterministic, 46 actions succeed; --gen 2 8 300: 0 / 0; fuzz --coverage: 44,296 commands, 0 defects (the admin_inventory heft defect is gone), 0 nondeterministic (plumbing's work-in-progress replays are gone), 278 of 427 actions succeed, no-op only: clean_camera, hold_steady, loosen, open_valve, squeeze, steady, support. Gate record P1F (`record --id P1F --package P1 --prev ADOPT`): FAIL 7 pass / 5 fail / 1 n/a -- G0, G1 (4,819 x 2), G5 (240 houses, 60/60 digests), G6 (0 defects, 0 nondeterministic in every variant; 281 actions over all variants), G7, G8, G10 (256 files, 0 outside P1-ALL) PASS; G1b FAIL only on 8 count-based skip increases (signed now as test-removal rows); G2 FAIL only on signatures (243/243, 210 verdict changes all reviewed, 14 edits); G3 FAIL on signatures (242/243 forced realistic: T-dda4e199f3f5b0-01 seed 1; 217/218 reviewed); G4 FAIL (read probe: 3 room / 5 geometric domain leaks); G9 FAIL only through G4. Files changed by INT2: house_sim/kernel/world.py, kernel/phys/environment.py, kernel/phys/events.py, kernel/phys/liquids.py, systems/core.py (read), data/physics/laws.json, tools/perception_audit.py, tests/test_kernel_contracts.py, test_kernel_redteam.py, test_perception.py, test_physics_data.py, test_physics_fluids.py, tests/data/gen1_digests.json, tests/data/room_golden.json, tasks/specs.jsonl (recompiled), docs/KERNEL_API.md, PHYSICS.md, PERCEPTION.md, GENERATOR.md; catalog/analysis/phase1/STATUS.md, finish_INT2.json, finish_breakages.json, P1_signoff_verified.json, P1F_reviewed.json, INT2_evidence/; gate record catalog/analysis/tier1/gate/P1F/ (git-ignored, with reviewed.json). Nothing committed, no branch/stash/reset, nothing under %USERPROFILE%/.house_ai, no network or paid calls; files LF. Scratch: <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1f_INT2 (frozen HEAD and finish trees, golden and gen-1 dumps, logs)."
+}

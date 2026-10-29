@@ -74,22 +74,57 @@ def main_factor(w):
     return factor
 
 
-def line_factor(w, fixture, line, cache=None):
-    """0..1 pressure/flow factor of a fixture's hot or cold line (main, heater inlet and fixture stops)."""
-    factor = main_factor(w) if cache is None else cache.get("main", 1.0)
-    if factor <= 0:
-        return 0.0
-    vals = cache.get("valves") if cache is not None else valves(w)
+def _stop_factors(w, vals):
+    """(the hot-line factor every fixture shares: the heater's inlet stops, {(fixture, line): factor of its own
+    stops}) over the non-main valves: line_factor's loop done once for every fixture (min is order-free, so the
+    values are the same)."""
+    hot = 1.0
+    own = {}
     for eid in vals:
         rec = w.ent(eid)
         if rec.get("main"):
             continue
-        if line == "hot" and rec.get("feeds_hot"):
-            factor = min(factor, flow_factor(rec))
-            continue
-        feeds = rec.get("feeds") or []
-        if fixture in feeds and rec.get("line", "both") in (line, "both"):
-            factor = min(factor, flow_factor(rec))
+        factor = flow_factor(rec)
+        feeds_hot = rec.get("feeds_hot")
+        if feeds_hot:
+            hot = min(hot, factor)
+        kind = rec.get("line", "both")
+        for fixture in rec.get("feeds") or []:
+            for line in LINES:
+                if (line == "hot" and feeds_hot) or kind not in (line, "both"):
+                    continue
+                key = (fixture, line)
+                own[key] = min(own[key], factor) if key in own else factor
+    return hot, own
+
+
+def line_factor(w, fixture, line, cache=None):
+    """0..1 pressure/flow factor of a fixture's hot or cold line (main, heater inlet and fixture stops). With the
+    substep's cache the stops are tabled once per substep (_stop_factors; valve positions change only through
+    actions, never inside a substep)."""
+    factor = main_factor(w) if cache is None else cache.get("main", 1.0)
+    if factor <= 0:
+        return 0.0
+    if cache is not None:
+        table = cache.get("stops")
+        if table is None:
+            table = cache["stops"] = _stop_factors(w, cache.get("valves") or [])
+        hot, own = table
+        if line == "hot":
+            factor = min(factor, hot)
+        if (fixture, line) in own:
+            factor = min(factor, own[(fixture, line)])
+    else:
+        for eid in valves(w):
+            rec = w.ent(eid)
+            if rec.get("main"):
+                continue
+            if line == "hot" and rec.get("feeds_hot"):
+                factor = min(factor, flow_factor(rec))
+                continue
+            feeds = rec.get("feeds") or []
+            if fixture in feeds and rec.get("line", "both") in (line, "both"):
+                factor = min(factor, flow_factor(rec))
     frec = w.s["entities"].get(fixture) or {}
     own = (frec.get("settings") or {}).get("supply_valve")
     if own is not None and own != "open":

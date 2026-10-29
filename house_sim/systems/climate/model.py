@@ -51,6 +51,8 @@ CORE_ROOMS_DEFAULT = 600.0
 SHOWER_CATS = ("shower", "bathtub", "faucet", "sink", "showerhead")
 
 
+@C.per_step_index("climate.gains")
+@C.index_reads("climate_kind", "category", "internal_temp_c", "appliance", "plug_required", "heat_source")
 def _gain_candidate(rec):
     """Static pre-filter for entities that may give off heat (lights, candles, appliances, electronics)."""
     if rec.get("climate_kind"):
@@ -60,13 +62,37 @@ def _gain_candidate(rec):
         "appliance" in rec or bool(rec.get("plug_required")) or bool(rec.get("heat_source"))
 
 
+@C.per_step_index("climate.power")
+@C.index_reads("power_w", "standby_w", "climate_kind")
 def _power_candidate(rec):
     return "power_w" in rec or "standby_w" in rec or bool(rec.get("climate_kind"))
 
 
+@C.per_step_index("climate.cover")
+@C.index_reads("blocks_path", "category")
 def _cover_candidate(rec):
     """Things that can sit over a floor register: path-blocking furniture and rugs."""
     return "blocks_path" in rec or rec.get("category") == "rug"
+
+
+@C.per_step_index("climate.glare")
+@C.index_reads("category", "glare_watch")
+def _glare_candidate(rec):
+    """Screens the sun can glare on (and things a task watches for glare)."""
+    return rec.get("category") in S.GLARE_CATEGORIES or "glare_watch" in rec
+
+
+@C.per_step_index("climate.shade_watch")
+@C.index_reads("shade_watch")
+def _shade_candidate(rec):
+    return "shade_watch" in rec
+
+
+@C.per_step_index("climate.showers")
+@C.index_reads("category", "climate_kind")
+def _shower_candidate(rec):
+    """Hot-water outlets whose running water steams up a room."""
+    return rec.get("category") in SHOWER_CATS and not rec.get("climate_kind")
 
 
 def step_memo(w):
@@ -101,7 +127,7 @@ def _scan_static(w, state):
     # glazing conductance per room, W/K (window size and u_value are fixed properties)
     out["win_ua"] = {rid: sum(C.num(ents[wid].get("u_value"), C.WINDOW_U) * C.window_glass_m2(ents[wid]) for wid in wids)
                      for rid, wids in out["windows"].items()}
-    for eid in C.static_ids(w, "climate.kinds", lambda r: bool(r.get("climate_kind"))):
+    for eid in C.static_ids(w, "climate.kinds", C.has_kind):
         rec = ents.get(eid)
         if rec is not None:
             out["kind"].setdefault(rec["climate_kind"], []).append(eid)
@@ -110,14 +136,14 @@ def _scan_static(w, state):
         rec = ents.get(eid)
         if rec is not None and not rec.get("climate_kind") and (rec.get("power_w") is not None or rec.get("standby_w") is not None)                 and rmap.get(eid) is not None:
             out["power"].append(eid)
-    for eid in C.static_ids(w, "climate.glare", lambda r: r.get("category") in S.GLARE_CATEGORIES or "glare_watch" in r):
+    for eid in C.static_ids(w, "climate.glare", _glare_candidate):
         rec = ents.get(eid)
         if rec is None or not (rec.get("category") in S.GLARE_CATEGORIES or rec.get("glare_watch")):
             continue
         rid = rmap.get(eid)
         if rid is not None:
             out["glare"].setdefault(rid, []).append(eid)
-    for eid in C.static_ids(w, "climate.shade_watch", lambda r: "shade_watch" in r):
+    for eid in C.static_ids(w, "climate.shade_watch", _shade_candidate):
         rec = ents.get(eid)
         if rec is not None and rec.get("shade_watch") and rmap.get(eid) is not None:
             out["shade_watch"].append(eid)
@@ -150,7 +176,7 @@ def scan(state_or_w):
                 out["gains"][rid] = out["gains"].get(rid, 0.0) + gain
         if rec.get("category") == "candle" and rec.get("lit") and rmap.get(eid) is not None:
             out["candles"].append(eid)
-    for eid in C.static_ids(w, "climate.showers", lambda r: r.get("category") in SHOWER_CATS and not r.get("climate_kind")):
+    for eid in C.static_ids(w, "climate.showers", _shower_candidate):
         rec = ents.get(eid)
         if rec is None or not rec.get("water_running") or C.num(rec.get("outlet_temp_c", rec.get("water_temp_c")), 20.0) < 35.0:
             continue
@@ -805,7 +831,7 @@ def _air_step(w, dt, sc, hv, dv, az, alt, beam):
             win_open.setdefault(rid, []).append((wid, area, C.window_facing(wrec)))
     # cross ventilation per connected zone
     cross = {}
-    zones = _zones_open(state, indoor, flows)
+    zones = _zones_open(state, indoor, flows) if win_open or dv["window_fans"] else {}
     if win_open:
         for root, members in sorted(zones.items()):
             opens = [(rid, wid, area, facing) for rid in members for wid, area, facing in win_open.get(rid, []) if facing is not None]
@@ -1033,8 +1059,8 @@ def _effects_step(w, dt, sc, az, alt):
             area = sc.get("win_area", {}).get(wid)
             if area is None:
                 area = C.window_open_area(wrec)
-            facing = C.window_facing(wrec)
             if area > 0.005:
+                facing = C.window_facing(wrec)
                 if conditioned_room(state, rid):
                     any_open_conditioned = True
                 if rain <= 0:
@@ -1146,6 +1172,7 @@ def _pet_escape(w, pid, rid, wid):
 
 def _people_comfort(w, dt, sc, az, alt):
     state = w.s
+    all_fans = sc["kind"].get("ceiling_fan", []) + sc["kind"].get("portable_fan", [])
     for pid in sorted(state.get("people", {})):
         p = state["people"][pid]
         rid = p.get("location")
@@ -1154,7 +1181,7 @@ def _people_comfort(w, dt, sc, az, alt):
         room = state["rooms"][rid]
         x, y = C.agent_xy(p)
         z = 1.6 if p.get("posture") == "standing" else (0.5 if p.get("posture") in ("lying", "sleeping") else 1.1)
-        fans_here = [f for f in sc["kind"].get("ceiling_fan", []) + sc["kind"].get("portable_fan", []) if sc["room"].get(f) == rid]
+        fans_here = [f for f in all_fans if sc["room"].get(f) == rid]
         v = fans.airspeed_at(state, rid, x, y, fans_here) if fans_here else 0.0
         if room.get("outdoor"):
             sun = 0.0 if alt <= 0.5 else (1.0 - S.shaded_at(state, rid, x, y, z, az, alt)) * S.sky_factor(state)
@@ -1310,7 +1337,7 @@ def _wet_tanks(w):
     """Humidifier tanks holding water (moisture.age_tanks ages only those)."""
     state = w.s
     ents = state["entities"]
-    return [e for e in C.static_ids(w, "climate.kinds", lambda r: bool(r.get("climate_kind")))
+    return [e for e in C.static_ids(w, "climate.kinds", C.has_kind)
             if (ents.get(e) or {}).get("climate_kind") == "humidifier_tank" and C.num(ents[e].get("liquid_l")) > 0.02]
 
 
@@ -1327,7 +1354,7 @@ def climate_slow(w, dt, tick):
     state = w.s
     if not state.get("rooms"):
         return
-    tanks = [e for e in C.static_ids(w, "climate.kinds", lambda r: bool(r.get("climate_kind")))
+    tanks = [e for e in C.static_ids(w, "climate.kinds", C.has_kind)
              if (state["entities"].get(e) or {}).get("climate_kind") == "humidifier_tank"]
     if tanks:
         moisture.age_tanks(w, dt, tanks)

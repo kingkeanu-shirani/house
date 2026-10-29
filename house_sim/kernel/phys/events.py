@@ -200,7 +200,7 @@ def wind_gust(w, args, env=None):
     cmap = support.children_map(state)
     for eid in sorted(state["entities"]):
         rid = root_room(state, eid)
-        if rid not in rooms or eid not in state["entities"] or not environment._free_to_move(state, eid):
+        if rid not in rooms or eid not in state["entities"] or not environment.free_to_move(state, eid):
             continue
         outdoor = bool(state["rooms"][rid].get("outdoor"))
         if outdoor and not environment.exposed(state, eid):

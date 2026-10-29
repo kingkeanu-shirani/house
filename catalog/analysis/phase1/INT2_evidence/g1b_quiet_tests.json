@@ -1,0 +1,239 @@
+[
+ {
+  "check": "G1b",
+  "file": "test_climate.py",
+  "mode": "isolated",
+  "module": "tests.test_climate",
+  "what": "skipped 1 -> 2",
+  "skipped_before": 1,
+  "skipped_now": 2,
+  "skipped_tests": [
+   {
+    "test": "tests.test_climate.Phase1StabiliseTests.test_reservoir_verbs_refuse_unresolved_spray_bottles_alike_held_or_not",
+    "existed_at_base": false,
+    "class_existed_at_base": false
+   },
+   {
+    "test": "tests.test_climate.Round3FixTests.test_portable_fan_keeps_electricals_cord_run",
+    "existed_at_base": true,
+    "class_existed_at_base": true
+   }
+  ],
+  "new_skipped": [
+   "tests.test_climate.Phase1StabiliseTests.test_reservoir_verbs_refuse_unresolved_spray_bottles_alike_held_or_not"
+  ],
+  "old_skipped": [
+   "tests.test_climate.Round3FixTests.test_portable_fan_keeps_electricals_cord_run"
+  ]
+ },
+ {
+  "check": "G1b",
+  "file": "test_food.py",
+  "mode": "isolated",
+  "module": "tests.test_food",
+  "what": "skipped 2 -> 4",
+  "skipped_before": 2,
+  "skipped_now": 4,
+  "skipped_tests": [
+   {
+    "test": "tests.test_food.Packaging.test_removing_outer_packaging_keeps_needed_information",
+    "existed_at_base": true,
+    "class_existed_at_base": true
+   },
+   {
+    "test": "tests.test_food.PhaseOneStabilise.test_a_toaster_heating_up_gets_no_fridge_fields_and_save_load_agrees",
+    "existed_at_base": false,
+    "class_existed_at_base": false
+   },
+   {
+    "test": "tests.test_food.PhaseOneStabilise.test_mop_water_poured_over_bread_leaves_it_unsafe",
+    "existed_at_base": false,
+    "class_existed_at_base": false
+   },
+   {
+    "test": "tests.test_food.Transfers.test_strained_liquid_keeps_its_provenance",
+    "existed_at_base": true,
+    "class_existed_at_base": true
+   }
+  ],
+  "new_skipped": [
+   "tests.test_food.PhaseOneStabilise.test_a_toaster_heating_up_gets_no_fridge_fields_and_save_load_agrees",
+   "tests.test_food.PhaseOneStabilise.test_mop_water_poured_over_bread_leaves_it_unsafe"
+  ],
+  "old_skipped": [
+   "tests.test_food.Packaging.test_removing_outer_packaging_keeps_needed_information",
+   "tests.test_food.Transfers.test_strained_liquid_keeps_its_provenance"
+  ]
+ },
+ {
+  "check": "G1b",
+  "file": "test_mechanisms.py",
+  "mode": "isolated",
+  "module": "tests.test_mechanisms",
+  "what": "skipped 2 -> 3",
+  "skipped_before": 2,
+  "skipped_now": 3,
+  "skipped_tests": [
+   {
+    "test": "tests.test_mechanisms.AuditMechanicsTests.test_taping_a_safety_sensor_when_manipulation_is_loaded",
+    "existed_at_base": true,
+    "class_existed_at_base": true
+   },
+   {
+    "test": "tests.test_mechanisms.Phase1StabiliseTests.test_move_lever_and_squeeze_trigger_succeed_in_a_generated_house",
+    "existed_at_base": false,
+    "class_existed_at_base": false
+   },
+   {
+    "test": "tests.test_mechanisms.SecondarySupportTests.test_wiping_a_touch_panel_presses_it_unless_locked",
+    "existed_at_base": true,
+    "class_existed_at_base": true
+   }
+  ],
+  "new_skipped": [
+   "tests.test_mechanisms.Phase1StabiliseTests.test_move_lever_and_squeeze_trigger_succeed_in_a_generated_house"
+  ],
+  "old_skipped": [
+   "tests.test_mechanisms.AuditMechanicsTests.test_taping_a_safety_sensor_when_manipulation_is_loaded",
+   "tests.test_mechanisms.SecondarySupportTests.test_wiping_a_touch_panel_presses_it_unless_locked"
+  ]
+ },
+ {
+  "check": "G1b",
+  "file": "test_navigation_robot.py",
+  "mode": "isolated",
+  "module": "tests.test_navigation_robot",
+  "what": "skipped 0 -> 1",
+  "skipped_before": 0,
+  "skipped_now": 1,
+  "skipped_tests": [
+   {
+    "test": "tests.test_navigation_robot.TestPhase1Finish.test_gen2_docks_keep_every_target_reachable_without_hazards",
+    "existed_at_base": false,
+    "class_existed_at_base": false
+   }
+  ],
+  "new_skipped": [
+   "tests.test_navigation_robot.TestPhase1Finish.test_gen2_docks_keep_every_target_reachable_without_hazards"
+  ],
+  "old_skipped": []
+ },
+ {
+  "check": "G1b",
+  "file": "test_perception.py",
+  "mode": "core",
+  "module": "tests.test_perception",
+  "what": "skipped 1 -> 4",
+  "skipped_before": 1,
+  "skipped_now": 5,
+  "skipped_tests": [
+   {
+    "test": "tests.test_perception.AuditorProbeTests.test_the_echo_battery_compares_reports_and_asks_on_destroyed_and_out_of_view_things",
+    "existed_at_base": false,
+    "class_existed_at_base": false
+   },
+   {
+    "test": "tests.test_perception.AuditorProbeTests.test_the_hazard_order_probe_checks_the_order_of_handles",
+    "existed_at_base": false,
+    "class_existed_at_base": false
+   },
+   {
+    "test": "tests.test_perception.AuditorProbeTests.test_the_read_probe_compares_the_outcome_form_of_every_member",
+    "existed_at_base": false,
+    "class_existed_at_base": false
+   },
+   {
+    "test": "tests.test_perception.KernelRound5RedTeamFixTests.test_free_text_ids_are_neutralised_whether_or_not_they_exist",
+    "existed_at_base": true,
+    "class_existed_at_base": true
+   }
+  ],
+  "new_skipped": [
+   "tests.test_perception.AuditorProbeTests.test_the_echo_battery_compares_reports_and_asks_on_destroyed_and_out_of_view_things",
+   "tests.test_perception.AuditorProbeTests.test_the_hazard_order_probe_checks_the_order_of_handles",
+   "tests.test_perception.AuditorProbeTests.test_the_read_probe_compares_the_outcome_form_of_every_member"
+  ],
+  "old_skipped": [
+   "tests.test_perception.KernelRound5RedTeamFixTests.test_free_text_ids_are_neutralised_whether_or_not_they_exist"
+  ]
+ },
+ {
+  "check": "G1b",
+  "file": "test_pets.py",
+  "mode": "isolated",
+  "module": "tests.test_pets",
+  "what": "skipped 0 -> 2",
+  "skipped_before": 0,
+  "skipped_now": 2,
+  "skipped_tests": [
+   {
+    "test": "tests.test_pets.Phase1FinishTests.test_an_unidentified_pet_medicine_bottle_reads_and_is_read_aloud_like_a_prescription_bottle",
+    "existed_at_base": false,
+    "class_existed_at_base": false
+   },
+   {
+    "test": "tests.test_pets.Phase1MechanismsRequestsTests.test_a_door_opened_by_its_handle_gets_the_pets_door_dash",
+    "existed_at_base": false,
+    "class_existed_at_base": false
+   }
+  ],
+  "new_skipped": [
+   "tests.test_pets.Phase1FinishTests.test_an_unidentified_pet_medicine_bottle_reads_and_is_read_aloud_like_a_prescription_bottle",
+   "tests.test_pets.Phase1MechanismsRequestsTests.test_a_door_opened_by_its_handle_gets_the_pets_door_dash"
+  ],
+  "old_skipped": []
+ },
+ {
+  "check": "G1b",
+  "file": "test_plumbing_liquids.py",
+  "mode": "isolated",
+  "module": "tests.test_plumbing_liquids",
+  "what": "skipped 0 -> 1",
+  "skipped_before": 0,
+  "skipped_now": 1,
+  "skipped_tests": [
+   {
+    "test": "tests.test_plumbing_liquids.ReviewPhase1.test_the_registered_bread_box_colander_and_napkin_holder_are_not_vessels",
+    "existed_at_base": false,
+    "class_existed_at_base": false
+   }
+  ],
+  "new_skipped": [
+   "tests.test_plumbing_liquids.ReviewPhase1.test_the_registered_bread_box_colander_and_napkin_holder_are_not_vessels"
+  ],
+  "old_skipped": []
+ },
+ {
+  "check": "G1b",
+  "file": "test_safety.py",
+  "mode": "isolated",
+  "module": "tests.test_safety",
+  "what": "skipped 2 -> 3",
+  "skipped_before": 2,
+  "skipped_now": 3,
+  "skipped_tests": [
+   {
+    "test": "tests.test_safety.CrossDomainRound.test_safety_does_not_override_a_mechanisms_latch_that_failed",
+    "existed_at_base": true,
+    "class_existed_at_base": true
+   },
+   {
+    "test": "tests.test_safety.PeopleCare.test_moving_injured_person_hook",
+    "existed_at_base": true,
+    "class_existed_at_base": true
+   },
+   {
+    "test": "tests.test_safety.Phase1Stabilise.test_the_alert_verb_warns_only_whom_it_reaches_of_what_it_names",
+    "existed_at_base": false,
+    "class_existed_at_base": false
+   }
+  ],
+  "new_skipped": [
+   "tests.test_safety.Phase1Stabilise.test_the_alert_verb_warns_only_whom_it_reaches_of_what_it_names"
+  ],
+  "old_skipped": [
+   "tests.test_safety.CrossDomainRound.test_safety_does_not_override_a_mechanisms_latch_that_failed",
+   "tests.test_safety.PeopleCare.test_moving_injured_person_hook"
+  ]
+ }
+]

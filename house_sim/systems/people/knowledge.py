@@ -66,8 +66,8 @@ def which(env, w, pid, topic, ctx):
     return {"topic": topic, "value": value, "by": pid}
 
 
-def _distinguishing_cue(state, eid):
-    rec = state["entities"][eid]
+def _distinguishing_cue(state, eid, rec=None):
+    rec = state["entities"][eid] if rec is None else rec
     if rec.get("label_text") or rec.get("name_label") or rec.get("monogram"):
         return True
     twins = []
@@ -83,18 +83,34 @@ def _distinguishing_cue(state, eid):
     return not twins
 
 
+def _known_record(env, state, eid):
+    """eid's record as the household knows it: the current one, or for a thing that has gone since (eaten, thrown out,
+    merged) the one it had when the episode began -- people know whose a thing was after it is gone (phase-1 red team
+    red_leaks 6: "Which one?" for a thing destroyed out of view, where one merely out of view got its owner, told the
+    robot that it no longer existed). {} for a thing made during the episode that has gone again (whose it was is
+    then answered like a thing nobody owns); None for an id that never was."""
+    rec = state["entities"].get(eid)
+    if rec is not None:
+        return rec
+    baseline = (getattr(env, "_baseline", None) or {}).get("entities") or {}
+    if eid in baseline:
+        return baseline[eid]
+    from ...kernel.dialogue import remembered_ids
+    return {} if env is not None and eid in remembered_ids(env) else None
+
+
 @answerer("owner:")
 def owner(env, w, pid, topic, ctx):
     state = w.s
     eid = topic.split(":", 1)[1]
-    rec = state["entities"].get(eid)
+    rec = _known_record(env, state, eid)
     if rec is None:
         _count(w, False)
         return {"topic": topic, "value": "Which one?", "by": pid}
     asker = C.person(state, pid)
     truth = rec.get("owner")
     knows = C.is_authorized_adult(asker) or truth == pid or (C.role(asker) == "elderly")
-    necessary = not _distinguishing_cue(state, eid) and not _asked_before(state, pid, topic)
+    necessary = not _distinguishing_cue(state, eid, rec) and not _asked_before(state, pid, topic)
     _count(w, necessary)
     if not knows:
         return {"topic": topic, "value": "I don't know.", "by": pid}

@@ -182,7 +182,8 @@ def unwrap(ctx):
     tool = ctx.args.get("tool")
     if tool:
         C.tool_of(ctx, "cut", tool)
-    wrapped = rec.get("wrapped") or {}
+    # another domain's plain wrapped flag (a frost cloth tied round a plant) has no wrap record: no layers, no wrap item
+    wrapped = rec.get("wrapped") if isinstance(rec.get("wrapped"), dict) else {}
     m = w.mut(eid)
     notes = []
     hidden = [c for c in w.children(eid) if w.ent(c).get("relation") in ("in", "hidden") and (rec.get("packing_material") or rec.get("crumpled"))]
@@ -203,7 +204,7 @@ def unwrap(ctx):
         m["opened_out"] = True
         ctx.data["manip_s"] = 6.0
         return "Opened out {}{}".format(eid, ": " + ", ".join(notes) if notes else " (nothing inside)")
-    require(wrapped or rec.get("shrink_wrapped") or rec.get("packaged"), "It is not wrapped", "precondition")
+    require(rec.get("wrapped") or rec.get("shrink_wrapped") or rec.get("packaged"), "It is not wrapped", "precondition")
     if tool and C.num(ctx.args.get("depth_mm"), 3.0) > C.num(wrapped.get("padding_mm"), 0.5) + 2.0:
         if C.material(rec) in ("leather", "fabric", "plastic", "paper", "wood") or rec.get("has_cable") or rec.get("soft"):
             C.mark_damage(w, eid, "cut", "blade went {:.0f} mm deep".format(C.num(ctx.args.get("depth_mm"))), broken=False)
@@ -212,6 +213,7 @@ def unwrap(ctx):
     m["wrapped"] = None
     m.pop("shrink_wrapped", None)
     m.pop("packaged", None)
+    C.end_containment(w, eid, by="robot")      # a break the wrap held in: its pieces are out now (kernel uncontained)
     if by in w.s["entities"] and w.ent(by).get("used_as_wrap"):
         bm = w.mut(by)
         bm["location"] = rec.get("location") if rec.get("location") not in ("robot",) else w.robot["room"]
@@ -871,5 +873,6 @@ def tear(ctx):
     if rec.get("packaged") or rec.get("shrink_wrapped"):
         m["packaged"] = False
         m["shrink_wrapped"] = False
+        C.end_containment(w, eid, by="robot")      # a break its packaging held in: the pieces are out now
         return "Tore the film off {}".format(eid)
     raise ActionError("It does not tear by hand; use a cutting tool", "capability")

@@ -20,6 +20,12 @@ record and compare unless allowlisted ("skip") or signed ("test-removal"); a rec
 is STALE; compare honours the record's own statuses and missing data, keeps G2-ABS on the full rows and calls a
 narrowed previous record INCOMPLETE; policy files come from the project's commits only, never from --root or an
 isolated copy.
+Second pass (K-GATE2, SecondPassGateTests): a comparison with anything but the package's hand-over base (its own
+earlier record, itself, no record) is INCOMPLETE; a package keeps its own stage; fewer seeds or extras narrow a record;
+a record of a folder that is neither the project nor an isolated copy of it fails TREE; compare recomputes the G2/G3
+determinism check, worker crashes and the required audit variants; per-test ids, once recorded, are required; the
+wall-clock bounds leave the correctness runs for G7's perf job (best of 3, alone) and must run there; the golden takes
+no self-named known failure.
 Everything runs on temporary folders; nothing is committed and no policy file of the project is written.
 """
 import ast
@@ -259,7 +265,8 @@ class WrongPlanReasonTests(GateCase):
 
 class AuditAndRecordTests(GateCase):
     AUDITS = {"G4": {"room": {"leaks": 0, "errors": 0, "rc": 0}, "geometric": {"leaks": 0, "errors": 0, "rc": 0}},
-              "G6": {"room": {"defects": 0, "nondeterministic": 0, "rc": 0, "commands": 10, "succeeded": 4}}}
+              "G6": {v: {"defects": 0, "nondeterministic": 0, "rc": 0, "commands": 10, "succeeded": 4}
+                     for v in ("room", "geometric", "battery")}}
 
     def test_e6_leaks_and_defects_fail_compare(self):
         rows = [trial("A-1", 0)]
@@ -516,7 +523,7 @@ class RedTeamGateTests(GateCase):
 
     def test_a_skip_entry_or_a_signature_excuses_it(self):
         prev = tests_json([row("test_x.py", ids=self.IDS)])
-        cur = tests_json([row("test_x.py", ids=self.IDS, outcomes={"skip": [self.IDS[1]]})])
+        cur = tests_json([row("test_x.py", skipped=1, ids=self.IDS, outcomes={"skip": [self.IDS[1]]})])
         entry = {"kind": "skip", "test": "tests.test_x.T", "owner": "o", "expires": "2999-01-01", "reason": "r"}
         with mock.patch.object(gate, "trusted_json", policy_files(known=[entry])):
             allow = gate.load_known_failing(ROOT)
@@ -730,6 +737,298 @@ class RedTeamGateTests(GateCase):
         self.assertEqual(changed, ["a.py", "b.py", "c.py"])
 
 
+BOUNDS_FILE = (
+    "import os\nimport unittest\nfrom pathlib import Path\n\nCOUNTER = Path(__file__).with_name('attempts.txt')\n\n\n"
+    "class T(unittest.TestCase):\n"
+    "    def test_flaky_bound(self):\n"
+    "        if os.environ.get('HOUSE_SIM_PERF_TESTS', '1') == '0':\n"
+    "            self.skipTest('wall-clock bound off (HOUSE_SIM_PERF_TESTS=0)')\n"
+    "        n = int(COUNTER.read_text()) if COUNTER.exists() else 0\n"
+    "        COUNTER.write_text(str(n + 1))\n"
+    "        self.assertGreater(n, 0)       # over budget the first time only: a busy moment\n\n"
+    "    def test_slow_bound(self):\n"
+    "        if os.environ.get('HOUSE_SIM_PERF_TESTS', '1') == '0':\n"
+    "            self.skipTest('wall-clock bound off (HOUSE_SIM_PERF_TESTS=0)')\n"
+    "        self.fail('always over budget')\n\n"
+    "    def test_plain(self):\n"
+    "        pass\n")
+
+
+class SecondPassGateTests(GateCase):
+    """The phase-1 red team's gate findings, holes FIX2's fixes left open (K-GATE2): each test reproduces the attack
+    and fails on the FIX2 gate."""
+    IDS = RedTeamGateTests.IDS
+
+    def compare_with(self, prev, cur="X", *extra, policy=None):
+        out = io.StringIO()
+        with mock.patch.object(gate, "trusted_json", policy or policy_files()), \
+                mock.patch.object(gate, "tree_fingerprint", lambda root: TREE), \
+                mock.patch.object(gate, "changed_files", lambda root: ([], None)), contextlib.redirect_stdout(out):
+            code = gate.main(["--root", str(ROOT), "--gates-root", str(self.gates), "compare", prev, cur, "--package",
+                              self.PKG] + list(extra))
+        return code, out.getvalue()
+
+    # ---- red_defects 2 / 3: the delta rules against a record nobody accepted
+    def test_a_record_compared_with_its_own_earlier_record_is_no_hand_over(self):
+        """Laundering: the package records MINE1 (a test skipped; its compare against the base C1 fails), then X with
+        --prev MINE1: every delta rule passed and the standalone compare (PREV from X's meta) said PASS."""
+        rows = [trial("A-1", 0)]
+        skipped = tests_json([row("test_x.py", skipped=1, ids=self.IDS, outcomes={"skip": [self.IDS[1]]})])
+        write_record(self.gates / "C1", self.prev_meta, own=rows, tests=tests_json([row("test_x.py", ids=self.IDS)]))
+        write_record(self.gates / "MINE1", dict(self.meta, id="MINE1"), own=rows, tests=skipped)
+        write_record(self.gates / "X", dict(self.meta, prev="MINE1"), own=rows, tests=skipped)
+        code, text = self.compare_with("C1")
+        self.assertEqual(code, 1, text)                                     # against its base: the skipped test
+        for prev in ("MINE1", "X"):                                         # its own earlier record; itself
+            code, text = self.compare_with(prev)
+            self.assertIn("compare result: INCOMPLETE", text)
+            self.assertIn("is not the package's hand-over base (C1)", text)
+        self.assertEqual([p.name for p in gate.handover_bases(gate.policy_for([self.PKG]), self.gates, "X")], ["C1"])
+        # phase 1: a domain owner's ADOPT:<domain> record hands over against ADOPT (the P1 sub-stage's base) too
+        write_record(self.gates / "ADOPT", {"id": "ADOPT", "stage": "ADOPT", "finished": "2026-10-21"}, own=rows)
+        self.assertEqual(sorted(p.name for p in gate.handover_bases(gate.policy_for([self.PKG]), self.gates, "X")),
+                         ["ADOPT", "C1"])
+
+    def test_a_record_compared_with_no_previous_record_is_no_hand_over(self):
+        """`record --prev none` dropped every delta rule (test removals, verdict changes, coverage losses) and the
+        record still said PASS and "handover": true."""
+        write_record(self.gates / "C1", self.prev_meta, own=[trial("A-1", 0)])
+        args = SimpleNamespace(root=str(ROOT), gates_root=str(self.gates), id="NOPREV", out=str(self.gates / "NOPREV"),
+                               work=str(self.gates / "work"), package=self.PKG, stage=None, only=None, skip=None,
+                               seeds=None, jobs=1, extras=None, bench_repeats=1, prev="none", spec_files=None,
+                               reviewed=None, camera=None, shared_tree=False)
+        with mock.patch.object(gate, "trusted_json", policy_files()), \
+                mock.patch.object(gate, "tree_fingerprint", lambda root: TREE), \
+                mock.patch.object(gate, "changed_files", lambda root: ([], None)):
+            g = gate.Gate(args)
+            self.assertIsNone(g.prev_dir())
+            g.fingerprints = {}
+            g.results = {c: {"status": "PASS", "note": "ok"} for c in gate.CHECKS}
+            g.spec_rows = {"own": [], "realistic": []}
+            g.spec_summary = {m: {"specs": 0, "passed": 0, "trials": 0, "failing": {}} for m in ("own", "realistic")}
+            (self.gates / "NOPREV").mkdir()
+            with contextlib.redirect_stdout(io.StringIO()):
+                g.write(None, gate.now_iso(), {})
+        meta = json.loads((self.gates / "NOPREV" / "meta.json").read_text(encoding="utf-8"))
+        self.assertEqual(meta["verdict"], "INCOMPLETE", meta["summary"])
+        self.assertFalse(meta["handover"])
+        self.assertIn("no previous record although its hand-over base C1 exists", meta["incomplete"])
+
+    def test_a_partial_run_against_another_previous_record_is_stale(self):
+        """A full run against the package's own earlier record (every delta passes), then `record --only G10 --prev
+        C1` on the same tree: the merged record named C1 as its previous record, though only G10 ran against it."""
+        write_record(self.gates / "C1", self.prev_meta, own=[trial("A-1", 0)])
+        write_record(self.gates / "MINE1", dict(self.meta, id="MINE1"), own=[trial("A-1", 0)])
+        args = SimpleNamespace(root=str(ROOT), gates_root=str(self.gates), id="MERGED", out=str(self.gates / "MERGED"),
+                               work=str(self.gates / "work"), package=self.PKG, stage=None, only="G10", skip=None,
+                               seeds=None, jobs=1, extras=None, bench_repeats=1, prev="C1", spec_files=None,
+                               reviewed=None, camera=None, shared_tree=False)
+        mine = str((self.gates / "MINE1").resolve())
+        old_meta = {"recorded": list(gate.CHECKS), "checks": {c: {"status": "PASS", "note": "vs MINE1", "tree": TREE,
+                                                                    "prev": mine} for c in gate.CHECKS}}
+        with mock.patch.object(gate, "trusted_json", policy_files()), \
+                mock.patch.object(gate, "tree_fingerprint", lambda root: TREE), \
+                mock.patch.object(gate, "changed_files", lambda root: ([], None)):
+            g = gate.Gate(args)
+            prev = g.prev_dir()
+            g.fingerprints = {}
+            g.results = {"G10": {"status": "PASS", "note": "0 changed files"}}
+            (self.gates / "MERGED").mkdir()
+            with contextlib.redirect_stdout(io.StringIO()):
+                g.write(prev, gate.now_iso(), old_meta)
+        meta = json.loads((self.gates / "MERGED" / "meta.json").read_text(encoding="utf-8"))
+        self.assertIn("G2", meta["stale"])
+        self.assertNotIn("G10", meta["stale"])
+        self.assertFalse(meta["handover"])
+        self.assertEqual(meta["checks"]["G10"]["prev"], str(prev))
+        with mock.patch.object(gate, "tree_fingerprint", lambda root: TREE):
+            section, _ = gate.tree_check(meta, ROOT)
+        self.assertEqual(section["status"], "FAIL")
+        self.assertIn("judged against another previous record", " ".join(section["lines"]))
+
+    def test_a_package_cannot_choose_another_stage(self):
+        """`record --package P1 --stage A0`: no previous gate (A0 has none) and none of the later stages' feature
+        requirements (golden, kernel_core, camera tools) -- a lenient gate chosen by its runner."""
+        args = SimpleNamespace(root=str(ROOT), gates_root=str(self.gates), id="P1X", out=None, work=None, package="P1",
+                               stage="A0", only=None, skip=None, seeds=None, jobs=1, extras=None, bench_repeats=1,
+                               prev=None, spec_files=None, reviewed=None, camera=None, shared_tree=False)
+        with self.assertRaises(SystemExit) as caught:
+            gate.Gate(args)
+        self.assertIn("contradicts the stage", str(caught.exception))
+        self.assertEqual(gate.Gate(dict_args(args, stage="P1")).policy["stage"], "P1")      # its own stage is fine
+        self.assertEqual(gate.Gate(dict_args(args, package=None, id="B0", stage="B0")).policy["stage"], "B0")
+
+    def test_fewer_seeds_or_extras_narrow_a_record(self):
+        """`--seeds 0` ran a fifth of the trials (G2-ABS passed on them) and `--extras ''` left G9 N/A."""
+        self.assertIn("seeds limited to 0", gate.record_incomplete({"seeds": [0]}))
+        self.assertIsNone(gate.record_incomplete({"seeds": [0, 1, 2, 41, 97, 5]}))
+        self.assertIn("extras without physics", gate.record_incomplete({"packages": ["P1-ALL"], "extras": []}))
+        self.assertIsNone(gate.record_incomplete({"packages": ["P1-ALL"], "extras": gate.PACKAGES["P1-ALL"]["extras"]}))
+        rows = [trial("A-1", 0)]
+        self.record(rows, rows, meta={"seeds": [0]})
+        code, text = self.compare()
+        self.assertEqual(code, 0, text)
+        self.assertIn("compare result: INCOMPLETE", text)
+        self.assertIn("seeds limited to 0", text)
+
+    # ---- red_defects 4: the tree a record describes
+    def test_a_record_of_another_folder_fails_tree(self):
+        """`record --root <any folder with its own git history>` passed TREE (the fingerprint of that folder) and G10
+        (its own HEAD): the record described nothing that is handed over."""
+        other = Path(tempfile.mkdtemp(prefix="gate_other_tree_"))
+        self.addCleanup(shutil.rmtree, str(other), True)
+        rows = [trial("A-1", 0)]
+        self.record(rows, rows, meta={"tree_root": str(other)})
+        code, text = self.compare()
+        self.assertEqual(code, 1, text)
+        self.assertIn("neither this project", text)
+        if shutil.which("git"):
+            head = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True)
+            if head.returncode == 0:
+                gate.write_json(other / gate.ISOLATE_MANIFEST, {"format": gate.ISOLATE_FORMAT,
+                                                                "base": head.stdout.strip()})
+                self.assertEqual(self.compare()[0], 0)                      # an isolated copy of a project commit
+                gate.write_json(other / gate.ISOLATE_MANIFEST, {"format": gate.ISOLATE_FORMAT, "base": "0" * 40})
+                code, text = self.compare()
+                self.assertEqual(code, 1, text)
+                self.assertIn("is not a commit of the project", text)
+
+    # ---- red_defects 3: what failed the record's own G3 / G6 is recomputed
+    def test_compare_recomputes_g3_determinism_and_worker_crashes(self):
+        own = [dict(trial("R-1", 0), perception="realistic")]
+        differs = [dict(trial("R-1", 0), perception="realistic", reference_state_hash="s-other")]
+        write_record(self.gates / "C1", self.prev_meta, own=own, realistic=differs)
+        write_record(self.gates / "X", self.meta, own=own, realistic=differs)
+        code, text = self.compare_with("C1")
+        self.assertEqual(code, 1, text)
+        self.assertIn("NONDETERMINISTIC: 1 realistic-spec trial(s) differ between the G2 and G3 runs", text)
+        crashed = [dict(trial("A-1", 0), passed=False, reference_passes=False, error="worker failed: rc -9 TIMEOUT")]
+        write_record(self.gates / "C1", self.prev_meta, own=[trial("A-1", 0)], realistic=crashed)
+        write_record(self.gates / "X", self.meta, own=[trial("A-1", 0)], realistic=crashed)
+        code, text = self.compare_with("C1")
+        self.assertEqual(code, 1, text)
+        self.assertIn("1 trial(s) lost to a spec-worker crash", text)
+
+    def test_compare_requires_the_packages_variants_even_when_the_previous_record_lacks_them(self):
+        rows = [trial("A-1", 0)]
+        audits = {"G4": {"room": {"leaks": 0, "errors": 0, "rc": 0}, "geometric": {"leaks": 0, "errors": 0, "rc": 0}},
+                  "G6": {"room": {"defects": 0, "nondeterministic": 0, "rc": 0}}}
+        self.record(rows, rows, prev_audits=audits, cur_audits=audits)
+        code, text = self.compare()
+        self.assertEqual(code, 1, text)
+        self.assertIn("required variant(s) missing: geometric, battery, coverage", text)
+        self.assertEqual(gate.required_variants(gate.policy_for([self.PKG]), ROOT),
+                         {"G4": ["room", "geometric"], "G6": ["room", "geometric", "battery", "coverage"]})
+
+    # ---- red_defects 1: per-test ids, once recorded, are required
+    def test_a_file_reporting_counts_only_after_per_test_ids_is_a_regression(self):
+        """A deleted test and an added one keep the count: once the previous record has per-test ids, a record
+        whose file reports counts only cannot show that."""
+        prev = tests_json([row("test_x.py", ids=self.IDS)])
+        counts = tests_json([row("test_x.py", ran=3)])
+        bad, _ = gate.test_regressions(prev, counts)
+        self.assertEqual([b[4][:28] for b in bad], ["per-test outcomes missing (t"])
+        self.assertEqual(gate.test_regressions(prev, tests_json([row("test_x.py", ran=3, rc=1)]))[0], [])   # G1 fails
+
+    def test_counts_that_disagree_with_the_outcomes_and_missing_g5_data_fail(self):
+        """The red team's S1 / S3 / S8 edits on a record with per-test ids: two more skips or 20 fewer tests in the
+        counts only (the ids, compared instead, unchanged) and 55 of 60 generation-1 digests and the layout counts
+        dropped -- compare passed all three on FIX2's gate."""
+        prev = tests_json([row("test_x.py", ids=self.IDS)])
+        for edited in (row("test_x.py", skipped=2, ids=self.IDS), row("test_x.py", ran=1, ids=self.IDS)):
+            bad, _ = gate.test_regressions(prev, tests_json([edited]))
+            self.assertEqual(len(bad), 1, bad)
+            self.assertIn("disagree with its per-test outcomes", bad[0][4])
+        g5 = {"layout": {"problems": 0, "by_kind_owner": {}}, "gen1": {"entries": 3, "digests": {"a": "1", "b": "2",
+                                                                                                   "c": "3"}}}
+        dropped = {"layout": {}, "gen1": {"entries": 3, "digests": {"a": "1"}}}
+        rows = [trial("A-1", 0)]
+        self.record(rows, rows, prev_audits={"G5": g5}, cur_audits={"G5": dropped})
+        code, text = self.compare()
+        self.assertEqual(code, 1, text)
+        self.assertIn("layout counts missing", text)
+        self.assertIn("generation-1 digests missing: 2 of the previous gate's, 1 of 3 pinned entries present", text)
+
+    # ---- red_defects 7: wall-clock bounds out of the correctness suite, into G7's perf job
+    def test_a_bound_moved_to_the_perf_job_must_run_there(self):
+        bound = self.IDS[2]
+        prev = tests_json([row("test_x.py", ids=self.IDS)])
+        moved = tests_json([row("test_x.py", skipped=1, ids=self.IDS, outcomes={"perf": [bound]})])
+        bad, _ = gate.test_regressions(prev, moved)
+        self.assertEqual([(b[3], b[4][:22]) for b in bad], [(bound, "a wall-clock bound ski")])
+        moved["perf"] = [{"file": "test_x.py", "mode": "normal", "ids": [bound], "failed": [], "attempts": {bound: 1}}]
+        self.assertEqual(gate.test_regressions(prev, moved), ([], []))
+        # against a record without per-test ids (counts only): a bound the perf job ran is no extra skip
+        old = tests_json([row("test_x.py", ran=3, skipped=0)])
+        self.assertEqual(gate.test_regressions(old, moved), ([], []))
+        self.assertEqual(len(gate.test_regressions(old, dict(moved, perf=[]))[0]), 1)
+        # a bound failing every attempt fails compare (PERF), whatever the previous record ran
+        rows = [trial("A-1", 0)]
+        moved["perf"][0]["failed"] = [bound]
+        self.record(rows, rows, cur_tests=moved)
+        code, text = self.compare()
+        self.assertEqual(code, 1, text)
+        self.assertIn("PERF FAIL", text)
+        self.assertIn("1 failing every attempt", text)
+
+    def test_the_worker_marks_bounds_and_the_perf_job_retries_them(self):
+        tmp = Path(tempfile.mkdtemp(prefix="gate_perf_"))
+        self.addCleanup(shutil.rmtree, str(tmp), True)
+        (tmp / "tests").mkdir()
+        (tmp / "tests" / "test_bounds.py").write_text(BOUNDS_FILE, encoding="utf-8")
+        flaky, slow, plain = ("tests.test_bounds.T.test_flaky_bound", "tests.test_bounds.T.test_slow_bound",
+                              "tests.test_bounds.T.test_plain")
+        out = tmp / "out.json"
+        env = dict(os.environ, HOUSE_SIM_PERF_TESTS="0")
+        proc = subprocess.run([sys.executable, str(ROOT / "tools" / "orchestration" / "tier1_gate.py"), "_unittest",
+                               str(out), "tests/test_bounds.py"], cwd=str(tmp), env=env, capture_output=True,
+                              text=True, timeout=300)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(json.loads(out.read_text(encoding="utf-8"))["tests"],
+                         {flaky: "perf", slow: "perf", plain: "ok"})       # FIX2's worker: "skip"
+        green = gate._green_tests()
+        self.assertEqual(green.perf_tests([str(tmp / "tests" / "test_bounds.py")]), {"test_bounds.py": [flaky, slow]})
+        rows = green.run_perf({"test_bounds.py": [flaky, slow]}, ("normal",), 3, str(tmp), str(tmp / "work"))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["failed"], [slow])
+        self.assertEqual(rows[0]["attempts"], {flaky: 2, slow: 3})
+        self.assertIn("always over budget", rows[0]["tail"])
+        self.assertEqual(gate.perf_failures({"perf": rows}), [("test_bounds.py", "normal", slow)])
+        # the correctness runs: green_tests.py turns the bounds off unless the caller set the switch
+        quiet = dict(os.environ)
+        quiet.pop("HOUSE_SIM_PERF_TESTS", None)
+        proc = subprocess.run([sys.executable, str(ROOT / "tools" / "orchestration" / "green_tests.py"), "1",
+                               "--modes", "normal", "--tests-dir", str(tmp / "tests"), "--json", str(tmp / "g.json")],
+                              env=quiet, capture_output=True, text=True, timeout=300)
+        self.assertEqual(proc.returncode, 0, proc.stdout)
+        self.assertEqual(json.loads((tmp / "g.json").read_text(encoding="utf-8"))[0]["skipped"], 2)
+        self.assertIn("run them alone with --perf", proc.stdout)
+        proc = subprocess.run([sys.executable, str(ROOT / "tools" / "orchestration" / "green_tests.py"), "--perf",
+                               "--modes", "normal", "--tests-dir", str(tmp / "tests")], env=quiet,
+                              capture_output=True, text=True, timeout=300)
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("FAIL " + slow, proc.stdout)
+
+    def test_the_gates_correctness_runs_turn_the_bounds_off(self):
+        args = SimpleNamespace(root=str(ROOT), gates_root=str(self.gates), id="ENVCASE", out=None, work=None,
+                               package=None, stage="B0", only="G1,G1b,G8", skip=None, seeds=None, jobs=1, extras="",
+                               bench_repeats=1, prev="none", spec_files=None, reviewed=None, camera=None,
+                               shared_tree=False, test_timeout=60)
+        g = gate.Gate(args)
+        g.prev_dir_cached = None
+        jobs = g.test_jobs()
+        self.assertTrue(jobs)
+        self.assertEqual({j.env.get(gate.PERF_ENV) for j in jobs}, {"0"})
+        self.assertEqual({j.check for j in jobs}, {"G1", "G1b", "G8"})
+        bounds = g.perf_bounds()
+        self.assertIn("tests.test_mind.BudgetTests.test_update_budget_on_a_generated_house", bounds["test_mind.py"])
+
+
+def dict_args(args, **changes):
+    """A copy of an argparse-like namespace with some fields changed."""
+    return SimpleNamespace(**dict(vars(args), **changes))
+
+
 class NoopAndGoldenPolicyTests(unittest.TestCase):
     """red_defects findings 11 (no-op successes counted as coverage) and 12 (the golden pinned a failing reference)."""
 
@@ -754,12 +1053,32 @@ class NoopAndGoldenPolicyTests(unittest.TestCase):
         _, summary, _ = fuzz.coverage_report(stats, {}, ["stand", "look"], noops)
         self.assertEqual((summary["succeeded"], summary["noop_only"]), (1, ["stand"]))
 
+    def test_the_head_cameras_bookkeeping_is_no_effect(self):
+        """K-GATE2: in geometric mode every step logs a camera frame (robot.view.frames / step) and a step on a target
+        re-aims the head, so FIX2's rule still counted open_valve on an open valve ("It is already fully open") as
+        driven to success in the geometric specs."""
+        sys.path.insert(0, str(ROOT))
+        from tools import fuzz
+        from house_sim.kernel.plugins import load_domains
+        load_domains()
+        env = fuzz._env(3, {}, camera="geometric")
+        if env.world.s["robot"].get("posture") != "standing":
+            self.skipTest("the robot does not start standing in this house")
+        result = env.step("stand")
+        self.assertTrue(result["ok"])
+        self.assertTrue(env.last_step_effect and all(p.startswith("robot.view.") for p in env.last_step_effect),
+                        env.last_step_effect)
+        self.assertTrue(fuzz._noop(env, "stand", True))
+        self.assertEqual(fuzz.world_effect(["robot.view.frames", "robot.view.aim", "robot.view.pan_deg"]), [])
+        self.assertEqual(fuzz.world_effect(["robot.view.frames", "entities.valve_1.open_frac", "robot.facing_deg"]),
+                         ["entities.valve_1.open_frac", "robot.facing_deg"])
+
     def test_the_golden_refuses_to_pin_a_failing_reference(self):
         sys.path.insert(0, str(ROOT / "tools"))
         import golden
         specs = {"A-1": {"passes": False, "state": "s1"}, "B-1": {"passes": True, "state": "s2"}}
         self.assertEqual(golden.failing_references(specs), (["A-1"], []))
-        self.assertEqual(golden.failing_references(specs, known=["A-1"]), ([], ["A-1"]))
+        self.assertEqual(golden.failing_references(specs, committed={"A-1"}), ([], ["A-1"]))     # committed pin
         self.assertEqual(golden.failing_references(specs, allowlisted=lambda keys: {"A-1"}), ([], ["A-1"]))
         pinned = {"runs": {}, "specs": {"A-1": {"passes": False, "state": "s1", "known_failing": True},
                                         "B-1": {"passes": True, "state": "s2"}}}
@@ -769,8 +1088,45 @@ class NoopAndGoldenPolicyTests(unittest.TestCase):
         broken = {"A-1": {"passes": False, "state": "s1"}, "B-1": {"passes": False, "state": "s3"}}
         self.assertEqual(len(golden.compare(pinned, {}, broken)), 1)    # B-1 regressed: a difference
         with self.assertRaises(SystemExit):                              # record() refuses before writing anything
-            with mock.patch.object(golden, "compute", lambda g, keys, workers: ({}, specs)),                     mock.patch.object(golden, "allowlisted_failing", lambda keys: set()),                     mock.patch.object(golden, "save", lambda *a, **k: self.fail("saved a failing reference")),                     mock.patch.object(golden, "load", lambda path: copy.deepcopy(pinned)),                     mock.patch.object(golden, "_quiet_imports", lambda: None):
+            with mock.patch.object(golden, "compute", lambda g, keys, workers: ({}, specs)), \
+                    mock.patch.object(golden, "allowlisted_failing", lambda keys: set()), \
+                    mock.patch.object(golden, "committed_known_failing", lambda path: set()), \
+                    mock.patch.object(golden, "save", lambda *a, **k: self.fail("saved a failing reference")), \
+                    mock.patch.object(golden, "load", lambda path: copy.deepcopy(pinned)), \
+                    mock.patch.object(golden, "_quiet_imports", lambda: None):
                 golden.record("TEST", ["x"], path=ROOT / "tests" / "data" / "room_golden.json")
+
+    def test_a_recorder_cannot_excuse_a_failing_reference_itself(self):
+        """K-GATE2 (red_defects 12 residual): FIX2's `record --known-failing ID` pinned any failing reference its
+        recorder named. Only the main session's acceptance counts: the committed allowlist, or a known-failing pin of
+        the committed golden; a named id outside both is refused before anything runs."""
+        sys.path.insert(0, str(ROOT / "tools"))
+        import golden
+        specs = {"A-1": {"passes": False, "state": "s1"}, "B-1": {"passes": True, "state": "s2"}}
+        saved = []
+        base = {"format": golden.FORMAT, "runs": {}, "specs": {}, "history": []}
+
+        def record(committed, allowlisted, known=()):
+            with mock.patch.object(golden, "compute", lambda g, keys, workers: ({}, copy.deepcopy(specs))), \
+                    mock.patch.object(golden, "allowlisted_failing", lambda keys: set(keys) & allowlisted), \
+                    mock.patch.object(golden, "committed_known_failing", lambda path: set(committed)), \
+                    mock.patch.object(golden, "save", lambda g, path: saved.append(g)), \
+                    mock.patch.object(golden, "load", lambda path: copy.deepcopy(base)), \
+                    mock.patch.object(golden, "_quiet_imports", lambda: None):
+                return golden.record("TEST", ["x"], path=ROOT / "tests" / "data" / "room_golden.json",
+                                     known_failing=known)
+        with self.assertRaises(SystemExit) as caught:
+            record(set(), set(), known=["A-1"])                 # self-named: refused
+        self.assertIn("cannot excuse a failure itself", str(caught.exception))
+        self.assertEqual(saved, [])
+        pinned = record({"A-1"}, set())                          # the committed golden pins it: kept
+        self.assertTrue(pinned["specs"]["A-1"]["known_failing"])
+        pinned = record(set(), {"A-1"}, known=["A-1"])          # allowlisted: accepted, also when named
+        self.assertEqual(pinned["history"][-1]["known_failing"], ["A-1"])
+        outside = Path(tempfile.mkdtemp(prefix="golden_out_"))
+        self.addCleanup(shutil.rmtree, str(outside), True)
+        self.assertEqual(golden.committed_known_failing(outside / "room_golden.json"), set())   # not the project's
+        self.assertIsInstance(golden.committed_known_failing(), set)
 
 
 class FuzzCoverageTests(unittest.TestCase):
@@ -981,6 +1337,15 @@ class ProcessToolTests(unittest.TestCase):
                        'HOUSE_SIM_PERF_TESTS: "0"', "continue-on-error: true", "--allowlist"):
             self.assertIn(needle, text)
         self.assertNotIn("secrets.", text)                  # no secrets, no paid services
+        # K-GATE2: the wall-clock bounds are a separate, informational perf job (best of 3, alone), not a step of the
+        # correctness job filtered by test-name fragments
+        tests_job, _, perf_job = text.partition("\n  perf:\n")
+        self.assertTrue(perf_job, "no perf job")
+        self.assertIn("green_tests.py --perf --attempts 3", perf_job)
+        self.assertIn("continue-on-error: true", perf_job)
+        self.assertNotIn("--perf", tests_job)
+        self.assertNotIn("-k budget", text)
+        self.assertNotIn("\t", text)
 
 
 if __name__ == "__main__":

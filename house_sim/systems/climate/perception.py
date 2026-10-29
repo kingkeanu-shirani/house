@@ -87,7 +87,7 @@ def climate_observer(env, w, obs):
             if room.get("temperature_c") is not None:
                 out["room"]["temperature_c"] = realism.render_room(rid, "temperature_c", C.num(room.get("temperature_c"), 21.0))
     sounds = []
-    for eid in C.static_ids(w, "climate.kinds", lambda r: bool(r.get("climate_kind"))):
+    for eid in C.static_ids(w, "climate.kinds", C.has_kind):
         rec = state["entities"].get(eid)
         k = (rec or {}).get("climate_kind")
         if not k:

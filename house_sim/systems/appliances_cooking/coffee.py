@@ -243,7 +243,7 @@ def _brew_seconds(ctx):
 
 
 @action("brew", params={"target": "entity", "yield_g": "?number", "seconds": "?number", "steep_s": "?number"},
-        duration=_brew_seconds, energy=0.005, noise=0.2, category="physical", timing="commanded",
+        duration=_brew_seconds, energy=0.005, noise=0.2, category="physical", operates=True, timing="commanded",
         doc="Brew on a coffee machine: drip/pod -> press Brew (pod: one pod in the holder, lid shut, a big enough cup on the "
             "platform); espresso -> pull a shot with the dosed, tamped portafilter locked in (yield_g target, default 36 g, or "
             "seconds); French press -> steep (steep_s, default 240) then press.")
@@ -490,7 +490,7 @@ def _grind_seconds(ctx):
 
 @action("grind_coffee", params={"target": "entity", "destination": "entity", "grams": {"type": "number", "min": 1.0, "max": 120.0},
                                 "grind": "?str:extra_fine|fine|medium|medium_coarse|coarse", "tamp": {"type": "bool", "default": False}},
-        duration=_grind_seconds, energy=0.005, noise=0.6, category="physical", timing="commanded",
+        duration=_grind_seconds, energy=0.005, noise=0.6, category="physical", operates=True, timing="commanded",
         doc="Grind whole beans from a burr grinder's hopper into a destination (drip basket with filter, portafilter, French "
             "press, container). grind sets the burrs (espresso fine, drip medium, French press coarse). tamp=true tamps a "
             "portafilter dose level (hold a tamper).")

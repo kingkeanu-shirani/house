@@ -1,0 +1,13 @@
+# read probe (tools/perception_audit.py _probe_reads) over every look-alike group, seed 0, room camera
+LEAK lookalike:felt_marker marker_pen vs washable_marker at read: (True, '') / (False, 'perception')
+LEAK lookalike:robot_vacuum robot_vacuum vs robot_vacuum_mop at read: (False, 'perception') / (True, '')
+LEAK lookalike:spray_bottle all_purpose_cleaner vs trigger_bottle at read: (True, '') / (False, 'perception')
+78 groups in 65.5 s
+
+# geometric camera
+LEAK lookalike:felt_marker marker_pen vs washable_marker at read: (True, '') / (False, 'perception')
+LEAK lookalike:felt_marker marker_pen vs washable_marker at read_aloud: (True, '') / (False, 'perception')
+LEAK lookalike:robot_vacuum robot_vacuum vs robot_vacuum_mop at read: (False, 'perception') / (True, '')
+LEAK lookalike:robot_vacuum robot_vacuum vs robot_vacuum_mop at read_aloud: (False, 'perception') / (True, '')
+LEAK lookalike:spray_bottle all_purpose_cleaner vs trigger_bottle at read: (True, '') / (False, 'perception')
+78 groups in 67.8 s

@@ -129,7 +129,7 @@ def aid_ready(state, pid, w=None):
     p = C.person(state, pid)
     if not p:
         return False
-    ids = C.static_ids(w, "mobility_aids", lambda r: bool(r.get("mobility_aid"))) if w is not None else sorted(state["entities"])
+    ids = C.static_ids(w, "mobility_aids") if w is not None else sorted(state["entities"])
     for eid in ids:
         rec = state["entities"][eid]
         if not rec.get("mobility_aid") or rec.get("owner") != pid or rec.get("aid_kind") in ("cushion", "transfer_board"):
@@ -165,7 +165,7 @@ def comfort(state, pid, w=None):
     lux = C.light_level(w, room) if w is not None else light_level(state, room)
     lamp_near = False
     px, py = C.person_xy(p)
-    lights = C.static_ids(w, "lights", lambda r: r.get("category") == "light") if w is not None else sorted(ents)
+    lights = C.static_ids(w, "lights") if w is not None else sorted(ents)
     for eid in lights:
         rec = ents[eid]
         if rec.get("category") == "light" and rec.get("on") and rec.get("portable"):

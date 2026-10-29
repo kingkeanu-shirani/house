@@ -65,13 +65,37 @@ def dest_kind(w, dest):
         return "plant"
     if L.is_basin(rec) or (rec.get("drain") and rec.get("water_source")):
         return "basin"
-    if rec.get("waste_stream"):
+    if is_bin(rec):
         return "bin"
     if L.holds_liquid(rec):
         return "vessel"
     if rec.get("drain"):
         return "floor_drain"
     return "surface"
+
+
+def is_bin(rec):
+    """A waste receptacle (trash can, recycling or compost bin, organics cart): a record with a waste stream that core
+    takes for a real waste container. Food, mail, packing material and batteries carry waste_stream too -- the stream
+    they go to when discarded -- and are no bin: a bucket dumped over a slice of bread wets it and runs off (food's
+    phase-1 request), it does not vanish into it."""
+    if not rec.get("waste_stream"):
+        return False
+    from ..core import is_waste_container
+    return is_waste_container(rec)
+
+
+def disposal_sink(w, eid):
+    """The sink a garbage disposal hangs under (furnish.add_disposal: the disposal hangs_from the sink and the sink
+    names it), else None. Liquid poured "into the disposal" goes in through that sink's drain opening."""
+    rec = w.s["entities"].get(eid) or {}
+    if (rec.get("plumb") or {}).get("kind") != "disposal":
+        return None
+    sink = rec.get("hangs_from")
+    srec = w.s["entities"].get(sink) if isinstance(sink, str) else None
+    if srec is not None and L.is_basin(srec) and srec.get("disposal") == eid:
+        return sink
+    return None
 
 
 def is_food_liquid(rec):
@@ -151,6 +175,23 @@ def pour_opening(rec):
     return "narrow" if PL.mouth_frac(rec) < PL.WIDE_MOUTH else "wide"
 
 
+def closed_for_pouring(rec):
+    """True when nothing can pour out of a source: the kernel's closed container (phys.liquids.container_closed: a
+    closed lid or cap, a seal, a closed zipper or closure, and a trigger sprayer or pump head, which lets liquid out
+    only when it is worked), except a source whose pour spout is open (a carton, a filter pitcher) and a spouted or
+    loose-lidded vessel whose only closure is its lid (a teapot or kettle pours with the lid on; a loose lid may fall,
+    do_pour). One refusal for every closed source ("Open it first"), so it never tells a look-alike's members apart
+    (cleaning's phase-1 request: a closed spray bottle poured its 0.75 L)."""
+    if rec.get("pour_spout_open"):
+        return False
+    if not PL.container_closed(rec):
+        return False
+    if rec.get("lid_on") and (rec.get("loose_lid") or pour_opening(rec) == "spout") and \
+            not PL.container_closed(dict(rec, lid_on=False)):
+        return False
+    return True
+
+
 def pour_lps(rec, rate, liquid, known=True):
     """Pour rate (L/s): the commanded rate (slow 0.06 / normal 0.2 / fast 0.5) capped by the opening's, times the
     liquid's viscosity factor (C.flow_factor; known=False: the generic factor 1, for a liquid the robot has not
@@ -176,6 +217,9 @@ def hand_room_l(w, eid, liquid, source=None):
 
 
 HAND_FULL_NOTE = "stopped where the hand could hold no more"
+FILL_SPLASH_FRAC = 0.3          # a tap stream splashes about a third of the outside film of what it fills ...
+FILL_SPLASH_MAX_L = 0.01        # ... a few ml at most (below the water-damage line, common.WATER_DAMAGE_L)
+FIZZ_ON_HELD = 0.25             # the share of a shaken drink's spray that lands on what the other hand holds
 
 
 def shock_cracked(w, vessel, temp_c):
@@ -232,17 +276,21 @@ def unidentified(parcel):
 
 
 def _surface_effects(w, surface, name, liters_, cause=None):
-    """Liquid on a surface: unsealed wood grows a water ring; books, paper and electronics on it get wet and water
-    damaged (the robot's damage when it set up the cause: common.harm with cause, the thing the liquid came from)."""
+    """Liquid on a surface: unsealed wood grows a water ring; books, paper and electronics standing on it take the
+    spill's share at their footprint (common.share_on) through the kernel's wetting (common.wet: phys.wetted hooks see
+    it, so electrical gear takes the ingress and its attribution), and are water damaged when at least
+    common.WATER_DAMAGE_L reached them (the robot's damage when it set up the cause: common.harm with cause, the thing
+    the liquid came from); a few drops splashed beside them do neither."""
     rec = w.ent(surface)
     if rec.get("material") in ("wood", "paper", "fabric") and not rec.get("sealed"):
         m = w.mut(surface)
         m["_water_ring"] = C.rnd(C.num(m.get("_water_ring")) + liters_ * 20.0, 3)
     for child in w.children(surface):
-        crec = w.ent(child)
+        crec = w.ent(child) if child in w.s["entities"] else {}
         if crec.get("relation") == "on" and (crec.get("water_safe") is False or crec.get("category") in ("book", "paper", "electronics")):
-            C.wet(w, child, 0.5)
-            if not crec.get("water_damaged"):
+            reach = C.share_on(w, surface, child, liters_)
+            C.wet(w, child, reach, name, source=cause)
+            if child in w.s["entities"] and reach >= C.WATER_DAMAGE_L and not w.ent(child).get("water_damaged"):
                 w.mut(child)["water_damaged"] = True
                 C.harm(w, "damage", cause or child)
 
@@ -330,13 +378,13 @@ def deliver(ctx, dest, parcel, source=None, how="pour"):
     # and over what it holds, then on to what it stands on
     C.plog(w, "poured_onto", target=dest, liters=C.rnd(liters_, 3), liquid=name)
     rec = w.ent(dest)
-    C.wet(w, dest, 1.0)
+    C.wet(w, dest, liters_, name, source=source)        # all of it runs over it (the kernel's wetting and hooks)
     if rec.get("electronic") or rec.get("water_safe") is False:
-        if not rec.get("water_damaged"):
+        if liters_ >= C.WATER_DAMAGE_L and not w.ent(dest).get("water_damaged"):
             w.mut(dest)["water_damaged"] = True
             C.harm(w, "damage", dest)
     if rec.get("container"):
-        reached_contents(w, dest, name, liters_, soak=True)      # a container's contents are in the way; a table's are not
+        reached_contents(w, dest, name, liters_, soak=True, source=source)  # a container's contents are in the way
     return dict(parcel, ran_off=True)
 
 
@@ -364,24 +412,27 @@ def _food_contact(rec):
     return isinstance(rec.get("food"), dict) or bool(rec.get("food_safe")) or rec.get("category") in FOOD_CONTACT_CATEGORIES
 
 
-def reached_contents(w, holder, liquid, liters_, soak=False):
+def reached_contents(w, holder, liquid, liters_, soak=False, source=None):
     """Liquid poured into a vessel, or over a container that cannot hold it, reaches what the holder holds (independent
     review L3: bleach mop water poured over a loaf left it only wet). Food and food-contact things it reaches are
     contaminated by what the liquid carries (contamination_of), and so is a food-contact holder; soak: the liquid ran
-    over the contents rather than pooling around them, so they get wet too (a vessel's contents are left to its
-    owners: plain water poured into a pot of pasta joins the food, the food domain's contract). Returns the ids
-    reached."""
+    over the contents rather than pooling around them, so they get wet too, each with its share of what ran through
+    (the kernel's wetting, common.wet; a vessel's contents are left to its owners: plain water poured into a pot of
+    pasta joins the food, the food domain's contract). Returns the ids reached."""
     if liters_ <= 0.005 or holder not in w.s["entities"]:
         return []
     marks = contamination_of(liquid)
     reached = []
-    for child in sorted(w.children(holder)):
+    children = [c for c in sorted(w.children(holder))
+                if w.ent(c).get("relation") in ("in", "on") and w.ent(c).get("category") != "spill"]
+    for child in children:
         crec = w.ent(child)
-        if crec.get("relation") not in ("in", "on") or crec.get("category") == "spill":
-            continue
         reached.append(child)
         if soak:
-            C.wet(w, child, 1.0)
+            C.wet(w, child, liters_ / len(children), liquid, source=source)
+            if child not in w.s["entities"]:
+                continue        # a phys.wetted hook did away with it
+            crec = w.ent(child)
         if marks and _food_contact(crec):
             for kind_, level in sorted(marks.items()):
                 C.contaminate(w, child, kind_, level)
@@ -639,7 +690,7 @@ def do_pour(ctx, src, dest, amount=None, rate="normal", to_frac=None, until=None
                         "until": "?str:fill_line|brim", "rate": {"type": "str", "default": "normal", "choices": ["slow", "normal", "fast"]},
                         "spout": {"type": "str", "default": "up", "choices": ["up", "down"]}, "through": "?entity",
                         "tilt_glass": {"type": "bool", "default": False}, "hold_lid": {"type": "bool", "default": False}},
-        duration=lambda ctx: ctx.data.get("seconds", 4.0), energy=0.006, noise=0.02, category="physical",
+        duration=lambda ctx: ctx.data.get("seconds", 4.0), energy=0.006, noise=0.02, category="physical", operates=True,
         doc="Pour from a held, open container (target) into a destination: a vessel, basin, toilet, drain, plant, "
             "the floor/ground (room id) or a surface. amount_l, to_frac (of the destination), until=fill_line|brim, or "
             "everything. rate slow|normal|fast trades accuracy for time; spout=down on a carton glugs; through=<funnel "
@@ -649,9 +700,11 @@ def pour(ctx):
     w = ctx.w
     src = ctx.args["target"]
     dest = ctx.args["destination"]
+    dest = disposal_sink(w, dest) or dest       # into the disposal: in through its sink's drain opening
     srec = ctx.obj(src, touch=True)
     require(ctx.holding(src), "Pick up the container to pour from it", "precondition")
     require(dest != src, "Choose a different destination", "argument")
+    V.refuse_novel(ctx, dest)           # liquid is not poured into or onto an unfamiliar thing
     if dest not in w.s["rooms"]:
         require(dest in w.s["entities"], "Unknown destination", "argument")
         if dest not in w.held_items():
@@ -661,7 +714,7 @@ def pour(ctx):
             require(problem is None or "Crouch" in (problem or ""), problem or "", "precondition")
     else:
         require(dest == w.robot["room"], "Pour onto the floor of the room you are in", "precondition")
-    require(not srec.get("openable") or srec.get("open") or srec.get("pour_spout_open"), "Open it first", "precondition")
+    require(not closed_for_pouring(srec), "Open it first", "precondition")
     if is_food_liquid(srec) and L.liters(srec) <= 0:
         require("transfer" in ACTIONS, "Food liquids are poured with the food domain's transfer", "capability")
         command = {"action": "transfer", "target": src, "destination": dest, "method": "pour", "rate": ctx.args["rate"]}
@@ -679,7 +732,7 @@ def pour(ctx):
 # empty
 
 @action("empty", params={"target": "entity", "destination": "?target", "force": {"type": "str", "default": "normal", "choices": ["gentle", "normal", "firm"]}},
-        duration=lambda ctx: ctx.data.get("seconds", 5.0), energy=0.006, noise=0.04, category="physical",
+        duration=lambda ctx: ctx.data.get("seconds", 5.0), energy=0.006, noise=0.04, category="physical", operates=True,
         doc="Empty a held container completely into a destination (toilet, utility sink, floor drain, storm drain, ground, "
             "bin...), release the cubes of an ice tray (force=firm on a tray straight from the freezer cracks it), or "
             "dump a sink's strainer basket (target=sink) into a bin. Where it goes matters: see docs (wastewater rules).")
@@ -689,13 +742,15 @@ def empty(ctx):
     srec = ctx.obj(src, touch=True)
     dest = ctx.args.get("destination")
     require(dest, "Say where to empty it (destination)", "argument")
+    V.refuse_novel(ctx, dest)           # nothing is emptied into or onto an unfamiliar thing
     if srec.get("ice_tray"):
         from . import ice
         return ice.empty_tray(ctx, src, dest, ctx.args["force"])
     if L.is_basin(srec) and srec.get("strainer"):
         return _empty_strainer(ctx, src, dest)
     require(ctx.holding(src), "Pick it up to empty it", "precondition")
-    require(not srec.get("openable") or srec.get("open"), "Open it first", "precondition")
+    require(not closed_for_pouring(srec), "Open it first", "precondition")
+    dest = disposal_sink(w, dest) or dest       # into the disposal: in through its sink's drain opening
     if dest not in w.s["rooms"]:
         require(dest in w.s["entities"], "Unknown destination", "argument")
         ctx.obj(dest, touch=False)
@@ -909,7 +964,8 @@ def fill_from_fixture(ctx, target, fixture):
     parcel = L.make_parcel(name, actual, temp_c=temp_c, flags=flags, source=fixture)
     notes = [HAND_FULL_NOTE] if hand_full else []
     if not L.is_basin(target_rec):
-        C.wet(w, target, 0.3)            # the stream splashes the outside of what is being filled
+        # the stream splashes the outside of what is being filled: about a third of its surface film, a few ml at most
+        C.wet(w, target, min(FILL_SPLASH_FRAC * C.film_l(target_rec), FILL_SPLASH_MAX_L), name, source=fixture)
     if target_rec.get("ice_tray"):
         from . import ice
         notes.extend(ice.tray_fill(ctx, target, parcel, fixture))
@@ -1013,6 +1069,7 @@ def fill_from_container(ctx, target, source):
             return "Filled {} with {} from {}{}".format(target, V.amount(amount), source, tail)
         return "Filled {} with {:.3f} L from {}{}".format(target, amount, source, tail)
     require(ctx.holding(source), "Hold the container you are pouring from", "precondition")
+    require(not closed_for_pouring(srec), "Open it first", "precondition")
     return do_pour(ctx, source, target, ctx.args.get("amount_l"), "slow" if L.cap_l(trec) < 1.0 else "normal", ctx.args.get("to_frac"),
                    ctx.args.get("until"), verb="fill")
 
@@ -1022,7 +1079,7 @@ def fill_from_container(ctx, target, source):
                         "temp": "?str:cold|cool|warm|hot", "flow": {"type": "number", "optional": True, "min": 0.05, "max": 1.0},
                         "count": {"type": "int", "optional": True, "min": 1, "max": 30}, "tool": "?entity",
                         "keep_running": {"type": "bool", "default": False}},
-        duration=lambda ctx: ctx.data.get("seconds", 5.0), energy=0.006, noise=0.03, category="physical",
+        duration=lambda ctx: ctx.data.get("seconds", 5.0), energy=0.006, noise=0.03, category="physical", operates=True,
         doc="Fill a container (held under a tap, set in the sink, or under a dispenser spigot) from a faucet, spigot, "
             "dispenser or another held container, to amount_l / to_frac / until fill_line|brim (default: the fill line "
             "or 90 %). A closed tap is opened at temp (default cold) and flow, then closed again. A basin (target=sink "
@@ -1039,6 +1096,7 @@ def fill(ctx):
         return fill_basin(ctx, target)
     require(source in w.s["entities"], "Unknown source", "argument")
     srec = ctx.obj(source, touch=False)
+    V.refuse_novel(ctx, source)         # an unfamiliar source is no tap, dispenser or container to the robot yet
     if srec.get("ice_g") is not None and (srec.get("ice_bin") or srec.get("ice_tray") or (srec.get("food") or {}).get("kind") == "ice") or (srec.get("food") or {}).get("kind") == "ice":
         from . import ice
         return ice.add_ice(ctx, target, source)
@@ -1175,11 +1233,14 @@ def opened_under_pressure(ctx, result):
     m["fizz"] = 0.0
     if L.liters(rec) > 0:
         parcel = L.take(w, eid, min(L.liters(rec), 0.25 * fizz * L.liters(rec)))
-        spill_near(w, eid, parcel, "fizz_spray")
         C.plog(w, "fizz_spray", target=eid, liters=C.rnd(parcel["liters"], 3))
-        for held in w.held_items():
-            if held != eid:
-                C.wet(w, held, 0.4)
+        others = [held for held in w.held_items() if held != eid]
+        if others:
+            # a share of the spray lands on what the other hand holds (the kernel's wetting: phys.wetted hooks see it)
+            hit, parcel = L.split_parcel(parcel, FIZZ_ON_HELD)
+            for held in others:
+                C.wet(w, held, hit["liters"] / len(others), L.parcel_name(hit), source=eid)
+        spill_near(w, eid, parcel, "fizz_spray")
         ctx.note("it sprayed foam everywhere")
 
 

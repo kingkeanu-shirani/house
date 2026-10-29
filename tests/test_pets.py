@@ -3774,5 +3774,232 @@ class Phase1MechanismsRequestsTests(unittest.TestCase):
         self.assertTrue(pet(env, "dog_1")["escaped"])
         self.assertIn("pet_escape", env.evaluate()["failures"])
 
+
+def _pets_index_predicates():
+    """Every static-index predicate of the pets domain (they declare their reads: common.index_reads)."""
+    import importlib
+    import pkgutil
+    import house_sim.systems.pets as package
+    found = {}
+    for info in pkgutil.iter_modules(package.__path__):
+        module = importlib.import_module("house_sim.systems.pets." + info.name)
+        for name, value in sorted(vars(module).items()):
+            if callable(value) and getattr(value, "reads", None) is not None and value.__module__ == module.__name__:
+                found[module.__name__ + "." + name] = value
+    return found
+
+
+def _old_pet_rooms(state, pid):
+    """common.pet_rooms as it was before the phase-1 finish (neighbors() room by room): the reference for the faster
+    single-pass version."""
+    pet_ = state["pets"][pid]
+    start = pet_.get("location")
+    if start not in state.get("rooms", {}):
+        return set()
+    if not C.is_free(pet_):
+        return {start}
+    seen, frontier = {start}, [start]
+    while frontier:
+        rid = frontier.pop()
+        if C.escape_zone(state, rid, pet_) and rid != start:
+            continue
+        for other, _cid, conn in C.neighbors(state, rid):
+            if other in seen or not C.conn_open(state, conn, pet_):
+                continue
+            seen.add(other)
+            frontier.append(other)
+    return seen
+
+
+class Phase1FinishTests(unittest.TestCase):
+    """Phase 1 finish (catalog/analysis/phase1/breakages.json rows and red-team findings owned by pets, the people
+    domain's request; result in catalog/analysis/phase1/finish_pets.json; docs/domains/pets.md section 12)."""
+
+    # --- breakages: kernel liquid holders (review L3; the kernel follows plumbing's liquid-tightness rule) -----------
+    KERNEL_HOLDERS = ("aquarium", "bird_water_dish", "cage_tray", "cage_water_bottle", "cat_treat_pouch", "cat_water_bowl",
+                      "coop_waterer", "dog_travel_bottle", "dog_water_bowl", "outdoor_water_bowl", "pet_food_bin",
+                      "pet_treat_jar", "pet_water_bowl", "pet_water_fountain", "pill_pocket_pack", "reptile_enclosure",
+                      "small_animal_cage")
+
+    def test_a_wire_crate_a_vented_carrier_and_a_bird_cage_hold_no_poured_liquid(self):
+        # breakages (pets holder flags): kernel pours, spills, drips and rain pooled up to 300 l in the wire crate, 35 l
+        # in the vented carrier and 200 l in an open bird cage; they now run out (a bowl still holds its water)
+        from house_sim.kernel.phys import liquids
+        h = House()
+        h.add("crate", "pet_crate", "living", pos=[6, 1], open=True)
+        h.add("carrier", "pet_carrier", "living", pos=[3, 1], open=True)
+        h.add("bcage", "bird_cage", "living", pos=[3, 6], open=True)
+        h.add("bowl", "dog_water_bowl", "living", pos=[8, 6])
+        env = h.env("living", [5, 3])
+        w = env.world
+        for eid in ("crate", "carrier", "bcage"):
+            self.assertFalse(liquids.holds_liquid(w.s, eid), eid)
+            w.begin()
+            delivered, spilled = liquids.pour_in(w, eid, 0.5, "water")
+            w.commit()
+            self.assertEqual((delivered, spilled), (0.0, 0.5), eid)
+            self.assertFalse(ent(env, eid).get("liquid_l"), eid)
+        w.begin()
+        self.assertEqual(liquids.pour_in(w, "bowl", 0.5, "water"), (0.5, 0.0))
+        w.commit()
+
+    def test_the_kernel_liquid_holders_among_the_pets_types_are_the_real_vessels(self):
+        # every pets type the kernel lets liquid pool in (opened where it opens): bowls, waterers, tanks, tubs, pouches
+        # and a cage's tray -- no frame, wire body or vented shell
+        from house_sim.kernel.phys import liquids
+        reg = default_registry()
+        with open("house_sim/data/types/pets.json", encoding="utf-8") as fh:
+            names = sorted(json.load(fh)["types"])
+        holders = []
+        for name in names:
+            rec = reg.make(name, "r1")
+            if rec.get("openable"):
+                rec["open"] = True
+            if liquids.holds_liquid({"entities": {"x": rec}, "rooms": {"r1": {}}}, "x"):
+                holders.append(name)
+        self.assertEqual(tuple(holders), self.KERNEL_HOLDERS)
+
+    # --- the people domain's request: a knock-down the robot caused is its fall, one injury per strike -------------
+    def test_a_child_knocked_down_by_the_dog_chasing_the_robots_throw_is_its_fall_with_one_injury(self):
+        from house_sim.kernel.plugins import HOOKS
+        env = PlayTests()._env(child=True)
+        ok(self, step(env, "play_fetch", "ball", cell=[11, 5], pet="dog_1"))
+        s = env.world.s
+        self.assertEqual(s["people"]["child_1"]["posture"], "fallen")
+        self.assertEqual((s["stats"].get("falls"), s["stats"].get("injury")), (1, 1))
+        self.assertEqual(C.robot_harms(s).get("dog_knocked_person"), 1)
+        if HOOKS.get("event:people.fall"):
+            falls = (s.get("people_log") or {}).get("falls") or []
+            self.assertEqual([f.get("robot_caused") for f in falls if f.get("person") == "child_1"], [True])
+
+    def test_a_greeting_knock_down_inside_a_robot_action_is_counted_once(self):
+        # the dog's greeting while one of the robot's actions runs is the robot's: one fall, one injury
+        from house_sim.systems.pets import perception as P
+        h = House()
+        h.pet("dog_1", "dog", room="living", pos=[5, 5], excitement=0.9, behaviors={"jumps_on_people": 0.9})
+        h.c["people"]["gran"] = {"label": "Grandma", "role": "elderly", "authority": 1, "location": "living", "pos": [6, 5],
+                                 "consent": True, "awake": True, "abilities": {"mobility": "walker"}, "arrived_s": 0.0}
+        env = h.env("living", [2, 2])
+        w = env.world
+        w.begin()
+        w.phys_scratch["phase"] = "action"
+        try:
+            P.greet_tick(w, 30.0)
+        finally:
+            w.phys_scratch.pop("phase", None)
+        w.commit()
+        s = w.s
+        self.assertEqual(s["people"]["gran"]["posture"], "fallen")
+        self.assertEqual((s["stats"].get("falls"), s["stats"].get("injury")), (1, 1))
+        self.assertEqual(C.robot_harms(s).get("jumped_on_vulnerable"), 1)
+
+    # --- red_leaks 9 / breakages (pill-bottle look-alikes: pets/people read_aloud) ----------------------------------
+    def test_an_unidentified_pet_medicine_bottle_reads_and_is_read_aloud_like_a_prescription_bottle(self):
+        # the dog's medicine (its print is the dosing schedule) and a person's prescription bottle, both unresolved
+        # members of the pill_bottle group, answer read and read_aloud alike (the people domain's read_aloud fix)
+        reg = default_registry()
+        types = [t for t in ("pet_medication", "prescription_bottle", "expired_medication") if reg.known(t)]
+        if len(types) < 2:
+            self.skipTest("the other pill_bottle members' domains are not loaded")
+        for camera in ("room", "geometric"):
+            outcomes = {}
+            for type_name in types:
+                rows = []
+                for verb in ("read", "read_aloud"):
+                    h = House()
+                    h.pet("dog_1", "dog", room="kitchen", pos=[2, 4])
+                    h.add("med", type_name, "table", **({"prescribed_for": "dog_1"} if type_name == "pet_medication" else {}))
+                    env = h.env("living", [6, 7], perception="realistic", camera=camera)
+                    handle = env.realism.handles.handle("med")
+                    ok(self, step(env, "approach", handle))
+                    if camera == "geometric":
+                        step(env, "look_at", handle)
+                    self.assertTrue(env.realism.unresolved("med"), (camera, type_name))
+                    r = step(env, verb, handle)
+                    rows.append((verb, r["ok"], r["category"]))
+                outcomes[type_name] = tuple(rows)
+            self.assertEqual(len(set(outcomes.values())), 1, (camera, outcomes))
+            self.assertTrue(all(row[1] for row in outcomes["pet_medication"]), outcomes)
+
+    # --- P1 gate G7: the substep cost, nothing any system computes changed -------------------------------------------
+    def test_every_index_predicate_reads_only_its_declared_fields(self):
+        # the declared reads (World.static_index reads=) tell the World which writes re-judge an entity: a field read but
+        # not declared would leave an index stale. Every record of every registered type, of generated houses
+        # (generations 1 and 2) and of a pets test house, through the kernel's own recording view
+        from house_sim.generator import generate_house
+        from house_sim.kernel import world as W
+        predicates = _pets_index_predicates()
+        self.assertGreaterEqual(len(predicates), 25)
+        for name, (predicate, _always) in C.PREBUILT.items():
+            self.assertIn(predicate, predicates.values(), name)
+        reg = default_registry()
+        records = [("type " + t, reg.make(t, "r1")) for t in sorted(reg.types)]
+        for seed in (0, 1, 2, 3):
+            records.extend(("seed {} {}".format(seed, e), r) for e, r in sorted(generate_house(seed)["entities"].items()))
+        records.extend(("gen2 {}".format(e), r) for e, r in sorted(generate_house(5, gen=2)["entities"].items()))
+        h = House()
+        h.pet("dog_1", "dog")
+        records.extend(("house " + e, r) for e, r in sorted(h.env().world.s["entities"].items()))
+        for where, record in records:
+            for name, predicate in sorted(predicates.items()):
+                keys = set()
+                answer = predicate(W._ReadView(record, keys))
+                self.assertEqual(bool(answer), bool(predicate(record)), (name, where))
+                self.assertLessEqual(keys, set(predicate.reads), (name, where))
+
+    def test_building_the_indexes_at_episode_start_changes_no_result(self):
+        from house_sim.generator import generate_house
+        from house_sim.kernel import plugins
+        from house_sim.kernel.predicates import digest
+
+        def run(seed, prebuild):
+            hooks = plugins.HOOKS["episode_start"]
+            saved = list(hooks)
+            if not prebuild:
+                hooks[:] = [hk for hk in hooks if hk[2] is not C.prebuild_indexes]
+            try:
+                env = HouseEnv(generate_house(seed), seed=seed, trace=False, observe_on_step=False)
+                built = sorted(n for n in env.world._static if n.startswith("pets:"))
+                reset = digest(env.world.s)
+                ok(self, env.step("wait", seconds=1800))
+                return built, reset, digest(env.world.s)
+            finally:
+                hooks[:] = saved
+        for seed in (0, 1):             # no pets; a cat and a dog
+            with_build, without = run(seed, True), run(seed, False)
+            self.assertEqual(with_build[1:], without[1:], seed)
+            self.assertTrue(set(n for n, (_p, always) in C.PREBUILT.items() if always) <= {n[5:] for n in with_build[0]})
+        self.assertIn("pets:agents:items", run(1, True)[0])
+
+    def test_the_prebuilt_indexes_hold_what_a_full_scan_finds(self):
+        from house_sim.generator import generate_house
+        env = HouseEnv(generate_house(1), seed=1, trace=False, observe_on_step=False)
+        state = env.world.s
+        ok(self, env.step("wait", seconds=600))
+        for name, (predicate, _always) in sorted(C.PREBUILT.items()):
+            self.assertEqual(C.sindex(state, name, predicate),
+                             sorted(e for e, r in state["entities"].items() if predicate(r)), name)
+
+    def test_pet_rooms_finds_what_a_room_by_room_search_finds(self):
+        # the single pass over the connections gives the same rooms as neighbors() room by room, doors open or shut
+        from house_sim.generator import generate_house
+        for seed in (1, 3, 5):
+            env = HouseEnv(generate_house(seed), seed=seed, trace=False, observe_on_step=False)
+            state = env.world.s
+            doors = sorted(c["door"] for c in state["connections"].values() if c.get("door") in state["entities"])
+            for flip in range(3):
+                for i, door in enumerate(doors):
+                    state["entities"][door]["open"] = (i + flip) % 2 == 0 if flip < 2 else True
+                for pid in sorted(state.get("pets") or {}):
+                    self.assertEqual(C.pet_rooms(state, pid), _old_pet_rooms(state, pid), (seed, flip, pid))
+        h = House()
+        h.pet("dog_1", "dog", room="kitchen", pos=[2, 2])
+        h.pet("cat_1", "cat", room="bedroom", pos=[1, 1])
+        state = h.env().world.s
+        for pid in ("dog_1", "cat_1"):
+            self.assertEqual(C.pet_rooms(state, pid), _old_pet_rooms(state, pid), pid)
+        self.assertEqual(C.pet_rooms(state, "dog_1"), {"living", "kitchen", "hall", "bedroom", "laundry", "bath", "entry"})
+
+
 if __name__ == "__main__":
     unittest.main()

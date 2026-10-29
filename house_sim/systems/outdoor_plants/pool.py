@@ -273,6 +273,10 @@ def slow_pool(w, periods):
             m["uv_h"] = round(float(m.get("uv_h", 0.0)) + days * 24.0, 3)
 
 
+C.episode_types("pool")
+C.episode_types("life_jacket", "ring_buoy", "pool_toy")
+
+
 @system("outdoor_plants.pool", order=130, max_dt=C.SLOW_S, period=C.SLOW_S)
 def pool_system(w, dt, tick):
     """Pool debris drift/sinking and UV on flotation devices: once per 600 s with dt = accumulated time."""
@@ -291,6 +295,8 @@ def flotation_status(w, eid):
     C.set_status(w, eid, **values)
 
 
+@C.episode_index("pool_chemicals")
+@C.index_reads("category")
 def _is_pool_chemical(record):
     return record.get("category") == "pool_chemical"
 
@@ -301,7 +307,7 @@ def pool_chemicals_mixed(state, baseline, world=None):
     Runs every step: candidates come from a static index (O(pool chemicals))."""
     ents = state["entities"]
     if world is not None and world.s is state:
-        candidates = world.static_index("op:pool_chemicals", _is_pool_chemical)
+        candidates = C.static_ids(world, "pool_chemicals", _is_pool_chemical)
     else:
         candidates = sorted(e for e, r in ents.items() if _is_pool_chemical(r))
     if not candidates:

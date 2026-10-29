@@ -2648,18 +2648,30 @@ class CounterSpaceAndPipes(unittest.TestCase):
         self.assertTrue(all(ent(e, s).get("contents_from") == "jug" for s in puddles))
 
     def test_look_alike_groups_show_one_size_at_a_glance(self):
-        # kernel round-5 lint: a main valve is twice a fixture stop's size and a flange plunger 10 cm taller than a
-        # cup plunger; the groups give the size every unresolved member shows
+        # kernel round-5 lint: the groups give the size every unresolved member shows. Phase-1 red team (review L2
+        # residual, registry.lookalike_spreads): with the geometric camera a member's true size shows through
+        # (px, elevation, occlusion), so members must really be the same size: cup and flange plungers now are, and
+        # the house main (a 3/4 in valve, visibly larger than a 3/8 in fixture stop) has a group of its own
         reg = default_registry()
         mine = {name for name, types in reg.lookalike_types().items() if any(reg.sources.get(t) == "plumbing_liquids.json" for t in types)}
-        self.assertTrue({"water_valve", "rubber_plunger"} <= mine)
+        self.assertTrue({"water_valve", "rubber_plunger", "main_water_valve"} <= mine)
         self.assertEqual([w for w in reg.lookalike_warnings if w.split(":")[0] in mine], [])
+        self.assertEqual([w for w in reg.lookalike_spreads if w.split(":")[0] in mine], [])
+        self.assertEqual(reg.lookalike_types()["water_valve"], ["shutoff_valve"])
+        self.assertEqual(reg.lookalike_types()["main_water_valve"], ["main_shutoff_valve"])
+        groups = reg.lookalike_groups()
+        for group in ("water_valve", "rubber_plunger", "main_water_valve"):
+            sizes = {tuple(reg.resolve(t)["size_m"]) for t in reg.lookalike_types()[group]}
+            self.assertEqual(sizes, {tuple(groups[group]["size_m"])}, group)     # what it shows is what it is
+        self.assertNotIn("main water shutoff", groups["water_valve"]["candidates"])
         m = Mini()
         m.add("main", "main_shutoff_valve", "basement", pos=[0, 2], mounted=True, mount_height_m=0.6)
         m.add("stop", "shutoff_valve", "basement", pos=[0, 3], mounted=True, mount_height_m=0.6)
         e = m.env(room="basement", pos=[1, 2], perception="realistic")
-        glance = e.realism.group_glance("water_valve", reg.lookalike_groups()["water_valve"])
-        self.assertEqual(glance["size_m"], [0.09, 0.09, 0.11])
+        glance = e.realism.group_glance("water_valve", groups["water_valve"])
+        self.assertEqual(glance["size_m"], [0.06, 0.06, 0.08])
+        self.assertEqual(e.realism.group_of(ent(e, "main"))[0], "main_water_valve")
+        self.assertEqual(e.realism.group_of(ent(e, "stop"))[0], "water_valve")
 
     def test_generated_supply_pipes_stay_on_the_grid(self):
         from house_sim.generator import generate_house
@@ -3343,6 +3355,260 @@ class ReviewPhase1(unittest.TestCase):
         target = oracle["bindings"]["sink_cabinet"]
         Runner(env, oracle["bindings"], strict=True).run([{"skill": "plumbing_liquids.goto", "target": target}])
         self.assertIsNone(geometry.reach_problem(env.world.s, target))
+
+
+# ======================================================================================
+# phase 1 finish: the domain's breakage rows and red-team findings (catalog/analysis/phase1/breakages.json): closed
+# sprayers, the kernel's wetting hooks, food is no bin, the disposal drains, the unfamiliar-thing refusal, true sizes of
+# look-alikes and the cramped bathroom
+
+class Phase1Finish(unittest.TestCase):
+    def kitchen(self):
+        m = Mini()
+        m.kitchen_sink()
+        m.add("counter", "counter", "kitchen", pos=[5, 0], size_m=[2.0, 0.6, 0.9])
+        return m
+
+    # --- cleaning's request: a closed trigger sprayer or pump head poured its 0.75 L ----------------------------------
+
+    def test_a_closed_sprayer_pump_or_capped_bottle_pours_nothing_and_says_so_alike(self):
+        closed = {"trigger": dict(trigger={"ml_per_squeeze": 1.1, "nozzle": "spray", "modes": ["off", "spray", "stream"]}),
+                  "pump": dict(pump={"ml_per_stroke": 1.2, "locked": False, "primed": True, "prime_strokes": 3}),
+                  "cap": dict(cap={"on": True}),
+                  "sealed": dict(sealed=True),
+                  "lid": dict(openable=True, open=False)}
+        answers = set()
+        for name, props in sorted(closed.items()):
+            m = self.kitchen()
+            m.add("bottle", "generic_item", "counter", spos=[0.0, 0.0], liquid_container=True, liquid="water", liquid_l=0.75,
+                  _mix={"water": 0.75}, capacity_l=0.8, portable=True, material="plastic", size_m=[0.08, 0.08, 0.25],
+                  label="bottle", **props)
+            glass(m, "g", "counter", spos=[0.6, 0.0])
+            e = m.env(room="kitchen", pos=[5, 1])
+            ok(self, e.step("pick_up", "bottle"))
+            r = refused(self, e.step("pour", "bottle", "g"), "precondition")
+            answers.add(r["message"])
+            self.assertEqual(L.liters(ent(e, "bottle")), 0.75, name)
+            self.assertEqual(L.liters(ent(e, "g")), 0.0, name)
+            refused(self, e.step("empty", "bottle", destination="ksink"), "precondition")
+            self.assertEqual(L.liters(ent(e, "bottle")), 0.75, name)
+        self.assertEqual(answers, {"Open it first"})                  # one wording whatever closes it
+
+    def test_fill_from_a_closed_bottle_is_refused_too(self):
+        m = self.kitchen()
+        m.add("bottle", "generic_item", "counter", spos=[0.0, 0.0], liquid_container=True, liquid="water", liquid_l=0.75,
+              _mix={"water": 0.75}, capacity_l=0.8, portable=True, material="plastic", size_m=[0.08, 0.08, 0.25], label="bottle",
+              cap={"on": True})
+        glass(m, "g", "counter", spos=[0.6, 0.0])
+        e = m.env(room="kitchen", pos=[5, 1])
+        ok(self, e.step("pick_up", "bottle"))
+        r = refused(self, e.step("fill", "g", source="bottle", amount_l=0.2), "precondition")
+        self.assertEqual(r["message"], "Open it first")
+        self.assertEqual(L.liters(ent(e, "g")), 0.0)
+
+    def test_spouted_and_loose_lidded_vessels_still_pour_with_the_lid_on(self):
+        m = self.kitchen()
+        m.add("pitcher", "generic_item", "counter", spos=[0.0, 0.0], liquid_container=True, liquid="water", liquid_l=1.0,
+              _mix={"water": 1.0}, capacity_l=2.0, portable=True, material="plastic", size_m=[0.15, 0.1, 0.25], label="filter pitcher",
+              category="pitcher", openable=True, open=False, pour_spout_open=True)
+        m.add("kettle", "generic_item", "counter", spos=[1.0, 0.0], liquid_container=True, liquid="water", liquid_l=1.0,
+              _mix={"water": 1.0}, capacity_l=1.7, portable=True, material="steel", size_m=[0.2, 0.15, 0.25], label="kettle",
+              category="kettle", lid_on=True)
+        glass(m, "g", "counter", spos=[0.6, 0.0], capacity_l=0.5)
+        e = m.env(room="kitchen", pos=[5, 1])
+        for src in ("pitcher", "kettle"):
+            ok(self, e.step("pick_up", src))
+            ok(self, e.step("pour", src, "g", amount_l=0.1, rate="slow"))
+            ok(self, e.step("place", src, "counter"))
+        self.assertGreater(L.liters(ent(e, "g")), 0.15)
+
+    # --- electrical's request: this domain's splashes wrote wetness directly and phys.wetted never ran ----------------
+
+    def _record_wetting(self):
+        from house_sim.kernel import plugins
+        seen = []
+
+        def recorder(w, eid, liters, liquid, source):
+            seen.append((eid, liters, liquid, source))
+        entry = (9999, "tests.phase1_finish.recorder", recorder)
+        plugins.HOOKS["phys.wetted"].append(entry)
+        self.addCleanup(lambda: plugins.HOOKS["phys.wetted"].remove(entry))
+        return seen
+
+    def test_a_spill_on_the_counter_reaches_the_gear_on_it_through_the_kernels_wetting(self):
+        # T-686df131c7c736-01 seed 1: a splash on the counter wet the coffee maker, microwave and toaster to 0.5 with no
+        # phys.wetted, so electrical's ground fault and its attribution were missed
+        def run(pour_l):
+            seen = self._record_wetting()
+            m = self.kitchen()
+            m.add("toaster", "generic_item", "counter", spos=[0.4, 0.0], category="electronics", electronic=True,
+                  size_m=[0.3, 0.2, 0.2], label="toaster", plug_required=True)
+            glass(m, "g", "counter", spos=[0.0, 0.0])
+            m.add("jug", "generic_item", "counter", spos=[-0.6, 0.0], liquid_container=True, liquid="water", liquid_l=pour_l,
+                  _mix={"water": pour_l}, capacity_l=2.0, portable=True, material="plastic", size_m=[0.12, 0.12, 0.25], label="jug")
+            e = m.env(room="kitchen", pos=[5, 1])
+            ok(self, e.step("pick_up", "jug"))
+            ok(self, e.step("pour", "jug", "g", rate="slow"))           # everything: the glass runs over onto the counter
+            over = [r for r in e.world.s["entities"].values() if r.get("category") == "spill" and r.get("location") == "counter"]
+            return e, [s for s in seen if s[0] == "toaster"], sum(C_num(r.get("liquid_l")) for r in over)
+        e, hits, spilled = run(1.5)
+        self.assertGreater(spilled, 1.0)
+        self.assertEqual(len(hits), 1)                      # the kernel's wetting ran, so every phys.wetted hook saw it
+        eid, liters, liquid, source = hits[0]
+        self.assertAlmostEqual(liters, spilled * (0.3 * 0.2) / (2.0 * 0.6), places=3)  # its footprint's share of the spill
+        self.assertEqual(source, "g")
+        self.assertTrue(ent(e, "toaster").get("water_damaged"))
+        self.assertGreater(ent(e, "toaster")["wetness"], 0.0)
+        e, hits, spilled = run(0.45)                         # 0.1 L over the rim: 5 ml reach it, wet but not water damaged
+        self.assertEqual(len(hits), 1)
+        self.assertLess(hits[0][1], 0.02)
+        self.assertFalse(ent(e, "toaster").get("water_damaged"))
+
+    def test_liquid_poured_onto_gear_and_a_fill_splash_run_the_wetting_hooks(self):
+        seen = self._record_wetting()
+        m = self.kitchen()
+        m.add("radio", "generic_item", "counter", spos=[0.4, 0.0], category="electronics", electronic=True, size_m=[0.25, 0.1, 0.15],
+              label="radio")
+        glass(m, "g", "counter", spos=[-0.6, 0.0], liquid="water", liquid_l=0.3, _mix={"water": 0.3})
+        glass(m, "g2", "counter", spos=[0.0, 0.0])
+        e = m.env(room="kitchen", pos=[5, 1])
+        ok(self, e.step("pick_up", "g"))
+        ok(self, e.step("pour", "g", "radio"))
+        self.assertIn(("radio", 0.3), [(s[0], round(s[1], 3)) for s in seen])
+        self.assertTrue(ent(e, "radio").get("water_damaged"))
+        ok(self, e.step("place", "g", "counter"))
+        ok(self, e.step("pick_up", "g2"))
+        ok(self, e.step("fill", "g2", source="ksink", to_frac=0.5))
+        splash = [s for s in seen if s[0] == "g2"]
+        self.assertEqual(len(splash), 1)
+        self.assertLessEqual(splash[0][1], 0.01)            # a few ml on the outside
+        self.assertGreaterEqual(ent(e, "g2")["wetness"], 0.25)
+
+    def test_drips_onto_gear_run_the_wetting_hooks_and_damage_it_once_water_gathers(self):
+        seen = self._record_wetting()
+        m = Mini()
+        m.add("tv", "generic_item", "living", pos=[2, 2], category="electronics", electronic=True, size_m=[0.6, 0.4, 0.1], label="tv box",
+              surface=True, accepts_items=True)
+        m.add("pot", "generic_item", "tv", spos=[0.0, 0.0], category="planter", size_m=[0.2, 0.2, 0.2], drip_lpm=0.02,
+              drip_left_l=0.1, label="just-watered pot")
+        e = m.env(room="living", pos=[1, 2])
+        wait(self, e, 60)
+        self.assertTrue([s for s in seen if s[0] == "tv"])
+        self.assertTrue(ent(e, "tv").get("water_damaged"))     # 20 ml gathered on it within the minute
+
+    # --- food's request: food carries waste_stream (where it goes when discarded) and was taken for a bin --------------
+
+    def test_a_bucket_dumped_over_food_wets_it_and_runs_off_and_a_trash_can_still_takes_it(self):
+        from house_sim.systems.plumbing_liquids import transfer as T
+        m = self.kitchen()
+        m.add("bread", "generic_item", "counter", spos=[0.0, 0.0], category="food", label="slice of bread", waste_stream="compost",
+              accepts_items=True, container=True, size_m=[0.12, 0.12, 0.02], mass_kg=0.03,
+              food={"kind": "bread", "cat": "bread", "phase": "pieces", "qty_g": 30.0})
+        m.add("can", "generic_item", "kitchen", pos=[1, 4], category="waste_container", label="kitchen trash can", waste_stream="trash",
+              accepts_items=True, container=True, capacity_l=40.0, size_m=[0.35, 0.35, 0.6])
+        m.add("bucket", "utility_bucket", "kitchen", pos=[5, 2], liquid="dirty_water", liquid_l=2.0, _mix={"dirty_water": 2.0})
+        e = m.env(room="kitchen", pos=[5, 1])
+        self.assertEqual(T.dest_kind(e.world, "bread"), "surface")
+        self.assertEqual(T.dest_kind(e.world, "can"), "bin")
+        ok(self, e.step("crouch"))
+        ok(self, e.step("pick_up", "bucket", hand="both"))
+        ok(self, e.step("stand"))
+        r = ok(self, e.step("empty", "bucket", destination="bread"))
+        self.assertIn("ran out over it", r["message"])
+        bread = ent(e, "bread")
+        self.assertIsNone(bread.get("liquid_in_bin_l"))
+        self.assertGreater(bread["wetness"], 0.5)
+        self.assertGreater(bread["contamination"]["bacteria"], 0.0)
+        self.assertTrue(spills(e))                           # the 2 L went on to the counter and the floor
+
+    # --- the garbage disposal drains (kernel holders and this domain's pour) ------------------------------------------
+
+    def test_the_garbage_disposal_is_no_liquid_holder_and_a_pour_into_it_goes_down_its_sink(self):
+        from house_sim.kernel.phys import liquids as KL
+        m = self.kitchen()
+        m.add("disp", "garbage_disposal", "sink_cab", relation="part", slot="disposal", hangs_from="ksink")
+        m.c["entities"]["ksink"]["disposal"] = "disp"
+        glass(m, "g", "counter", spos=[0.0, 0.0], liquid="water", liquid_l=0.3, _mix={"water": 0.3})
+        e = m.env(room="kitchen", pos=[3, 1], hold={"right": "g"})
+        self.assertFalse(KL.holds_liquid(e.world.s, "disp"))
+        self.assertFalse(L.holds_liquid(ent(e, "disp")))
+        r = ok(self, e.step("pour", "g", "disp"))
+        self.assertIn("ksink", r["message"])
+        self.assertEqual(spills(e), [])                      # nothing ran out into the cabinet or onto the floor
+        self.assertEqual(L.liters(ent(e, "disp")), 0.0)
+
+    # --- review I4 / phase-1 red team novel sweep: fill told an unfamiliar kettle and bleach jug from the rest ---------
+
+    def test_an_unfamiliar_source_or_destination_gets_the_one_identify_first_refusal(self):
+        from house_sim.kernel.actions import NOVEL_OPERATE_MESSAGE
+        look = dict(novel=True, size_m=[0.2, 0.15, 0.25], color="gray", material="plastic", portable=True)
+        variants = {"jug": dict(liquid_container=True, liquid="bleach", liquid_l=1.0, _mix={"bleach": 1.0}, capacity_l=2.0),
+                    "kettle": dict(liquid_container=True, liquid="water", liquid_l=0.5, _mix={"water": 0.5}, capacity_l=1.7,
+                                   openable=True, open=False),
+                    "phone": dict(category="electronics", electronic=True)}
+        answers = {}
+        for name, props in sorted(variants.items()):
+            m = self.kitchen()
+            m.add("thing", "generic_item", "counter", spos=[0.0, 0.0], **dict(look, **props))
+            glass(m, "g", "counter", spos=[0.6, 0.0], liquid="water", liquid_l=0.2, _mix={"water": 0.2})
+            e = m.env(room="kitchen", pos=[5, 1], perception="realistic")
+            h = e.realism.handles.handle
+            out = []
+            ok(self, e.step("pick_up", h("g")))
+            for command in (("fill", h("g"), {"source": h("thing")}), ("pour", h("g"), {"destination": h("thing")}),
+                            ("empty", h("g"), {"destination": h("thing")}), ("fill", h("thing"), {"source": h("ksink")})):
+                r = e.step(command[0], command[1], **command[2])
+                out.append((r["ok"], r.get("category"), r["message"]))
+            answers[name] = out
+            self.assertEqual(L.liters(ent(e, "g")), 0.2)
+        self.assertEqual(len({json.dumps(v) for v in answers.values()}), 1, answers)
+        self.assertTrue(all(row == (False, "precondition", NOVEL_OPERATE_MESSAGE) for row in answers["jug"]), answers["jug"])
+        o = self.kitchen()
+        o.add("thing", "generic_item", "counter", spos=[0.0, 0.0], **dict(look, **variants["jug"]))
+        glass(o, "g", "counter", spos=[0.6, 0.0])
+        e = o.env(room="kitchen", pos=[5, 1])                 # oracle perception: nothing is unfamiliar
+        ok(self, e.step("pick_up", "thing"))
+        ok(self, e.step("fill", "g", source="thing", amount_l=0.1))
+        self.assertGreater(L.liters(ent(e, "g")), 0.05)
+
+    # --- cleaning's phase-1 request: a feel needs a hand on the thing, and every closed liquid vessel is felt alike -----
+
+    def test_a_close_look_feels_a_vessel_only_within_reach_and_a_product_bottle_like_any_vessel(self):
+        def env(pos):
+            m = self.kitchen()
+            m.add("jug", "generic_item", "counter", spos=[0.0, 0.0], liquid_container=True, liquid="water", liquid_l=1.0,
+                  _mix={"water": 1.0}, capacity_l=2.0, portable=True, material="plastic", size_m=[0.15, 0.15, 0.28],
+                  label="water jug", temperature_c=5.0)
+            m.add("spray", "generic_item", "counter", spos=[0.5, 0.0], product="all_purpose", amount_ml=500.0, portable=True,
+                  material="plastic", size_m=[0.1, 0.06, 0.25], label="cleaner bottle", temperature_c=21.0)
+            c = copy.deepcopy(m.c)
+            c["robot"] = {"room": "kitchen", "pos": list(pos)}
+            return HouseEnv(c, None, seed=0, perception="realistic", camera="geometric")
+        e = env((4, 2))                                       # within arm's reach of both
+        h = e.realism.handles.handle
+        jug = json.loads(ok(self, e.step("inspect", h("jug"), where="closely"))["message"])
+        spray = json.loads(ok(self, e.step("inspect", h("spray"), where="closely"))["message"])
+        self.assertEqual(jug.get("vessel_feel"), "cold")
+        self.assertEqual(spray.get("vessel_feel"), "room temperature")       # an amount, not litres: felt all the same
+        e = env((3, 2))                                       # the head camera resolves the jug; no hand reaches it
+        from house_sim.kernel import geometry
+        self.assertIsNotNone(geometry.reach_problem(e.world.s, "jug"))
+        far = json.loads(ok(self, e.step("inspect", e.realism.handles.handle("jug"), where="closely"))["message"])
+        self.assertNotIn("vessel_feel", far)                 # (and no touch grant: strict mode used to raise here)
+
+    # --- gen-2 layout follow-ups: a shower stall stood before a window blind and under an upper cabinet ----------------
+
+    def test_a_cramped_extra_bathroom_goes_without_a_stall_rather_than_hide_a_mount(self):
+        from house_sim.generator import _generate
+        from house_sim.systems.plumbing_liquids import furnish as FU
+        for seed, opts in ((29, {"dwelling": "apartment", "gen": 2}),
+                           (20, {"dwelling": "house", "require": ["laundry_room", "basement", "nursery"], "gen": 2})):
+            report = []
+            config = _generate(seed, report=report, **opts)
+            self.assertEqual([r for r in report if r.startswith("hidden mount")], [], (seed, opts))
+            bathing = [e for e, r in config["entities"].items() if r.get("type") in ("bathtub", "shower_stall")]
+            self.assertTrue(bathing, (seed, opts))          # the home keeps a tub or a shower
+        self.assertTrue(callable(FU.hidden_cells) and callable(FU.unsound_spot))
 
 
 def C_num(value):

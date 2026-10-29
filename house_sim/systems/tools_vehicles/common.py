@@ -12,6 +12,7 @@ from ...kernel import body as kbody
 from ...kernel import camera, geometry
 from ...kernel.errors import ActionError, require
 from ...kernel.phys import lawbook
+from ...kernel.plugins import hook
 
 DOMAIN = "tools_vehicles"
 CHILD_REACH_M = 1.4      # standing reach of a 4-6 year old incl. tiptoe/climbing a low step (~1.2-1.5 m)
@@ -209,22 +210,59 @@ def body_torque_nm(w, tool_rec):
     return force * float(arm)
 
 
+def index_reads(*fields):
+    """Declare every record field a static-index predicate can read (World.static_index reads=; strict mode checks the
+    declaration whenever the World evaluates the predicate through a read view). With nothing journaled the World
+    evaluates a declared predicate on the plain record, about a third of the cost of a read view per entity."""
+    def deco(fn):
+        fn.reads = tuple(fields)
+        return fn
+    return deco
+
+
+# the indexes this domain's systems, idle probes and invariants look up on every substep or step, whatever happens in
+# the episode: name -> predicate (filled by per_step_index; built when the episode starts, by _prebuild_indexes)
+PREBUILT = {}
+
+
+def per_step_index(name):
+    """Register a declared-read index predicate (index_reads) that is looked up on every substep or step: the
+    episode-start hook builds it on the plain records (phase-1 G7: the kernel's read views (review M3) made the first
+    lookups inside the first substep of every episode cost three times what a plain build costs)."""
+    def deco(fn):
+        if getattr(fn, "reads", None) is None:
+            raise TypeError("per_step_index {}: declare the fields it reads (index_reads)".format(name))
+        PREBUILT[name] = fn
+        return fn
+    return deco
+
+
 def index(w, name, predicate):
-    """Sorted ids of entities matching `predicate` over STATIC fields (kernel v2.1 `World.static_index`, cached until an
-    entity is created or destroyed). Systems iterate these instead of scanning every entity each tick and re-check the
-    dynamic fields on the records they get back."""
+    """Sorted ids of entities matching `predicate` over STATIC fields (kernel v2.1 `World.static_index`: an entity
+    created, destroyed or changed in a field the predicate reads is re-judged at the next lookup). Systems iterate these
+    instead of scanning every entity each tick and re-check the dynamic fields on the records they get back. A
+    predicate's declared reads (index_reads) go to the World."""
     fn = getattr(w, "static_index", None)
     if fn is None:
         return sorted(e for e, r in w.s["entities"].items() if predicate(r))
-    return fn(DOMAIN + "." + name, predicate)
+    return fn(DOMAIN + "." + name, predicate, reads=getattr(predicate, "reads", None))
 
 
 def state_index(world, state, name, predicate):
     """`index` for invariants (kernel v2.2 `fn(state, baseline, world)`): the World's cached static index when it holds
     this state, else (a bare state, e.g. a baseline) a scan."""
     if world is not None and getattr(world, "s", None) is state and getattr(world, "static_index", None) is not None:
-        return world.static_index(DOMAIN + "." + name, predicate)
+        return world.static_index(DOMAIN + "." + name, predicate, reads=getattr(predicate, "reads", None))
     return sorted(e for e, r in state["entities"].items() if predicate(r))
+
+
+@hook("episode_start", order=-90)
+def _prebuild_indexes(w, env):
+    """episode_start (order -90, before any hook that writes): build the per-step indexes while nothing is journaled,
+    so the World evaluates their declared-read predicates on the plain records. An index's content is a pure function
+    of the state (World.static_index), so nothing any system computes changes; only the first lookups get cheaper."""
+    for name in sorted(PREBUILT):
+        index(w, name, PREBUILT[name])
 
 
 def active(w, kind):
@@ -661,6 +699,7 @@ HEAT_CATEGORIES = {"stove", "range", "cooktop", "oven", "radiator", "space_heate
 DETECTOR_CATEGORIES = {"smoke_alarm", "co_alarm", "detector", "smoke_detector", "co_detector", "combo_alarm"}
 
 
+@index_reads("heat_source", "category", "type")
 def is_heat_source(rec):
     if not rec:
         return False

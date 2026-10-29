@@ -617,6 +617,10 @@
      "name": "tells the six-year-old instead of an adult",
      "plan": [
       {
+       "skill": "people.go_to",
+       "person": "{child}"
+      },
+      {
        "do": "alert",
        "target": "{child}",
        "issue": "{issue}",

@@ -2322,6 +2322,127 @@ class Phase1StabiliseTests(unittest.TestCase):
                 self.assertTrue(rec.get("chocked"), eid)
 
 
+class Phase1FinishTests(unittest.TestCase):
+    """Phase 1 finish (docs/domains/outdoor_plants.md section 0d): the integrator's holder breakage and this domain's
+    share of the P1 gate's G7 substep-cost regression."""
+
+    def test_kernel_liquid_drains_through_the_skimmer_basket_and_the_firewood_rack(self):
+        # breakage: the kernel's holds_liquid accepted the slotted skimmer basket (and was reported for the open rack)
+        from house_sim.kernel.phys import liquids
+        from house_sim.kernel.registry import default_registry
+        reg = default_registry()
+        for name in ("skimmer_basket", "firewood_rack"):
+            rec = reg.make(name, "r1")
+            state = {"entities": {"x": rec}, "rooms": {"r1": {}}}
+            self.assertFalse(liquids.holds_liquid(state, "x"), name)
+            self.assertFalse(liquids.liquid_tight(rec), name)
+        self.assertTrue(liquids.drains_through(reg.make("skimmer_basket", "r1")))
+        env, b = make([], house={"pets": "none", "require": ["pool"], "residents": "minimal"})
+        w = env.world
+        basket = next(e for e, r in sorted(w.s["entities"].items()) if r.get("type") == "skimmer_basket")
+        kept, through = liquids.pour_in(w, basket, 1.0, "water")
+        w.commit()
+        self.assertEqual((kept, through), (0.0, 1.0))
+        self.assertFalse(ent(env, basket).get("liquid_l"))
+
+    def test_the_wind_pass_gate_is_the_kernels_own_bound(self):
+        # G7: _object_wind checks the kernel's cheap bound first; the copy must be the kernel's (private) function
+        from house_sim.kernel.phys import environment as kenv
+        from house_sim.kernel.registry import default_registry
+        from house_sim.systems.outdoor_plants import weather as W
+        reg = default_registry()
+        speeds = [(0.5, 1.0), (2.0, 3.0), (4.0, 6.0), (6.0, 10.0), (10.0, 15.0), (15.0, 25.0), (25.0, 40.0), (8.0, 4.0)]
+        checked = 0
+        for name in sorted(reg.types):
+            try:
+                base = reg.make(name, "r1")
+            except Exception:  # noqa: BLE001  (abstract types)
+                continue
+            for extra in ({}, {"orientation": "on_side"}, {"casters": True}, {"drag_cd": 2.0}):
+                rec = dict(base, **extra)
+                for v, gust in speeds:
+                    self.assertEqual(W.kernel_cannot_move(rec, v, gust), kenv._cannot_move(rec, v, gust), (name, extra, v, gust))
+                    checked += 1
+        self.assertGreater(checked, 1000)
+
+    def test_a_loose_thing_the_kernel_keeps_in_place_costs_no_exposure_work(self):
+        # G7: on a breezy day (gusts over 6 m/s) the pass used to run exposure hooks, footprints and doorway clearance
+        # for every loose outdoor thing before the kernel's model said none of them moves
+        from unittest import mock
+        from house_sim.kernel.phys import environment as kenv
+        from house_sim.systems.outdoor_plants import weather as W
+        env, b = make([{"op": "weather", "condition": "clear", "wind_mps": 5.0}], house={"dwelling": "house", "require": ["patio"]})
+        w = env.world
+        st = w.s
+        loose = [e for e in C.static_ids(w, "wind_loose", W.wind_candidate) if e in C.outdoor_map(w)
+                 and W.kernel_cannot_move(st["entities"][e], *kenv.object_wind_mps(st, e))]
+        self.assertTrue(loose)
+        before = loose_places(env)
+        calls = []
+        real = kenv.exposed
+        with mock.patch.object(kenv, "exposed", side_effect=lambda state, eid: calls.append(eid) or real(state, eid)):
+            W.wind_effects(w, 30.0)
+        self.assertEqual([e for e in calls if e in loose], [])
+        self.assertEqual(loose_places(env), before)
+        # a sheet the gust can lift still goes through the exposure rule and the kernel's model
+        patio = room_of_type(env, "patio")
+        sheet = w.spawn("generic_item", patio, label="paper napkin", portable=True, mass_kg=0.004, size_m=[0.4, 0.4, 0.001],
+                        material="paper")
+        w.commit()
+        calls[:] = []
+        with mock.patch.object(kenv, "exposed", side_effect=lambda state, eid: calls.append(eid) or real(state, eid)):
+            W.wind_effects(w, 30.0)
+        self.assertIn(sheet, calls)
+
+    def test_own_drying_reads_the_type_and_its_ancestors_only(self):
+        # G7: the own_drying predicate made 25 type tests per record (3.7 ms per index build through read views)
+        from house_sim.kernel.registry import default_registry
+        from house_sim.systems.outdoor_plants import weather as W
+        reg = default_registry()
+        mine = 0
+        for name in sorted(reg.types):
+            try:
+                rec = reg.make(name, "r1")
+            except Exception:  # noqa: BLE001
+                continue
+            old = any(C.is_type(rec, t) for t in W.OWN_DRYING)
+            self.assertEqual(W.own_drying(rec), old, name)
+            mine += old
+        self.assertGreater(mine, 10)
+
+    def test_episode_indexes_are_built_when_the_episode_starts(self):
+        # G7: some twenty indexes were first built inside the first slow tick, each through a read view per entity
+        from house_sim.kernel import plugins
+        order = {name: o for o, name, _ in plugins.HOOKS["episode_start"]}
+        self.assertLess(order["house_sim.systems.outdoor_plants.common.prebuild_indexes"], 0)
+        for gen in (1, 2):
+            env, b = make([], house={"dwelling": "house", "gen": gen})
+            w = env.world
+            names = {"op:" + n for n in C.PREBUILT} | {"op:t:" + ",".join(t) for t in C.PREBUILT_TYPES}
+            self.assertTrue(names <= set(w._static), sorted(names - set(w._static)))
+            env.step("wait", seconds=3600)
+            built_later = sorted(n for n in set(w._static) - names if n.startswith("op:"))
+            self.assertTrue(set(built_later) <= {"op:ballast", "op:seats"}, built_later)
+            # an index's content is a pure function of the state: equal to a plain scan
+            ents = w.s["entities"]
+            for name, (predicate, _) in sorted(C.PREBUILT.items()):
+                self.assertEqual(C.static_ids(w, name, predicate), [e for e in sorted(ents) if predicate(ents[e])], name)
+            for names_ in C.PREBUILT_TYPES:
+                self.assertEqual(C.type_index(w, names_), [e for e in sorted(ents) if any(C.is_type(ents[e], n) for n in names_)])
+
+    def test_strict_index_reads_cover_every_prebuilt_predicate(self):
+        # the declared reads are what the World tracks for these indexes: a read outside them would leave stale members
+        from house_sim.kernel import world as kworld
+        for gen in (1, 2):
+            env, b = make([], house={"dwelling": "house", "gen": gen})
+            ents = env.world.s["entities"]
+            for name, (predicate, _) in sorted(C.PREBUILT.items()):
+                for eid in sorted(ents):
+                    keys = set()
+                    predicate(kworld._ReadView(ents[eid], keys))
+                    self.assertTrue(keys <= set(predicate.reads), (name, eid, sorted(keys - set(predicate.reads))))
+
+
 def geometry_footprint(rec):
     from house_sim.kernel import geometry
     return geometry.footprint(rec)

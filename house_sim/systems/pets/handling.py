@@ -34,9 +34,14 @@ HOT_PAVEMENT_C = 52.0
 # ----------------------------------------------------------------------
 # gear
 
+@C.index_reads("pet_gear")
+def _is_pet_gear(rec):
+    return bool(rec.get("pet_gear"))
+
+
 def worn_gear(state, pid, kind=None):
     out = []
-    for eid in C.sindex(state, "pet_gear", lambda r: bool(r.get("pet_gear"))):
+    for eid in C.sindex(state, "pet_gear", _is_pet_gear):
         rec = state["entities"][eid]
         if rec.get("location") == pid and rec.get("relation") == "worn":
             if kind is None or rec.get("pet_gear") == kind:

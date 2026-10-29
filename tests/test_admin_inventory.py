@@ -40,13 +40,15 @@ def build(ops, seed=2, require=("office",), residents="minimal", pets="none", st
     return env, bindings, Runner(env, bindings)
 
 
-def build_real(ops, seed=2, require=("office",), residents="minimal", pets="none", start=None, camera=None):
+def build_real(ops, seed=2, require=("office",), residents="minimal", pets="none", start=None, camera=None, gen=None):
     """Like build, in realistic perception (kernel v2.4): the env takes handles only; Runner skills translate."""
     house = {"residents": residents, "pets": pets}
     if require:
         house["require"] = list(require)
     if start:
         house["start"] = start
+    if gen:
+        house["gen"] = gen
     config = generate_house(seed, **house)
     bindings = apply_setup(config, ops, default_registry(), seed, {"catalog_id": "test_admin"})
     env = HouseEnv(config, seed=seed, perception="realistic", camera=camera)
@@ -2844,6 +2846,144 @@ class StabiliseTests(unittest.TestCase):
                                           DESK_DOC[2]])
         r.skill("approach", target=b["d"])
         refused(self, env, "read", b["d"], category="privacy")           # oracle mode still refuses
+
+    # --- phase-1 finish (catalog/analysis/phase1/breakages.json, this domain's rows) ---------------------------------
+    CLOSET_JUG = [{"op": "helper", "name": "admin_inventory.reachable_surface",
+                   "args": {"rooms": ["utility_closet", "linen_closet", "pantry", "laundry_room", "coat_closet"],
+                            "types": ["closet_shelving", "shelf_unit"], "var": "shelf", "room_var": "closet",
+                            "fallback": None}},
+                  {"op": "spawn", "var": "jug", "type": "refill_bottle", "in": "{shelf}", "shelf": 1,
+                   "props": {"opaque": True, "secret_fields": ["liquid_l"], "material": "hdpe", "color": "white",
+                             "liquid_l": 0.05}},
+                  {"op": "helper", "name": "admin_inventory.door_cell", "args": {"room": "{closet}", "var": "closet_door"}},
+                  {"op": "robot", "room": "{closet}"}]
+
+    def test_a_close_look_from_the_doorway_hefts_nothing(self):
+        # breakages (fuzz --coverage, the only strict-mode defect): the head camera resolves the opaque jug from the
+        # closet doorway, and the stock inspector reported its level and granted a heft it cannot have had there
+        # (HOUSE_SIM_STRICT=1 raised; T-ab9a26cd6a795e-01 seed 97, wrong plan 'checks the shelf from the closet doorway')
+        import os
+        from house_sim.kernel.realism import TOUCH
+        from house_sim.systems.admin_inventory.perceive import known
+        env, b, r = build_real(self.CLOSET_JUG, seed=1, require=(), camera="geometric", gen=2)
+        rok(self, env, "walk_to", cell=b["closet_door"])
+        self.assertIsNotNone(geometry.reach_problem(env.world.s, b["jug"]))
+        saved = os.environ.get("HOUSE_SIM_STRICT")
+        os.environ["HOUSE_SIM_STRICT"] = "1"          # the kernel's grant gate raises on a heft from out of reach
+        try:
+            out = json.loads(rok(self, env, "inspect", b["jug"], where="closely")["message"])
+        finally:
+            if saved is None:
+                os.environ.pop("HOUSE_SIM_STRICT", None)
+            else:
+                os.environ["HOUSE_SIM_STRICT"] = saved
+        self.assertTrue(str(out["level"]).startswith("unknown"), out)   # the look resolved it: no level, no heft
+        self.assertLess(known(env, b["jug"], "liquid_l"), TOUCH)
+        r.skill("approach", target=b["jug"])
+        out = json.loads(rok(self, env, "inspect", b["jug"], where="closely")["message"])
+        self.assertIsInstance(out["level"], float)                       # within reach a close look is a heft
+        self.assertLess(abs(out["level"] - 0.05), 0.06)
+        self.assertGreaterEqual(known(env, b["jug"], "liquid_l"), TOUCH)
+
+    def test_a_close_look_shows_no_bands_through_an_opaque_lid(self):
+        # the same rule for bulk jars: their layers show through clear walls or an open mouth, never through an opaque,
+        # closed one (it used to report each band to 50 ml on any close look)
+        jar = {"label": "flour canister", "bulk_store": True, "capacity_l": 2.0, "openable": True, "open": False,
+               "neck_mm": 90, "product_tag": "ap_flour", "size_m": [0.12, 0.12, 0.2], "volume_l": 2.4,
+               "layers": [{"product": "ap_flour", "l": 0.6, "lot": "2026-01"}, {"product": "bread_flour", "l": 0.5, "lot": "2026-05"}]}
+        ops = SHELF + [{"op": "spawn", "var": "tin", "type": "generic_item", "in": "{shelf}", "shelf": 1,
+                        "props": dict(jar, opaque=True, material="steel")},
+                       {"op": "spawn", "var": "glass", "type": "generic_item", "in": "{shelf}", "shelf": 1,
+                        "props": dict(jar, material="glass", label="glass canister")}]
+        env, b, r = build_real(ops, require=())
+        r.skill("approach", target=b["shelf"])
+        tin = json.loads(rok(self, env, "inspect", b["tin"], where="closely")["message"])
+        glass = json.loads(rok(self, env, "inspect", b["glass"], where="closely")["message"])
+        self.assertNotIn("layers", tin)
+        self.assertEqual(len(glass["layers"]), 2)
+
+    # every admin_inventory type the kernel lets liquid pool in (opened where it opens): the vessels -- a bowl, a cup,
+    # bins, bottles, a steel document box, a poly mailer, a hard-shell suitcase and the shredder's bin
+    KERNEL_HOLDERS = ("document_box", "foaming_dispenser", "key_bowl", "paper_shredder", "pen_cup", "poly_mailer",
+                      "refill_bottle", "soap_dispenser", "sorting_bin", "suitcase")
+
+    def test_frames_trays_slots_and_void_fill_hold_no_poured_liquid(self):
+        # breakages (holder flags, review L3): kernel pours, spills, drips and rain pooled liquid in the napkin holder's
+        # open frame, letter trays, the wall organizer, the printer's feeder and trays, the outgoing slot, mailboxes,
+        # an open binder, a filing cabinet's drawers, a hole punch, a sharpener and packing fill; they now run out
+        from house_sim.kernel.phys import liquids
+        reg = default_registry()
+        with open("house_sim/data/types/admin_inventory.json", encoding="utf-8") as fh:
+            names = sorted(json.load(fh)["types"])
+        holders = []
+        for name in names:
+            rec = reg.make(name, "r1")
+            if rec.get("openable"):
+                rec["open"] = True
+            if liquids.holds_liquid({"entities": {"x": rec}, "rooms": {"r1": {}}}, "x"):
+                holders.append(name)
+        self.assertEqual(tuple(holders), self.KERNEL_HOLDERS)
+        ops = [{"op": "room", "var": "lr", "type": "living_room"}]
+        tested = ("napkin_holder", "inbox_tray", "outgoing_mail_slot", "packing_peanuts", "key_bowl")
+        for name in tested:
+            ops.append({"op": "spawn", "var": name, "type": name, "floor": "{lr}"})
+        env, b, r = build(ops, require=())
+        w = env.world
+        for name in tested:
+            w.begin()
+            delivered, spilled = liquids.pour_in(w, b[name], 0.25, "water")
+            w.commit()
+            if name == "key_bowl":
+                self.assertEqual((delivered, spilled), (0.25, 0.0))                  # a bowl still holds it
+            else:
+                self.assertEqual((delivered, spilled), (0.0, 0.25), name)
+                self.assertFalse(ent(env, b[name]).get("liquid_l"), name)
+
+    def test_taking_the_blister_pack_off_a_broken_jar_lets_its_pieces_out_by_the_robots_hand(self):
+        # manipulation's phase-1 request (red team: wrap containment, the hand-back path): remove_packing cleared
+        # `packaged` / `wrapped` on a broken item without ending the containment, so the pieces came out later in the
+        # step's substeps through manipulation.breaks, attributed as exogenous; the kernel releases them now, once
+        from unittest import mock
+        from house_sim.kernel import plugins
+        from house_sim.kernel.phys import impact
+        jar = {"label": "glass jar", "material": "glass", "fragile": True, "mass_kg": 0.3, "size_m": [0.1, 0.1, 0.15],
+               "packaged": True}
+        env, b, r = build([{"op": "room", "var": "lr", "type": "living_room"},
+                           {"op": "spawn", "var": "jar", "type": "generic_item", "floor": "{lr}", "props": jar},
+                           {"op": "robot", "near": "{jar}"}], require=())
+        w = env.world
+        w.begin()
+        impact.break_entity(w, b["jar"], "dropped_in_test", by="robot")
+        w.commit()
+        self.assertIsNone(ent(env, b["jar"]).get("floor_hazard"))           # contained in its packaging
+        seen = []
+        hook = (99, "tests.test_admin_inventory.seen", lambda world, eid, info: seen.append((eid, info["by"])))
+        with mock.patch.dict(plugins.HOOKS, {"phys.uncontained": list(plugins.HOOKS.get("phys.uncontained", [])) + [hook]}):
+            ok(self, env, "remove_packing", b["jar"])
+            step(env, "wait", seconds=60)
+        rec = ent(env, b["jar"])
+        self.assertEqual((rec.get("packaged"), rec.get("shattered"), rec.get("floor_hazard")), (False, True, "sharp"))
+        self.assertEqual(seen, [(b["jar"], "robot")])
+
+    def test_static_index_predicates_declare_every_field_they_read(self):
+        # G7 (phase 1): the system indexes declare their fields (common.reads), so the kernel can skip the read view
+        # that made their first builds dearer; a declaration missing a field would let an index go stale
+        from house_sim.kernel.world import _ReadView
+        from house_sim.systems.admin_inventory import curb, office, paper, restock, storage
+        preds = (office.is_printer, office._is_part, office._is_paper_stack, paper.is_document, paper._is_shredder,
+                 curb.is_cart, restock._is_roll, restock._is_consumable, storage.exposure_candidate)
+        env, b, r = build(OFFICE, require=("office", "garage"))
+        # every record of a furnished house, plus records that open each predicate's and-chains to its last field
+        records = [rec for _, rec in sorted(env.world.s["entities"].items())] + [
+            {"label": "x"}, {"category": "document"}, {"wheeled": True}, {"dispenser": True}]
+        for pred in preds:
+            fields, read = set(pred.reads), set()
+            for rec in records:
+                keys = set()
+                self.assertEqual(bool(pred(_ReadView(rec, keys))), bool(pred(rec)), (pred.__name__, rec.get("label")))
+                self.assertLessEqual(keys, fields, (pred.__name__, rec.get("label")))
+                read |= keys
+            self.assertEqual(read, fields, pred.__name__)            # and nothing declared that it never reads
 
 
 def generate_root(config, eid):

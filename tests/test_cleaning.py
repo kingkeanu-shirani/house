@@ -3071,5 +3071,253 @@ class Phase1Review(unittest.TestCase):
         self.assertEqual(lab.stat("phys_spills"), 2)
 
 
+UNFAMILIAR = {"novel": True, "size_m": [0.2, 0.15, 0.25], "color": "gray", "material": "plastic"}
+# things that are told apart by what they are (generic items, so the scenes build with only core and cleaning loaded)
+UF_LAMP = {"label": "table lamp", "category": "light", "bulb_type": "incandescent", "on": True, "mass_kg": 2.0}
+UF_KETTLE = {"label": "kettle", "liquid_container": True, "container": True, "openable": True, "open": False, "liquid": "water",
+          "liquid_l": 1.0, "capacity_l": 1.7, "mass_kg": 1.1}
+UF_JUG = {"label": "bleach jug", "liquid_container": True, "liquid": "chlorine_bleach", "liquid_l": 1.0, "capacity_l": 1.9,
+       "mass_kg": 0.2}
+UF_REMOTE = {"label": "remote control", "category": "remote", "mass_kg": 0.12}
+
+
+class Phase1Finish(unittest.TestCase):
+    """Phase 1 finish (catalog/analysis/phase1/breakages.json cleaning rows, red_leaks findings 5 and 8, the phase-1
+    twin sweeps; docs/domains/cleaning.md section 17): unfamiliar things, the refill spray bottle and unidentified
+    puddles tell nothing about what they are, and the time systems' fast paths change no result."""
+
+    def _inspector_details(self, lab, eid, sensors=()):
+        """cleaning.details' own output (before the kernel's NOVEL_FIELDS filter, which would hide a leak here)."""
+        import random
+        from house_sim.kernel.actions import ACTIONS, Ctx
+        from house_sim.systems.cleaning import perception
+        lab.env.sensors = list(sensors)
+        ctx = Ctx(lab.env, ACTIONS["inspect"], {"target": eid}, random.Random(0))
+        details = {}
+        perception.inspect_details(lab.w, eid, lab.ent(eid), details, ctx)
+        return details
+
+    def test_an_unfamiliar_lamp_gets_no_bulb_heat_from_inspection(self):
+        """Review I4 (electrical's request): the inspector added bulb_hot (and bulb_temp_c with the thermal sensor) to
+        any light by its category, so an unidentified unfamiliar lamp inspected unlike every other unfamiliar thing."""
+        for sensors in ((), ("thermal",)):
+            lab = Lab(perception="realistic", extra={"lamp": _on_counter("generic_item", 0.3, **dict(UF_LAMP, **UNFAMILIAR)),
+                                                     "kettle": _on_counter("generic_item", 0.6, **dict(UF_KETTLE, **UNFAMILIAR)),
+                                                     "known": _on_counter("generic_item", 0.9, **UF_LAMP)})
+            for eid in ("lamp", "kettle", "known"):
+                lab.ent(eid).pop("pos", None)
+            lamp = self._inspector_details(lab, "lamp", sensors)
+            self.assertFalse({"bulb_hot", "bulb_temp_c", "bulb_temperature"} & set(lamp), (sensors, lamp))
+            self.assertEqual(sorted(lamp), sorted(self._inspector_details(lab, "kettle", sensors)), sensors)
+            self.assertIn("bulb_hot", self._inspector_details(lab, "known", sensors))     # a lamp it knows: as before
+            oracle = Lab(extra={"lamp": _on_counter("generic_item", 0.3, **dict(UF_LAMP, **UNFAMILIAR))})
+            oracle.ent("lamp").pop("pos", None)
+            self.assertIn("bulb_hot", self._inspector_details(oracle, "lamp", sensors))  # oracle mode unchanged
+
+    def test_an_unfamiliar_thing_is_neither_emptied_nor_emptied_into(self):
+        """Phase-1 red team novel sweep: empty_into judged the true record of an unidentified unfamiliar target or
+        destination ('Emptied ...; poured a lot' for a bleach bottle, 'Open the lid of <thing> first' for a kettle)."""
+        from house_sim.kernel.actions import NOVEL_OPERATE_MESSAGE
+        rows = {}
+        for name, props in (("jug", UF_JUG), ("kettle", UF_KETTLE), ("remote", UF_REMOTE)):
+            out = []
+            for role in ("target", "destination"):
+                lab = Lab(perception="realistic", extra={"thing": _on_counter("generic_item", 0.3, **dict(props, **UNFAMILIAR))})
+                lab.ent("thing").pop("pos", None)
+                lab.r.strict = False
+                handle = lab.env.realism.handles.handle
+                if role == "target":
+                    lab.hold("thing")
+                    lab.go("sink")
+                    res = lab.step("empty_into", handle("thing"), handle("sink"))
+                else:
+                    lab.hold("pan")
+                    lab.go("counter")
+                    res = lab.step("empty_into", handle("pan"), handle("thing"))
+                out.append((res["ok"], res["category"], res["message"]))
+            rows[name] = out
+        for name, out in rows.items():
+            self.assertEqual(out, [(False, "precondition", NOVEL_OPERATE_MESSAGE)] * 2, name)
+        known = Lab(extra={"jug": _on_counter("generic_item", 0.3, label="jug", liquid_container=True, liquid="water",
+                                              liquid_l=0.5, capacity_l=1.0, size_m=[0.15, 0.1, 0.25], mass_kg=0.2)})
+        known.ent("jug").pop("pos", None)
+        known.hold("jug")
+        known.go("sink")
+        self.assertTrue(known.do("empty_into", target="jug", destination="sink")["ok"])   # a thing it knows: as before
+        self.assertEqual(float(known.ent("jug").get("liquid_l") or 0.0), 0.0)
+
+    def test_the_refill_spray_bottle_comes_full_and_hefts_like_its_look_alikes(self):
+        """Review L4 residual (red_leaks 8): the plain spray_bottle came empty (0.1 kg, 0 l), so a lift told it from
+        the full product sprays before any label was read ('Feels light' vs 'Feels medium')."""
+        from house_sim.kernel.actions import ACTIONS
+        reg = default_registry()
+        refill, product = reg.resolve("spray_bottle"), reg.resolve("glass_cleaner")
+        self.assertEqual(refill["liquid_l"], refill["capacity_l"])
+        self.assertAlmostEqual(refill["mass_kg"] + refill["liquid_l"], product["mass_kg"])
+        if "support" not in ACTIONS:
+            return                              # manipulation's heft (not loaded in isolation)
+        felt = {}
+        for type_name in ("glass_cleaner", "spray_bottle"):
+            lab = Lab(perception="realistic", extra={"probe": _on_counter(type_name, 0.3, color="blue")})
+            lab.ent("probe").pop("pos", None)
+            lab.hold("probe")
+            felt[type_name] = lab.step("support", lab.env.realism.handles.handle("probe"), mode="heft")["message"]
+        self.assertEqual(felt["spray_bottle"], felt["glass_cleaner"])
+
+    def test_every_unread_spray_bottle_inspects_closely_and_afterwards_alike(self):
+        """Phase-1 twin sweep: plumbing's inspector felt the temperature of a vessel holding litres (the refill, the
+        trigger bottle) on a close look and granted that touch, so those members showed vessel_feel and, from then on,
+        the kernel's 'feel'; a product's bottle (an amount, not litres) showed neither."""
+        reg = default_registry()
+        members = [t for t in ("glass_cleaner", "mildew_remover", "spray_bottle", "trigger_bottle") if reg.known(t)]
+        battery = [("inspect", {}), ("inspect", {"where": "closely"}), ("inspect", {"where": "label"}), ("inspect", {}),
+                   ("pick_up", {}), ("inspect", {"where": "closely"}), ("inspect", {})]
+        for camera in (None, "geometric"):
+            rows = {}
+            for type_name in members:
+                lab = Lab(perception="realistic", camera=camera, extra={"probe": _on_counter(type_name, 0.3, color="blue")})
+                lab.ent("probe").pop("pos", None)
+                lab.go("counter")
+                handle = lab.env.realism.handles.handle("probe")
+                out = []
+                for verb, kw in battery:
+                    res = lab.step(verb, handle, **kw)
+                    out.append((verb, res["ok"], str(res["message"]).replace(handle, "<it>")))
+                rows[type_name] = out
+            first = rows[members[0]]
+            self.assertTrue(all(ok for _, ok, _ in first), (camera, first))
+            self.assertNotIn("vessel_feel", "".join(m for _, _, m in first))
+            for type_name in members[1:]:
+                self.assertEqual(rows[type_name], first, (camera, type_name))
+
+    def test_route_probing_an_unidentified_spill_does_not_tell_its_liquid(self):
+        """Review L4 / FIX2 residual: a spill whose liquid the robot cannot identify keeps routes out of it for any of
+        wet / slip / sticky whatever its true floor_hazard -- through the kernel's hazard filter, every path_blocked
+        hook and cleaning's visible_floor_hazard veto (which judges room wet cells only, never a spill's kind)."""
+        from house_sim.kernel import geometry
+        from house_sim.kernel.plugins import HOOKS
+        from house_sim.systems.cleaning import floors, perception
+        rows = {}
+        for liquid in ("chlorine_bleach", "laundry_detergent_he", "cooking_oil", "water"):
+            lab = Lab(perception="realistic")
+            sid = floors.make_spill(lab.w, "kitchen", liquid, 1.2, cell=[3, 3])
+            rec = lab.ent(sid)
+            self.assertTrue(lab.env.realism.unresolved(sid), liquid)
+            obs = lab.env.observe()
+            spill_h = lab.env.realism.handles.peek(sid)
+            shown = sorted({h["kind"] for h in obs["grid"]["hazards"] if h.get("source") == spill_h})
+            cells = sorted(tuple(c) for c in geometry.footprint(rec))
+            vetoes = [fn(lab.w.s, "kitchen", c, rec["floor_hazard"], sid)
+                      for _, _, fn in HOOKS.get("visible_floor_hazard", []) for c in cells]
+            self.assertEqual(set(vetoes), {None}, liquid)
+            self.assertIsNone(perception.wet_floor_seen(lab.w.s, "kitchen", cells[0], rec["floor_hazard"], sid))
+            row = [shown, rec["floor_hazard"] in ("wet", "slip", "sticky")]
+            for avoid in (("slip",), ("wet",), ("sticky",), ("trip",)):
+                kinds, blocked = lab.env.realism.route_hazards(lab.w.s, "kitchen", avoid)
+                hooked = set()
+                for _, _, fn in HOOKS.get("path_blocked", []):
+                    args = (lab.w.s, "kitchen", geometry.expand_avoid(kinds))
+                    got = fn(*(args + ((),))) if geometry._hook_takes_sources(fn) else fn(*args)
+                    hooked |= {tuple(c) for c in (got or ())}
+                row.append((avoid, sorted(blocked), sorted(hooked)))
+            route = lab.step("walk_to", cell=[3, 6], avoid=["slip"])
+            row.append((route["ok"], route["message"]))
+            rows[liquid] = row
+            self.assertEqual(row[2][1], cells, liquid)          # avoid slip: the whole puddle is kept out of
+        kinds = {liquid: rows[liquid][0] for liquid in rows}
+        self.assertEqual(set(map(tuple, kinds.values())), {("wet",)}, kinds)
+        first = rows["chlorine_bleach"][2:]
+        for liquid, row in rows.items():
+            self.assertEqual(row[2:], first, liquid)
+
+    # --- the time systems' fast paths (P1 gate G7): exact, so every result is unchanged ---------------------------
+    def test_soak_skips_inert_holders_exactly_and_a_quiet_house_is_idle(self):
+        from house_sim.generator import generate_house
+        from house_sim.kernel.predicates import digest
+        from house_sim.systems.cleaning import systems as Y
+        bowl = _on_counter("generic_item", 0.6, label="bowl", liquid_container=True, liquid="water", liquid_l=0.8,
+                           capacity_l=1.0, size_m=[0.15, 0.15, 0.06], mass_kg=0.3)
+        quiet = Lab(extra={"bowl": bowl})
+        self.assertEqual(Y.soak_containers(quiet.w), ["bowl"])     # a bowl of water holds litres...
+        self.assertTrue(Y.soak_idle(quiet.w))   # ...but nothing in it soaks, dissolves or boils over
+        self.assertFalse(Y.soak_idle(Lab(props=SINK_SOAPY).w))     # a basin of soapy water can soak things
+        env = HouseEnv(generate_house(1), seed=1, trace=False)
+        self.assertTrue(Y.soak_idle(env.world))  # every domain loaded: product bottles, pet bowls, a refill bottle
+
+        def run(fast):
+            saved = Y._inert
+            if not fast:
+                Y._inert = lambda rec: False
+            try:
+                extra = {"knife": ("generic_item", "sink", dict(KNIFE, relation="in")),
+                         "bottle": _on_counter("bleach", 0.3), "bowl": bowl,
+                         "kettle": _on_counter("generic_item", 0.9, label="kettle", liquid_container=True, container=True,
+                         liquid="water", liquid_l=1.9, capacity_l=2.0, max_fill_l=1.7, temperature_c=99.0,
+                         size_m=[0.2, 0.2, 0.25], mass_kg=1.0)}
+                lab = Lab(props=SINK_SOAPY, extra=extra)
+                lab.ent("knife").pop("pos", None)
+                lab.ent("bowl").pop("pos", None)
+                lab.ent("kettle").pop("pos", None)
+                lab.ent("bottle").pop("pos", None)
+                for seconds in (60, 900, 30, 3600):
+                    lab.wait(seconds)
+                return digest(lab.w.s), lab.log("boil_over"), lab.ent("knife").get("hidden_in_water")
+            finally:
+                Y._inert = saved
+        fast, full = run(True), run(False)
+        self.assertEqual(fast, full)
+        self.assertTrue(fast[1] and fast[2])    # the kettle boiled over and the knife hid under the suds either way
+
+    def test_waste_finds_food_from_the_scraps_up_exactly_as_a_walk_of_every_bin(self):
+        from house_sim.kernel.predicates import digest
+        from house_sim.systems.cleaning import systems as Y
+
+        def walk(w, holders):
+            ents = w.s["entities"]
+            out = {}
+            for holder in holders:
+                stack, found = [holder], []
+                while stack:
+                    parent = stack.pop()
+                    for eid in sorted(e for e, r in ents.items() if r.get("location") == parent):
+                        found.append(eid)
+                        stack.append(eid)
+                for eid in found:
+                    if ents[eid].get("waste_kind") == "food_scrap":
+                        ftype = ents[eid].get("food_type", "plant")
+                        old = out.get(holder, (0.0, False))
+                        out[holder] = (max(old[0], Y.FOOD_RATES.get(ftype, 0.3)),
+                                       old[1] or ftype in ("plant", "fruit", "vegetable", "peel"))
+            return out
+
+        def run(fast):
+            saved = Y._food_inside
+            if not fast:
+                Y._food_inside = walk
+            try:
+                bagged = {"opened": True, "accepts_items": True, "container": True, "portable": True}
+                extra = {"bones": ("chicken_bones", "can", {"relation": "in"}),
+                         "peel": ("fruit_peel", "can", {"relation": "in"}),
+                         "bag": ("trash_liner_13gal", "kitchen", dict(bagged, pos=[5, 5])),       # a bag left out
+                         "fish": ("fish_scraps", "bag", {"relation": "in"}),
+                         "caddy": ("compost_caddy", "counter", {"relation": "on", "spos": [1.5, 0.1]}),
+                         "grounds": ("coffee_grounds", "caddy", {"relation": "in"}),
+                         "cart_bag": ("trash_liner_13gal", "trash_cart", dict(bagged, relation="in")),
+                         "meat": ("meat_scraps", "cart_bag", {"relation": "in"})}
+                lab = Lab(extra=extra, clock="2026-10-09T19:00:00",
+                          household={"raccoons": True})
+                lab.w.s["pets"] = {"rex": {"species": "dog", "label": "Rex", "location": "kitchen", "pos": [6, 5],
+                                           "posture": "standing"}}
+                lab.ent("trash_cart")["open"] = True
+                for seconds in (600, 1800, 3 * 3600, 20 * 3600):
+                    lab.wait(seconds)
+                return digest(lab.w.s), odor_level(lab.ent("can"), "garbage"), lab.log("scatter")
+            finally:
+                Y._food_inside = saved
+        fast, full = run(True), run(False)
+        self.assertEqual(fast[0], full[0])
+        self.assertGreater(fast[1], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

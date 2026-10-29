@@ -520,9 +520,60 @@ PREDICATES = {
 }
 
 
+# Every record field each index predicate can read (World.static_index reads=; strict mode checks the declaration on
+# every evaluation through a read view, and tests/test_electrical.py on every type and generated record). With
+# nothing journaled the World then evaluates the predicate on the plain record.
+_CHARGE_SOURCE_READS = ("ports", "captive_connector", "wireless", "dock_for", "bud_slots", "charges_chemistry",
+                        "platform")
+INDEX_READS = {
+    "markers": ("category", "energized"),
+    "powerable": ("category", "outlet_kind", "plug_required", "circuit", "hardwired", "energized"),
+    "metered": ("power_w", "_load_w", "standby_w") + _CHARGE_SOURCE_READS,
+    "breakers": ("category",),
+    "providers": ("category", "outlet_kind", "receptacles"),
+    "outlets": ("category",),
+    "plug_devices": ("plug_required",),
+    "backup": ("backup_battery_wh",),
+    "lights": ("category",),
+    "switches": ("category",),
+    "detectors": ("category",),
+    "detector_bases": ("category",),
+    "bulbs": ("category",),
+    "clocks": ("clock",),
+    "electronics": ("power_state", "storage", "usb_storage", "category"),
+    "network": ("type", "category"),
+    "displays": ("category",),
+    "tvs": ("category",),
+    "cells": ("category",),
+    "tool_packs": ("part_type",),
+    "soft": ("material",),
+    "workstation": ("category", "type"),
+}
+MODULE_INDEXES = {}         # name -> predicate of the indexes other electrical modules declare (declare_index)
+
+
+def declare_index(name, reads):
+    """Decorator: a module's own static-index predicate, with every field it can read (INDEX_READS)."""
+    def deco(fn):
+        MODULE_INDEXES[name] = fn
+        INDEX_READS[name] = tuple(reads)
+        return fn
+    return deco
+
+
 def ids(w, name, predicate=None):
     """Sorted ids of entities in a named static index (see PREDICATES; modules may pass their own predicate)."""
-    return w.static_index("electrical." + name, predicate or PREDICATES[name])
+    return w.static_index("electrical." + name, predicate or PREDICATES.get(name) or MODULE_INDEXES[name],
+                          INDEX_READS.get(name))
+
+
+def prebuild_indexes(w):
+    """Build every electrical static index (episode_start, before any hook writes: furnish._prebuild_indexes). With
+    nothing journaled the World evaluates the declared-read predicates on the plain records, the cheapest build, instead
+    of through a read view per entity in the setup hooks and the first substep. An index's content is a pure function of
+    the state (World.static_index), so nothing any system computes changes."""
+    for name in sorted(set(PREDICATES) | set(MODULE_INDEXES)):
+        ids(w, name)
 
 
 # --- exact idle probes (kernel v3.1 @system(idle=), TIER1_SWEEP 6.7) ------------------------------------------------
@@ -556,27 +607,36 @@ class IdleNote(object):
         self.world = self.token = self.cursor = self.extra = None
         self.sigs = {}
         self.hot = set()
-        self._relevant = (None, None, None)
+        self._ancestors = None
+        self._members = (None, None)
 
-    def relevant(self, w):
-        """(members, ancestors): the ids of the system's static indexes, and the location ancestors of those (cached
-        per World version and entity count, like the static indexes themselves)."""
+    def members(self, w):
+        """The ids of the system's static indexes (cached per World version and entity count: within a step an
+        index changes only when an entity is created or destroyed, World.static_index)."""
         key = (id(w), getattr(w, "_version", None), len(w.s["entities"]))
-        if self._relevant[0] == key:
-            return self._relevant[1], self._relevant[2]
-        ents = w.s["entities"]
-        members, ancestors = set(), set()
+        if self._members[0] == key:
+            return self._members[1]
+        members = set()
         for spec in self.indexes:
             name, predicate = (spec, None) if isinstance(spec, str) else spec
             members.update(ids(w, name, predicate))
+        self._members = (key, members)
+        return members
+
+    def ancestors(self, w, members):
+        """The location ancestors of the members as they are now. quiet() takes them when it first needs them after a
+        run and keeps them until the next run: any later change to a member's chain is a write to the member or to an
+        entity of that chain, which quiet() then sees (a lamp put on a cart during a step has the cart as an ancestor
+        from then on; the ancestors were once cached per entity count, so the cart's later move went unseen)."""
+        ents = w.s["entities"]
+        ancestors = set()
         for eid in members:
             loc, depth = (ents.get(eid) or {}).get("location"), 0
             while loc in ents and depth < 12:
                 if loc not in members:
                     ancestors.add(loc)
                 loc, depth = ents[loc].get("location"), depth + 1
-        self._relevant = (key, members, ancestors)
-        return members, ancestors
+        return ancestors
 
     def _sig(self, eid, rec, members):
         if eid not in members:
@@ -584,20 +644,55 @@ class IdleNote(object):
         skip = OTHERS_FIELDS.union(self.ignore(rec))
         return {k: v for k, v in rec.items() if k not in skip}
 
+    def _matches(self, eid, rec, members, sig):
+        """self._sig(eid, rec, members) == sig, without building the current signature (the same comparison: a field
+        matches when it is the snapshot's value or equals it)."""
+        if eid not in members:
+            return isinstance(sig, tuple) and tuple(rec.get(k) for k in ANCESTOR_FIELDS) == sig
+        if not isinstance(sig, dict):
+            return False
+        skip = self.ignore(rec)
+        count = 0
+        for key, value in rec.items():
+            if key in OTHERS_FIELDS or key in skip:
+                continue
+            if key not in sig:
+                return False
+            kept = sig[key]
+            if kept is not value and kept != value:
+                return False
+            count += 1
+        return count == len(sig)
+
     def after(self, w, wrote, extra=None):
         """After a run: remember that it changed nothing (with the non-entity inputs `extra` and snapshots of the
-        entities touched while it was not idle), or forget it; the cursor moves to the log's end either way."""
+        entities touched while it was not idle), or that it wrote (the probe answers False until a run writes nothing;
+        the snapshots are kept for that run to refresh, so a system whose own writes come and go is not re-warmed from
+        nothing each time); the cursor moves to the log's end either way. A snapshot equal to the entity's current
+        fields is kept as it is (no copy)."""
         import copy
         _, end = w.touched_since(_END, consumer=self.consumer)
+        same = self.world is w and self.token is w.phys_scratch
+        self._ancestors = None
         if wrote:
-            self.world = self.token = self.cursor = self.extra = None
-            self.sigs, self.hot = {}, set()
+            if not same:
+                self.sigs, self.hot = {}, set()
+            self.world, self.token = w, w.phys_scratch
+            self.cursor = self.extra = None
             return
         ents = w.s["entities"]
-        members, _ = self.relevant(w)
-        keep = (set(self.sigs) | self.hot) if self.world is w and self.token is w.phys_scratch else set(self.hot)
-        self.sigs = {eid: copy.deepcopy(self._sig(eid, ents[eid], members)) for eid in sorted(keep) if eid in ents}
-        self.hot = set()
+        members = self.members(w)
+        old = self.sigs if same else {}
+        sigs = {}
+        for eid in sorted((set(old) | self.hot) if same else self.hot):
+            rec = ents.get(eid)
+            if rec is None:
+                continue
+            prev = old.get(eid)
+            if prev is None or not self._matches(eid, rec, members, prev):
+                prev = copy.deepcopy(self._sig(eid, rec, members))
+            sigs[eid] = prev
+        self.sigs, self.hot = sigs, set()
         self.world, self.token, self.cursor, self.extra = w, w.phys_scratch, end, extra
 
     def quiet(self, w):
@@ -608,14 +703,16 @@ class IdleNote(object):
         touched, end = w.touched_since(self.cursor, consumer=self.consumer)
         if touched:
             ents = w.s["entities"]
-            members, ancestors = self.relevant(w)
+            members = self.members(w)
             changed = False
             for eid in set(touched):
                 if eid not in ents:
                     return False
-                if eid in members or eid in ancestors:
+                if eid not in members and self._ancestors is None:
+                    self._ancestors = self.ancestors(w, members)
+                if eid in members or eid in self._ancestors:
                     sig = self.sigs.get(eid)
-                    if sig is None or self._sig(eid, ents[eid], members) != sig:
+                    if sig is None or not self._matches(eid, ents[eid], members, sig):
                         self.hot.add(eid)
                         changed = True
             if changed:

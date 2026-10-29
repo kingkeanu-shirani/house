@@ -23,7 +23,7 @@ import math
 
 from ...kernel import body, geometry
 from ...kernel.errors import ActionError, require  # noqa: F401  (re-exported)
-from ...kernel.plugins import ACTIONS
+from ...kernel.plugins import ACTIONS, hook
 from ...kernel.predicates import root_room
 
 CELL = geometry.CELL
@@ -781,9 +781,45 @@ def ids_with(w, key, pred):
     """Sorted ids of entities satisfying `pred`, a predicate over STATIC fields only (type/category flags set when the
     entity is created: connects, vehicle, rv, leveling, part_type, low_contrast...). Kernel v2.1 `w.static_index`
     caches it until an entity is created or destroyed, so systems never scan every entity per tick; callers re-check
-    dynamic fields on the records they get back."""
+    dynamic fields on the records they get back. A predicate declared with index_reads gives the kernel the fields it
+    reads (World.static_index reads=)."""
     ents = w.s["entities"]
-    return [eid for eid in w.static_index("navigation_robot." + key, pred) if eid in ents]
+    return [eid for eid in w.static_index("navigation_robot." + key, pred, getattr(pred, "reads", None)) if eid in ents]
+
+
+# Indexes this domain's time systems and idle probes look up from their first substep on: key -> predicate. Built when
+# the episode starts (prebuild_indexes); every one is looked up in every house (doors, leveling, spare packs, household
+# robots, the low-contrast safety net).
+PREBUILT = {}
+
+
+def index_reads(*fields):
+    """Declare every record field a static-index predicate reads, on every path (World.static_index reads=; the
+    navigation_robot tests check each declaration against a recording view of every registered type)."""
+    def deco(fn):
+        fn.reads = tuple(fields)
+        return fn
+    return deco
+
+
+def per_substep_index(key):
+    """Register a declared-read predicate whose index the episode start builds (prebuild_indexes)."""
+    def deco(fn):
+        assert getattr(fn, "reads", None) is not None, key
+        PREBUILT[key] = fn
+        return fn
+    return deco
+
+
+@hook("episode_start", order=-60)
+def prebuild_indexes(w, env):
+    """Build this domain's per-substep static indexes when the episode starts, before any hook writes (order -60): with
+    nothing journaled the World evaluates their declared-read predicates on the plain records, several times cheaper
+    than the read view per entity a first build inside a busy substep goes through (P1 gate G7, phase-1 finish). An
+    index's content is a pure function of the state (World.static_index), so nothing any system computes changes."""
+    for key in sorted(PREBUILT):
+        pred = PREBUILT[key]
+        w.static_index("navigation_robot." + key, pred, pred.reads)
 
 
 def first_substep(tick):

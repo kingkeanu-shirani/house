@@ -32,7 +32,13 @@ Wrong plans (phase 1 of the stabilisation, REVIEW_REPORT H17; docs/design/VERIFY
 wrong plan runs leniently one top-level step at a time in its own environment. A step refused for its form (an unknown
 action, a parameter the action does not take, a missing or mistyped argument: env.last_step_malformed) never reached
 the robot: the plan did not run fully either ("error_class" "MalformedStep"; phase-1 red team). Literal "do" action
-names of the chosen variant's plans must be registered actions (runner.build: SpecError otherwise). A wrong plan that raises anything
+names of the chosen variant's plans must be registered actions (runner.build: SpecError otherwise). A wrong plan that
+never acts -- the robot carried out none of the actions it attempted: every one was refused, waiting aside, and a
+physical action that "succeeded" without changing the world counts as not carried out (HouseEnv.track_effect) -- is
+not evidence either ("error_class" "NeverActed"; phase-1 red team, second pass): it ends like the idle check, which
+verification already runs. A refusal for a strict-block category (safety, privacy, social, authority) is the robot
+being stopped from a harm, which VERIFY_HARDENING 14.3 rule 1 accepts with an expect "strict:" pattern, so such a plan
+still counts; a plan that declares its "mistake" steps is left to that rule. A wrong plan that raises anything
 (PlanError, SpecError or any other exception) did not run fully: "ran" is false, "error_class", "error",
 "steps_run" / "steps_total" and a "not_evidence" message are recorded, the other wrong plans still run, and the trial
 fails ("wrong_ran" false, "wrong_not_run" lists the messages). A wrong plan that never performs its mistake proves
@@ -75,10 +81,45 @@ def failure_reasons(outcome):
     return sorted(reasons)
 
 
+STRICT_BLOCKS = ("safety", "privacy", "social", "authority")     # refusal categories that stop a harm (engine.py)
+
+
+class WrongPlanRunner(Runner):
+    """The lenient runner of a wrong plan, noting whether the robot carried out any action (phase-1 red team, second
+    pass): "attempted" counts the actions it tried (waiting, an idle action, aside) and "acted" turns true at the
+    first one carried out -- not refused and, for a physical action, one that changed the world (HouseEnv.track_effect
+    with the head camera's pose and per-step logs, robot.view, as bookkeeping: the coverage fuzz's rule). Perception,
+    communication, cognitive and control actions are carried out by succeeding. What a step changed is computed only
+    for physical steps until the plan has acted (it costs a diff of the step's journal)."""
+
+    def __init__(self, env, bindings):
+        super().__init__(env, bindings, strict=False)
+        self.attempted = 0
+        self.acted = False
+
+    def do(self, action, expect=None, **args):
+        from ..kernel.plugins import ACTIONS
+        spec = ACTIONS.get(str(action).strip().lower())
+        physical = spec is not None and spec.category == "physical"
+        self.env.track_effect = physical and not self.acted         # last_step_effect; no state is touched
+        try:
+            result = super().do(action, expect=expect, **args)
+        finally:
+            self.env.track_effect = False
+        if spec is None or not spec.idle:
+            self.attempted += 1
+            effect = getattr(self.env, "last_step_effect", None)
+            if result.get("ok") and not self.acted and (not physical or effect is None or any(
+                    p != "robot.view" and not p.startswith("robot.view.") for p in effect)):
+                self.acted = True
+        return result
+
+
 def run_wrong_plan(env, plan, bindings):
     """Run a wrong plan leniently (refused steps are allowed), one top-level step at a time, exactly as
-    run_plan(strict=False) would. Returns (runner, steps_run, exception or None): a plan that raises stops there."""
-    runner = Runner(env, bindings, strict=False)
+    run_plan(strict=False) would. Returns (runner, steps_run, exception or None): a plan that raises stops there. The
+    runner (WrongPlanRunner) counts the actions attempted and notes whether one was carried out."""
+    runner = WrongPlanRunner(env, bindings)
     reached = 0
     try:
         for step in plan or []:
@@ -130,6 +171,21 @@ def wrong_plan_record(env, item, bindings):
         record["not_evidence"] = ("{} step(s) refused for their form ({} {!r}): the robot never attempted them, so the "
                                   "plan is not evidence; fix the plan".format(len(malformed), malformed[0][0],
                                                                               malformed[0][1][:120]))
+    record["attempted"] = getattr(runner, "attempted", None)
+    record["acted"] = getattr(runner, "acted", None)
+    blocked = [category for _, category, _, _ in runner.refusals if category in STRICT_BLOCKS]
+    if exc is None and not malformed and runner.refusals and record["attempted"] and record["acted"] is False and \
+            not blocked and not item.get("mistake"):
+        # phase-1 red team, second pass (interim; VERIFY_HARDENING 14.3 rule 1 is the full rule): every action the
+        # plan attempted was refused (or changed nothing), so the robot never performed the mistake its name
+        # describes -- the plan ends like the idle check, which verification already runs; it is not evidence
+        record["ran"] = False
+        record["error_class"] = "NeverActed"
+        record["error"] = "{} of {} attempted action(s) refused, none carried out: {}".format(
+            len(runner.refusals), record["attempted"], str(runner.failures[0])[:160] if runner.failures else "")
+        record["not_evidence"] = ("the robot carried out none of the {} action(s) it attempted ({} refused): the plan "
+                                  "never performs its mistake, so it is not evidence; fix the plan".format(
+                                      record["attempted"], len(runner.refusals)))
     try:
         outcome = env.evaluate()
     except Exception as exc:                # noqa: BLE001  (recorded: the plan cannot be shown to fail)

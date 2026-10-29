@@ -133,7 +133,7 @@ def _neighbours(w, target):
                                    "hold_s": {"type": "number", "default": 0.0, "min": 0.0, "max": 300.0},
                                    "distance_m": {"type": "number", "default": 0.25, "min": 0.03, "max": 6.0}},
         duration=lambda ctx: 0.8 * ctx.args["squeezes"] + ctx.args["hold_s"] + 0.5, energy=0.003, noise=0.01, category="physical",
-        timing="commanded",
+        operates=True, timing="commanded",
         doc="Squeeze a held spray bottle (a trigger sprayer: a cleaning spray, a plant mister) or hose nozzle at a "
             "destination (surface, item, person/pet) from distance_m: squeezes for bottles (dose = squeezes x ml per "
             "squeeze), hold_s for nozzles. The cone footprint beyond the target is overspray onto neighbours (electronics "
@@ -245,7 +245,7 @@ def squeeze_trigger(ctx):
 
 @action("pump", params={"target": "entity", "destination": "?target", "strokes": {"type": "int", "default": 1, "min": 1, "max": 200},
                         "force": {"type": "str", "default": "normal", "choices": list(C.FORCES)}},
-        duration=lambda ctx: 1.0 * ctx.args["strokes"] + 0.5, energy=0.004, category="physical",
+        duration=lambda ctx: 1.0 * ctx.args["strokes"] + 0.5, energy=0.004, category="physical", operates=True,
         doc="Work a pump: a soap/lotion/sanitizer dispenser into a receptacle (destination = a person holding out a hand, a "
             "sponge, cloth or sink; none = it drips on the counter); a locked head must be twisted up first (turn part=pump_head "
             "value=unlocked) - forcing it breaks it; an unprimed pump gives air for its first strokes. A floor pump inflates a "

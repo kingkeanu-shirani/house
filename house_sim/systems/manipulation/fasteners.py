@@ -882,14 +882,12 @@ def velcro(ctx):
     tension = ctx.args.get("tension")
     state = {"engaged": True, "overlap_frac": round(overlap, 2), "aligned": bool(ctx.args.get("aligned", True)), "tension": tension}
     m = w.mut(eid)
-    if rec.get("coiled"):
-        coil_state = dict(rec["coiled"])
-        coil_state["secured"] = overlap >= 0.6
-        m["coiled"] = coil_state
-    if rec.get("rolled"):
-        rolled = dict(rec["rolled"])
-        rolled["strapped"] = overlap >= 0.6
-        m["rolled"] = rolled
+    # a coil or roll this domain recorded notes the strap; another domain's flag or word (a garden hose's coiled true,
+    # an extension cord's "loose", a towel's rolled true) stays as its owner wrote it: the strap is the velcro record
+    if isinstance(rec.get("coiled"), dict) and C.coil_of(rec) is not None:
+        m["coiled"] = dict(rec["coiled"], secured=overlap >= 0.6)
+    if isinstance(rec.get("rolled"), dict) and C.roll_of(rec) is not None:
+        m["rolled"] = dict(rec["rolled"], strapped=overlap >= 0.6)
     m["velcro"] = state
     wearer = rec.get("location") if rec.get("location") in w.s.get("people", {}) or rec.get("relation") == "worn" else None
     if wearer and tension == "tight":
@@ -923,9 +921,9 @@ def unvelcro(ctx):
     state.update(engaged=False)
     m = w.mut(eid)
     m["velcro"] = state
-    if rec.get("coiled"):
+    if isinstance(rec.get("coiled"), dict) and C.coil_of(rec) is not None:
         m["coiled"] = dict(rec["coiled"], secured=False)
-    if rec.get("rolled"):
+    if isinstance(rec.get("rolled"), dict) and C.roll_of(rec) is not None:
         m["rolled"] = dict(rec["rolled"], strapped=False)
     return "Separated the strap ({:.0f} dB)".format(db)
 

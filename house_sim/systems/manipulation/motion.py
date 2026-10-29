@@ -1169,8 +1169,8 @@ def _wrap_cord_on_body(ctx, eid, rec):
 
 def uncoil(ctx, eid, rec):
     w = ctx.w
-    coil_state = rec.get("coiled") or {}
-    require(coil_state, "It is not coiled")
+    coil_state = C.coil_of(rec)     # another domain's flag or word ({}): coiled, with no twist this domain recorded
+    require(coil_state is not None, "It is not coiled")
     twist = C.num(coil_state.get("twist_per_loop")) * C.num(coil_state.get("loops"))
     knots = int(twist // 3)
     m = w.mut(eid)

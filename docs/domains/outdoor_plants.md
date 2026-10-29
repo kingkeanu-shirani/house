@@ -12,7 +12,7 @@ Tier-1 adoption round (kernel v3.0 physics, camera and body, v3.1 sweep): sectio
 
 | module | contents |
 |---|---|
-| `common.py` | constants, realistic-perception helpers (`realistic`, `seen_keys`, `drop_keys`, `mass_feel`, `temp_feel`, `fill_word`, `unresolved`, `require_identified`, `gone_refs`, `approx`, `amount_word`, `water_word`, `perceived_liters`; `find_held`/`nearby_entity` take `by_identity`), shared helpers (`set_status`, cached indexes `type_index`/`find_types`/`kids_of_type`/`static_ids`/`outdoor_map`, `reach_with_tool`, weather/wind helpers, `add_spill` (the kernel's spill), `drop_cell`, `pinfo`, house-wall geometry), tier-1 helpers (`visual` visual events, `notice` notices, `seen_cells` the geometric camera's surveyed floor, `soil_hands` / `soil_from` / `gloved` hand soil through the body), harm attribution (`harm`, `robot_caused`, `mark_robot` / `drop_robot`, `ROBOT_MARK`; section 0c) |
+| `common.py` | constants, realistic-perception helpers (`realistic`, `seen_keys`, `drop_keys`, `mass_feel`, `temp_feel`, `fill_word`, `unresolved`, `require_identified`, `gone_refs`, `approx`, `amount_word`, `water_word`, `perceived_liters`; `find_held`/`nearby_entity` take `by_identity`), shared helpers (`set_status`, cached indexes `type_index`/`find_types`/`kids_of_type`/`static_ids`/`outdoor_map` (episode-start builds: `index_reads`, `episode_index`, `episode_types`, `prebuild_indexes`; section 0d), `reach_with_tool`, weather/wind helpers, `add_spill` (the kernel's spill), `drop_cell`, `pinfo`, house-wall geometry), tier-1 helpers (`visual` visual events, `notice` notices, `seen_cells` the geometric camera's surveyed floor, `soil_hands` / `soil_from` / `gloved` hand soil through the body), harm attribution (`harm`, `robot_caused`, `mark_robot` / `drop_robot`, `ROBOT_MARK`; section 0c) |
 | `species.py` | growing media table (saturation / field capacity / wilting point), ~75 species profiles |
 | `weather.py` | weather events, the generation-2 weather process and its forecasts (`process_value`, `process_forecast`, `forecast_for`), rain/thunder notices, forecast observer, wind (loose things through the kernel's `environment.wind_effect`; umbrellas, covers, plant covers and leaf piles this domain's; `rest_cell`: where a blown thing comes to rest), rain/snow wetting, drying, mildew, drip trails, `phys.exposed`, outdoor haze for the geometric camera |
 | `plants.py` | container water balance, light/heat zones, plant status, health/pests/lean, inspector, answerer, one-time derivation |
@@ -207,7 +207,43 @@ in their own modes (15/15), the perception file with `--camera geometric` (3/3),
 geometric (12/12, was 10/12) and with the three laws forced (15/15); `tools/perception_audit.py 20 80 --verbose` 0
 leaks in both camera modes; `tools/layout_audit.py 20 --domain outdoor_plants` 0 problems (generation 1 and 2). Still
 ready to flip: wind, rain, slope. The wind pass costs 0.15-0.23 ms per 30 s substep at 10 m/s gusts and 0.4-0.5 ms in
-a 25 m/s gale on generation-2 houses.
+a 25 m/s gale on generation-2 houses (before the phase-1 finish, 0d).
+
+## 0d. Phase 1 finish (2026-10-28)
+
+The integrator's breakage rows for this domain (catalog/analysis/phase1/breakages.json; no red-team finding in
+red_defects.json / red_leaks.json is this domain's), each with a regression test in `tests/test_outdoor_plants.py`
+`Phase1FinishTests` (handoff: catalog/analysis/phase1/finish_outdoor_plants.json).
+
+| Finding | Root cause | Fix |
+|---|---|---|
+| Holder flags: kernel pours, spills, drips and rain pool liquid in the firewood rack and the skimmer basket | `phys.liquids.holds_liquid` follows plumbing's liquid-tightness rule, and the slotted `skimmer_basket` carried none of its flags | `skimmer_basket` has `holes_mm` (its slotted walls and floor): kernel liquid drains through it (`drains_through`), as the pool water does. The `firewood_rack` already carries `open_shelving` (the kernel's `liquid_tight` reads it: not a holder; pinned by the test, no data change, so no digest change for the 11 pinned generation-1 houses with a rack). The skimmer basket is furnished in 13 of the 60 pinned generation-1 houses: their digests and the goldens of pool houses change (the main session's re-record) |
+| G7: the P1 gate's substep cost 3.85 ms against ADOPT's 3.21; this domain's share +0.19 ms | (1) the kernel's step-start read views (review M3) made each first static-index build inside a substep about three times dearer, and the first slow tick of every episode built about 20 of this domain's indexes (`own_drying` made 25 type tests per record: 3.7 ms per house); (2) the deferred wind copy ran exposure hooks, footprints, doorway clearance and a rest-cell probe for every loose outdoor thing on every substep with gusts of 6 m/s or more before the kernel's model said none of them moves, built the children map up front and a set of all 500-odd wind candidates in the house every substep | (1) every index the systems, idle probes and invariants look up in an episode is registered (`C.episode_index`, `C.episode_types`, declared reads `C.index_reads`) and built by `C.prebuild_indexes` at episode start (order -70, before any hook writes: the World evaluates declared-read predicates on the plain records); `own_drying` is two set tests; the slow weather tick walks one index (`slow_weather`, was two whose union it walked). (2) `_object_wind` checks the kernel's own cheap bound first (`weather.kernel_cannot_move`, term for term the kernel's private `_cannot_move`, pinned to it by the test; `wind_effect` returns at that bound without a write), the children map is built just before the pass's first possible write (so it is still the map of the state the pass started from), the wind candidates are bisected in the sorted static index |
+
+Nothing any system computes changed: an index's content is a pure function of the state, and the wind pass makes the
+same calls in the same order wherever anything can happen. Checked on two copies of the tree that differ only in this
+domain's code: 128 scenario runs (generation 1 and 2, seeds 0-5, 41, 97; calm, breezy, windy, gale, storm and freezing
+weather; wind and rain laws deferred and forced; 2 h each) give identical state digests every 30 minutes (15 of them
+blow, tip or tear things), and `tools/golden.py dump --all` (the reference plan of all 243 authored specs on seed 0
+and the 8 fixed-script runs, oracle and realistic) is identical (275 files, 0 changed).
+
+Measured on the bench houses (`tools/bench_systems.py 40 0 1 2 3` loop, best of 3, this domain's systems): 0.413 ms
+per substep before, 0.108 after (seed 2, gusts 7.5 m/s: the wind pass 0.27 -> 0.11 ms per substep); the episode-start
+hooks cost 2.1 ms more per episode (4.1 -> 6.2 ms; the reset itself is unchanged within noise), so an episode's
+reset plus its first 20 simulated minutes cost this domain 20.7 ms before and 10.5 ms after. A profiled 1 h wait
+(engine, idle probes on, seeds 0-3): this domain's systems and probes 133 -> 39 ms per house (profiler time).
+
+Found here, not changed (kernel request): the kernel's `holds_liquid` also accepts plant pots, nursery pots and seed
+trays, so a kernel pour, drip or overflow into a pot pools `liquid_l` that the pot's soil-water model (`medium`,
+`drainage_hole`) never reads; tagging pots as draining would send the water past the soil instead (and change nearly
+every pinned house), so it needs a kernel hook that lets this domain take liquid arriving in a holder it models itself.
+
+Verified (phase-1 finish): the 147 unit tests pass in all three modes (all domains, `HOUSE_SIM_STRICT=1`,
+`HOUSE_SIM_DOMAINS=core,outdoor_plants`: 1 skipped); both spec files pass on 5 seeds in their own modes (12/12, 3/3),
+the perception file with `--camera geometric` (3/3) and the examples forced to realistic + geometric (12/12);
+`tools/perception_audit.py 20 80 --verbose` 0 leaks and 0 crashes in both camera modes; `tools/layout_audit.py 20
+--domain outdoor_plants` 0 problems (generation 1: 120 houses; generation 2: 220 houses, 0 domain follow-ups);
+`tools/fuzz.py --coverage` 0 defects, 0 nondeterministic replays.
 
 ## 1. Model overview
 
@@ -221,9 +257,11 @@ a 25 m/s gale on generation-2 houses.
   (`C.type_index`/`C.find_types`/`C.kids_of_type`/`C.static_ids` over type/is_a/category/static flags,
   kernel `w.static_index`) and re-check dynamic fields; rain/wind iterate `C.outdoor_map(w)` (entities whose
   root room is outdoors, one pass cached on the World until the robot's next step, an entity create/destroy
-  or 600 s). Plant light/zone-temperature/neighbour lookups are memoized inside a slow tick. Measured with
-  `python tools/bench_systems.py 40 0 1 2 3 --domain outdoor_plants`: ~0.2 ms per 30 s substep for the whole
-  domain (calm weather; ~0.7 ms during a storm), down from ~17 ms.
+  or 600 s). Plant light/zone-temperature/neighbour lookups are memoized inside a slow tick. Every static index the
+  systems, idle probes and invariants look up in an episode is built at episode start on the plain records
+  (`C.prebuild_indexes`; a new one: register it with `C.episode_index` / `C.episode_types` and declare its reads with
+  `C.index_reads`). Measured with `python tools/bench_systems.py 40 0 1 2 3 --domain outdoor_plants`: ~0.1 ms per
+  30 s substep for the whole domain (phase-1 finish, 0d; ~0.7 ms during a storm), down from ~17 ms.
 * **Hidden truth vs evaluation**: hidden facts live in `secret_fields` or `_`-prefixed keys (never observed).
   Derived evaluation fields live in each entity's `_op_status` dict (lawns also keep `_eval`). They are
   refreshed by the domain's systems at slow ticks and by every domain action/hook that changes them;
@@ -480,7 +518,7 @@ registered as `spread_granular` to avoid a duplicate registration.
 | `outdoor_plants.weather_process` | 43 | every substep; idle probe | generation 2: copies the default weather process's value at the current time into `state.weather` when it changed (rain and thunder notices), unless a scripted weather set `override_until_s`; idle without a process or under an override |
 | `outdoor_plants.derive` | 44 | every substep (O(1)); idle probe | fallback only: computes `_op_status`/`_eval` once if the `episode_start` hook did not (metadata flag) |
 | `outdoor_plants.weather` | 45 | every substep; idle probe | rain/snow wetting, rain totals, cover pooling (only while it rains/snows); wind on umbrellas, covers, plant covers, leaf piles and loose objects (gust >= 6 m/s, objects >= 8; loose objects only while the kernel's wind law is deferred); outdoor haze (geometric camera); iterates `outdoor_map` only; idle when dry, gusts under 6 m/s and no haze to update |
-| `outdoor_plants.weather_slow` | 46 | 600 s | rain-total decay, freezing/melting of paving, drying of own items, mildew (wet + enclosed 48 h), stored-wet status; candidates = own-drying + surface static indexes |
+| `outdoor_plants.weather_slow` | 46 | 600 s | rain-total decay, freezing/melting of paving, drying of own items, mildew (wet + enclosed 48 h), stored-wet status; candidates = the `slow_weather` static index (own-drying types and surfaces) |
 | `outdoor_plants.plants` | 120 | 600 s | pot water balance (ET, evaporation, rain, saucer wick), in-ground root zone water, health, pests, lean, plant status |
 | `outdoor_plants.garden` | 122 | 600 s | bed water/evaporation/rain, covers, weed regrowth, germination, hardening off, chill of tray seedlings |
 | `outdoor_plants.lawn` | 124 | every substep; idle probe | irrigation controllers (`irrigation_controller` static index) and running emitters (`irrigation_emitter`/sprinkler static index); idle with no controller this domain drives and no emitter running |

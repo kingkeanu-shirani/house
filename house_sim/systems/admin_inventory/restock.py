@@ -9,7 +9,7 @@ from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, hook
 from ..core import add_soil, release_from_hands
-from .common import admin_facts, drop_cell, held_with, indexed, slug
+from .common import admin_facts, drop_cell, held_with, indexed, reads, slug
 from .perceive import approx_litres, count_seen, dumps, name_of, render, spill_words
 
 VISCOUS = {"hand_soap": 0.04, "foaming_hand_soap": 0.08, "dish_soap": 0.04, "lotion": 0.02, "shampoo": 0.04,
@@ -452,10 +452,12 @@ CONSUMPTION = {"toilet_paper_roll": 0.4, "paper_towel_roll": 0.15, "hand_soap_l"
 ROLL_PARTS = ("toilet_paper_roll", "paper_towel_roll")
 
 
+@reads("part_type")
 def _is_roll(record):
     return record.get("part_type") in ROLL_PARTS
 
 
+@reads("part_type", "dispenser", "liquid_container", "tissues")
 def _is_consumable(record):
     """Static predicate: rolls, dispensers and tissue boxes (their levels and placement are dynamic)."""
     return record.get("part_type") in ROLL_PARTS or bool(record.get("dispenser") and record.get("liquid_container")) or \

@@ -65,7 +65,7 @@ def _shell_to_hand(w, ctx, egg_id, grams):
 
 @action("crack_egg", params={"target": "entity", "destination": "entity", "surface": "?str:flat|rim|edge",
                              "force": "?str:gentle|normal|hard"},
-        duration=C.duration(6.0), irreversible=True, noise=0.05,
+        duration=C.duration(6.0), irreversible=True, operates=True, noise=0.05,
         doc="Crack a held egg on a flat surface (or a bowl rim / counter edge, which drives shell shards in) and open it "
             "into the destination bowl. You are left holding the shell. Crack into a small separate bowl first so one bad "
             "egg cannot ruin the batch.")
@@ -118,7 +118,7 @@ def crack_egg(ctx):
 
 @action("separate_egg", params={"target": "entity", "whites_to": "entity", "yolk_to": "entity",
                                 "method": "?str:shell|separator|hand"},
-        duration=C.duration(15.0), irreversible=True, noise=0.03,
+        duration=C.duration(15.0), irreversible=True, operates=True, noise=0.03,
         doc="Separate a held egg: white into whites_to, yolk into yolk_to, by passing between shell halves (sheds shell "
             "edge shards), with an egg separator set on the whites bowl, or through the fingers. A weak yolk can break and "
             "leak fat into the whites; use a small bowl for each white before adding it to the main whites (3-bowl method).")
@@ -247,7 +247,7 @@ def _mix_common(ctx, capability, method_default, verb):
 
 @action("whisk", params={"target": "entity", "tool": "?entity", "strokes": {"type": "int", "default": 60, "min": 1, "max": 3000},
                          "speed": "?str:slow|medium|fast", "method": "?str:whisk|beat|whip|emulsify|fold"},
-        duration=C.duration(30.0), irreversible=True, noise=0.15,
+        duration=C.duration(30.0), irreversible=True, operates=True, noise=0.15,
         doc="Whisk/beat/whip the contents of a bowl with a held whisk or fork: beat eggs until no white strands, whip cream "
             "or whites to soft (0.45) / stiff (0.7) peaks and stop before over-whipping (>1.05), emulsify a vinaigrette. "
             "Use a deep bowl; fast whisking in a shallow or over-full vessel splashes.")
@@ -260,7 +260,7 @@ def whisk(ctx):
 
 @action("mix", params={"target": "entity", "tool": "?entity", "strokes": {"type": "int", "default": 30, "min": 1, "max": 3000},
                        "speed": "?str:slow|medium|fast", "method": "?str:stir|fold|beat|cream|cut_in"},
-        duration=C.duration(30.0), irreversible=True, noise=0.1,
+        duration=C.duration(30.0), irreversible=True, operates=True, noise=0.1,
         doc="Combine everything in a bowl (spatula/spoon/whisk): stir, fold (gentle, keeps air), beat, cream (soft butter + "
             "sugar), cut_in (cold fat into flour). Batter is done when no dry pockets remain; more work develops gluten "
             "(muffins turn tough above 0.35). Order of additions is recorded for recipe checks.")
@@ -273,7 +273,7 @@ def mix(ctx):
 
 @action("stir", params={"target": "entity", "tool": "?entity", "strokes": {"type": "int", "default": 10, "min": 1, "max": 600},
                         "speed": "?str:slow|medium|fast", "scrape_bottom": {"type": "bool", "default": True}},
-        duration=C.duration(10.0), irreversible=True, noise=0.05,
+        duration=C.duration(10.0), irreversible=True, operates=True, noise=0.05,
         doc="Stir a bowl or pot with a heat-safe utensil: evens out temperature (no cold centre after microwaving), stops "
             "scorching on the heat (stir every ~3 min). Scraping an already-burnt bottom mixes burnt flavour through. Fast "
             "stirring of a full pot sloshes; metal utensils scratch nonstick.")
@@ -339,7 +339,7 @@ def stir(ctx):
 
 @action("knead", params={"target": "entity", "minutes": {"type": "number", "default": 8, "min": 0.5, "max": 30},
                          "added_flour_g": {"type": "number", "default": 0, "min": 0, "max": 500}},
-        duration=C.duration(480.0), irreversible=True, noise=0.1, timing="commanded",
+        duration=C.duration(480.0), irreversible=True, operates=True, noise=0.1, timing="commanded",
         doc="Knead dough by hand on a lightly floured surface with both hands free (~8-10 min). Gluten develops until it "
             "passes the windowpane test; extra flour lowers hydration (dry, stiff dough). Cover it afterwards to proof.")
 @P.perceived_result
@@ -383,7 +383,7 @@ def knead(ctx):
 @action("roll_dough", params={"target": "entity", "tool": "?entity", "thickness_mm": {"type": "number", "default": 4.0, "min": 1.0, "max": 30.0},
                               "rotate": {"type": "bool", "default": True}, "flour_g": {"type": "number", "default": 8, "min": 0, "max": 200},
                               "passes": {"type": "int", "default": 10, "min": 1, "max": 60}},
-        duration=C.duration(120.0), irreversible=True, noise=0.05,
+        duration=C.duration(120.0), irreversible=True, operates=True, noise=0.05,
         doc="Roll dough on a floured surface with a held rolling pin to an even thickness, rotating a quarter turn between "
             "passes (else an oval with thin edges). Butter-rich pastry above ~15 C sticks and tears; heavy flouring toughens.")
 @P.perceived_result
@@ -432,7 +432,7 @@ def roll_dough(ctx):
                          "count": {"type": "int", "default": 1, "min": 1, "max": 48}, "destination": "?entity",
                          "method": "?str:scale|eyeball", "spacing_mm": {"type": "number", "default": 50, "min": 0, "max": 200},
                          "seam": "?str:down|up", "fold_ends": {"type": "bool", "default": True}},
-        duration=C.duration(60.0), irreversible=True, noise=0.03,
+        duration=C.duration(60.0), irreversible=True, operates=True, noise=0.03,
         doc="Divide and shape dough into count pieces on a tray (method=scale weighs each piece: +/-2 %; eyeballing drifts "
             "+/-20 %), seam down, laid out spacing_mm apart; or fold a warmed tortilla around the filling resting on it "
             "(wrap/burrito with ends folded, taco). Cold tortillas crack; overfilling bursts.")
@@ -454,7 +454,8 @@ def shape(ctx):
     method = ctx.args.get("method") or "eyeball"
     if method == "scale":
         require(any(w.ent(e).get("tool_kind") == "kitchen_scale" and w.ent(e).get("on") for e in sorted(w.s["entities"])
-                    if ctx.visible(e) and geometry.reach_problem(w.s, e) is None), "A switched-on kitchen scale within reach is needed", "precondition")
+                    if ctx.visible(e) and geometry.reach_problem(w.s, e) is None and not P.unfamiliar(ctx.env, e)),
+                "A switched-on kitchen scale within reach is needed", "precondition")
     total = M.qty(rec)
     if float(f.get("skin", 0.0)) > 0.6:
         tear = True
@@ -562,7 +563,7 @@ MESH_MM = {"colander": 4.0, "sieve": 1.0, "fine_mesh_sieve": 0.5, "strainer": 1.
 @action("strain", params={"target": "entity", "destination": "entity", "tool": "?entity", "keep": "?str:solids|liquid",
                           "reserve_ml": {"type": "number", "default": 0, "min": 0, "max": 2000}, "reserve_to": "?entity",
                           "pour_direction": "?str:away|toward"},
-        duration=C.duration(30.0), irreversible=True, noise=0.2,
+        duration=C.duration(30.0), irreversible=True, operates=True, noise=0.2,
         doc="Pour a pot/bowl through a colander, sieve or cheesecloth set in the destination (a bowl to keep the liquid, or "
             "the sink to discard it). Solids larger than the mesh stay in the strainer; reserve_ml of liquid can be kept back "
             "into reserve_to first. Fat/grease must never go down a drain.")
@@ -580,7 +581,7 @@ def strain(ctx):
         trec = ctx.obj(tool_id, touch=True)
     else:
         tool_id = next((c for c in w.children(dest) if w.ent(c).get("tool_kind") in MESH_MM), None) or \
-            next((h for h in w.held_items() if w.ent(h).get("tool_kind") in MESH_MM), None)
+            next((h for h in C.held_known(ctx) if w.ent(h).get("tool_kind") in MESH_MM), None)
         require(tool_id, "Set a colander or sieve in the sink/bowl first", "precondition")
         trec = w.ent(tool_id)
     require(trec.get("tool_kind") in MESH_MM, "That is not a strainer", "argument")
@@ -669,7 +670,7 @@ def strain(ctx):
 
 @action("sift", params={"target": "entity", "destination": "entity", "tool": "?entity",
                         "amount_g": {"type": "number", "default": 0, "min": 0, "max": 3000}},
-        duration=C.duration(40.0), irreversible=True, noise=0.05,
+        duration=C.duration(40.0), irreversible=True, operates=True, noise=0.05,
         doc="Sift flour/cocoa/powdered sugar through a held sifter or sieve into the destination bowl: lumps > 1 mm are "
             "removed and the powder is aerated (lighter per cup: '1 cup sifted flour' ~110 g vs '1 cup flour, sifted' 125 g).")
 @P.perceived_result
@@ -712,7 +713,7 @@ def sift(ctx):
 
 @action("marinate", params={"target": "entity", "marinade": "entity", "destination": "entity",
                             "amount_ml": {"type": "number", "default": 0, "min": 0, "max": 2000}},
-        duration=C.duration(30.0), irreversible=True, noise=0.02,
+        duration=C.duration(30.0), irreversible=True, operates=True, noise=0.02,
         doc="Put food and marinade together in a non-reactive container or zip bag (destination); then close it and "
             "refrigerate. Acid turns fish mushy after ~1 h; aluminium reacts with acid; raw-meat marinade becomes "
             "contaminated and must be discarded or boiled before serving.")
@@ -776,7 +777,7 @@ PINCH_G = {"salt": 0.36, "kosher_salt": 0.3, "ground_black_pepper": 0.1, "sugar"
 @action("season", params={"target": "entity", "seasoning": "entity", "amount_g": {"type": "number", "default": 0, "min": 0, "max": 200},
                           "pinches": {"type": "int", "default": 0, "min": 0, "max": 50}, "shakes": {"type": "int", "default": 0, "min": 0, "max": 100},
                           "turns": {"type": "int", "default": 0, "min": 0, "max": 200}, "tool": "?entity"},
-        duration=C.duration(5.0), irreversible=True, noise=0.02,
+        duration=C.duration(5.0), irreversible=True, operates=True, noise=0.02,
         doc="Season a food, a pot or a single plated portion from a shaker (shakes), pepper mill (turns), salt cellar "
             "(pinches) or jar with a held measuring spoon (amount by the spoon's volume). What goes in is whatever the "
             "container really holds. A loose shaker lid dumps; shaking over a steaming pot clumps the shaker.")
@@ -854,7 +855,7 @@ def season(ctx):
 @action("coat", params={"target": "entity", "coating": "entity", "method": "?str:dredge|dip|toss|brush|rub|spread|press|grease",
                         "tool": "?entity", "amount_g": {"type": "number", "default": 0, "min": 0, "max": 500},
                         "shake_off": {"type": "bool", "default": True}},
-        duration=C.duration(12.0), irreversible=True, noise=0.02,
+        duration=C.duration(12.0), irreversible=True, operates=True, noise=0.02,
         doc="Coat food (or grease a pan/tray) from a coating source: dredge in flour, dip in egg wash or batter, press into "
             "crumbs, toss in oil/sauce, brush, rub spices, or spread butter/peanut butter/jam/frosting with a held knife or "
             "spatula (method=spread). Pat wet food dry first; flour before egg before crumbs; cold butter tears bread; "

@@ -153,12 +153,15 @@ def snake_drain(ctx):
     return "Snaked the drain: now {}{}".format(w.ent(eid).get("drain_speed"), ": " + "; ".join(notes) if notes else "")
 
 
+@C.per_step_index("clogged_drains")
+@C.index_reads("_clog", "plumb")
 def _has_clog(rec):
     """Static: a clogged drain this domain fills and overflows -- not a basin the plumbing domain simulates (a `plumb`
     record: its fill, drain rate and overflow are plumbing's, which reads the same `_clog`)."""
     return isinstance(rec.get("_clog"), dict) and not isinstance(rec.get("plumb"), dict)
 
 
+@C.index_reads("water_source", "category")
 def _water_fixture(rec):
     """Static: things that can run water into a basin (faucets, spigots, showerheads)."""
     return bool(rec.get("water_source")) or rec.get("category") in ("faucet", "spigot", "shower", "showerhead", "tub_spout")
@@ -332,6 +335,8 @@ def _valve_changed(ctx, eid, name, old, new):
             refresh_toilet(w, eid)
 
 
+@C.per_step_index("toilets")
+@C.index_reads("_tank")
 def _has_tank(rec):
     return isinstance(rec.get("_tank"), dict)
 
@@ -463,6 +468,8 @@ def _hopper_cleared(ctx, result):
             w.mut(did)["_jam"]["object"] = None
 
 
+@C.per_step_index("disposals")
+@C.index_reads("_jam")
 def _has_jam(rec):
     return isinstance(rec.get("_jam"), dict)
 
@@ -543,14 +550,16 @@ def disposal_system(w, dt, tick):
         if obj and (obj not in w.s["entities"] or w.ent(obj).get("location") != eid):
             w.mut(eid)["_jam"]["object"] = None
             obj = None
-        if not obj and not jam.get("jammed"):
-            hard = _hard_in_hopper(w, eid)
-            obj = hard[0] if hard else None
         live = disposal_live(w, eid) and not rec.get("thermal_tripped")
         if not live:
             if rec.get("running"):
                 w.mut(eid)["running"] = False
             continue
+        if not obj and not jam.get("jammed"):
+            # what lies in the hopper matters only to a running plate (G7: the children scan of every entity ran for
+            # every disposal on every substep, switched off or not)
+            hard = _hard_in_hopper(w, eid)
+            obj = hard[0] if hard else None
         if jam.get("jammed") or obj:
             m = w.mut(eid)
             m["humming_s"] = C.rnd(float(m.get("humming_s", 0.0)) + dt, 1)

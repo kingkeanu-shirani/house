@@ -135,6 +135,8 @@ def hazard_cues(w, eid, record, details, ctx):
         for key in ("visible", "cue"):
             if marker.get(key):
                 details["observed"] = marker[key]
+    if C.unfamiliar(ctx, eid, record):
+        return          # an unfamiliar thing: no alarm state, battery indicator or gauge its type would imply (review I4)
     if AL.is_detector(record):
         details["alarm_state"] = record.get("alarm_state", "idle")
         charge = AL.battery_charge(state, record)

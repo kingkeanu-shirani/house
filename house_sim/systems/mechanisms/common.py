@@ -116,6 +116,14 @@ def tags(rec):
     return {rec.get("type"), rec.get("category"), rec.get("part_type")} | set(rec.get("is_a") or []) | set(rec.get("tags") or [])
 
 
+# every word kind_of's inference below tests in tags(rec) (the category is one of the tags): a record none of whose tags
+# is one of these has no inferred kind. The check reads the same fields as tags() without building the set, so the
+# static indexes over kind_of (doors, closers, windows, pet doors, ...) and every mget skip most records at a fraction
+# of the cost (phase-1 G7)
+_KIND_WORDS = frozenset(("garage_door", "gate", "sliding_door", "hatch", "pet_door", "door", "window", "drawer",
+                         "high_chair", "curtain", "blind", "shutter", "cabinet", "wardrobe", "closet"))
+
+
 def kind_of(rec):
     """Mechanism kind of an entity record (explicit mech.kind, else inferred from its type)."""
     if not rec:
@@ -123,6 +131,10 @@ def kind_of(rec):
     m = rec.get("mech") or {}
     if m.get("kind"):
         return m["kind"]
+    if rec.get("type") not in _KIND_WORDS and rec.get("category") not in _KIND_WORDS and \
+            rec.get("part_type") not in _KIND_WORDS and _KIND_WORDS.isdisjoint(rec.get("is_a") or ()) and \
+            _KIND_WORDS.isdisjoint(rec.get("tags") or ()):
+        return None
     t = tags(rec)
     cat = rec.get("category")
     if "garage_door" in t:
@@ -432,6 +444,18 @@ def domain_module(domain, module=None):
     return sys.modules.get("house_sim.systems." + domain + ("." + module if module else ""))
 
 
+def pets_own_escapes():
+    """The pets domain is loaded: it owns the pet-escape draws -- a loose pet slipping out through an open passage
+    (pets.agents), a cat through an open unscreened window (pets.exposure) and the door dash when the robot opens a door
+    (pets.behavior after open, pull_handle and push_handle) -- so this domain's own draws for them stand down
+    (world._pets, closures._door_dash): both at once would draw and count the same hazard twice (review M4; phase-1
+    breakage). The
+    escapes this domain's own mechanics cause (a dog pushing through an unlatched gate in a load test) still happen here
+    and go through pets' escape path with this domain's attribution (closures.escape). Standalone, this domain models
+    them all."""
+    return domain_module("pets", "behavior") is not None
+
+
 def agent_moved(w, group, aid):
     """A pet this domain moved by script (an event, a dash under a closing door): with the pets domain loaded its hiding
     and view fields follow at once (pets.common.sync_hidden), not only at pets' next tick (adoption breakage)."""
@@ -541,9 +565,28 @@ INDEXES = {
 }
 
 
+# every record field each predicate can read (World.static_index reads=; strict mode checks the declaration): with
+# nothing journaled the World evaluates a declared-read predicate on the plain record instead of a read view
+KIND_READS = ("mech", "type", "category", "part_type", "is_a", "tags", "window_kind", "openable")     # kind_of
+INDEX_READS = {
+    "doors": KIND_READS, "overhead": KIND_READS, "windows": KIND_READS, "coverings": KIND_READS, "curtains": KIND_READS,
+    "sills": ("category",), "pet_doors": KIND_READS, "alarms": KIND_READS, "photo_eyes": ("category",),
+    "gas": ("mech",), "ui": ("ui",), "panels": ("panel",), "heat": ("open_flame", "flame", "heat_source"),
+    "heat_watch": ("mech",), "paint": ("paint",), "glare": ("glare_from",), "sun_windows": ("mech",),
+    "in_path": ("in_path_of",),
+    "closers": KIND_READS + ("self_closing",), "wedges": ("wedge", "doorstop"),
+    "child_lock_hosts": ("openable", "slots", "child_lock", "mech"),
+}
+# the indexes looked up on every substep (the time systems and their idle probes) or at every episode start: built by
+# world._prebuild_indexes before any episode-start hook writes, on the plain records (phase-1 G7: through the kernel's
+# read views (review M3) the first lookups inside the first substep cost several times a plain build)
+PER_SUBSTEP_INDEXES = ("closers", "doors", "overhead", "gas", "ui", "pet_doors", "alarms", "heat", "paint", "glare",
+                       "sun_windows", "panels")
+
+
 def ids(w, name):
     """Sorted ids for one of the domain's static indexes (see INDEXES)."""
-    return w.static_index("mechanisms." + name, INDEXES[name])
+    return w.static_index("mechanisms." + name, INDEXES[name], reads=INDEX_READS[name])
 
 
 def ids_for(state, name, world=None):

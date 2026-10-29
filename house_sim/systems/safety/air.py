@@ -161,6 +161,9 @@ def apply_sources(w, dt, sources):
             add_odor(w, rid, odor["class"], float(odor["rate"]) * dt / max(1.0, vol / 40.0) * factor)
 
 
+@C.per_substep_index("air_sources")
+@C.index_reads("_gas_leak", "_co_source", "_odor", "type", "is_a", "ac_kind", "category", "safety_burner", "fuel",
+               "gas_appliance")
 def _maybe_source(rec):
     """Static superset of air sources: entities with a leak/CO/odor marker when indexed, and anything that can gain one
     at runtime (burners and fuel-burning appliances: appliances_cooking marks unlit gas flow / sooty flames on burners)."""

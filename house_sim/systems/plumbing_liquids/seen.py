@@ -15,6 +15,8 @@ Senses and instruments of this domain:
 Flow rates (L/min, a measuring cup and a timer), dissolved products (test strips), grams of ice (a scale) and the
 age of standing water are never shown by looking.
 """
+from ...kernel.actions import NOVEL_OPERATE_MESSAGE
+from ...kernel.errors import ActionError
 from ...kernel.realism import FILL5, TEMP6, WET3, _bucket
 from . import common as C
 
@@ -24,6 +26,34 @@ LIQUID_THERMOMETER_KINDS = ("liquid", "probe", "bath")
 
 def realistic(ctx):
     return ctx is not None and bool(getattr(ctx, "realistic", False))
+
+
+def can_touch(ctx, eid):
+    """True when a hand can be on eid now (the kernel's grant gate for a touch, Realism.grant_problem: within reach,
+    held, or passed within reach on this step's walk). A feel -- a hand in the stream, on the vessel, pressing a damp
+    board -- is reported and granted only then: a close look from afar feels nothing (and strict mode never sees a
+    refused touch grant; cleaning's phase-1 request)."""
+    realism = getattr(getattr(ctx, "env", None), "realism", None)
+    gate = getattr(realism, "grant_problem", None) if realism is not None else None
+    if gate is None:
+        return True
+    from ...kernel.actions import motion_records
+    return gate(ctx.w.s, eid, "touch", ctx.w, motion_records(ctx)) is None
+
+
+def refuse_novel(ctx, *ids):
+    """The kernel's one refusal for an unfamiliar (novel) thing the robot has not identified (review I4, kernel
+    NOVEL_OPERATE_MESSAGE): liquid verbs do not work one as a tap, dispenser, ice bin or vessel, whatever it really is,
+    so fill's source and the destination of a pour or an empty never answer by its true type (the phase-1 red team's
+    novel sweep: fill said "Hold the container you are pouring from" for a kettle and a bleach jug, "That is not a water
+    or liquid source" for the rest). The action's own target is the kernel's (operates=True). No-op in oracle mode."""
+    realism = getattr(getattr(ctx, "env", None), "realism", None)
+    if realism is None:
+        return
+    entities = ctx.w.s["entities"]
+    for eid in ids:
+        if isinstance(eid, str) and eid in entities and realism.novel_unidentified(eid, entities[eid]):
+            raise ActionError(NOVEL_OPERATE_MESSAGE, "precondition")
 
 
 def env_realistic(env):

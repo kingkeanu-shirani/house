@@ -79,6 +79,13 @@ domain: 0.39 ms for all safety systems, 5.3 ms for the whole engine).
   furniture layout). The kernel keeps every index current (World.static_index contract, review M3): an entity whose
   record changes a field a predicate reads is re-judged from the next step on (a pan oil is poured into, a flashlight
   switched on, a bin that starts to smell; `Phase1Stabilise.test_safety_static_indexes_see_fields_gained_at_run_time`).
+  The eighteen indexes the systems look up every substep (`common.PREBUILT`: air_sources, alarm_panels, biohazards,
+  chemicals, cookware, detectors, device_heat, fires, glassy, liquid_holders, noisy, pests, puddles, safety_burners,
+  short_cells, traps, unattended_watch, windows) declare every field their predicates can read (`common.index_reads`;
+  strict mode checks the declaration on each evaluation) and are built by an `episode_start` hook at order -100,
+  before any other hook writes, so the World evaluates them on the plain records instead of through a read view per
+  entity in the first substep (section 13, G7). `sindex` returns a copy of the kernel's list (the World applies
+  creations and destructions at once; strict mode checks that every id exists).
 * **Perception (`visible_veto`)**: unspotted glass slivers and unspotted puddles are invisible to observation AND to
   every action's visibility check until spotted (look closely, crouched, in good light; or come close enough).
 
@@ -86,7 +93,7 @@ domain: 0.39 ms for all safety systems, 5.3 ms for the whole engine).
 
 | Group | Types | Key fields |
 |---|---|---|
-| Fire | `fire` (attached to its fuel) | public `hrr_kw`, `flame_height_m`, `stage` incipient/growing/developed/out, `fire_class` A/B/C/K, `smothered`, `covered_by`; hidden `_alpha` (NFPA slow 0.003 / medium 0.012 / fast 0.047 / ultra-fast 0.188 kW/s2), `_peak_kw`, `_fuel_mj`, `_ember`, `_seeded` |
+| Fire | `fire` (attached to its fuel) | public `hrr_kw`, `flame_height_m`, `stage` incipient/growing/developed/out, `fire_class` A/B/C/K, `smothered`, `covered_by`; hidden `_alpha` (NFPA slow 0.003 / medium 0.012 / fast 0.047 / ultra-fast 0.188 kW/s2), `_peak_kw`, `_fuel_mj`, `_ember`, `_seeded`, `_by` ("exogenous" on the household's fires only, section 5) |
 | Extinguishers | `fire_extinguisher` (5 lb ABC, 2.3 kg agent, 2-A:10-B:C, 14 s, range 1.5-4.5 m), `fire_extinguisher_compact` (2.5 lb, 1-A:10-B:C, 9 s), `co2_extinguisher` (B:C, 1-2.5 m, no residue), `water_extinguisher` (2-A only), `kitchen_k_extinguisher` (wet chemical, class K) | `agent`, `agent_kg`, `agent_left_kg`, `discharge_s`, `range_m`, `pin_in`, `tamper_seal`, `gauge` green/red, `aimed_at`, `aim_point` |
 | Smothering | `fire_blanket` (1.2 x 1.2 m), `stove_baking_soda` (454 g box; ~0.006 kg per kW / efficiency) | `cover`, `cover_d_m`, `agent` |
 | Gas | `gas_meter` (outdoor main, quarter-turn, wrench), `appliance_gas_valve` | `valve` open/closed, `needs_tool` wrench |
@@ -196,7 +203,10 @@ and pet exposure all scale with the elapsed dt; standing water is checked about 
   `surface_temp_c`, `feels`, `vents`, `condition`; puddles `liquid`, `smell`, `area_m2`, `depth_mm`,
   `seems_to_come_from`; floor closely: `glass_spotted`, `puddles_spotted`; toppled furniture `orientation`, `anchor`,
   `under`; gates (closely) push test; people `condition` signs, responsiveness, what they say; pests species cues;
-  doorbell camera view; sump pump `running`.
+  doorbell camera view; sump pump `running`. Realistic mode: an unfamiliar (novel) thing the robot cannot identify
+  gets none of the extras its type implies (`common.unfamiliar`: no alarm state, battery indicator or end of life, no
+  gauge, pin or agent, no vents or wear, no gate test, doorbell view, pest cues, bottle fill or furniture pose; review
+  I4) -- only what the senses give any thing: a hiss, a smell, an observed cue, defects, how warm it feels.
 
 ## 4a. What the robot can perceive (realistic perception, kernel v2.4-v2.8)
 
@@ -250,8 +260,9 @@ labelled bottle and leaves the blank-labelled one an "unidentified cleaning prod
 nothing else on it is legible). `floor_liquid` ("puddle of liquid", kind "puddle", resolve **inspect**: water, soapy
 water, oil film, juice, coffee; urine stays out: a urine spill is a biohazard record with visible soil and is never
 hidden the way clear water is, so it would not look the same anyway). `spider` (kind "spider", resolve **inspect**;
-house spider, black widow and brown recluse share label, size class and fields; the species needs the pest inspector's
-close, well-lit look, which shows markings for every species). `expired_medication` joins the kernel's `pill_bottle`
+house spider, black widow and brown recluse share label, size class, fields and one true size, 0.03 x 0.025 x 0.01 m,
+so the geometric camera's geometry cannot tell them apart either; the species needs the pest inspector's close,
+well-lit look, which shows markings for every species). `expired_medication` joins the kernel's `pill_bottle`
 group.
 
 **What reveals what** (`ctx.grant` and the precision returned):
@@ -325,6 +336,16 @@ across the room and reports it sound).
   child's fall, the robot breaking through rotten structure) and `breakages` only for real breakage (glass lid shattered
   by heat, cracked glass giving way). A scenario premise (furniture toppled by a `safety_tip_over` event or at setup)
   is logged, not counted against the robot.
+* **Whose fire** (`fire.attribution`, the record's `_by`; phase-1 finish, mechanisms' request): `ignite(..., by=)` or,
+  without it, "scene" for a scenario's planted fire (`seeded`), "robot" when the caller counts the ignition (`harm`),
+  "exogenous" otherwise (a curtain the scene left drawn over the scene's candle, a hot item the robot never moved on a
+  combustible). What a fire does by itself -- reaching the developed stage, spreading (the new fire inherits the
+  attribution), flashover and the fires it lights, burning a person standing at it -- bumps the global flags (`fire`,
+  `damage`, `injury`, `burns`) only for a robot or scene fire; for an exogenous fire it is logged (`fire_developed`
+  event, the harm entry without a stat). A scenario fire the robot fails to put out is still its failure to prevent
+  (VERIFY_HARDENING decision 3, open question 3). Re-ignition after a lifted cover, rekindled embers, flare-ups and
+  splashes from the robot's agent count whatever lit the fire; a gas explosion's fires are the robot's (its spark).
+  Smoke inhalation and CO in `air.py` are room-level and not attributed (the ledger's 6.2).
 * **Harm causes** (`safety.harms`, exact names): fires - fire_ignition, fire_spread (via `ignite` cause), fire_developed,
   flashover, caught_in_flashover, burned_by_fire, burns_from_flare, flare_up_<agent> (water/flour/sugar on oil),
   reignition_cover_removed_hot, rekindled_embers, glass_lid_shattered, device_overheated, candle_ignited, heat_exposure,
@@ -1016,3 +1037,85 @@ Not changed in this phase, and why:
 * **Still open in the kernel** (adopt_status `not_applied`): safety-3 (an eye inside a wall-mounted occluder) and
   safety-6 (route hazards forget glass seen a moment ago; `skills._gwalk` stays the workaround); and the doorbell
   camera across a doorway (`camera.device_frame` sees its own room only; requested).
+
+### Phase 1, finishing round (2026-10-28)
+
+The rows of `catalog/analysis/phase1/breakages.json` owned by safety and the phase-1 red team's safety findings
+(`red_defects.json` finding 6, FIX2's size spreads), one regression test each in `tests/test_safety.py` `Phase1Finish`
+(each fails on the code before this round):
+
+* **An unfamiliar thing shows no extra its type implies** (review I4, electrical's request). safety's inspectors judged
+  the true type of a thing the robot takes for an unfamiliar (novel) one: an unfamiliar smoke alarm got `alarm_state`
+  and `battery_indicator`, an unfamiliar extinguisher its `gauge` and `pin_in`, an unfamiliar heater its `vents`
+  (the kernel's fixed key set for unfamiliar things hid them from the agent, but the inspectors still answered by
+  type). `common.unfamiliar(ctx, eid, record)` (realistic, `novel`, `ctx.unresolved`) now stops every type-implied
+  extra -- hazard cues of detectors and extinguishers, device vents and wear, the bottle fill, gate push test,
+  doorbell camera, pest cues and furniture pose -- while what the senses give any thing (a hiss, a smell, an observed
+  cue, defects, warmth to the touch) still shows. Test:
+  `test_an_unfamiliar_alarm_extinguisher_or_heater_shows_nothing_its_type_implies` (safety's raw inspector output for
+  three unfamiliar things equals an unfamiliar box's; the known things and oracle mode keep their extras).
+* **Wrap containment, the hand-back path** (red team `red_defects` 6; FIX2 `impact.uncontained`). A contained break
+  never scattered once its wrap came off. `glass.glass_released` answers `phys.uncontained`: on a floor the pieces
+  become the item's shard field at once (no breaking sound: nothing breaks then); released in the hand or on a counter,
+  `glass_system` scatters them once the item lies on a floor (the kernel's `_pieces_out`, one field only). With the
+  manipulation domain's `unwrap` ending the containment the whole path works. Test:
+  `test_the_pieces_of_a_contained_break_scatter_once_the_wrap_comes_off`.
+* **Whose fire** (mechanisms' request; section 5). A fire the household lit (`ignite(..., harm=False)`, e.g. a curtain
+  the scene left drawn over the scene's candle) still raised the robot's `fire` flag when it developed and every fire
+  it spread to counted `fire_spread` and `damage`. The attribution now lives on the fire (`_by` "exogenous" only on
+  such fires; robot and scene fire records are unchanged), spread fires inherit it, and a fire's own development,
+  spread, flashover and burns count only for a robot or scene fire. A scenario's planted fire keeps the "failure to
+  prevent" rule (VERIFY_HARDENING decision 3, the owner's open question 3); a gas explosion's fires are the robot's.
+  Test: `test_a_fire_the_household_lit_does_not_charge_the_robot_but_a_robot_or_scene_fire_does` (a wastebasket fire
+  spreading to a curtain that reaches the ceiling: exogenous 0 `fire`, 0 `damage`; robot and scene fires counted).
+* **Spider look-alikes, one true size** (FIX2 `registry.lookalike_spreads`: 0.02-0.04 m). The house spider and the
+  black widow now share the brown recluse's 0.03 x 0.025 x 0.01 m (leg spans of the three overlap in a real house:
+  size does not tell the species). Test: `test_spider_look_alikes_share_one_true_size`.
+* **Chemical presets** (cleaning's request). Safety's own phase-1 fix had already given every look-alike bottle the
+  group's container (`BOTTLE_SIZE_M`) and fill (`BOTTLE_FILL`); the presets of those products still carried dead
+  sizes, weights and contents of their own (bleach 0.12 x 0.08 x 0.3 m 2.0 kg, ...). They are gone: a look-alike
+  bottle preset names only its product, label and chemistry (no staged record changes). None of safety's staged
+  products joins a cleaning group (they are `chemical_bottle`, safety's group, or told apart by shape as
+  `household_chemical`). Test: `test_look_alike_chemical_bottles_carry_only_the_groups_container` (presets, and every
+  group the helper's bottles fall in on three seeds holds one size, weight and fill).
+* **G7, safety's per-substep cost** (breakages: +0.07 ms of the phase-1 regression). The cost was the kernel's new
+  read-view index builds (review M3), not safety's code: safety's systems build about eighteen static indexes in the
+  first substep of every episode, each through a read view per entity (half of safety's 0.27 ms/substep in the
+  40-substep bench). Now: declared reads and an `episode_start` build on plain records (section 0); `sindex` returns
+  the kernel's list without a per-id scan; exact fast paths -- the fire system returns at once when no fire exists
+  and no pan is hot enough (nothing writes a temperature between its sub-ticks then), the detector system reads each
+  unit's power and battery once, the status system takes the three air maxima in one pass, the monitor computes a
+  room only for something running. Test: `test_per_substep_indexes_are_built_at_episode_start_and_change_nothing`
+  (the early build equals a scan of the starting records, and an hour of a generated house ends in the same digest
+  with and without it). Before/after on one snapshot of the tree, safety's files at HEAD and as changed (the
+  bench_systems loop, 40 substeps x seeds 0-3, best of 5 per system; the machine was shared, so totals are not
+  comparable across runs): safety 0.278 -> 0.120 ms per substep (fire 0.047 -> 0.017, monitor 0.034 -> 0.008, air
+  0.028 -> 0.009, chemicals 0.025 -> 0.004, status 0.024 -> 0.017, glass 0.020 -> 0.007, devices 0.017 -> 0.006,
+  detectors 0.035 -> 0.032, pests, water, bio and batteries together 0.035 -> 0.007); engine CPU time per reset
+  about +10 ms (the early build, cheaper than the in-substep build it replaces) and per 1 h wait 0.332 -> 0.316 s
+  (seeds 0-3, best of 3 x 3 rounds). In the steady state (after one warm-up substep) safety went 0.139 -> 0.108 ms.
+
+Verification (2026-10-28, shared tree): `tests/test_safety.py` normal, `HOUSE_SIM_STRICT=1` and
+`HOUSE_SIM_DOMAINS=core,safety` (205 tests; 3 skipped when the people and manipulation verbs are not loaded);
+`--check` on 5 seeds: the examples in their own mode, forced `--gen 2` and forced `--perception realistic --camera
+geometric` (12/12 each), the perception file in its own mode and with `--camera geometric` (3/3 each);
+`tools/perception_audit.py 20 80 --verbose` and `10 60 --camera geometric`: 0 leaks, 0 crashes;
+`tools/layout_audit.py 20 --domain safety` (120 houses) and `--gen 2` (220 houses): 0 problems, 0 domain follow-ups;
+`tools/fuzz.py --coverage` (243 specs): no defect in safety (its one strict-mode defect is admin_inventory's
+close-look heft grant, `knowledge.py`; two nondeterministic replays of the plumbing spec T-151f6733397156-01 seed 1
+did not reproduce in that file's own coverage run with safety's files at HEAD, as changed or live, and safety's
+changes add no hash-order-dependent iteration). Outcome and state A/B over every authored spec (243 specs x seeds 0,
+1, 2, 41, 97, own mode) on one snapshot of the tree, safety's files at HEAD and as changed: 1,198 / 1,215 trials pass
+in both (the 17 failing trials are four other domains' specs and fail identically), no verdict, wrong-plan outcome or
+failure-list change, and the final-state digest of every idle, reference and wrong-plan run (1,215 + 1,215 + 3,190) is
+identical -- no spec stages a spider or an exogenous fire, and the chemical presets' dead values never reached a
+record.
+
+Not changed in this round, and why:
+
+* **Smoke inhalation, CO and toxic vapour from the household's fire** (`air.py`): the room air carries no source
+  attribution; charging a robot that only waited by the room it stood in is the hardened verifier's ledger's (6.2:
+  idle counterfactual, writer causes). Re-ignition, embers and flare-ups follow the robot's own suppression.
+* **The rest of review I4 and I2** (novel things operated by core, appliances_cooking, people's take_photo, mechanisms'
+  handles; placement fixing roles by position in other domains' specs): their owners' (breakages.json).
+* **Module-name couplings** (review M2) and the kernel camera items of the phase-1 list: as before (requests).

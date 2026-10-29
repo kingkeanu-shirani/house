@@ -1934,8 +1934,11 @@
    ],
    "wrong": [
     {
-     "name": "walks at the closed elevator doors",
+     "name": "calls the car and walks at its closed doors without waiting for it",
      "plan": [
+      {
+       "do": "call_elevator"
+      },
       {
        "do": "move",
        "target": "{car}"

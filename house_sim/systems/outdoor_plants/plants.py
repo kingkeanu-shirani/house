@@ -62,7 +62,29 @@ def _room_plant_centers(w, rid):
 
 
 def windows(w):
-    return C.static_ids(w, "windows", lambda r: r.get("category") == "window")
+    return C.static_ids(w, "windows", C.is_window)
+
+
+@C.episode_index("lights")
+@C.index_reads("category")
+def _is_light(record):
+    return record.get("category") == "light"
+
+
+@C.episode_index("grow_lights")
+@C.index_reads("grow_light")
+def _is_grow_light(record):
+    return bool(record.get("grow_light"))
+
+
+@C.episode_index("thermal_sources")
+@C.index_reads("heat_source", "cold_draft", "category")
+def _is_thermal_source(record):
+    return bool(record.get("heat_source") or record.get("cold_draft") or record.get("category") == "window")
+
+
+C.episode_types("plant")
+C.episode_types("plant_saucer")
 
 
 def plants_within(w, eid):
@@ -323,9 +345,9 @@ def _light_at(w, eid):
             best = contrib
             bearing = math.degrees(math.atan2(wx - x, -(wy - y))) % 360.0
     ents = state["entities"]
-    if any(k in ents and ents[k].get("on") and C.room_of(w, k) == rid for k in C.static_ids(w, "lights", lambda r: r.get("category") == "light")):
+    if any(k in ents and ents[k].get("on") and C.room_of(w, k) == rid for k in C.static_ids(w, "lights", _is_light)):
         total += 1.0
-    for gid in C.static_ids(w, "grow_lights", lambda r: bool(r.get("grow_light"))):
+    for gid in C.static_ids(w, "grow_lights", _is_grow_light):
         extra = ents.get(gid)
         if extra is not None and extra.get("on") and C.room_of(w, gid) == rid:
             total += 15.0 / (1.0 + (C.dist((x, y), C.center_m(w, gid)) / 0.5) ** 2)
@@ -359,7 +381,7 @@ def shade_at(w, eid):
 
 def thermal_sources(w):
     """Static index of things that warm or chill a plant's zone (heat sources, cold drafts, windows)."""
-    return C.static_ids(w, "thermal_sources", lambda r: bool(r.get("heat_source") or r.get("cold_draft") or r.get("category") == "window"))
+    return C.static_ids(w, "thermal_sources", _is_thermal_source)
 
 
 def zone_temperature(w, eid):

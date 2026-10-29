@@ -2852,12 +2852,16 @@ class Realism:
         return out
 
     def _source_order(self, state, src):
-        """Sort key of a hazard's source that says nothing about spawn order or true ids: an entity's handle (peeked,
-        not issued), a person's or pet's shape handle in the dark (else its id, which is public), anything else."""
-        if isinstance(src, str) and src in state["entities"]:
-            return (0, self.handles.peek(src))
-        if isinstance(src, str):
+        """Sort key of a hazard's source that says nothing about spawn order or true ids: a person's or pet's shape
+        handle in the dark (else its id, which is public), a room's id (public), and any other source -- an entity, or
+        one a room's floor_hazards still names after it is gone -- by the handle it has or would get (peeked, not
+        issued: phase-1 red team, second pass; a gone source sorted by its true id)."""
+        if isinstance(src, str) and (src in (state.get("people") or {}) or src in (state.get("pets") or {})):
             return (1, str((self._dark_now or {}).get(src, src)))
+        if isinstance(src, str) and src in (state.get("rooms") or {}):
+            return (1, src)
+        if isinstance(src, str):
+            return (0, self.handles.peek(src))
         return (2, str(src))
 
     def _liquid_unidentified(self, state, src, kind):

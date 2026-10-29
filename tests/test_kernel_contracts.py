@@ -150,6 +150,76 @@ class StaticIndexTests(unittest.TestCase):
             other.begin()
             self.assertEqual(live.static_index("hot", hot), other.static_index("hot", hot), (op, eid))
 
+    def busy_step(self):
+        """A step with every kind of write: b journaled (hot set), c quiet-written on the read field (hot cleared), d
+        quiet-written on another field, e created hot, a untouched. Step-start content of "hot": c and d, plus e."""
+        state = {"rooms": {"r": {"size_m": [4.0, 4.0]}},
+                 "entities": {"a": {"location": "r", "hot": False}, "b": {"location": "r"},
+                              "c": {"location": "r", "hot": True}, "d": {"location": "r", "hot": True, "temp": 20.0}},
+                 "robot": {"room": "r", "pos": [0, 0], "hands": {}}, "steps": 0, "time_s": 0.0, "stats": {}}
+        w = World(state)
+        w.begin()
+        w.mut("b")["hot"] = True
+        w.set_quiet("c", "hot", False)
+        w.set_quiet("d", "temp", 55.0)
+        w.create("e", {"location": "r", "hot": True})
+        return w
+
+    def test_declared_reads_mid_step_give_the_step_start_content(self):
+        """Phase-1 finish (seven domains' request, INT2): with declared reads the index is built on plain records
+        inside a step too. The content is the view path's: what each record was when the step began."""
+        from house_sim.kernel import world as world_module
+        seen = []
+
+        def spy(record):
+            seen.append(isinstance(record, dict))
+            return bool(record.get("hot"))
+        declared = self.busy_step().static_index("hot", spy, reads=("hot",))
+        self.assertEqual(declared, ["c", "d", "e"])
+        self.assertEqual(self.busy_step().static_index("hot", hot), declared)       # undeclared: through the views
+        # only c (a quiet write to a declared field) needs a view; strict mode reads every entity through one (and
+        # once more on the plain record, its view check)
+        self.assertEqual(sorted(seen), [False] * 5 + [True] * 5 if world_module.STRICT_INDEX else [False] + [True] * 4)
+
+    def test_declared_reads_follow_later_writes_from_the_next_step_on(self):
+        w = self.busy_step()
+        self.assertEqual(w.static_index("hot", hot, reads=("hot",)), ["c", "d", "e"])
+        w.commit()
+        w.begin()
+        self.assertEqual(w.static_index("hot", hot, reads=("hot",)), ["b", "d", "e"])
+
+    def test_strict_mode_checks_a_declaration_between_steps_too(self):
+        """Electrical's request: a build with nothing journaled took the plain path even in strict mode, so an
+        incomplete declaration went unchecked there (and the index stale outside strict mode)."""
+        from unittest import mock
+        from house_sim.kernel import world as world_module
+        with mock.patch.object(world_module, "STRICT_INDEX", True):
+            w = tiny_world()
+            with self.assertRaises(RuntimeError):
+                w.static_index("hot_here", lambda r: bool(r.get("hot")) and r.get("location") == "r", reads=("hot",))
+            self.assertEqual(w.static_index("hot_ok", hot, reads=("hot",)), ["c"])
+
+    def test_journaled_entities_and_the_complete_touch_log(self):
+        """journaled_entities: whole-record writes only (cleaning's request); touch_log_complete: touched_since(0) is
+        the whole log until a trim, again after begin() (textiles_laundry's request)."""
+        w = self.busy_step()
+        self.assertEqual(w.journaled_entities(), ["b", "e"])
+        self.assertTrue(w.touch_log_complete())
+        ids, end = w.touched_since(0)
+        self.assertEqual((ids, end), (["b", "e"], 2))                  # set_quiet is no touch
+        w.trim_touched()                                                # nobody reads it: all of it goes
+        self.assertFalse(w.touch_log_complete())
+        self.assertEqual(w.touched_since(0), ([], 2))                   # absolute cursors survive the trim
+        w.commit()
+        w.begin()
+        self.assertTrue(w.touch_log_complete())
+        self.assertEqual(w.journaled_entities(), [])
+        sp = w.savepoint()
+        w.mut("a")["hot"] = True
+        w.rollback_to(sp)
+        self.assertTrue(w.touch_log_complete())
+        self.assertEqual(w.touched_since(0), ([], 0))
+
     def test_a_saved_and_reloaded_episode_computes_what_the_uninterrupted_one_does(self):
         """SAVELOAD-EQ for a system that reads a static index over a field an action changes (independent review
         M3: T-50c78da60ad2a8-01's toaster). The live run built the index before the lamp was switched on; the reloaded

@@ -46,7 +46,9 @@ Dev loop: `python -m unittest tests/test_electrical.py` (all domains; add `HOUSE
   dt x ((I/I_rated)^2 - 1), trip at 360: 2x in about 2 min, 1.35x in about 7 min) and instantly above 5x or on a short.
   Strips trip their own breaker. Extension cords have none and heat toward ambient + k (I/I_rated)^2 with k = 30 C
   laid out, 55 C loosely coiled, 95 C tightly coiled (x1.6 under a rug): 75 C scorches (electrical_hazard), 110 C
-  ignites (fire). Big fixed appliances in kitchens/laundries are on dedicated circuits (`dedicated_circuit`, unmetered).
+  ignites (fire). How a cord lies is `power.coil_word(rec)`, whoever wrote `coiled` (this domain's words, where
+  `over_under` loops count as a loose coil; plumbing's bool; manipulation's coil dict: loose, or tight when strapped or
+  hand-wrapped; None laid out). Big fixed appliances in kitchens/laundries are on dedicated circuits (`dedicated_circuit`, unmetered).
 * **Region.** `metadata.region` sets voltage (120/230/100 V), socket and plug shapes (type_b US/CA, type_g UK,
   type_f/type_c EU, type_a JP), breaker ratings (15/20 A at 120 V, 16 A at 230 V EU, 20 A radials UK).
 * **Derived fields** (never set directly by agents; refreshed after every electrical change and each substep):
@@ -123,12 +125,15 @@ cells/alarms re-evaluated), `open_cover` (opening a plugged-in appliance casing 
 All seven stay per-substep because they are event-sensitive (breaker trip curves, GFCI/ground faults, alarm-clock and
 chirp timing, charge thresholds, boot timers) and none scans the entity table: they iterate kernel static indexes
 (`common.ids(w, name)` over `w.static_index`, predicates on creation-time fields: category, type, ports, slots,
-`plug_required`, `power_w`, clock dicts...) and re-check dynamic fields; supply walks share a per-pass memo of
-provider liveness. Benchmark (`tools/bench_systems.py 40 0 1 2 3 --domain electrical`): ~0.6 ms per substep in total
-(was ~4.2 ms). Static indexes follow the kernel's contract (independent review M3): an index holds the entities whose
-record matched when the current step began, so a field written during a step (an entity that gains `energized` or
-`plug_required`) counts from the next step on, the same in a live, replayed or reloaded episode
-(`test_the_electrical_static_indexes_match_a_fresh_scan_between_steps`).
+`plug_required`, `power_w`, clock dicts...) and re-check dynamic fields; supply walks share a per-pass memo (provider
+liveness, branch-circuit liveness and each top-level supply answer, so one power step walks each chain once). The
+indexes declare the fields their predicates read (`common.INDEX_READS`, `declare_index`) and are built at
+`episode_start` before any hook writes (`furnish._prebuild_indexes`), on plain records. Benchmark
+(`tools/bench_systems.py 40 0 1 2 3 --domain electrical`): ~0.47 ms per substep in total (was ~4.2 ms before the
+static indexes, ~0.6 ms before the phase-1 finishing round, section 14). Static indexes follow the kernel's contract
+(independent review M3): an index holds the entities whose record matched when the current step began, so a field
+written during a step (an entity that gains `energized` or `plug_required`) counts from the next step on, the same in a
+live, replayed or reloaded episode (`test_the_electrical_static_indexes_match_a_fresh_scan_between_steps`).
 
 | System | What changes |
 |---|---|
@@ -186,7 +191,11 @@ receptacle lists by id, cell views drop the product name and chemistry until rea
 a smart bulb shows no status LED or pairing block (plain LED bulbs have none). Glance labels carry no printed numbers
 ("USB-C wall charger", "incandescent bulb", "CFL bulb", "3-way LED bulb"; the ratings are in `label_text`). The members
 of the read-resolved `power_adapter` group share one size and one mass (0.25 kg), so touch and the robot's load cannot
-tell the bricks apart before a read (review L4); the other read-resolved groups already matched.
+tell the bricks apart before a read (review L4); the other read-resolved groups already matched. The `remote` group's
+members share one true size and shell mass too (0.045 x 0.2 x 0.025 m, 0.12 kg: `remote_control_aa` was 0.05 x 0.22 x
+0.03 m and 0.15 kg, so the geometric camera's pixels, lidar and elevation told it apart while the record showed the
+group's size; phase-1 finishing round): the battery compartment (inspect) tells an AA remote from an AAA one, and the
+cells inside weigh what they weigh. `registry.lookalike_spreads` lists no electrical group.
 
 Unfamiliar things (`"novel": true`, docs/PERCEPTION.md; review I4): an electrical type staged as unfamiliar shows only
 what any unfamiliar thing shows. This domain's inspectors add nothing to it (no `cord_condition`, `plug`,
@@ -699,7 +708,12 @@ helper create. Regression tests: `tests/test_electrical.py` `Tier1PhysicsAdoptio
   `HOUSE_SIM_IDLE_PROBES` on and off. Over a quiet day (seeds 0 and 3) detectors, devices and charging now run in 3-13 %
   of the substeps, lights in under 1 % and power in about half (modelled cords follow the room temperature); a CO alarm
   in clean air no longer journals its record every substep. A run that does happen costs its probe bookkeeping too
-  (about 0.03 ms per substep for the five systems together, the price of skipping them on quiet substeps).
+  (about 0.03 ms per substep for the five systems together, the price of skipping them on quiet substeps). Since the
+  phase-1 finishing round (section 14) a note keeps its snapshots through a run that wrote (the next run that writes
+  nothing refreshes them, keeping an unchanged snapshot without a copy), the power note ignores every temperature but a
+  modelled cord's own and appliance displays, and a note reads the location ancestors of its members as they are
+  after its last run (they were cached per entity count): power now runs in about 16 % of the substeps of 12 houses'
+  20.5-hour waits (4,400 of 27,612; 12,438 before).
 * **Clocks** follow the wall clock (`clock.wall`, daylight saving time when the house keeps it): at the change a
   manually set clock keeps showing standard time until someone resets it, auto-sync clocks follow (stage-C fix T6).
 * **Generation 2** (`smarthome.py`, furnisher `electrical.gen2`): smart devices by `household.profile.smart_home`
@@ -856,3 +870,30 @@ electrical`: 0 problems; the registry's LookalikeWarning names no electrical gro
 (own mode, 5 seeds; the same snapshot of every other file, only the electrical code and type data swapped) gives the
 same verdicts (242 pass; T-7d4006bda247ba-01 is the listed textiles breakage), no trial-level change, 426 of 1,215
 trials starting from a house changed by the cord-label fix, and the two wrong-plan label changes named above.
+
+## 14. Phase 1, finishing round (2026-10-28)
+
+Inputs: `catalog/analysis/phase1/breakages.json` (one electrical row), the red team's findings
+(`red_leaks.json`, `red_defects.json`) and the P1 gate's G7 (substep cost). Handoff:
+`catalog/analysis/phase1/finish_electrical.json`. Regression tests: `tests/test_electrical.py` `PhaseOneFinishTests`
+(9 tests; each fails on the code before this round).
+
+| Item | Root cause | Fix |
+|---|---|---|
+| breakages.json / FIX2 `registry.lookalike_spreads` / red_leaks L2 residual: the `remote` group's members differed in true size (0.20-0.22 m) | `remote_control_aa` type data (0.05 x 0.22 x 0.03 m, 0.15 kg) | it takes the group's shell (0.045 x 0.2 x 0.025 m, 0.12 kg); the compartment (inspect) still tells AA from AAA (section 5a) |
+| G7: electrical's share of the phase-1 substep increase (+0.03 ms: 0.55 ms at ADOPT, 0.58 at HEAD, `bench_systems` on archived trees the same day) | power's derived-field pass re-walked supply chains the loads pass had walked; lights and detectors computed each fixture's bulbs / each detector's voltage, power and date two or three times; seven indexes were built in the first substep and eighteen in the setup hooks through a read view per entity | shared per-pass memo (circuit liveness, top-level supply answers; `loads` reuses the walked path); one working-bulb list per fixture and no `set_if` call for a field that already holds its value; one voltage / mounting / power / `clock.now` per detector; the local time once per clock pass; declared index reads and an `episode_start` build on plain records (`INDEX_READS`, `declare_index`, `prebuild_indexes`) |
+| G7 (engine): `electrical.power` ran in 458 of 480 substeps of an hour on houses 0-3 | its probe snapshot kept every fixed-temperature record's `temperature_c` (a clothes iron or griddle its domain keeps heating woke it every substep); every run that wrote threw the snapshots away, so the next quiet substep always missed one | the power note ignores all temperatures but a modelled cord's own and appliance displays; snapshots survive a writing run (refreshed by the next run that writes nothing; an unchanged one is kept without a copy, compared field by field) |
+| Own finding (exact probes): a note's location ancestors were cached per entity count, so a lamp put on a cart during a step left the cart out of them and the cart's later move into a warmer room went unseen | cache key | ancestors are taken when the probe first needs them after a run and kept until the next run (any change of a member's chain is a write the probe sees) |
+| Own finding (manipulation's velcro row: three owners write `coiled`): a cord lying in manipulation's coil loops, or in `over_under` loops, heated as if laid out | `_cord_k` read only `tight` / `coiled` / `loose` | `power.coil_word` (section 1) |
+| Spec outcome: T-8e57df5742271b-01 failed on every seed once the verifier refused wrong plans that never act ("NeverActed") | its wrong plan "reports a status without actually inspecting the display" is refused by `report` ("Inspect it before reporting") | replaced by "checks the alarm but only logs its status, never telling the resident" (approach, inspect, report without `to`): it acts and fails both variants |
+
+Measurements (one snapshot of the shared tree, electrical files at HEAD vs changed, the machine at 100 % CPU from
+other agents, so only interleaved A/B minima are reported): `bench_systems` loop (40 substeps x seeds 0-3)
+electrical 0.599 -> 0.474 ms per substep (steady state 0.533 -> 0.462; the first substep 3.1 -> 0.7 ms): power 0.260
+-> 0.219, lights 0.127 -> 0.097, detectors 0.098 -> 0.064, devices 0.034 -> 0.014, clocks 0.035 -> 0.033, charging
+unchanged. A 1 h wait on houses 0-3 (engine, probes on): electrical systems and probes 263 -> 162 ms, power runs 458
+-> 265; engine CPU time 1.13 -> 1.05-1.08 s. Reset unchanged (the earlier build on plain records costs what the read-view
+builds it replaces did). Exactness: every one of the 1,215 trials of the 243 authored specs (own mode, seeds 0, 1, 2, 41,
+97) keeps its verdict, failure lists and its idle, reference and wrong-plan final digests; 12 generated houses
+(generation 1 and 2) reach identical digests after six waits (20.5 h) with the probes on and off, and the same digests
+as the HEAD code.

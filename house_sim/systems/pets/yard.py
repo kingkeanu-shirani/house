@@ -19,9 +19,14 @@ body.register_robot_field("pet_waste_on_feet", 0.0, "pets", "hidden",
                           "carried indoors it soils the floor)")
 
 
+@C.index_reads("category", "type")
+def _is_yard_waste(rec):
+    return rec.get("category") == "pet_waste" and rec.get("type") != "pet_waste_bag"
+
+
 def _waste_cells(state, rid):
     out = {}
-    for eid in C.sindex(state, "yard_waste", lambda r: r.get("category") == "pet_waste" and r.get("type") != "pet_waste_bag"):
+    for eid in C.sindex(state, "yard_waste", _is_yard_waste):
         rec = state["entities"][eid]
         if rec.get("location") == rid and rec.get("waste_kind") == "pet_waste" and rec.get("pos"):
             out.setdefault(tuple(rec["pos"]), []).append(eid)
@@ -67,7 +72,7 @@ def _enter(ctx, room):
     floor = "floor_" + room
     if floor in state["entities"]:
         add_soil(w, floor, "biohazard", round(min(1.0, soil * 0.6), 3))
-    for rug in C.located_in(state, C.sindex(state, "rugs", lambda r: r.get("category") == "rug"), room):
+    for rug in C.located_in(state, C.rugs(state), room):
         add_soil(w, rug, "biohazard", round(min(1.0, soil * 0.4), 3))
     w.robot_m()["pet_waste_on_feet"] = round(soil * 0.5, 3)
     C.harm(w, "tracked_waste", room=room)

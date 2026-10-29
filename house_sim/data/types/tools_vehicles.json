@@ -242,23 +242,6 @@
     "water-resistant adhesive hook (3 lb)"
    ]
   },
-  "felt_pad": {
-   "descriptor": "round felt pad",
-   "resolve": "inspect",
-   "members": [
-    "felt_pad_19mm",
-    "felt_pad_25mm",
-    "felt_pad_38mm",
-    "felt_pad_51mm"
-   ],
-   "kind": "felt pad",
-   "candidates": [
-    "19 mm felt pad",
-    "25 mm felt pad",
-    "38 mm felt pad",
-    "51 mm felt pad"
-   ]
-  },
   "foam_weatherstrip": {
    "descriptor": "roll of foam weatherstrip tape",
    "resolve": "inspect",
@@ -553,9 +536,9 @@
     },
     "mass_kg": 0.08,
     "size_m": [
-     0.2,
-     0.03,
-     0.03
+     0.24,
+     0.035,
+     0.035
     ],
     "max_torque_nm": 3.0
    },
@@ -589,9 +572,9 @@
     },
     "mass_kg": 0.09,
     "size_m": [
-     0.21,
-     0.03,
-     0.03
+     0.24,
+     0.035,
+     0.035
     ],
     "max_torque_nm": 3.0
    },
@@ -607,7 +590,7 @@
     },
     "mass_kg": 0.14,
     "size_m": [
-     0.26,
+     0.24,
      0.035,
      0.035
     ],
@@ -625,7 +608,7 @@
     },
     "mass_kg": 0.1,
     "size_m": [
-     0.22,
+     0.23,
      0.03,
      0.03
     ],
@@ -823,7 +806,7 @@
     },
     "mass_kg": 0.07,
     "size_m": [
-     0.15,
+     0.18,
      0.03,
      0.008
     ],
@@ -859,7 +842,7 @@
     },
     "mass_kg": 0.09,
     "size_m": [
-     0.16,
+     0.18,
      0.03,
      0.008
     ],
@@ -895,7 +878,7 @@
     },
     "mass_kg": 0.15,
     "size_m": [
-     0.2,
+     0.18,
      0.03,
      0.008
     ],
@@ -2642,9 +2625,10 @@
      0.15,
      0.28
     ],
-    "surface_height_m": 0.3
+    "surface_height_m": 0.3,
+    "watertight": false
    },
-   "doc": "Small-parts organizer cabinet; compartments are child entities (organizer_compartment) labeled by fastener kind.",
+   "doc": "Small-parts organizer cabinet; compartments are child entities (organizer_compartment) labeled by fastener kind. The cabinet is a frame of drawer slots open at the front: liquid poured or dripped into it runs out (watertight false); each molded drawer is a closed tray that holds what is poured into it.",
    "perception": {
     "hidden": [
      "sorted_ok",
@@ -3366,7 +3350,7 @@
     "worn": false,
     "grit": 0.0
    },
-   "doc": "Self-adhesive felt furniture pad (installs in a leg pad slot).",
+   "doc": "Self-adhesive felt furniture pad (installs in a leg pad slot). The sizes (felt_pad_19mm ... felt_pad_51mm) form no look-alike group: a pad's diameter is what it is, and the eye and the geometric camera tell a 19 mm pad from a 25 mm one (the smaller one is not even made out from across a room), as in a real house.",
    "perception": {
     "hidden": [
      "sorted_ok",
@@ -4069,7 +4053,7 @@
     "amount_l": 4.7,
     "mass_kg": 4.4,
     "size_m": [
-     0.22,
+     0.2,
      0.11,
      0.28
     ],
@@ -4088,7 +4072,7 @@
     "amount_l": 3.78,
     "mass_kg": 4.2,
     "size_m": [
-     0.18,
+     0.2,
      0.11,
      0.28
     ],
@@ -4113,7 +4097,7 @@
     "amount_l": 3.78,
     "mass_kg": 3.8,
     "size_m": [
-     0.18,
+     0.2,
      0.11,
      0.28
     ],

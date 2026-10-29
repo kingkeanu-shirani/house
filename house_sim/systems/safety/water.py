@@ -43,6 +43,8 @@ def is_puddle(rec):
     return rec.get("category") == "puddle" and not rec.get("resolved")
 
 
+@C.per_substep_index("puddles")
+@C.index_reads("category")
 def _is_puddle_type(rec):
     return rec.get("category") == "puddle"
 

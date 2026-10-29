@@ -6,13 +6,16 @@ journaled watch list state.manipulation.watch, seeded at episode_start and exten
 each declares an exact idle probe, kernel v3.1, so the engine skips it while it would change nothing):
   manipulation.falls    every substep: resolves objects knocked off an edge (catchable for one step; the
                         landing is the kernel's fall)
-  manipulation.breaks   every substep while state.manipulation.unseen_breaks lists something: a brittle break
-                        hidden by an opaque wrap or factory packaging shows (the kernel's `shattered`) once that is off
+  manipulation.breaks   every substep while a break remembered in state.manipulation.unseen_breaks is no longer
+                        contained: a shattering break held in by a full wrap or factory packaging (hidden under an
+                        opaque one) ends once that is off -- the kernel's impact.uncontained shows it, gives a break
+                        on a floor its sharp floor hazard and lets the safety domain scatter its shards
   manipulation.timers   period 120 s: uncapped markers/glue/paint dry out (1-2 h), labels on wet/greasy
                         surfaces peel (15 min), felt pads on dirty feet fall off (1 h),
                         wet items sealed/stacked/rolled grow mildew (12 h)
-  manipulation.wind     every substep while wind >= 2.5 m/s: outdoor light items lift off above their
-                        wind speed unless weighted, clipped or secured (napkins 3 m/s, paper plates 4,
+  manipulation.wind     every substep while wind >= 2.5 m/s: outdoor light items lift off when the gust at the item
+                        (the kernel's object_wind_mps) reaches their lift speed unless weighted, clipped or secured
+                        (napkins 3 m/s, paper plates 4,
                         cloths 5, covers 6) -- this domain's copy of the kernel wind law while it is deferred;
                         covers laid over things stay this domain's either way (the kernel leaves attached covers be)
 Spills, falls, collisions and breakages are global kernel harm flags (no domain invariants).
@@ -20,13 +23,13 @@ Events (setup op event effect): manipulation.bump (the kernel's bump plus props)
   manipulation.roll_toward_edge, manipulation.gust (the kernel's gust plus covers), manipulation.transport_test,
   manipulation.braking_test, manipulation.pull_test, manipulation.paint_event, manipulation.rain_pool,
   manipulation.deploy_test.
-Physics hooks: phys.broke (a hidden break is remembered until unwrapped), phys.fell (a cover blown or knocked off
+Physics hooks: phys.broke (a contained break is remembered until unwrapped), phys.fell (a cover blown or knocked off
   stops covering), phys.props (handling.py: carried container ratings), phys.items_above (stacking.py: packing order).
 """
 import copy
 
 from ...kernel import camera, dialogue, geometry
-from ...kernel.phys import events as kevents
+from ...kernel.phys import environment as kenv, events as kevents, impact as kimpact
 from ...kernel.plugins import answerer, hook, inspector, observer, system
 from . import common as C
 
@@ -117,26 +120,29 @@ def falls_system(w, dt, tick):
 
 
 def _breaks_idle(w):
-    """Exact idle probe of manipulation.breaks: no hidden break is pending."""
-    return not C.section(w).get("unseen_breaks")
+    """Exact idle probe of manipulation.breaks: every remembered contained break is still broken and contained (one
+    dict lookup while none is remembered)."""
+    return not C.section(w).get("unseen_breaks") or not C.breaks_pending(w)
 
 
 @system("manipulation.breaks", order=72, max_dt=30.0, idle=_breaks_idle)
 def breaks_system(w, dt, tick):
-    """Hidden breaks (a kernel break under an opaque wrap or packaging) become visible once unwrapped, whoever
-    unwrapped them; nothing to do (one dict lookup) while none is pending."""
+    """Contained breaks (a kernel break inside a full wrap or the packaging) end once the wrap or the packaging is off,
+    whoever took it off: the pieces show and come out (C.end_containment: the kernel's impact.uncontained)."""
     if C.section(w).get("unseen_breaks"):
         C.reveal_breaks(w)
 
 
 @hook("phys.broke")
 def _remember_hidden_break(w, eid, info):
-    """phys.broke hook (TIER1_PHYSICS 7.3): a shattering break the kernel could not show (an opaque full wrap or the
-    factory packaging hides the pieces: no `shattered`) is remembered until that comes off (manipulation.breaks)."""
+    """phys.broke hook (TIER1_PHYSICS 7.3): a shattering break held in by a full wrap or the factory packaging
+    (phys.impact.contained; its pieces hidden by an opaque wrap -- no `shattered` -- or in view through a see-through
+    one) is remembered until that comes off (manipulation.breaks), when its containment ends."""
     rec = w.s["entities"].get(eid)
-    if rec is None or (info or {}).get("mode") != "shatter" or rec.get("shattered") or C.break_shows(rec):
+    if rec is None or (info or {}).get("mode") != "shatter":
         return
-    C.note_hidden_break(w, eid)
+    if kimpact.contained(rec) or not (rec.get("shattered") or C.break_shows(rec)):
+        C.note_hidden_break(w, eid)
 
 
 @hook("phys.fell")
@@ -334,51 +340,84 @@ def _held_down(w, eid):
 
 
 def _wind_mps(w):
-    weather = w.s.get("weather") or {}
-    return max(C.num(weather.get("wind_mps"), 0.0), C.num(weather.get("gust_mps"), 0.0))
+    """The weather's wind objects respond to (its 10 m mean, or the gust when higher): the calm cut. What an item
+    feels is the wind at the item (_wind_at)."""
+    return kenv.wind_speed_mps(w.s.get("weather"))
+
+
+def _wind_at(w, eid):
+    """Gust speed (m/s) at an outdoor item, the speed its wind_lift_mps is compared with: the kernel's
+    phys.environment.object_wind_mps (the weather's gust, else 1.5 x its mean, times its room's exposure: 0.6 of the
+    10 m value near the ground in a yard, 0.75 on a balcony), as the kernel's wind law reads it. Phase-1 breakage:
+    this domain compared wind_lift_mps with the 10 m wind itself, so a light item lifted at 0.6 of the wind it needs
+    under the law."""
+    return kenv.object_wind_mps(w.s, eid)[1]
 
 
 def _wind_idle(w):
-    """Exact idle probe of manipulation.wind: calm (below 2.5 m/s), or nothing it would move (no light item -- or,
-    while the kernel's wind law is active, no cover laid over something)."""
-    return _wind_mps(w) < 2.5 or not _wind_candidates(w, covers_only=C.kernel_owns("wind"))
+    """Exact idle probe of manipulation.wind: calm (below 2.5 m/s), or nothing it would move -- no light item or
+    laid-over cover (only covers while the kernel's wind law is active) out in an outdoor room, free of the robot's
+    hands and not already blown away."""
+    if _wind_mps(w) < 2.5:
+        return True
+    ents, rooms = w.s["entities"], w.s["rooms"]
+    if not C.kernel_owns("wind"):
+        for eid in _lift_index(w):
+            if eid in ents and _wind_exposed(w, ents[eid], eid, rooms):
+                return False
+    for eid in C.watched(w):
+        if ents[eid].get("covering") and _wind_exposed(w, ents[eid], eid, rooms):
+            return False
+    return True
+
+
+def _lift_index(w):
+    # wind_lift_mps is a static prop of light things (type or spawn props)
+    return w.static_index("manipulation:wind_lift", lambda r: r.get("wind_lift_mps") is not None)
+
+
+def _wind_exposed(w, rec, eid, rooms, only_room=None):
+    """Whether candidate eid is somewhere the wind can move it: in an outdoor room (only_room when given), not held
+    and not blown away already."""
+    if rec.get("location") == "robot" or rec.get("blown_away"):
+        return False
+    if rec.get("wind_lift_mps") is None and not rec.get("covering"):
+        return False
+    rid = w.root_room(eid)
+    return bool(rooms.get(rid, {}).get("outdoor")) and (only_room is None or rid == only_room)
 
 
 @system("manipulation.wind", order=320, max_dt=30.0, idle=_wind_idle)
 def wind_system(w, dt, tick):
-    wind = _wind_mps(w)
-    if wind < 2.5:
+    if _wind_mps(w) < 2.5:
         return
-    _apply_wind(w, wind, None, covers_only=C.kernel_owns("wind"))
+    _apply_wind(w, None, None, covers_only=C.kernel_owns("wind"))
 
 
 def _wind_candidates(w, covers_only=False):
     """Light items (static wind_lift_mps) and covers currently laid over something (watch list); covers only while
     the kernel's wind law moves loose items itself."""
     ents = w.s["entities"]
-    ids = set() if covers_only else set(w.static_index("manipulation:wind_lift", lambda r: r.get("wind_lift_mps") is not None))
+    ids = set() if covers_only else set(_lift_index(w))
     ids.update(e for e in C.watched(w) if ents[e].get("covering"))
     return sorted(e for e in ids if e in ents)
 
 
-def _apply_wind(w, wind, only_room, covers_only=False):
+def _apply_wind(w, gust, only_room, covers_only=False):
+    """Blow light items and laid-over covers off. gust: the speed at the items (the gust event's mps); None: the
+    weather's, each item feeling the wind at itself (_wind_at)."""
     candidates = _wind_candidates(w, covers_only)
     if not candidates:
         return
-    outdoor = {r for r, room in w.s["rooms"].items() if room.get("outdoor") and (only_room is None or r == only_room)}
-    if not outdoor:
-        return
+    rooms = w.s["rooms"]
     for eid in candidates:
         rec = w.s["entities"][eid]
+        if not _wind_exposed(w, rec, eid, rooms, only_room):
+            continue
         lift = rec.get("wind_lift_mps")
         cover_target = rec.get("covering")
-        if lift is None and not cover_target:
-            continue
-        if rec.get("location") == "robot" or rec.get("blown_away"):
-            continue
         rid = w.root_room(eid)
-        if rid not in outdoor:
-            continue
+        wind = _wind_at(w, eid) if gust is None else gust
         if cover_target:
             target = w.s["entities"].get(cover_target, {})
             secured = target.get("cover_secured") or []
@@ -387,7 +426,7 @@ def _apply_wind(w, wind, only_room, covers_only=False):
                 _uncover_record(w, eid, cover_target)
                 C.move_to_floor(w, eid, rid, C.landing_cell(w, rid))
                 w.mut(eid)["blown_away"] = True
-                C.note_event(w, "blown_away", eid, room=rid, wind_mps=wind)
+                C.note_event(w, "blown_away", eid, room=rid, wind_mps=round(wind, 2))
             continue
         if wind >= C.num(lift) and not _held_down(w, eid):
             m = w.mut(eid)
@@ -396,7 +435,7 @@ def _apply_wind(w, wind, only_room, covers_only=False):
             m = w.mut(eid)
             m["blown_away"] = True
             m["wetness"] = rec.get("wetness", 0.0)
-            C.note_event(w, "blown_away", eid, room=rid, wind_mps=wind)
+            C.note_event(w, "blown_away", eid, room=rid, wind_mps=round(wind, 2))
 
 
 @hook("event:manipulation.gust")
@@ -422,8 +461,8 @@ def _event_gust(w, args, env):
 def _event_deploy(w, args, env):
     """Pay a coiled cable out: built-up twist turns into knots."""
     eid = args.get("target")
-    if eid in w.s["entities"] and (w.ent(eid).get("coiled") or {}):
-        coil = w.ent(eid)["coiled"]
+    coil = C.coil_of(w.ent(eid)) if eid in w.s["entities"] else None
+    if coil is not None:
         knots = int(C.num(coil.get("twist_per_loop")) * C.num(coil.get("loops")) // 3)
         m = w.mut(eid)
         m["deploy_result"] = {"knots": knots, "kinks": int(C.num(coil.get("kinks")))}

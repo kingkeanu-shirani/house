@@ -269,6 +269,8 @@ def check_tire(ctx):
     return "{:.2f} bar ({:.0f} psi){}".format(reading, C.bar_to_psi(reading), trend)
 
 
+@C.per_step_index("inflatables")
+@C.index_reads("inflation", "wheels", "tires")
 def _inflatable(rec):
     """Static: per-wheel/ball inflation dicts (other domains' `wheels: 4` counts are not inflatables)."""
     return isinstance(rec.get("inflation"), dict) or bool(C.wheel_group(rec, "wheels")) or bool(C.wheel_group(rec, "tires"))
@@ -669,6 +671,8 @@ def _lock_with_occupant(ctx):
         C.log(w, "locked_with_occupant", car=car, who=inside)
 
 
+@C.per_step_index("cars")
+@C.index_reads("vehicle_kind")
 def _is_car(rec):
     return rec.get("vehicle_kind") == "car"
 
@@ -1260,6 +1264,8 @@ def _holster(ctx, result):
         w.mut(ctx.args["target"])["holstered"] = False
 
 
+@C.per_step_index("chargeables")
+@C.index_reads("ev", "part_type", "slots")
 def _chargeable(rec):
     """Static: what connect_charger can start charging (EVs, e-bike packs, anything with a battery slot)."""
     return bool(rec.get("ev") or rec.get("part_type") == "ebike_battery_500wh" or "battery" in (rec.get("slots") or {}))

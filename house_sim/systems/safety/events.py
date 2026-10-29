@@ -224,7 +224,7 @@ def trapped_under(state, eid):
 @inspector("safety.furniture_pose", order=58)
 def furniture_pose(w, eid, record, details, ctx):
     state = w.s
-    if not record.get("tipped_over") and not record.get("_baseline_orientation"):
+    if (not record.get("tipped_over") and not record.get("_baseline_orientation")) or C.unfamiliar(ctx, eid, record):
         return
     details["orientation"] = "tipped over (should stand upright)" if record.get("tipped_over") else "upright"
     if record.get("anchored") is False or record.get("tip_over_risk"):

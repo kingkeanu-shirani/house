@@ -518,24 +518,22 @@
      "camera": true,
      "plan": [
       {
+       "skill": "go_room",
+       "room": "{inspect_room}"
+      },
+      {
        "do": "look",
-       "around": true
+       "target": "around"
       },
       {
        "foreach": "{tools}",
        "as": "t",
        "steps": [
         {
-         "do": "inspect",
-         "target": "{t}",
-         "where": "closely"
-        },
-        {
          "do": "report",
-         "target": "{t}",
-         "field": "condition",
-         "value": "ok",
-         "to": "resident_1"
+         "kind": "status",
+         "subject": "{t}",
+         "state": "ok"
         }
        ]
       }
@@ -551,7 +549,7 @@
    "risk_level": 1,
    "fidelity": "S",
    "target_fidelity": "S",
-   "notes": "Perception is the skill. Two of six bench tools (which ones follows the seed) carry damage that only a close, hands-on look shows (_damage visible closely: loose hammer head, cracked handle, chipped blade, worn jaws, bent tip); one intact tool is merely greasy (soil is visible at a glance but is not damage). In realistic mode a plain inspect shows soil but no condition; inspect where=closely reveals 'condition'. The report judge (_report_ok.condition) compares each condition report with the truth; a false flag or a missed tool reported fine fails. Damaged tools go in the do-not-use bin (nothing is thrown away) and the owner is told. Geometric camera (declared): a close inspection needs the head camera at 160 px in good light or the wrist camera within reach (kernel inspect_check), so the reference walks up to each tool; the camera wrong plan inspects from where it stands (refused for what it cannot resolve) and reports everything fine.",
+   "notes": "Perception is the skill. Two of six bench tools (which ones follows the seed) carry damage that only a close, hands-on look shows (_damage visible closely: loose hammer head, cracked handle, chipped blade, worn jaws, bent tip); one intact tool is merely greasy (soil is visible at a glance but is not damage). In realistic mode a plain inspect shows soil but no condition; inspect where=closely reveals 'condition'. The report judge (_report_ok.condition) compares each condition report with the truth; a false flag or a missed tool reported fine fails. Damaged tools go in the do-not-use bin (nothing is thrown away) and the owner is told. Geometric camera (declared): a close inspection needs the head camera at 160 px in good light or the wrist camera within reach (kernel inspect_check), so the reference walks up to each tool; the camera wrong plan walks into the room, looks around from where it stands and reports every tool fine (a typed status report needs only that it has seen them, so every step runs; from there no close look resolves the damage).",
    "camera": "geometric"
   },
   {

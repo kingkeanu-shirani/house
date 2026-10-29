@@ -53,7 +53,8 @@ def mounted(state, eid):
     return rec.get("relation") == "part" and base.get("category") == "detector_base"
 
 
-def expired(state, rec):
+def expired(state, rec, now=None):
+    """Ten years past its manufacture date (now: clock.now(state) when the caller has it)."""
     made = rec.get("manufactured")
     if not isinstance(made, str) or len(made) < 7:
         return False
@@ -61,7 +62,7 @@ def expired(state, rec):
         y, m = int(made[:4]), int(made[5:7])
     except ValueError:
         return False
-    now = clock.now(state)
+    now = clock.now(state) if now is None else now
     return (now.year - y) * 12 + (now.month - m) >= 120
 
 
@@ -74,16 +75,17 @@ def backup_voltage(state, eid):
     return 0.0 if v is None else v
 
 
-def power_status(state, eid):
-    """(source, low) -> source in ac|battery|none; low = backup low or missing."""
+def power_status(state, eid, voltage=None, is_mounted=None):
+    """(source, low) -> source in ac|battery|none; low = backup low or missing. voltage / is_mounted: backup_voltage /
+    mounted of eid when the caller has them."""
     rec = state["entities"][eid]
     vmin = C.num(rec.get("min_voltage_v"), 7.2)
-    v = backup_voltage(state, eid)
+    v = backup_voltage(state, eid) if voltage is None else voltage
     batt_ok = v >= vmin
     low = v < vmin * 1.08
     ac = False
     if rec.get("hardwired"):
-        ac = mounted(state, eid) and P.supply_ok(state, eid)
+        ac = (mounted(state, eid) if is_mounted is None else is_mounted) and P.supply_ok(state, eid)
     elif rec.get("plug_required"):
         ac = P.supply_ok(state, eid)
     if ac:
@@ -122,14 +124,22 @@ def room_co(state, rid):
 
 def condition(state, eid):
     rec = state["entities"][eid]
-    if not mounted(state, eid) and rec.get("location") != "robot":
+    is_mounted = mounted(state, eid)
+    if not is_mounted and rec.get("location") != "robot":
         return "not_mounted"
-    source, low = power_status(state, eid)
+    source, low = power_status(state, eid, None, is_mounted)
+    return _condition(rec, is_mounted, source, low, expired(state, rec))
+
+
+def _condition(rec, is_mounted, source, low, eol):
+    """condition() from a detector's mounted(), power_status() and expired()."""
+    if not is_mounted and rec.get("location") != "robot":
+        return "not_mounted"
     if source == "none":
         return "no_power"
     if rec.get("alarm_state") == "alarm":
         return "alarm"
-    if expired(state, rec):
+    if eol:
         return "end_of_life"
     if low:
         return "low_battery"
@@ -143,15 +153,21 @@ def condition(state, eid):
 @C.refresher(35)
 def sync_detectors(w):
     state = w.s
+    now = None
     for eid in C.ids(w, "detectors"):
         rec = state["entities"].get(eid)
         if rec is None:
             continue
-        source, low = power_status(state, eid)
+        if now is None:
+            now = clock.now(state)
+        # each input once (none of them reads a field this pass writes)
+        is_mounted = mounted(state, eid)
+        v = backup_voltage(state, eid)
+        source, low = power_status(state, eid, v, is_mounted)
         operational = source != "none" and rec.get("_sensor_ok", True) and not C.dead(rec)
-        eol = expired(state, rec)
+        eol = expired(state, rec, now)
         chirp = operational and (low or eol) and C.num(rec.get("chirp_hush_until_s"), -1) < state.get("time_s", 0)
-        C.set_if(w, eid, "mounted", mounted(state, eid))
+        C.set_if(w, eid, "mounted", is_mounted)
         C.set_if(w, eid, "power_source", source)
         C.set_if(w, eid, "operational", bool(operational))
         C.set_if(w, eid, "chirping", bool(chirp))
@@ -159,12 +175,11 @@ def sync_detectors(w):
         led = "off" if source == "none" else ("red_flash" if rec.get("alarm_state") in ("alarm", "testing") else
                                               ("amber_blink" if (low or eol) else ("green_steady" if source == "ac" else "green_blink")))
         C.set_if(w, eid, "led", led)
-        v = backup_voltage(state, eid)
         C.set_if(w, eid, "battery_voltage", v)
         vmin = C.num(rec.get("min_voltage_v"), 7.2)
         vnom = 9.6 if vmin > 5 else (3.2 if rec.get("sealed") else 4.8)
         C.set_if(w, eid, "battery_level", round(C.clamp((v - vmin) / max(0.1, vnom - vmin), 0.0, 1.0), 3) if v >= vmin else 0.0)
-        C.set_if(w, eid, "_electrical_status", condition(state, eid))
+        C.set_if(w, eid, "_electrical_status", _condition(rec, is_mounted, source, low, eol))
 
 
 def chirp_period(rec):

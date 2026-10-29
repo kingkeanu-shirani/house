@@ -1,0 +1,2893 @@
+[
+ {
+  "catalog_id": "A-05a6ff57e7f3fd-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-05a6ff57e7f3fd-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-0fec5aa3d9e10c-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-0fec5aa3d9e10c-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-0fec5aa3d9e10c-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-0fec5aa3d9e10c-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-565da7517f3394-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-565da7517f3394-01",
+  "seeds": [
+   1,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-565da7517f3394-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-565da7517f3394-01",
+  "seeds": [
+   1,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-afe8d8c6d6d883-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-afe8d8c6d6d883-01",
+  "seeds": [
+   1,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-afe8d8c6d6d883-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-afe8d8c6d6d883-01",
+  "seeds": [
+   1,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-c83efc7adcd8f5-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-c83efc7adcd8f5-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-c83efc7adcd8f5-01",
+  "seeds": [
+   1
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-c83efc7adcd8f5-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-c83efc7adcd8f5-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-c83efc7adcd8f5-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-c83efc7adcd8f5-01",
+  "seeds": [
+   1
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-c83efc7adcd8f5-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-d9e7a4d5d112d2-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "A-d9e7a4d5d112d2-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "P-47196e0991cdf4-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "P-47196e0991cdf4-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "P-6f82b375df3cc1-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "P-6f82b375df3cc1-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-03d77bbfc281a4-01",
+  "seeds": [
+   0,
+   1,
+   2,
+   41,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+ },
+ {
+  "catalog_id": "T-03d77bbfc281a4-01",
+  "seeds": [
+   0,
+   1,
+   2,
+   41,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+ },
+ {
+  "catalog_id": "T-0908068a0b4269-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-0908068a0b4269-01",
+  "seeds": [
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-0908068a0b4269-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-0908068a0b4269-01",
+  "seeds": [
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-09ef414351dfae-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-09ef414351dfae-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-0b4f248ae32c87-01",
+  "seeds": [
+   41,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-0b4f248ae32c87-01",
+  "seeds": [
+   41,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-0bd75d2bb80aab-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-0bd75d2bb80aab-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-0bd75d2bb80aab-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-0bd75d2bb80aab-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-0cd7f8f3019b40-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-0cd7f8f3019b40-01",
+  "seeds": [
+   1,
+   41,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-0cd7f8f3019b40-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-0cd7f8f3019b40-01",
+  "seeds": [
+   1,
+   41,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-0d397bf9de09a0-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-0d397bf9de09a0-01",
+  "seeds": [
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-0d397bf9de09a0-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-0d397bf9de09a0-01",
+  "seeds": [
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-123d987460eb2a-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-123d987460eb2a-01",
+  "seeds": [
+   1
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-123d987460eb2a-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-123d987460eb2a-01",
+  "seeds": [
+   1
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-149e27671dec82-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-149e27671dec82-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-1970299fc6d849-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-1970299fc6d849-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-1970299fc6d849-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-1970299fc6d849-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-1cd8e5b7e25846-01",
+  "seeds": [
+   1
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-1cd8e5b7e25846-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-1cd8e5b7e25846-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-1cd8e5b7e25846-01",
+  "seeds": [
+   1
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-1cd8e5b7e25846-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-1cd8e5b7e25846-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-1e3f1a4d26121e-01",
+  "seeds": [
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-1e3f1a4d26121e-01",
+  "seeds": [
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-22bc2280c7e6be-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-22bc2280c7e6be-01",
+  "seeds": [
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-22bc2280c7e6be-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-22bc2280c7e6be-01",
+  "seeds": [
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-28ff695081cd2c-01",
+  "seeds": [
+   1,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): FAIL -> PASS by a phase-1 fix; the new trial passes in full -- FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False"
+ },
+ {
+  "catalog_id": "T-2b7563797edbfd-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-2b7563797edbfd-01",
+  "seeds": [
+   1
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-2b7563797edbfd-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-2b7563797edbfd-01",
+  "seeds": [
+   1
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-2d08289a6d709f-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-2d08289a6d709f-01",
+  "seeds": [
+   1,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-2d08289a6d709f-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-2d08289a6d709f-01",
+  "seeds": [
+   1,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-2e07f1f4626671-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-2e07f1f4626671-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-301e5aee8a71a0-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-301e5aee8a71a0-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-301e5aee8a71a0-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-301e5aee8a71a0-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-3b1a4024d46110-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-3b1a4024d46110-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-3b1a4024d46110-01",
+  "seeds": [
+   1
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-3b1a4024d46110-01",
+  "seeds": [
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-3b1a4024d46110-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-3b1a4024d46110-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-3b1a4024d46110-01",
+  "seeds": [
+   1
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-3b1a4024d46110-01",
+  "seeds": [
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-457afb032d7be7-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-457afb032d7be7-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-457afb032d7be7-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-457afb032d7be7-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-47d0adb37bc85e-01",
+  "seeds": [
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-47d0adb37bc85e-01",
+  "seeds": [
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-5ad61b6881821b-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-5ad61b6881821b-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-5ad61b6881821b-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-5ad61b6881821b-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-5ceae2cfd3be19-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-5ceae2cfd3be19-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-5ceae2cfd3be19-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-5ceae2cfd3be19-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-5d2d79cc6ec2ca-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-5d2d79cc6ec2ca-01",
+  "seeds": [
+   1,
+   41,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-5d2d79cc6ec2ca-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-5d2d79cc6ec2ca-01",
+  "seeds": [
+   1,
+   41,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-5d63abe55f7147-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-5d63abe55f7147-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-635020bcc39fc6-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-635020bcc39fc6-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-63b5495ec1360b-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-63b5495ec1360b-01",
+  "seeds": [
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-63b5495ec1360b-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-63b5495ec1360b-01",
+  "seeds": [
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-6af2ea41755bbe-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-6af2ea41755bbe-01",
+  "seeds": [
+   1
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-6af2ea41755bbe-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-6af2ea41755bbe-01",
+  "seeds": [
+   1
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-73a13fb297c40f-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-73a13fb297c40f-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-73a13fb297c40f-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-73a13fb297c40f-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-79a861877a2a67-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-79a861877a2a67-01",
+  "seeds": [
+   1,
+   41,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): FAIL -> PASS by a phase-1 fix; the new trial passes in full -- FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False; not perceivable"
+ },
+ {
+  "catalog_id": "T-79a861877a2a67-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-7d4006bda247ba-01",
+  "seeds": [
+   0,
+   2,
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): FAIL -> PASS by a phase-1 fix; the new trial passes in full -- FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False"
+ },
+ {
+  "catalog_id": "T-7d4006bda247ba-01",
+  "seeds": [
+   0,
+   2,
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): FAIL -> PASS by a phase-1 fix; the new trial passes in full -- FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False"
+ },
+ {
+  "catalog_id": "T-8181b198c09f12-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-8181b198c09f12-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-8181b198c09f12-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-8181b198c09f12-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-89d7a649052266-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-89d7a649052266-01",
+  "seeds": [
+   1,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-89d7a649052266-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-89d7a649052266-01",
+  "seeds": [
+   1,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-8b457901ef8a04-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-8b457901ef8a04-01",
+  "seeds": [
+   1
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-8b457901ef8a04-01",
+  "seeds": [
+   2,
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-8b457901ef8a04-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-8b457901ef8a04-01",
+  "seeds": [
+   1
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-8b457901ef8a04-01",
+  "seeds": [
+   2,
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-8e57df5742271b-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+ },
+ {
+  "catalog_id": "T-8e57df5742271b-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-8e57df5742271b-01",
+  "seeds": [
+   1,
+   41,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-8e57df5742271b-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+ },
+ {
+  "catalog_id": "T-8e57df5742271b-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-8e57df5742271b-01",
+  "seeds": [
+   1,
+   41,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-92f2736b7f949c-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-92f2736b7f949c-01",
+  "seeds": [
+   1,
+   41,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-92f2736b7f949c-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-92f2736b7f949c-01",
+  "seeds": [
+   1,
+   41,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-946704aff89ecf-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-946704aff89ecf-01",
+  "seeds": [
+   1
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-946704aff89ecf-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-946704aff89ecf-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-946704aff89ecf-01",
+  "seeds": [
+   1
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-946704aff89ecf-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-94a0a940224c22-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-94a0a940224c22-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-94a0a940224c22-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-94a0a940224c22-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-954f0fa3af60ac-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-954f0fa3af60ac-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-a56d991fe37401-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-a56d991fe37401-01",
+  "seeds": [
+   1
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-a56d991fe37401-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-a56d991fe37401-01",
+  "seeds": [
+   2,
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-a56d991fe37401-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-a56d991fe37401-01",
+  "seeds": [
+   1
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-a56d991fe37401-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-a56d991fe37401-01",
+  "seeds": [
+   2,
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ab9a26cd6a795e-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ab9a26cd6a795e-01",
+  "seeds": [
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ab9a26cd6a795e-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ab9a26cd6a795e-01",
+  "seeds": [
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ad17030a2c3223-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ad17030a2c3223-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-b122adaae3586f-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-b122adaae3586f-01",
+  "seeds": [
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-b122adaae3586f-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-b122adaae3586f-01",
+  "seeds": [
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-bfd811b2d14e62-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-bfd811b2d14e62-01",
+  "seeds": [
+   41,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-bfd811b2d14e62-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-bfd811b2d14e62-01",
+  "seeds": [
+   41,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c072906a11f55c-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c072906a11f55c-01",
+  "seeds": [
+   1
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c072906a11f55c-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c072906a11f55c-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): FAIL -> PASS by a phase-1 fix; the new trial passes in full -- FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False; not perceivable"
+ },
+ {
+  "catalog_id": "T-c072906a11f55c-01",
+  "seeds": [
+   1
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c072906a11f55c-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c12fbedcf2888d-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c12fbedcf2888d-01",
+  "seeds": [
+   1,
+   41,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c12fbedcf2888d-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c12fbedcf2888d-01",
+  "seeds": [
+   1,
+   41,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c49fadcea69182-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c49fadcea69182-01",
+  "seeds": [
+   1,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c49fadcea69182-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c49fadcea69182-01",
+  "seeds": [
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c49fadcea69182-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c49fadcea69182-01",
+  "seeds": [
+   1,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c49fadcea69182-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c49fadcea69182-01",
+  "seeds": [
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c541cb694906f5-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c541cb694906f5-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c541cb694906f5-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-c541cb694906f5-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ca8e88d719c9ff-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ca8e88d719c9ff-01",
+  "seeds": [
+   1
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ca8e88d719c9ff-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ca8e88d719c9ff-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ca8e88d719c9ff-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ca8e88d719c9ff-01",
+  "seeds": [
+   1
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ca8e88d719c9ff-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ca8e88d719c9ff-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ce25a2474ffb3d-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+ },
+ {
+  "catalog_id": "T-ce25a2474ffb3d-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ce25a2474ffb3d-01",
+  "seeds": [
+   1
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ce25a2474ffb3d-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ce25a2474ffb3d-01",
+  "seeds": [
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ce25a2474ffb3d-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored"
+ },
+ {
+  "catalog_id": "T-ce25a2474ffb3d-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ce25a2474ffb3d-01",
+  "seeds": [
+   1
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ce25a2474ffb3d-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ce25a2474ffb3d-01",
+  "seeds": [
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: spec edited (spec_hash changed): wrong plans re-authored; variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-d1f9385dbb80fc-01",
+  "seeds": [
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): FAIL -> PASS by a phase-1 fix; the new trial passes in full -- FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False"
+ },
+ {
+  "catalog_id": "T-d1f9385dbb80fc-01",
+  "seeds": [
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): FAIL -> PASS by a phase-1 fix; the new trial passes in full -- FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False"
+ },
+ {
+  "catalog_id": "T-d25af2202bc025-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 3 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-d25af2202bc025-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-d25af2202bc025-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-d25af2202bc025-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-d25af2202bc025-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 3 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-d25af2202bc025-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-d25af2202bc025-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-d25af2202bc025-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-d8355138bcf9fb-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-d8355138bcf9fb-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-d901f3b7dda58a-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-d901f3b7dda58a-01",
+  "seeds": [
+   1
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-d901f3b7dda58a-01",
+  "seeds": [
+   2,
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-d901f3b7dda58a-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-d901f3b7dda58a-01",
+  "seeds": [
+   1
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-d901f3b7dda58a-01",
+  "seeds": [
+   2,
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-dda4e199f3f5b0-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-dda4e199f3f5b0-01",
+  "seeds": [
+   1
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-dda4e199f3f5b0-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-dda4e199f3f5b0-01",
+  "seeds": [
+   0,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): FAIL -> PASS by a phase-1 fix; the new trial passes in full -- FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False; not perceivable"
+ },
+ {
+  "catalog_id": "T-dda4e199f3f5b0-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-dde0975c7a26b8-01",
+  "seeds": [
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-dde0975c7a26b8-01",
+  "seeds": [
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-e9cf6ca709ec77-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-e9cf6ca709ec77-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-e9cf6ca709ec77-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-e9cf6ca709ec77-01",
+  "seeds": [
+   1,
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ec38fe45bca9ab-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ec38fe45bca9ab-01",
+  "seeds": [
+   1,
+   41,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ec38fe45bca9ab-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-ec38fe45bca9ab-01",
+  "seeds": [
+   1,
+   41,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-f036622c9240b7-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-f036622c9240b7-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-f82f0ec54a8efb-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-f82f0ec54a8efb-01",
+  "seeds": [
+   1
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-f82f0ec54a8efb-01",
+  "seeds": [
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-f82f0ec54a8efb-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-f82f0ec54a8efb-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-f82f0ec54a8efb-01",
+  "seeds": [
+   1
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-f82f0ec54a8efb-01",
+  "seeds": [
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-f82f0ec54a8efb-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-fa29fd5df0e544-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-fa29fd5df0e544-01",
+  "seeds": [
+   1
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-fa29fd5df0e544-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-fa29fd5df0e544-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 2 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-fa29fd5df0e544-01",
+  "seeds": [
+   1
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "T-fa29fd5df0e544-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "V-10424aa789320a-01",
+  "seeds": [
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "V-10424aa789320a-01",
+  "seeds": [
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-001428fe447c0f-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-001428fe447c0f-01",
+  "seeds": [
+   1,
+   41,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-001428fe447c0f-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-001428fe447c0f-01",
+  "seeds": [
+   1,
+   41,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-1c71303328a5b8-01",
+  "seeds": [
+   41,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-1c71303328a5b8-01",
+  "seeds": [
+   41,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-9cb1ee87e09363-01",
+  "seeds": [
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-9cb1ee87e09363-01",
+  "seeds": [
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-9cb1ee87e09363-01",
+  "seeds": [
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-9cb1ee87e09363-01",
+  "seeds": [
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 2 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-bf82170244be22-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-bf82170244be22-01",
+  "seeds": [
+   1,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-bf82170244be22-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-bf82170244be22-01",
+  "seeds": [
+   1,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-c77e2cbe7181f0-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-c77e2cbe7181f0-01",
+  "seeds": [
+   1,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-c77e2cbe7181f0-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-c77e2cbe7181f0-01",
+  "seeds": [
+   1,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-d734ea3e299b16-01",
+  "seeds": [
+   0
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-d734ea3e299b16-01",
+  "seeds": [
+   1,
+   41,
+   97
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-d734ea3e299b16-01",
+  "seeds": [
+   0
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 0 -> 1 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-d734ea3e299b16-01",
+  "seeds": [
+   1,
+   41,
+   97
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-fee35ef3aac659-01",
+  "seeds": [
+   41
+  ],
+  "mode": "own",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ },
+ {
+  "catalog_id": "X-fee35ef3aac659-01",
+  "seeds": [
+   0,
+   2
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): FAIL -> PASS by a phase-1 fix; the new trial passes in full -- FAIL -> PASS: new trial passes in full (reference passes, initial and idle states fail, every wrong plan ran and fails); before: passed False; reference_passes False"
+ },
+ {
+  "catalog_id": "X-fee35ef3aac659-01",
+  "seeds": [
+   41
+  ],
+  "mode": "realistic",
+  "code": "P1",
+  "decision": "accepted (INT2, verified on the trial records): PASS before and after; only the wrong-plan list differs and every wrong plan of the new record ran and fails, the reference passes and the initial and idle states fail -- PASS -> PASS, wrong-plan list only; every wrong plan ran and fails; cause: variant 1 -> 0 on this seed (K-LEAK's hashed variant rule)"
+ }
+]

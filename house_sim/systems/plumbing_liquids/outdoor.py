@@ -543,8 +543,14 @@ def _write_aggregate(m):
     m["_soil_sync"] = dict(m["soil"])
 
 
-def rinse_entity(w, eid, faces, order, power, passes):
-    """Remove rinsable soil from faces; the dirty runoff leaves a share of what it carried on every face below."""
+def rinse_entity(w, eid, faces, order, power, passes, liters=None, source=None):
+    """Remove rinsable soil from faces; the dirty runoff leaves a share of what it carried on every face below. The
+    spray's litres reach it through the kernel's wetting first (phys.wetted hooks see them: electrical gear takes the
+    ingress and its attribution); the faces it hit are left drenched (wetness 1)."""
+    if liters:
+        C.wet(w, eid, liters, "hose_water", source=source)
+        if eid not in w.s["entities"]:
+            return 0.0
     rec = w.ent(eid)
     m = w.mut(eid)
     removed_total = 0.0
@@ -756,7 +762,7 @@ def spray(ctx):
         passes = C.clamp(seconds / 20.0 / max(1, len(faces)), 0.3, 3.0)
         if pattern == "jet" and rec.get("delicate_finish"):
             C.damage(w, target, "finish stripped by a close jet", kind="finish_stripped", severity=0.4)
-        removed = rinse_entity(w, target, faces, order, power, max(0.3, passes))
+        removed = rinse_entity(w, target, faces, order, power, max(0.3, passes), liters=liters, source=hose)
         openings = [c for c in w.children(target) if w.ent(c).get("category") in ("window", "car_window", "sunroof") and w.ent(c).get("open")]
         if rec.get("windows_open") or openings:
             m = w.mut(target)

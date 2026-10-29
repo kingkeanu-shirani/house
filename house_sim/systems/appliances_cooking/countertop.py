@@ -585,7 +585,7 @@ def _blend_seconds(ctx):
 @action("blend", params={"target": "entity", "seconds": {"type": "number", "default": 30.0, "min": 1.0, "max": 300.0},
                          "speed": {"type": "str", "default": "high", "choices": ["low", "medium", "high", "pulse"]},
                          "pulses": {"type": "int", "default": 0, "min": 0, "max": 60}},
-        duration=_blend_seconds, energy=0.01, noise=0.6, category="physical", timing="commanded",
+        duration=_blend_seconds, energy=0.01, noise=0.6, category="physical", operates=True, timing="commanded",
         doc="Run a blender (target the base or its seated jar) or a food processor (base or bowl) for `seconds` at `speed`, or "
             "`pulses` one-second pulses. Blender: jar locked on the base, lid on, liquids first, under MAX (hot liquids: half "
             "full, vent open). Food processor: bowl, blade and lid locked (interlock); pulse to chop, run to puree.")

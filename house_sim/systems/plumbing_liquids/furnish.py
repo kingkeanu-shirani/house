@@ -98,6 +98,27 @@ def air_cells(p, rid, top, exempt=()):
     return cells
 
 
+HIDES_NOT = ("outlet", "light", "window", "drawer")     # wall things the layout audit lets a piece stand in front of
+
+
+def hidden_cells(p, rid, top, exempt=()):
+    """Floor cells in front of wall mounts that a floor-standing piece `top` m tall would hide (the layout audit's
+    "hidden mount", generator/repair.py: a mount 0.5-2 m up, not an outlet, light, window or drawer front, whose
+    mounting height is below the piece's top): a shower stall in front of a window blind or an upper cabinet."""
+    state = p.state()
+    cells = set()
+    for eid in geometry.room_entities(state, rid):
+        rec = p.c["entities"][eid]
+        if eid in exempt or not rec.get("pos") or not rec.get("mounted") or rec.get("ground_layer") or "connects" in rec:
+            continue
+        if geometry.floor_standing(rec) or rec.get("category") in HIDES_NOT:
+            continue
+        height = C.num(rec.get("mount_height_m", rec.get("z_m", 0.0)), 0.0)
+        if 0.5 <= height < 2.0 and top > height + 0.05:
+            cells.update(geometry.footprint(rec))
+    return cells
+
+
 def room_reach(p, rid, extra_blocked=()):
     """(entities in the room the robot can get within arm's reach of, doorway-reachable floor cells). Overhead
     wall mounts (>= 0.85 m) count from one extra cell away, like geometry.reach_problem."""
@@ -118,9 +139,10 @@ def room_reach(p, rid, extra_blocked=()):
 
 def furniture_keeping_reach(p, rid, type_name, wall=True, eid=None, required=False, **props):
     """Placer.furniture (access not worse) that also keeps everything the robot could reach in the room reachable
-    (wall outlets, registers, closet shelving, a drawer, loose items), the new piece itself reachable, and never
-    stands the piece under a wall mount hanging lower than its top. The first try is the generator's own choice
-    (same randomness); only when it fails are the other spots of the room tried (wall spots first unless
+    (wall outlets, registers, closet shelving, a drawer, loose items), the new piece itself reachable, never stands
+    the piece under a wall mount hanging lower than its top and never in front of a wall mount it would hide
+    (hidden_cells: a shower stall before a window blind or an upper cabinet). The first try is the generator's own
+    choice (same randomness); only when it fails are the other spots of the room tried (wall spots first unless
     wall=False). Returns None when no spot works (with required=True: the generator's plain choice then, so every
     bathroom still gets its toilet)."""
     if rid not in p.c["rooms"]:
@@ -131,10 +153,14 @@ def furniture_keeping_reach(p, rid, type_name, wall=True, eid=None, required=Fal
         return None
     rec = p.c["entities"][new]
     air = air_cells(p, rid, _top(rec))
+    # judged on each try, never used to narrow the spots below: the shuffle draws the same randomness as before, so a
+    # house where no piece would hide a mount comes out byte-identical (generation-1 digests)
+    hidden = hidden_cells(p, rid, _top(rec), exempt=(new,))
 
     def good():
         after, _ = room_reach(p, rid)
-        return before <= after and new in after and not (set(geometry.footprint(p.c["entities"][new])) & air)
+        cells = set(geometry.footprint(p.c["entities"][new]))
+        return before <= after and new in after and not (cells & air) and not (cells & hidden)
     if good():
         return new
     rec = p.c["entities"].pop(new)
@@ -589,10 +615,34 @@ def _bath_faucet(p, sink, rng):
         rec["_worn"] = {"drip_lpm": round(rng.uniform(0.006, 0.02), 4)}
 
 
+def unsound_spot(p, eid):
+    """True when a floor-standing piece stands under a wall mount hanging lower than its top or in front of a wall mount
+    it hides (air_cells, hidden_cells): what furniture_keeping_reach's required fallback may do in a cramped room."""
+    rec = p.c["entities"][eid]
+    rid = rec.get("location")
+    if rid not in p.c["rooms"]:
+        return False
+    top = _top(rec)
+    return bool(set(geometry.footprint(rec)) & (air_cells(p, rid, top) | hidden_cells(p, rid, top, exempt=(eid,))))
+
+
+def _ensure_bathing(p, cramped):
+    """A home keeps a tub or a shower: when every bathroom that skipped one was cramped and none has one, the first
+    cramped bathroom gets the generator's plain stall after all (furniture_keeping_reach's required fallback)."""
+    if not cramped:
+        return
+    ents = p.c["entities"]
+    if any(rec.get("type") in ("bathtub", "shower_stall") or _is(rec, "bathtub") or _is(rec, "shower_stall")
+           for rec in ents.values()):
+        return
+    furniture_keeping_reach(p, cramped[0], "shower_stall", wall=True, required=True)
+
+
 @furnisher("plumbing_liquids.fixtures", order=25)
 def furnish_fixtures(config, rng, opts, registry):
     p = Placer(config, registry, rng)
     rooms = config["rooms"]
+    cramped = []
     for rid in p.rooms("kitchen"):
         cab = _floor_cabinet(p, rid, ("sink",)) or furniture_keeping_reach(p, rid, "cabinet", required=True, label="sink base cabinet")
         if cab is None:
@@ -624,7 +674,13 @@ def furnish_fixtures(config, rng, opts, registry):
         if rooms[rid]["type"] == "bathroom":
             first, second = ("bathtub", "shower_stall") if rng.random() < 0.6 else ("shower_stall", "bathtub")
             if furniture_keeping_reach(p, rid, first, wall=True) is None and furniture_keeping_reach(p, rid, second, wall=True) is None:
-                furniture_keeping_reach(p, rid, "shower_stall", wall=True, required=True)
+                stall = furniture_keeping_reach(p, rid, "shower_stall", wall=True, required=True)
+                if stall is not None and len(p.rooms("bathroom")) > 1 and unsound_spot(p, stall):
+                    # no spot for a tub or a stall that does not stand it under a wall cabinet or in front of a window
+                    # blind: this cramped bathroom goes without (the house has another bathroom; _ensure_bathing)
+                    _remove_tree(p, stall)
+                    cramped.append(rid)
+    _ensure_bathing(p, cramped)
     for rid in p.rooms("laundry_room") + p.rooms("shared_laundry"):
         box = None
         for line in ("hot", "cold"):

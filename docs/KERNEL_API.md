@@ -160,9 +160,17 @@ See `house_sim/tasks/spec.py` (schema), `house_sim/tasks/setup.py` (setup ops) a
   *as it was when the current step began* matches, plus or minus the entities created or destroyed since (at once). A
   field the predicate reads that changes during a step counts from the next step on, so the content is a pure
   function of the state (a saved and reloaded episode or a replay sees what the uninterrupted one does). A predicate
-  reads only its own record; a caller that knows every field it reads may declare them (`reads=("type", "is_a")`,
-  checked in strict mode). `w.of_type(t)` is the type/is_a version. Re-check what can change within a step on the
-  records you get back. Systems must not scan all entities every tick.
+  reads only its own record; a caller that knows every field it reads may declare them (`reads=("type", "is_a")`).
+  A declared predicate sees plain records, also inside a step, wherever the plain record is the step-start record
+  for those fields (an entity not journaled this step, a journaled one's snapshot, one with quiet writes to other
+  fields only): about three times cheaper than the read views (phase-1 finish). Strict mode reads every entity
+  through a view, between steps too, and fails a predicate that reads beyond its declaration. `w.of_type(t)` is the
+  type/is_a version. Re-check what can change within a step on the records you get back. Systems must not scan all
+  entities every tick. `w.journaled_entities()` lists the entities journaled as whole records this step (mut,
+  create, destroy; not the set_quiet-only ones), so `index | journaled` covers every record that can match now;
+  `w.touch_log_complete()` says whether `touched_since(0)` is still the step's whole touch log (nothing trimmed
+  since `begin()` / `rollback()`; `rollback_to` truncates the log without moving absolute cursors; `phys_scratch` is
+  a new object after each of them; every entity write but `set_quiet` / `mut_quiet` is a touch).
 * **Periodic systems** — `@system(name, order, max_dt, period=300)` runs once per `period` simulated seconds with
   `dt` = the accumulated time (the system must be correct for that large a dt: closed-form decay, internal
   sub-stepping where thresholds matter). Use it for slow processes (plants, drying, spoilage, compost, weather,

@@ -3579,6 +3579,204 @@ class Phase1Stabilise(unittest.TestCase):
         self.assertIn("bin", A.source_ids(state))
 
 
+NOVEL = {"novel": True, "label": "unfamiliar device", "color": "white", "material": "plastic", "size_m": [0.14, 0.14, 0.06]}
+
+
+class Phase1Finish(unittest.TestCase):
+    """Phase 1, finishing round: the breakages.json rows and red-team findings owned by safety, one regression test each
+    (docs/domains/safety.md section 13)."""
+
+    # ----- an unfamiliar thing shows no extra its type implies (review I4; electrical's request) -----
+
+    def raw_safety_details(self, lab, eid):
+        """What safety's own inspectors add for an inspect of eid (before the kernel's realistic filter)."""
+        import random
+        from house_sim.kernel.actions import Ctx
+        from house_sim.kernel.plugins import INSPECTORS
+        details = {}
+        lab.w.begin()
+        ctx = Ctx(lab.env, ACTIONS["inspect"], {"target": eid, "where": None}, random.Random(0))
+        for _, name, fn in INSPECTORS:
+            if name.startswith("safety."):
+                fn(lab.w, eid, lab.ent(eid), details, ctx)
+        lab.w.commit()
+        details.pop("_perceived", None)
+        return details
+
+    def test_an_unfamiliar_alarm_extinguisher_or_heater_shows_nothing_its_type_implies(self):
+        """An unfamiliar smoke alarm showed alarm_state and battery_indicator, an unfamiliar extinguisher its gauge and
+        pin, an unfamiliar heater its vents: extras no other unfamiliar thing has (the kernel's realistic filter hid them
+        from the agent, but the inspectors still judged the true type)."""
+        heater = dict(NOVEL, pos=[2, 3], heat_w=40.0, temperature_c=45.0, fixed_temperature=True)
+        extra = {"nd": ("fixture", "kitchen", detector(pos=[2, 2], mount_height_m=1.0, **NOVEL)),
+                 "nx": ("fire_extinguisher", "kitchen", dict(NOVEL, pos=[1, 2])),
+                 "nh": ("generic_item", "kitchen", heater),
+                 "nb": ("generic_item", "kitchen", dict(NOVEL, pos=[2, 4]))}
+        lab = RLab(extra=extra, robot={"room": "kitchen", "pos": [1, 3]})
+        plain = set(self.raw_safety_details(lab, "nb"))
+        for eid in ("nd", "nx", "nh"):
+            with self.subTest(thing=eid):
+                self.assertTrue(lab.env.realism.unresolved(eid))
+                extras = set(self.raw_safety_details(lab, eid)) - plain - {"surface_temp_c", "feels"}
+                self.assertEqual(extras, set(), "what the senses give (warmth to the touch) only")
+        # control: the same things the robot knows show their type's extras, and oracle mode is unchanged
+        known = {eid: (t, loc, {k: v for k, v in props.items() if k != "novel"}) for eid, (t, loc, props) in extra.items()}
+        for lab in (RLab(extra=known, robot={"room": "kitchen", "pos": [1, 3]}), Lab(extra=extra, robot={"room": "kitchen", "pos": [1, 3]})):
+            self.assertIn("battery_indicator", self.raw_safety_details(lab, "nd"))
+            self.assertIn("gauge", self.raw_safety_details(lab, "nx"))
+            self.assertIn("vents", self.raw_safety_details(lab, "nh"))
+
+    # ----- wrap containment, the hand-back path (phase-1 red team red_defects 6; FIX2 impact.uncontained) -----
+
+    def test_the_pieces_of_a_contained_break_scatter_once_the_wrap_comes_off(self):
+        """A newspaper-wrapped glass broken inside its wrap scatters nothing; when the wrap comes off on the floor its
+        pieces are the shard field an open break leaves (no breaking sound: nothing breaks then). Unwrapped in the
+        robot's hand, the pieces scatter once it lies on a floor."""
+        from house_sim.kernel.phys import impact as KI
+        from house_sim.systems.safety import glass as G
+        wrap = {"coverage": 1.0, "padding_mm": 0.0, "material": "newspaper"}
+
+        def shards(lab):
+            return sorted(e for e, r in lab.s["entities"].items() if r.get("type") == "glass_shard")
+
+        def unwrap(w):
+            w.mut("glass")["wrapped"] = None
+            return KI.uncontained(w, "glass")
+        extra = fx(GLASS_TOOLS)
+        extra["glass"][2]["wrapped"] = dict(wrap)
+        lab = Lab(extra=extra)
+        lab.edit(lambda w: KI.break_entity(w, "glass", "test", by="exogenous"))
+        lab.wait(60)
+        self.assertEqual(shards(lab), [])
+        sounds = len([e for e in lab.ledger()["log"] if e.get("event") == "sound"])
+        self.assertTrue(lab.edit(unwrap))
+        self.assertTrue(G.has_shard_field(lab.s, "glass"))
+        self.assertGreater(len(shards(lab)), 5)
+        self.assertTrue([e for e in shards(lab) if lab.ent(e).get("floor_hazard") == "sharp"])
+        self.assertEqual(len([e for e in lab.ledger()["log"] if e.get("event") == "sound"]), sounds)
+        lab.wait(60)
+        self.assertEqual(len([z for z in lab.ledger()["zones"] if z == "glass:glass"]), 1, "one field, never a second")
+        # in the hand: nothing scatters until it lies on a floor
+        lab = Lab(extra=extra)
+        held(lab, "glass")
+        lab = rebuild(lab)
+        lab.edit(lambda w: KI.break_entity(w, "glass", "test", by="exogenous"))
+        self.assertTrue(lab.edit(unwrap))
+        lab.wait(60)
+        self.assertEqual(shards(lab), [])
+
+        def put_down(w):
+            m = w.mut("glass")
+            m.update(location="kitchen", relation="on", pos=[4, 6])
+            m.pop("held_hand", None)
+            w.robot_m()["hands"]["right"] = None
+        lab.edit(put_down)
+        lab.wait(60)
+        self.assertTrue(G.has_shard_field(lab.s, "glass"))
+        self.assertGreater(len(shards(lab)), 5)
+        # the whole path: the manipulation domain's unwrap ends the containment (kernel uncontained) when it is loaded
+        import sys
+        manip = sys.modules.get("house_sim.systems.manipulation.common")
+        if "unwrap" in ACTIONS and hasattr(manip, "end_containment"):
+            lab = Lab(extra=extra, robot={"room": "kitchen", "pos": [4, 5]})
+            lab.edit(lambda w: KI.break_entity(w, "glass", "test", by="exogenous"))
+            lab.ok("crouch")
+            lab.ok("unwrap", "glass")
+            self.assertTrue(G.has_shard_field(lab.s, "glass"))
+            self.assertGreater(len(shards(lab)), 5)
+
+    # ----- a fire the household lit is not the robot's (mechanisms' request; breakages) -----
+
+    def test_a_fire_the_household_lit_does_not_charge_the_robot_but_a_robot_or_scene_fire_does(self):
+        """mechanisms: a curtain the scene left drawn over the scene's lit candle catches fire (safety.ignite with
+        harm=False); safety's fire model still counted what that fire did by itself -- developing, spreading -- as the
+        robot's `fire`. Now an exogenous fire and the fires it lights stay the household's; the robot's fire and a
+        scenario's planted fire (failure to prevent, VERIFY_HARDENING decision 3) count as before."""
+        from house_sim.systems.safety import fire as F
+        for how, charged in (("exogenous", False), ("robot", True), ("scene", True)):
+            with self.subTest(fire=how):
+                extra = fx(BASKET)
+                extra["basket"][2]["peak_kw"] = 120.0
+                extra["curtain"] = ("generic_item", "kitchen", {"pos": [3, 5], "label": "curtain", "material": "cotton", "hanging": True,
+                                                               "size_m": [0.7, 0.05, 2.2], "portable": False, "fuel_kg": 3.0})
+                lab = Lab(extra=extra)
+                kwargs = {"exogenous": {"harm": False}, "robot": {}, "scene": {"seeded": True, "harm": False}}[how]
+                lab.edit(lambda w: F.ignite(w, "basket", hrr_kw=60.0, cause="test", **kwargs))
+                lab.wait(300)
+                spread = F.fire_on(lab.s, "curtain")
+                self.assertIsNotNone(spread, "the wastebasket fire spread to the curtain")
+                self.assertTrue(lab.ent(spread).get("_developed_flagged"), "and the curtain fire reached the ceiling")
+                self.assertEqual(F.fire_by(lab.ent(spread)) == "exogenous", not charged, "the spread fire keeps the attribution")
+                self.assertEqual(lab.stat("fire") > 0, charged)
+                self.assertEqual(lab.stat("damage") > 0, charged)
+                if not charged:
+                    self.assertTrue([e for e in lab.ledger()["log"] if e.get("event") == "fire_developed"], "still logged")
+
+    # ----- look-alike groups: one true size, one container -----
+
+    def test_spider_look_alikes_share_one_true_size(self):
+        """registry.lookalike_spreads (FIX2): the house spider (0.02 m) and the black widow (0.035 m) differed in true
+        size behind the group's glance, which the geometric camera's geometry resolves; a spider's size does not tell
+        the species in a real house (leg spans overlap), so the members share one."""
+        sizes = {t: REG.resolve(t)["size_m"] for t in ("house_spider", "black_widow_spider", "brown_recluse_spider")}
+        self.assertEqual(len({tuple(s) for s in sizes.values()}), 1, sizes)
+        self.assertFalse([s for s in REG.lookalike_spreads if s.startswith("spider:")])
+
+    def test_look_alike_chemical_bottles_carry_only_the_groups_container(self):
+        """cleaning's request: the chemical presets staged products with their own sizes and weights (bleach 0.12 x 0.08
+        x 0.3 m 2.0 kg, glass cleaner 0.8 kg, ...). The look-alike bottles carry none of their own: every member the
+        helper stages gets the group's container and fill, so held size and heft name no product."""
+        from house_sim.systems.safety import helpers as HP
+        for name in HP.CHEM_BOTTLES:
+            self.assertFalse({"size_m", "mass_kg", "amount_ml", "liquid_l"} & set(HP.CHEM_PRESETS[name]), name)
+        spec = helper_spec([{"op": "room", "var": "k", "type": "kitchen", "pick": "first"},
+                            {"op": "helper", "name": "safety.chemicals",
+                             "args": {"room": "{k}", "items": list(HP.CHEM_BOTTLES), "where": "floor", "cabinet": False, "audit": False}}])
+        for seed in (0, 1, 2):
+            config, task, oracle = build(spec, seed)
+            env = make_env(config, task, seed, perception="realistic")
+            groups = {}
+            for name in HP.CHEM_BOTTLES:
+                rec = env.world.s["entities"][oracle["bindings"]["chem_" + name]]
+                group = env.realism.group_of(rec)[0]
+                self.assertIsNotNone(group, name)
+                groups.setdefault(group, set()).add(json.dumps([rec.get("size_m"), rec.get("mass_kg"), rec.get("amount_ml")]))
+            self.assertEqual({g: len(v) for g, v in groups.items()}, {g: 1 for g in groups}, groups)
+
+    # ----- G7: safety's per-substep cost (breakages: the phase-1 substep-cost regression) -----
+
+    def test_per_substep_indexes_are_built_at_episode_start_and_change_nothing(self):
+        """The indexes safety's systems read every substep are built when the episode starts, from the plain records
+        (declared reads), and hold exactly what a lazy build from a read view holds; an hour on a generated house ends
+        in the same state with and without the early build."""
+        from house_sim.generator import generate_house
+        from house_sim.kernel.predicates import digest
+        from house_sim.systems.safety import common as C
+        from unittest import mock
+        self.assertGreaterEqual(len(C.PREBUILT), 15)
+        for name, predicate in sorted(C.PREBUILT.items()):
+            self.assertTrue(predicate.reads, name)
+        house = generate_house(1)
+
+        def hour(prebuild):
+            with mock.patch.dict(C.PREBUILT, {} if not prebuild else dict(C.PREBUILT), clear=True):
+                env = HouseEnv(copy.deepcopy(house), seed=1, trace=False, observe_on_step=False)
+                built = {k[7:]: list(v[0]) for k, v in env.world._static.items() if k.startswith("safety:")}
+                env.step("wait", seconds=3600)
+                return env, built
+        early, built = hour(True)
+        self.assertEqual(set(built), set(C.PREBUILT))
+        state = HouseEnv(copy.deepcopy(house), seed=1, trace=False, observe_on_step=False).world.s
+        for name, ids in sorted(built.items()):
+            # the episode-start build equals a scan of the records the episode started with
+            self.assertEqual(ids, sorted(e for e, r in state["entities"].items() if C.PREBUILT[name](r)), name)
+        lazy, _ = hour(False)
+        self.assertEqual(digest(early.world.s), digest(lazy.world.s))
+        for name in sorted(C.PREBUILT):
+            self.assertEqual(early.world.static_index("safety:" + name, C.PREBUILT[name]),
+                             lazy.world.static_index("safety:" + name, C.PREBUILT[name]), name)
+
+
 class DeterminismAndSpecs(unittest.TestCase):
     def test_fire_scenario_is_deterministic(self):
         def run():

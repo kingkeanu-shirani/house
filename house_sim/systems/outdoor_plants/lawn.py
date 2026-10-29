@@ -325,6 +325,8 @@ def watering_rule_check(w):
 #   irrigation_emitter: true, on|running: true, precip_mm_h (15), radius_m (4), arc [from_deg, to_deg] (optional),
 #   fault (secret): broken_head | clogged | misaligned | leak
 
+@C.episode_index("emitters")
+@C.index_reads("irrigation_emitter", "category")
 def is_emitter(record):
     """Static part of the emitter contract (sprinklers, rotors, drip lines from plumbing)."""
     return bool(record.get("irrigation_emitter") or record.get("category") in ("sprinkler", "soaker_hose", "drip_line"))
@@ -334,8 +336,14 @@ def emitters(w):
     return C.static_ids(w, "emitters", is_emitter)
 
 
+@C.episode_index("irrigation_controllers")
+@C.index_reads("irrigation_controller")
+def _is_controller(record):
+    return bool(record.get("irrigation_controller"))
+
+
 def controllers(w):
-    return C.static_ids(w, "irrigation_controllers", lambda r: bool(r.get("irrigation_controller")))
+    return C.static_ids(w, "irrigation_controllers", _is_controller)
 
 
 def emitter_active(record):
@@ -1186,6 +1194,9 @@ def lawn_system(w, dt, tick):
     """Irrigation controllers and running emitters every substep (static indexes; O(1) with no emitters)."""
     drive_controllers(w)
     run_emitters(w, dt)
+
+
+C.episode_types("lawn")
 
 
 @system("outdoor_plants.lawn_growth", order=125, max_dt=C.SLOW_S, period=C.SLOW_S)

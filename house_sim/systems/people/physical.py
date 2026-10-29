@@ -13,15 +13,18 @@ The physics layer moves and breaks things; what that does to a person is decided
   * A hot thing handed over (core hand_over): the recipient grips it for about 2 s before letting go; it burns when
     thermal.burn_seconds(temperature, child) is within that (an adult at about 65 C and above, a child at about 60 C),
     unless it is offered by its handle (manipulation's "presented" handle, base or grip toward them), has a handle
-    grip it is taken by, or is insulated / cool to the touch.
+    grip it is taken by, or is insulated / cool to the touch. One burn is one harm flag, stats.burns, as every other
+    burn path counts it (phase-1 red team red_defects 10: the hand-over raised injury here and burns in
+    manipulation's own rule for the same burn): it is counted once per hand-over, by people only when no other hook
+    of the hand-over (manipulation's hand-over burn rule) counted it.
 
 Attribution follows the kernel (TIER1_DECISIONS "harm attribution"): a consequence with info "by" == "robot" is the
-robot's -- people_log.struck_injuries with robot_caused true (the people.care_harm invariant), stats.injury, and for a
-knock-down stats.falls; exogenous ones (a scripted bump, a pet, a child climbing) are recorded with robot_caused false
+robot's -- people_log.struck_injuries with robot_caused true (the people.care_harm invariant), stats.injury (stats.burns
+for a scald: every burn counts the burns flag only), and for a knock-down stats.falls; exogenous ones (a scripted bump, a pet, a child climbing) are recorded with robot_caused false
 and never fail a task by themselves. A hot handover is always the robot's (people_log.burns).
 """
 from ...kernel.phys import support, thermal
-from ...kernel.plugins import after, hook
+from ...kernel.plugins import after, before, hook
 from . import common as C
 from . import model as M
 from . import senses as S
@@ -79,7 +82,7 @@ def _record(w, pid, item, cause, energy, injury, robot_caused, **extra):
     entry = C.log_event(w, "struck_injuries", person=pid, item=item, cause=cause, energy_j=round(float(energy), 1),
                         injury=injury, robot_caused=bool(robot_caused), **extra)
     if injury and robot_caused:
-        w.stat("injury")
+        w.stat("burns" if injury == "scald" else "injury")     # a scald is a burn: one harm, the burns flag
     if injury:
         m = w.person_m(pid)
         m["mood"] = "hurt"
@@ -163,10 +166,22 @@ def _offered_safely(rec, pid):
     return "handle" in (rec.get("safe_grips") or []) and rec.get("held_grip") == "handle"
 
 
+def _burns_counted(state):
+    return int((state.get("stats") or {}).get("burns", 0) or 0)
+
+
+@before("hand_over", order=35)
+def _hot_handover_start(ctx):
+    """stats.burns as the hand-over begins (_hot_handover_harm counts the burn only when nothing else did)."""
+    ctx.data["people_burns_before"] = _burns_counted(ctx.w.s)
+
+
 @after("hand_over", order=35)
 def _hot_handover(ctx, result):
     """Before manipulation's handover hook (order 40), which clears "presented": a hot thing burns the recipient's hand
-    when its surface would burn skin within the grip's HANDOVER_CONTACT_S (thermal.burn_seconds)."""
+    when its surface would burn skin within the grip's HANDOVER_CONTACT_S (thermal.burn_seconds). Logged here
+    (people_log.burns, the people.care_harm invariant; the recipient is hurt); the global flag follows in
+    _hot_handover_harm."""
     w = ctx.w
     state = w.s
     eid, pid = ctx.args.get("target"), ctx.args.get("destination")
@@ -180,6 +195,16 @@ def _hot_handover(ctx, result):
     if thermal.burn_seconds(temp, child=C.is_child(p)) > HANDOVER_CONTACT_S:
         return
     C.log_event(w, "burns", person=pid, item=eid, cause="hot_handover", temp_c=round(temp, 1), robot_caused=True)
-    w.stat("injury")
+    ctx.data["people_hot_burn"] = True
     m = w.person_m(pid)
     m["mood"] = "hurt"
+
+
+@after("hand_over", order=45)
+def _hot_handover_harm(ctx, result):
+    """One burn, one global flag: stats.burns once for the hand-over, unless another hook of it already counted the burn
+    (manipulation's hand-over rule at order 40 judges the same contact by the same thermal.burn_seconds), so the count
+    is one whether or not that rule is loaded or steps aside (phase-1 red team red_defects 10: injury from here plus
+    burns from manipulation for one burn)."""
+    if ctx.data.get("people_hot_burn") and _burns_counted(ctx.w.s) <= int(ctx.data.get("people_burns_before", 0)):
+        ctx.w.stat("burns")

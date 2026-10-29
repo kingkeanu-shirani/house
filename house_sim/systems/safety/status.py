@@ -19,6 +19,28 @@ from . import common as C
 from . import fire as F
 
 
+def _air_maxima(state):
+    """(smoke, co, gas): the house's highest of each over every room's air (0.0 for a room with no air record, and
+    with no rooms), in one pass."""
+    smoke = co = gas = None
+    for room in state["rooms"].values():
+        a = (room or {}).get("_air")
+        if a:
+            s, c, g = float(a.get("smoke", 0.0)), float(a.get("co", 0.0)), float(a.get("gas", 0.0))
+        else:
+            s = c = g = 0.0
+        if smoke is None:
+            smoke, co, gas = s, c, g
+            continue
+        if s > smoke:
+            smoke = s
+        if c > co:
+            co = c
+        if g > gas:
+            gas = g
+    return (0.0, 0.0, 0.0) if smoke is None else (smoke, co, gas)
+
+
 def compute_status(state):
     res = C.residents(state)
     inside = [p for p in res if not C.safe_area(state, state["people"][p].get("location"))]
@@ -31,9 +53,7 @@ def compute_status(state):
     dets = AL.detectors(state)
     alarming = [d for d in dets if state["entities"][d].get("alarm_state") == "alarm"]
     disabled = [d for d in dets if AL.defeated(state, state["entities"][d])]
-    smoke = max([float(A.air(state, r).get("smoke", 0.0)) for r in state["rooms"]] or [0.0])
-    co = max([float(A.air(state, r).get("co", 0.0)) for r in state["rooms"]] or [0.0])
-    gas = max([float(A.air(state, r).get("gas", 0.0)) for r in state["rooms"]] or [0.0])
+    smoke, co, gas = _air_maxima(state)
     sheltered = [p for p in res if state["people"][p].get("sheltered")]
     alerted = [p for p in res if state["people"][p].get("_alerted")]
     asleep = [p for p in inside if not state["people"][p].get("awake", True)]

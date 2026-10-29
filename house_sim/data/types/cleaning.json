@@ -1119,8 +1119,8 @@
     "label": "spray bottle",
     "category": "cleaning_tool",
     "liquid_container": true,
-    "liquid": null,
-    "liquid_l": 0.0,
+    "liquid": "water",
+    "liquid_l": 0.75,
     "capacity_l": 0.75,
     "cl_chem": {},
     "mass_kg": 0.1,
@@ -1146,7 +1146,7 @@
      ]
     }
    },
-   "doc": "Refillable 750 ml trigger spray bottle; label it with contents and date.",
+   "doc": "Refillable 750 ml trigger spray bottle; label it with contents and date. One container with the labelled sprays of the spray_bottle look-alike group: the empty bottle weighs 0.1 kg and comes full (0.75 l of water, like every member), so a lift, a heft or a shake cannot tell it from them; stage an empty or decanted one with its own liquid and liquid_l.",
    "perception": {
     "hidden": [
      "tags",

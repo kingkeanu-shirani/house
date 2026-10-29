@@ -170,6 +170,15 @@ All durations are realistic seconds (spent via `ctx.spend`); refusals use Action
 held by its handle (the kernel's `held_grip` memory lets a knife picked up by the handle be set down and carried); food on a resting surface (cutting in the hand is a
 safety refusal); the steadying hand free; packages opened first.
 
+Unfamiliar things (realistic perception, review I4; phase-1 finish): an unfamiliar (novel) thing is handled as an
+object but never worked by a food verb. Every verb but `weigh` declares `operates=True` (the kernel refuses one as the
+target with its one identify-first message, `actions.NOVEL_OPERATE_MESSAGE`), and a before hook (order 1,
+`percept.unfamiliar_first`) gives the same refusal for one in any other entity parameter (a destination, a tool, the
+garnish, the containers of `portion`). A held unfamiliar thing is no tool, utensil, opener, guard, soap or probe the
+robot knows of (`common.held_known`, `common.tool`); `weigh` weighs one as an object on a known scale but never reads it
+as the scale (`_scale_under` skips unfamiliar scales, and its refusal then names no kind of thing). Oracle mode is
+unchanged.
+
 | Verb | Params | Preconditions / refusals | Effects | Duration |
 |---|---|---|---|---|
 | `cut` | target, tool?, technique (claw/flat/none), style (halve, quarter, wedges, strips, chunks, pieces, flat_side, julienne, shred, radial, portions), pieces, size_mm, axis, angle_to_grain_deg, offset_deg | on a board (wooden counter is damaged, stone dulls the knife); round whole produce needs halve/flat_side first or the knife slips (cut injury, `stats.damage`, robot fault); halve/quarter only on whole items | `cut`, `pieces`, `piece_mm`, `piece_cv`; across-grain strips tender; radial cuts share toppings fairly | 3-90 s by pieces |
@@ -226,8 +235,8 @@ choice charges the robot no harm flag).
 
 | System | Order / cadence | What changes |
 |---|---|---|
-| `food.thermal` | 52, every 30 s substep; full pass on the first substep after every action and every 300 s, in between only `_tfast` items (hot >= 40 C, in contact with a heated vessel or water, in a food-owned air space, or expected to move > 1 C within 5 min). Each update integrates the elapsed interval in closed form; an item that sat in equilibrium until moved is credited only the last substep in its new place | Food temperature (food entities carry `fixed_temperature`, the kernel's alias of `thermal_owner`, so the kernel thermal system and its phase law skip them; idle probe `systems.thermal_idle`, exact): Newton cooling tau = m c / (h A), h by surroundings (still air 8, fridge 12, freezer 14, oven 25 x coupling, contact with a heated pan 150, water 250), ambient found by walking the containment chain (a lidded box inside a fridge sits in fridge air), enclosure factors (closed package 0.8, lid 0.55); latent heat (freezing/thawing plateau); lagged core node (slab, sphere for eggs in shell); liquids capped at 100 C; doneness (eggs set, bread toasts/burns and smokes, grains absorb water and turn into `oatmeal`/`cooked_rice`), pathogen kill at safe core temperature, `cooked` flag; passive vs actively heated metal vessels; air model for food-owned insulated spaces (stand-in fridge/freezer, lunch box, cooler, thermos, ice and cold-water baths, latent ice packs); `heat_load_w` reported to appliance cold units (`ac_kind` fridge or freezer) only. The cold spaces are `systems.cold_unit` (a food air model or an appliance refrigerator/freezer compartment: fields that say what the thing is, never its internal temperature, which an oven or a toaster has too) |
-| `food.safety` | 130, kernel `period` 300 s (dt = exact accumulated interval) | Clocks: danger zone 5-57 C (2 h limit, 1 h above 32 C ambient) -> `_time_out_s`, `_abused`; two-stage cooling (60->21 C in 2 h, ->5 C in 6 h more) -> `_cooling.ok`; Q10 spoilage (`_spoil`), ripening and chill injury, enzymatic browning of cut surfaces, sogginess, wilting, proofing and dough skin, marinade texture, scorching unstirred thick food, freezer burn, insects on food outdoors, foam on boils, soaking grit, sealed rigid containers of liquid food bursting or bulging when the ice needs more than their headspace (the kernel's freeze-burst rule, `physical.freeze_burst`: a full wine bottle, a closed mason jar of stock; an open jar does not), thawing raw meat packs leaking and dripping (contaminating what is below), utensil melting (the kernel's `impact.damage`: the damage flag only when the robot put the utensil or the pan there); scale displays; food lying in a vessel's bleach or mop water takes its contamination (`physical.soak_from_vessel`); derived truth: `_food_status`, `_zone`, `_storage_ok`/`_storage_issue`, appearance and odor, FIFO (`_fifo_ok`, `_stack_fifo_ok`), `_recipe_check`, `_label_check`, `_policy_ok`, `_free_l` (refrigerators and freezers only: `systems.cold_storage`), `_salt_pct`/`_liquid_pct`, `_packaging_ok`, `_dish` per serving vessel |
+| `food.thermal` | 52, every 30 s substep; full pass on the first substep after every action and every 300 s, in between only `_tfast` items (hot >= 40 C, in contact with a heated vessel or water, in a food-owned air space, or expected to move > 1 C within 5 min). Each update integrates the elapsed interval in closed form; an item that sat in equilibrium until moved is credited only the last substep in its new place | Food temperature (food entities carry `fixed_temperature`, the kernel's alias of `thermal_owner`, so the kernel thermal system and its phase law skip them; idle probe `systems.thermal_idle`, exact): Newton cooling tau = m c / (h A), h by surroundings (still air 8, fridge 12, freezer 14, oven 25 x coupling, contact with a heated pan 150, water 250), ambient found by walking the containment chain (a lidded box inside a fridge sits in fridge air), enclosure factors (closed package 0.8, lid 0.55); latent heat (freezing/thawing plateau); lagged core node (slab, sphere for eggs in shell); liquids capped at 100 C; doneness (eggs set, bread toasts/burns and smokes, grains absorb water and turn into `oatmeal`/`cooked_rice`), pathogen kill at safe core temperature, `cooked` flag; passive vs actively heated metal vessels; air model for food-owned insulated spaces (stand-in fridge/freezer, lunch box, cooler, thermos, ice and cold-water baths, latent ice packs); `heat_load_w` reported to appliance cold units (`ac_kind` fridge or freezer) only. The cold spaces are `systems.cold_unit` (a food air model or an appliance refrigerator/freezer compartment: fields that say what the thing is, never its internal temperature, which an oven or a toaster has too). A food's temperature, core temperature and food's own bookkeeping (`_tt`, `_amb`, `_peak_c`, `_peak_core_c`, `_tfast`, a pack's `ice_frac`) are field-level writes (`World.set_quiet`: no copy of the record, no touch), as the kernel thermal system writes its temperatures; a change of phase (`food.ice`) and every effect of heat (doneness, cooking flags) stay record writes |
+| `food.safety` | 130, kernel `period` 300 s (dt = exact accumulated interval) | Clocks: danger zone 5-57 C (2 h limit, 1 h above 32 C ambient) -> `_time_out_s`, `_abused`; two-stage cooling (60->21 C in 2 h, ->5 C in 6 h more) -> `_cooling.ok`; Q10 spoilage (`_spoil`), ripening and chill injury, enzymatic browning of cut surfaces, sogginess, wilting, proofing and dough skin, marinade texture, scorching unstirred thick food, freezer burn, insects on food outdoors, foam on boils, soaking grit, sealed rigid containers of liquid food bursting or bulging when the ice needs more than their headspace (the kernel's freeze-burst rule, `physical.freeze_burst`: a full wine bottle, a closed mason jar of stock; an open jar does not), thawing raw meat packs leaking and dripping (contaminating what is below), utensil melting (the kernel's `impact.damage`: the damage flag only when the robot put the utensil or the pan there); scale displays; food lying in a vessel's bleach or mop water takes its contamination (`physical.soak_from_vessel`); derived truth: `_food_status`, `_zone`, `_storage_ok`/`_storage_issue`, appearance and odor, FIFO (`_fifo_ok`, `_stack_fifo_ok`), `_recipe_check`, `_label_check`, `_policy_ok`, `_free_l` (refrigerators and freezers only: `systems.cold_storage`), `_salt_pct`/`_liquid_pct`, `_packaging_ok`, `_dish` per serving vessel. The clocks' own counters (`_spoil`, `_time_out_s`, `_abuse_s`: `systems.QUIET_CLOCKS`) are field-level writes (`World.set_quiet`), everything else a record write |
 | `food.refresh` | 131, first substep after every action/wait only | derived truth (as above), scale displays, melted utensils, so predicates graded right after an action see its effect; the `episode_start` hook computes the same at reset (baseline and first observation) |
 
 Cost (all 16 domains, `tools/bench_systems.py 40 0 1 2 3 --domain food`): 1.68 ms per substep before the integration
@@ -253,7 +262,10 @@ must not sit behind a newer one (`spos` depth); stacked food the older on top.
 
 Hooks (all `order` 40-120): a shelf item
 blocked by one in front cannot be picked; pick_up/place/receive spread contamination by contact (hands or worn gloves,
-tools, surfaces, floor) and log ready-to-eat contacts; placing hot pans on wood marks it; solids into drains, parchment
+tools, surfaces, floor) and log ready-to-eat contacts; a hot item set down on a finish marks it (`physical.hot_contact`:
+the legacy copy of the kernel's contact_heat law while it is deferred, with the kernel's heat limit, contact temperature,
+mark and severity, after every domain's `phys.contact_heat` claim; it steps aside while a domain laws.json lists as
+keeping its own copy is loaded, so a contact is marked once); solids into drains, parchment
 lining pans, plate scraps; `open` (can opener/corkscrew needed, `opened_on`, bulging cans, shaken carbonated drinks
 spray); `close` (cereal liner, rim smears stop lids sealing -> leaks); `hand_over` -> eater checks and consumption
 (stats below, charged to the robot), household rules (e.g. no sweets between meals); `person_eats` (extension point)
@@ -540,8 +552,10 @@ fields food writes onto other domains' entities):
 `small_baking_box` (baking soda, cornstarch), `nut_butter_jar` (peanut vs almond butter), `beverage_can`
 (soda, beer, sparkling water), `drink_carton` (milk, almond, oat, buttermilk, cream), `dairy_tub` (sour cream, yogurt,
 hummus), `spice_jar` (10 spice jars), `bread_loaf_bag` (regular vs gluten-free), `cracker_box` (regular vs gluten-free),
-`cooking_oil_bottle` (olive vs vegetable), `measuring_cup` (1, 1/2, 1/3, 1/4 cup), `measuring_spoon` (tbsp, tsp, 1/2,
-1/4 tsp): all resolve on `inspect` (the product name or the stamped size is legible at reach).
+`cooking_oil_bottle` (olive vs vegetable): all resolve on `inspect` (the product name is legible at reach). Measuring
+cups (1, 1/2, 1/3, 1/4 cup) and spoons (tbsp, tsp, 1/2, 1/4 tsp) are no look-alike group (phase-1 finish): each size is
+its own true size, and with the geometric camera a 1-cup measure turned the robot to another facing when it approached
+and filled other pixels than a 1/4-cup one, as it does in a real kitchen; a measure is known at a glance.
 
 Each group is **one package format** (phase 1 of the independent review, L2/L4/I9/L5: members used to differ in true size,
 mass, material and fragility, so the camera's pixels, where an item could be placed, the touch bucket and load word, a
@@ -552,11 +566,10 @@ half-gallon carton for every `drink_carton` member and the 32 oz tub for every `
 volume, so a cream carton is a few per cent lighter than a milk carton: the same touch bucket and load word), the regular
 loaf and cracker box (the same slices and crackers) for the gluten-free ones, the 500 ml glass bottle for both oils,
 aluminium for every drink can, and one spice jar filled to the same level (50 g of each spice). `flour_sugar_bag` and `drink_carton` keep a group `size_m` equal to that format. Members
-keep what is theirs: the contents (kind, density, allergens, date type, storage). The two measuring groups are the
-exception by design: their size is the measure (a 1-cup measure is visibly bigger than a 1/4-cup one); only the stamped
-size needs a close look. `PhaseOneStabilise` checks every other group type by type (size, tare, package, material,
-fragility, piece format, view block, touch bucket, load word, mass within 6 %) and in a scene (what is seen, held,
-heard and where it lies, through approach, pick up and set down). Known limit: once a package is open and some is
+keep what is theirs: the contents (kind, density, allergens, date type, storage). `PhaseOneStabilise` checks every
+group type by type (size, tare, package, material, fragility, piece format, view block, touch bucket, load word, mass
+within 6 %; the registry's size-spread lint lists no food group) and in a scene (what is seen, held, heard and where it
+lies, through approach, pick up and set down; with the geometric camera the whole observation). Known limit: once a package is open and some is
 poured, how much is left (the transfer's `residue_left_ml`) follows the contents' density for groups sold by weight (a
 5 lb sack of sugar is less full than one of flour), as in a real kitchen; so does what the scooped powder adds to a
 dish's weight. A level measure of any powder is that measure's volume (`scoop` reports the cup's volume for something
@@ -579,7 +592,7 @@ candidates) instead of its true label (red-team finding). Portion descriptors: `
 powder", `small_baking_box` "small heap of white powder", `nut_butter_jar` "dollop of brown nut spread",
 `beverage_can` "fizzy drink", `drink_carton` "white liquid", `dairy_tub` "dollop of creamy food", `spice_jar` "small
 amount of spice", `bread_loaf_bag` "sliced bread", `cracker_box` "crackers", `cooking_oil_bottle` "yellow cooking oil",
-`egg_in_shell` "piece of egg" (each true of every member; the measuring groups yield no portions). The same words
+`egg_in_shell` "piece of egg" (each true of every member). The same words
 render another domain's `liquid`/`contents` that carry `contents_from` one of these packages. A portion is identified
 once its source is (inspecting the bag identifies everything poured out of it) or by an inspect of the portion
 itself (reading a scoop finds no label); identified, it shows its **own** label -- the food kind ("all purpose flour",
@@ -681,6 +694,9 @@ four together (the four realistic ones also with the geometric camera). `setdown
 its raw-egg spill (`TierOnePhysics.test_set_down_law_breaks_a_fast_placed_egg_into_a_spill`); `phase` leaves food
 alone (thermal owner) and food's ice and cold-water baths keep their own air model; `thermal_tau` changes only
 kernel-owned bodies (vessels: food writes their `thermal_tau_s` itself); `crush` uses the packaging rows above.
+`contact_heat` (deferred): food keeps a legacy copy for worlds without the domains laws.json lists as duplicating it
+(`physical.hot_contact`, section 12.1); once the law is active the copy returns at once, so the law can flip without
+food's side.
 
 ### 11.2 Camera (docs/PERCEPTION.md, KERNEL_API "v3.0 camera")
 
@@ -865,3 +881,38 @@ pass with `stack` forced and with `setdown`, `phase`, `thermal_tau` and `crush` 
 member of every food group in the same spot, through look, approach, pick up, shake, squeeze, set down, knock, push,
 open, pour, transfer, a wait, and with food verbs open, scoop, season, transfer and inspect) leaves only the
 open-package fill limit above.
+
+### 12.1 Phase 1 finish (catalog/analysis/phase1: breakages.json, red_leaks.json, the G7 budget)
+
+Food's adoption breakages and red-team findings, each fixed at its root with a regression in `tests/test_food.py`
+`PhaseOneFinish` (and the extended `PhaseOneStabilise` look-alike tests).
+
+| Finding | Root cause in food | Fix | Regression |
+|---|---|---|---|
+| breakage: legacy contact heat (T-7d4006bda247ba-01; a claimed 200 C steel pan on `table_1` still got `heat_mark` 0.4) | `hooks._after_place` marked any item above 70 C set on wood, laminate or plastic with `heat_mark` 0.4 and a damage count on every placement: no heat limit of the support, no contact temperature, no domain's claim, a third copy beside manipulation's and appliances_cooking's | `physical.hot_contact`: the kernel's heat limit (`thermal.heat_limit_c`), contact temperature, mark (`contact_mark`: a ring in a wood finish below 150 C, melted plastic, else a scorch) and severity through `impact.damage` (the damage flag once per kind), after every `phys.contact_heat` hook (`thermal.contact_claimed`); a brittle top is the law's shock check; it steps aside while the law is active and while a domain laws.json lists as duplicating the law is loaded (`physical.other_copy_loaded`: one mark per contact) | `test_the_legacy_contact_heat_copy_uses_the_kernels_limits_and_every_domains_claim`, `test_a_hot_dish_set_on_a_wooden_board_is_marked_once` |
+| breakage / review I4: an unfamiliar thing told apart by garnish, plate, portion, scoop and transfer ("Open it first" for a kettle, "It is empty" for the rest) | the verbs read `openable` / `open` / the contents of the true record of a target the robot cannot identify | every food verb but `weigh` declares `operates=True` (the kernel's one identify-first refusal for an unfamiliar target) and `percept.unfamiliar_first` (before hook, order 1) refuses one in any other entity parameter alike; a held unfamiliar thing is no tool, opener, guard, soap or probe (`common.held_known`, `common.tool`); `weigh` weighs one as an object and never reads it as the scale (its refusal then names no kind of thing: the kernel rewrites an unfamiliar target's true type words in messages) | `test_every_food_verb_refuses_an_unfamiliar_thing_alike` (six unfamiliar kinds x every entity parameter of every food verb), `test_an_unfamiliar_thing_in_hand_is_no_tool` |
+| (found by this round's probe) an unfamiliar cucumber showed a food view and an unfamiliar pot of chili its food contents on inspect | food's inspector marked its keys as percepts for an unfamiliar target too | no food extras for an unfamiliar thing (`perception.food_inspector`); the food in it can be inspected on its own | `test_an_unfamiliar_food_or_container_shows_no_food_view` |
+| breakage / red-team L2 residual: measuring cups 0.13-0.17 m and spoons 0.09-0.12 m in one look-alike group each | the group showed one size, but with the geometric camera the robot's facing after it approached, the pixels and the bearing told every member apart (even 5 mm apart: the facing follows the true centre) | the two groups are gone: each measure is its own size and known at a glance, as in a real kitchen (section 10); no food group is left in `registry.lookalike_spreads` | `test_look_alike_members_share_one_package` (no food group in the size-spread lint), `test_look_alike_members_cannot_be_told_apart_by_handling` (now also with the geometric camera, comparing the whole observation) |
+
+**G7 (substep cost).** Food's share of the P1 regression was +0.08 ms per substep (`food.safety` +0.07, a garbage
+collection pass landing there, `food.thermal` +0.008, `food.refresh` +0.003). Most of food's own cost was copying
+whole food records into the journal: every full thermal pass (every 300 s) and every safety run wrote each food's
+temperature or spoilage counter through `World.mut`, which journals a copy of the record (about 9 us each). These
+writes are now field-level (`World.set_quiet`, as the kernel thermal system's temperatures; see section 3 and the
+`systems` module docstring). Measured A/B on the same tree with only `systems.py` differing (bench loop of
+`tools/bench_systems.py`, 40 substeps x seeds 0-3, interleaved runs, best of five, garbage collection off so a pass
+cannot land in one system): `food.safety` 0.173 -> 0.109 ms, `food.thermal` 0.155 -> 0.089 ms, `food.refresh` 0.023
+ms unchanged; food in all 0.351 -> 0.221 ms per substep (-0.13 ms, more than its share). Results unchanged: the golden
+dump of all 243 specs' reference plans and the 8 scripted runs (`tools/golden.py dump --all`) is identical between the
+two trees (and between HEAD's food and this one), and so are the state digests after the bench loop, a further 1 h
+wait and a 6 h wait with the idle probes on and off.
+
+Verification (phase 1 finish, shared live tree): `tests/test_food.py` 174 tests green normally, with
+`HOUSE_SIM_STRICT=1` and with `HOUSE_SIM_DOMAINS=core,food` (4 skips there); the 16 food specs pass `--check` on seeds
+0, 1, 2, 41, 97 in their own mode (generation 2 where they set it), the four realistic ones also with `--camera
+geometric`, and the 12 example specs also forced realistic; the 45 other domains' specs that name food types, food
+fields or temperatures pass in their own mode; `tests/test_appliances_cooking.py` green (190);
+`tools/perception_audit.py 20 80 --verbose` 0 leaks, 0 crashes in room and geometric mode; `tools/layout_audit.py 20
+--domain food` 120 houses, 0 problems; `tools/fuzz.py --coverage` 243 specs, 0 defects (strict mode), 0
+nondeterministic replays; no LookalikeWarning or size spread for a food group. No spec outcome changed.
+Every new or extended regression fails on HEAD's food code and data.

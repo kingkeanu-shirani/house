@@ -1,12 +1,28 @@
 {
  "domain": "plumbing_liquids",
  "looks_like": {
+  "main_water_valve": {
+   "descriptor": "large water valve",
+   "size_m": [
+    0.12,
+    0.12,
+    0.15
+   ],
+   "resolve": "inspect",
+   "members": [
+    "main_shutoff_valve"
+   ],
+   "kind": "water valve",
+   "candidates": [
+    "main water shutoff"
+   ]
+  },
   "water_valve": {
    "descriptor": "water shutoff valve",
    "size_m": [
-    0.09,
-    0.09,
-    0.11
+    0.06,
+    0.06,
+    0.08
    ],
    "resolve": "inspect",
    "members": [
@@ -14,7 +30,6 @@
    ],
    "kind": "water valve",
    "candidates": [
-    "main water shutoff",
     "hot water stop",
     "cold water stop",
     "washer valve",
@@ -820,7 +835,10 @@
     },
     "label_text": "MAIN"
    },
-   "doc": "House main where the service enters (basement wall, utility closet or garage): 3/4 in gate valve (~6 turns clockwise) or ball valve (lever perpendicular = closed)."
+   "doc": "House main where the service enters (basement wall, utility closet or garage): 3/4 in gate valve (~6 turns clockwise) or ball valve (lever perpendicular = closed).",
+   "perception": {
+    "looks_like": "main_water_valve"
+   }
   },
   "water_meter": {
    "is_a": "plumbing_fixture",
@@ -1029,6 +1047,7 @@
     ],
     "accepts_items": true,
     "container": true,
+    "watertight": false,
     "capacity_l": 1.5,
     "inner_size_m": [
      0.12,
@@ -1616,7 +1635,7 @@
     "size_m": [
      0.15,
      0.15,
-     0.55
+     0.5
     ],
     "mass_kg": 0.45,
     "volume_l": 2.0,
@@ -1645,9 +1664,9 @@
     "plunger_kind": "cup",
     "tool_kind": "plunger",
     "size_m": [
-     0.14,
-     0.14,
-     0.45
+     0.15,
+     0.15,
+     0.5
     ],
     "mass_kg": 0.35,
     "volume_l": 1.5,

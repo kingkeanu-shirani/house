@@ -1297,6 +1297,28 @@ def knows(ctx, eid, level="read"):
     return realism.knowledge.entity_level(eid, rec) >= LEVELS.get(level, 1)
 
 
+def unfamiliar(ctx, eid, rec=None):
+    """Realistic perception: the robot takes eid for an unfamiliar (novel) thing it cannot identify -- a novel object or
+    a portion of one (the kernel's Realism.novel_unidentified). Such a thing is shown by how it looks only, and is
+    moved and inspected but not operated (docs/PERCEPTION.md, review I4), so nothing this domain answers about it may
+    depend on what it really is. False in oracle mode and for unknown ids."""
+    realism = getattr(getattr(ctx, "env", None), "realism", None)
+    if realism is None or not isinstance(eid, str):
+        return False
+    record = rec if rec is not None else ctx.w.s["entities"].get(eid)
+    return record is not None and bool(realism.novel_unidentified(eid, record))
+
+
+def refuse_unfamiliar(ctx, *eids):
+    """The kernel's operation rule for this domain's verbs whose outcome depends on what a thing is (its liquid, its
+    lid, its contents): an unfamiliar thing among `eids` is refused with the kernel's one identify-first message
+    (kernel.actions.NOVEL_OPERATE_MESSAGE), the same refusal whatever it is. No-op in oracle mode."""
+    from ...kernel.actions import NOVEL_OPERATE_MESSAGE
+    for eid in eids:
+        if unfamiliar(ctx, eid):
+            raise ActionError(NOVEL_OPERATE_MESSAGE, "precondition")
+
+
 def label_known(ctx, bottle):
     """Oracle: True. Realistic: the bottle carries a printed label the robot has read and still knows (so its
     product, dilution and contact time are known); an unread or blank-labelled bottle is just a bottle."""

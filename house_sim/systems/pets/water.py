@@ -25,8 +25,7 @@ from . import common as C
 FRESH_AGE_S = 24 * 3600
 
 
-def is_water_source(rec):
-    return bool(rec.get("pet_item") and rec.get("liquid_container"))
+is_water_source = C.is_water_source     # pet_item and liquid_container (the agents' water index too)
 
 
 def fresh(rec):
@@ -111,7 +110,7 @@ def _in_shade(state, eid):
     rinfo = state["rooms"].get(room) or {}
     if any(list(c) in [list(x) for x in rinfo.get("shade_cells", [])] for c in cells):
         return True
-    shades = C.sindex(state, "shade", lambda r: bool(r.get("shade") or r.get("category") in ("tree", "umbrella", "patio_umbrella", "pergola")))
+    shades = C.sindex(state, "shade", _is_shade)
     for other in C.located_in(state, shades, room):
         orec = state["entities"][other]
         ocells = geometry.footprint(orec)
@@ -131,12 +130,22 @@ def _target_temp(state, eid, rec):
     return air
 
 
-def water_sources(state):
-    return C.sindex(state, "water_sources", is_water_source)
+@C.index_reads("shade", "category")
+def _is_shade(rec):
+    return bool(rec.get("shade") or rec.get("category") in ("tree", "umbrella", "patio_umbrella", "pergola"))
+
+
+water_sources = C.water_sources
+
+
+@C.per_substep_index("fountains", always=True)
+@C.index_reads("category", "pet_item", "liquid_container")
+def _is_fountain(rec):
+    return rec.get("category") == "pet_water_source" and is_water_source(rec)
 
 
 def fountains(state):
-    return C.sindex(state, "fountains", lambda r: r.get("category") == "pet_water_source" and is_water_source(r))
+    return C.sindex(state, "fountains", _is_fountain)
 
 
 def sync_level(w, eid):

@@ -1598,26 +1598,26 @@ def odor_source_helper(ctx, room, preset="spoiled_food", var="odor_source", insi
 # chemicals
 
 
+# Products the chemical scenes stage. The look-alike bottles (CHEM_BOTTLES, type chemical_bottle) carry no size, weight
+# or contents of their own: every one gets the group's container (BOTTLE_SIZE_M) and fill (BOTTLE_FILL), so neither held
+# size nor heft tells one product from another (cleaning's phase-1 request; a spec's states may still set them); the
+# cans, bags and buckets (household_chemical) are told apart by shape and keep their real sizes and weights.
 CHEM_PRESETS = {
     "bleach": {"label": "bleach", "product": "bleach", "tags": ["chemical", "chem:chlorine", "chem:oxidizer", "chem:alkali"],
-               "chem_hazards": ["corrosive", "toxic"], "label_text": "Regular Bleach 6% sodium hypochlorite. NEVER mix with ammonia, vinegar or acids.",
-               "size_m": [0.12, 0.08, 0.3], "mass_kg": 2.0, "amount_ml": 1900.0},
+               "chem_hazards": ["corrosive", "toxic"], "label_text": "Regular Bleach 6% sodium hypochlorite. NEVER mix with ammonia, vinegar or acids."},
     "glass_cleaner": {"label": "glass cleaner", "product": "glass_cleaner", "tags": ["chemical", "chem:ammonia", "chem:surfactant"],
-                      "label_text": "Glass Cleaner with Ammonia-D.", "size_m": [0.09, 0.06, 0.25], "mass_kg": 0.8, "amount_ml": 750.0, "color": "blue",
+                      "label_text": "Glass Cleaner with Ammonia-D.", "color": "blue",
                       "settings": {"nozzle": "off"}, "setting_options": {"nozzle": ["off", "spray", "stream"]}},
     "ammonia": {"label": "household ammonia", "product": "ammonia", "tags": ["chemical", "chem:ammonia", "chem:alkali"], "chem_hazards": ["toxic"],
-                "label_text": "Household Ammonia. NEVER mix with bleach.", "size_m": [0.1, 0.07, 0.28], "mass_kg": 1.5, "amount_ml": 1400.0},
+                "label_text": "Household Ammonia. NEVER mix with bleach."},
     "toilet_cleaner": {"label": "toilet bowl cleaner", "product": "toilet_bowl_cleaner", "tags": ["chemical", "chem:acid"],
-                       "chem_hazards": ["corrosive"], "label_text": "Toilet Bowl Cleaner (hydrochloric acid 9.5%). DANGER: never mix with bleach.",
-                       "size_m": [0.09, 0.06, 0.27], "mass_kg": 0.8, "amount_ml": 710.0},
+                       "chem_hazards": ["corrosive"], "label_text": "Toilet Bowl Cleaner (hydrochloric acid 9.5%). DANGER: never mix with bleach."},
     "drain_opener": {"label": "drain opener", "product": "drain_opener", "tags": ["chemical", "chem:alkali", "chem:alkali_strong"],
-                     "chem_hazards": ["corrosive"], "label_text": "Drain Opener (sodium hydroxide). Poison. Keep out of reach of children.",
-                     "size_m": [0.1, 0.07, 0.28], "mass_kg": 1.2, "amount_ml": 950.0},
+                     "chem_hazards": ["corrosive"], "label_text": "Drain Opener (sodium hydroxide). Poison. Keep out of reach of children."},
     "oven_cleaner": {"label": "oven cleaner", "product": "oven_cleaner", "tags": ["chemical", "chem:alkali", "chem:alkali_strong"],
                      "chem_hazards": ["corrosive"], "label_text": "Oven Cleaner (sodium hydroxide). Wear gloves.", "size_m": [0.07, 0.07, 0.2],
                      "mass_kg": 0.5, "amount_ml": 400.0},
-    "dish_soap": {"label": "dish soap", "product": "dish_soap", "tags": ["chem:surfactant"], "label_text": "Dish Soap.",
-                  "size_m": [0.07, 0.05, 0.22], "mass_kg": 0.6, "amount_ml": 500.0},
+    "dish_soap": {"label": "dish soap", "product": "dish_soap", "tags": ["chem:surfactant"], "label_text": "Dish Soap."},
     "pool_shock": {"label": "pool shock (calcium hypochlorite)", "product": "pool_shock", "tags": ["chemical", "pool_chemical", "chem:chlorine", "chem:oxidizer"],
                    "chem_hazards": ["oxidizer", "corrosive"], "label_text": "Calcium hypochlorite 73%. OXIDIZER. Keep away from fuels, acids and organics.",
                    "size_m": [0.18, 0.18, 0.22], "mass_kg": 4.6, "has_handle": True, "safe_grips": ["handle"]},
@@ -1629,8 +1629,7 @@ CHEM_PRESETS = {
                    "chem_hazards": ["oxidizer"], "label_text": "Fertilizer 34-0-0. Oxidizer. Store dry, away from fuels.", "size_m": [0.35, 0.15, 0.45],
                    "mass_kg": 7.0, "safe_grips": ["firm"]},
     "herbicide": {"label": "weed killer", "product": "herbicide", "tags": ["chemical", "pesticide"], "chem_classes": ["pesticide", "organic"],
-                  "chem_hazards": ["toxic"], "label_text": "Weed & Grass Killer. Keep out of reach of children and pets.", "size_m": [0.12, 0.08, 0.3],
-                  "mass_kg": 1.2},
+                  "chem_hazards": ["toxic"], "label_text": "Weed & Grass Killer. Keep out of reach of children and pets."},
     "insecticide": {"label": "insect spray", "product": "insecticide", "tags": ["chemical", "pesticide"], "chem_classes": ["pesticide", "flammable"],
                     "chem_hazards": ["toxic", "flammable"], "label_text": "Insect Killer. Flammable. Keep out of reach of children.",
                     "size_m": [0.07, 0.07, 0.24], "mass_kg": 0.5},
@@ -1639,7 +1638,7 @@ CHEM_PRESETS = {
                       "size_m": [0.16, 0.16, 0.29], "mass_kg": 4.4, "has_handle": True, "safe_grips": ["handle"]},
     "unlabeled": {"label": "unlabeled bottle of blue liquid", "product": None, "tags": ["chemical"], "unlabeled_chemical": True,
                   "_unknown_chemical": True, "_true_product": "methanol windshield washer", "chem_classes": ["flammable", "toxic"],
-                  "label_text": "", "color": "blue", "size_m": [0.08, 0.08, 0.25], "mass_kg": 0.9, "secret_fields": ["_true_product"]},
+                  "label_text": "", "color": "blue", "secret_fields": ["_true_product"]},
 }
 
 CHEM_BOTTLES = ("bleach", "glass_cleaner", "ammonia", "toilet_cleaner", "drain_opener", "dish_soap", "herbicide", "unlabeled")

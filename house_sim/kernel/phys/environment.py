@@ -238,7 +238,7 @@ def exposed(state, eid):
 
 # ----- wind ---------------------------------------------------------------------------------------------------------
 
-def _free_to_move(state, eid):
+def free_to_move(state, eid):
     """Free-standing: resting on a support or the ground (not held, worn, hung, inside or fixed: fixed in place,
     mounted, anchored, rooted, a ground layer, a doorway or gate in a wall), and something that can move at all:
     portable, on wheels or casters, free-standing furniture, or a cover (statics.free_standing's rule). Fences,
@@ -253,6 +253,9 @@ def _free_to_move(state, eid):
             or "furniture" in (rec.get("is_a") or ()) or _is_cover(rec)):
         return False
     return loc in entities or loc in state["rooms"]
+
+
+_free_to_move = free_to_move      # the former private name (phase 1: outdoor_plants' request to publish it)
 
 
 def _is_cover(rec):
@@ -316,7 +319,7 @@ def contact_mu(state, eid):
     return num(props.props(state, eid).mu, 0.5)
 
 
-def _cannot_move(rec, v, gust=None):
+def cannot_move(rec, v, gust=None):
     """A cheap bound before any property lookup: with its own mass only (the load on it can only add), the lowest
     friction and the largest drag coefficient it can have (supports.json rows only lower Cd below CD_DEFAULT),
     neither the gust can lift or tip it nor the sustained wind v slide it."""
@@ -333,6 +336,9 @@ def _cannot_move(rec, v, gust=None):
     return area * v * v <= lowest * (weight - lift_force_n(rec, v)) and area * gust * gust <= tip
 
 
+_cannot_move = cannot_move        # the former private name (outdoor_plants pins its copy to it)
+
+
 def wind_effect(w, eid, v, direction_deg, by=None, cmap=None, gust_mps=None):
     """Apply wind blowing toward direction_deg (grid degrees) to a free-standing item; the caller decides exposure and
     passes speeds at the item (object_wind_mps): v the sustained wind (m/s), gust_mps its gust (ADDITION; default v).
@@ -343,10 +349,10 @@ def wind_effect(w, eid, v, direction_deg, by=None, cmap=None, gust_mps=None):
     state = w.s
     result = {"effect": None, "force_n": 0.0, "lift_n": 0.0, "resist_n": 0.0, "moved_to": None}
     gust = v if gust_mps is None else max(v, num(gust_mps))
-    if eid not in state["entities"] or gust <= 0 or not _free_to_move(state, eid):
+    if eid not in state["entities"] or gust <= 0 or not free_to_move(state, eid):
         return result
     rec = state["entities"][eid]
-    if _cannot_move(rec, v, gust):
+    if cannot_move(rec, v, gust):
         return result
     mass = max(1e-6, num(support.subtree_mass(state, eid, cmap)))
     weight = mass * G
@@ -499,9 +505,9 @@ def run(w, dt, tick):
         if rec is None:
             continue
         windy = False
-        if speed >= CALM_MPS and _free_to_move(w.s, eid):
+        if speed >= CALM_MPS and free_to_move(w.s, eid):
             sustained, gust = object_wind_mps(w.s, eid, weather)
-            windy = not _cannot_move(rec, sustained, gust)
+            windy = not cannot_move(rec, sustained, gust)
         if not (windy or rain > 0) or not exposed(w.s, eid):
             continue
         if windy:

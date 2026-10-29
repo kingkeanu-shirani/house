@@ -989,7 +989,7 @@ def _ignite_duration(ctx):
 
 @action("ignite", params={"target": "entity", "hold_s": {"type": "number", "default": 4.0, "min": 0.5, "max": 60.0},
                           "level": "?str", "method": "?str:igniter|lighter"},
-        duration=_ignite_duration, energy=0.005, noise=0.05, category="physical", timing="commanded",
+        duration=_ignite_duration, energy=0.005, noise=0.05, category="physical", operates=True, timing="commanded",
         doc="Light a gas burner: push the knob in, turn it to LITE and hold while the igniter sparks (hold_s seconds), then set "
             "the flame to `level` (default medium). If no flame appears the knob stays at LITE with gas flowing: turn it off and "
             "let the gas clear before retrying. method=lighter lights manually with a held long lighter (power outage; needs an "

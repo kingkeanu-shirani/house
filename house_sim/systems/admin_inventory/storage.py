@@ -22,7 +22,7 @@ from ...kernel.phys import environment as phys_env, impact as phys_impact, lawbo
 from ...kernel.phys import support as phys_support, thermal as phys_thermal
 from ...kernel.plugins import after
 from ..core import add_soil
-from .common import doorbell_alert, household, indexed, visual_event
+from .common import doorbell_alert, household, indexed, reads, visual_event
 
 STREET_ROOMS = ("porch", "front_yard", "sidewalk", "driveway")
 COVERED_ROOMS = ("porch", "balcony")
@@ -180,6 +180,8 @@ class _RoomOf(object):
         return default if value is None else value
 
 
+@reads("dry_out_s", "max_safe_temp_c", "package", "mail_piece", "category", "type", "cold_pack_s", "material",
+       "dries_in_air")
 def exposure_candidate(record):
     """Static predicate (type-level props): everything the exposure pass can affect."""
     return bool("dry_out_s" in record or record.get("max_safe_temp_c") is not None or record.get("package")

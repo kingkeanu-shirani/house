@@ -38,6 +38,8 @@ WAKE_DB = {"infant": 95.0, "toddler": 95.0, "child": 95.0, "teen": 80.0, "adult"
 HEARING_DB = {"full": 30.0, "reduced": 52.0, "deaf": 999.0}
 
 
+@C.per_substep_index("detectors")
+@C.index_reads("detector_kind", "category")
 def is_detector(rec):
     return rec.get("detector_kind") in ("smoke", "co", "combo", "heat") or rec.get("category") in DETECTOR_CATEGORIES
 
@@ -46,9 +48,13 @@ def detector_kind(rec):
     return rec.get("detector_kind") or DETECTOR_CATEGORIES.get(rec.get("category"), "smoke")
 
 
+SENSES = {"smoke": frozenset(("smoke",)), "co": frozenset(("co",)), "combo": frozenset(("smoke", "co")),
+          "heat": frozenset(("heat",))}
+
+
 def senses(rec):
-    kind = detector_kind(rec)
-    return {"smoke": {"smoke"}, "co": {"co"}, "combo": {"smoke", "co"}, "heat": {"heat"}}.get(kind, {"smoke"})
+    """What a detector senses: a frozenset of "smoke", "co", "heat"."""
+    return SENSES.get(detector_kind(rec), SENSES["smoke"])
 
 
 def detectors(state):
@@ -83,12 +89,19 @@ def defeated(state, rec):
     return reasons
 
 
-def powered(state, rec):
-    if defeated(state, rec) and "covered" not in defeated(state, rec):
-        return False
-    grid = bool(rec.get("hardwired")) and state.get("utilities", {}).get("power", True)
+def power(state, rec):
+    """(powered, battery charge or None) in one pass: a unit runs on the grid (hardwired, power on) or on a battery above
+    2 %, unless it is defeated other than by a cover (taken down, disabled, battery removed)."""
+    reasons = defeated(state, rec)
     charge = battery_charge(state, rec)
-    return grid or (charge is not None and charge > 0.02)
+    if reasons and "covered" not in reasons:
+        return False, charge
+    grid = bool(rec.get("hardwired")) and state.get("utilities", {}).get("power", True)
+    return bool(grid or (charge is not None and charge > 0.02)), charge
+
+
+def powered(state, rec):
+    return power(state, rec)[0]
 
 
 def co_alarm_minutes(ppm):
@@ -97,10 +110,9 @@ def co_alarm_minutes(ppm):
     return 120.0 * (70.0 / ppm) ** 1.6
 
 
-def _sensing(state, eid, rec, dt):
-    """Return (sensing kind or None, new co accumulator)."""
-    rid = C.root_room(state, eid)
-    a = A.air(state, rid)
+def _sensing(state, eid, rec, dt, rid=None):
+    """Return (sensing kind or None, new co accumulator). rid: the detector's room when the caller has it."""
+    a = A.air(state, C.root_room(state, eid) if rid is None else rid)
     kinds = senses(rec)
     covered = bool(rec.get("covered") or rec.get("bagged"))
     acc = float(rec.get("_co_acc", 0.0))
@@ -190,21 +202,23 @@ def detector_system(w, dt, tick):
     now = C.now(state)
     initiators = {}
     results = {}
+    entities = state["entities"]
     for eid in ids:
-        rec = state["entities"][eid]
-        on = powered(state, rec)
-        sensing, acc = (None, float(rec.get("_co_acc", 0.0)))
+        rec = entities[eid]
+        on, charge = power(state, rec)
+        acc0 = float(rec.get("_co_acc", 0.0))
+        sensing, acc = None, acc0
+        rid = C.root_room(state, eid)
         if on:
-            sensing, acc = _sensing(state, eid, rec, dt)
-        if acc != float(rec.get("_co_acc", 0.0)):
+            sensing, acc = _sensing(state, eid, rec, dt, rid)
+        if acc != acc0:
             w.mut(eid)["_co_acc"] = acc
         hushed = float(rec.get("hush_until_s") or 0.0) > now
-        rid = C.root_room(state, eid)
         if hushed and sensing == "smoke" and float(A.air(state, rid).get("smoke", 0.0)) < 3 * float(rec.get("sensitivity_k", 0.06)):
             sensing = "hushed"
         elif hushed and sensing == "co":
             sensing = "hushed"
-        results[eid] = (on, sensing)
+        results[eid] = (on, sensing, charge)
         if sensing in ("smoke", "co"):
             group = rec.get("interconnect")
             if group:
@@ -212,8 +226,8 @@ def detector_system(w, dt, tick):
                 if prev is None or (prev[1] == "co" and sensing == "smoke"):
                     initiators[group] = (eid, sensing)
     for eid in ids:
-        rec = state["entities"][eid]
-        on, sensing = results[eid]
+        rec = entities[eid]
+        on, sensing, charge = results[eid]       # (this loop writes no battery: the charge read above holds)
         if not on:
             if rec.get("alarm_state") != "dead":
                 C.log(w, "detector_dead", detector=eid, reasons=defeated(state, rec))
@@ -236,7 +250,6 @@ def detector_system(w, dt, tick):
         if sensing == "hushed":
             _update(w, eid, alarm_state="hushed", alarm_pattern=None, initiating=False)
             continue
-        charge = battery_charge(state, rec)
         if rec.get("end_of_life"):
             _update(w, eid, alarm_state="eol", alarm_pattern="eol_chirp", initiating=False)
         elif charge is not None and charge < 0.1 and float(rec.get("chirp_hush_until_s") or 0.0) <= now:
@@ -248,7 +261,7 @@ def detector_system(w, dt, tick):
         if rec.get("settings", {}).get("hush") and float(rec.get("hush_until_s") or 0.0) <= now:
             m = w.mut(eid)
             m["settings"]["hush"] = False
-    _wake_sleepers(w)
+    _wake_sleepers(w, ids)
     _panel_siren(w)
 
 
@@ -339,6 +352,8 @@ def loudness_at(state, src_room, src_xy, base_db_1m, dst_room, dst_xy):
     return base_db_1m - 20.0 * math.log10(1.0 + 4.0 * hops) - loss
 
 
+@C.per_substep_index("noisy")
+@C.index_reads("sound_db")
 def _is_noisy(rec):
     return bool(rec.get("sound_db"))
 
@@ -390,10 +405,11 @@ def _hearing_threshold(person):
     return HEARING_DB.get(hearing, 30.0)
 
 
-def alarm_sources(state):
-    """[(room, (x, y), db_1m, pattern, source_id)] for sounding detectors and panel sirens."""
+def alarm_sources(state, ids=None):
+    """[(room, (x, y), db_1m, pattern, source_id)] for sounding detectors and panel sirens (ids: the detectors, when the
+    caller has them)."""
     out = []
-    for eid in detectors(state):
+    for eid in (detectors(state) if ids is None else ids):
         rec = state["entities"][eid]
         if rec.get("alarm_pattern"):
             room, x, y, _ = C.entity_xyz(state, eid)
@@ -407,9 +423,9 @@ def alarm_sources(state):
     return out
 
 
-def _wake_sleepers(w):
+def _wake_sleepers(w, ids=None):
     state = w.s
-    sources = [s for s in alarm_sources(state) if s[3] in ("T3", "T4", "siren")]
+    sources = [s for s in alarm_sources(state, ids) if s[3] in ("T3", "T4", "siren")]
     if not sources:
         return
     for pid in sorted(state.get("people", {})):

@@ -105,7 +105,7 @@ Statistics: `phys_falls`, `phys_breaks`, `phys_spills`, `phys_tips`, `phys_colla
 `phys_budget_hits`. Hooks a domain may register: `phys.props`, `phys.spill_sink`, `phys.wetted`, `phys.broke`,
 `phys.fell`, `phys.tipped`, `phys.collapsed`, `phys.contact_heat`, `phys.carry_motion`, `phys.tip_loads`,
 `phys.items_above`, `phys.exposed`, `phys.settle_extra` (signatures in TIER1_PHYSICS 7.3), `phys.uncontained`
-(`fn(w, eid, info)`, below).
+(`fn(w, eid, info)`, below), `phys.liquid_arrives` (`fn(w, eid, liters, liquid, source, by)`, section 5).
 
 **Wrap containment (a contract for every domain).** A break inside a full wrap (`wrapped.coverage` >= 0.95, any
 material, or a plain `wrapped` flag) or inside intact packaging (`packaged`) is *contained*:
@@ -162,7 +162,16 @@ bowl on the scale among them).
   porous or soft-sided ones, open shelving (`open_shelving`: a shelving unit's capacity is storage) and those opening
   at the front, side, back or bottom (the type's view `opening`) are not holders (poured liquid is spilled onto
   them). Types that are open frames or vented (a pet crate, a firewood rack, a toaster) need their own flags in the
-  type data.
+  type data. A holder pools up to `liquids.hold_capacity_l`: its `pool_l` when it has one (a cavity whose
+  `capacity_l` is storage, not a vessel's: an opened oven holds about a litre on its floor; `pool_l: 0` holds
+  nothing; phase-1 finish, appliances_cooking's request), else `capacity_l`, else top area x `rim_m`. A domain that
+  models a holder's contents itself (outdoor_plants' potting soil) takes what arrives first through
+  `@hook("phys.liquid_arrives")` `fn(w, eid, liters, liquid, source, by) -> litres taken or None`: pours
+  (`pour_in`) and spills, drips and overflows landing in it (the support-chain walk) ask it before pooling the rest
+  (`liquids.arrives`; phase-1 finish, outdoor_plants' request).
+* Wind gates: `environment.free_to_move(state, eid)` (what can move at all) and `environment.cannot_move(rec, v,
+  gust)` (the cheap bound before any property lookup) are public (phase-1 finish, outdoor_plants' request: its
+  deferred wind copy gates on them); the former private names stay as aliases.
 
 ## 6. Perturbation events
 

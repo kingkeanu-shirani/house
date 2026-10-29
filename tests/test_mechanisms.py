@@ -423,7 +423,7 @@ class GateTests(unittest.TestCase):
         ok(self, e.step("wait", seconds=60))
         self.assertTrue(e.world.s["pets"]["dog_1"].get("escaped"))
         self.assertNotIn("pet_escape", failures(e))
-        self.assertEqual(1, e.world.s["mechanisms"]["exogenous"]["pet_escape"])
+        self.assertEqual(1, escape_exogenous(e))
         # a latched gate the robot unlatched and left: the dog's escape is the robot's doing
         h = House()
         h.c["entities"]["side_gate"].update(open=False, latched=True)
@@ -2624,7 +2624,10 @@ class RealisticPerceptionTests(unittest.TestCase):
         self.assertEqual(soap["label"], lotion["label"])
         self.assertEqual("pump bottle of liquid", soap["label"])
         self.assertNotIn("liquid", soap)
-        self.assertEqual(obs[H(e, "magnet_key")]["label"], obs[H(e, "car_key")]["label"])
+        # a magnetic lock key is a round plastic-cased magnet, not a metal key (phase-1 red team: the two differed in
+        # true size behind the key group's record): its own group, confused only with other magnet keys
+        self.assertEqual("round magnet key", obs[H(e, "magnet_key")]["label"])
+        self.assertEqual("metal key", obs[H(e, "car_key")]["label"])
         self.assertEqual("spray bottle of liquid", obs[H(e, "plain_sprayer")]["label"])
         ok(self, e.step("read", H(e, "soap_pump")))
         no(self, e.step("read", H(e, "plain_sprayer")), "nothing legible")
@@ -3263,6 +3266,15 @@ def robot_marks(env, eid):
     return list((ent(env, eid).get("_mech") or {}).get("robot") or ())
 
 
+def escape_exogenous(env):
+    """The count of exogenous pet escapes: pets' one record (pet_care.exogenous) with the pets domain loaded, where this
+    domain's escapes go through pets' path with its attribution; standalone this domain's own counter."""
+    from house_sim.systems.mechanisms import common as MC
+    if MC.pets_own_escapes():
+        return ((env.world.s.get("pet_care") or {}).get("exogenous") or {}).get("pet_escape", 0)
+    return exogenous(env, "pet_escape")
+
+
 class Phase1StabiliseTests(unittest.TestCase):
     """Stabilisation phase 1 (docs/reviews/2026-10-22_independent_review; catalog/analysis/tier1/adopt_status.json):
     harm attribution of this domain's time systems and scripted events (review M9 / P1 C8), the pets escape path, the
@@ -3417,7 +3429,7 @@ class Phase1StabiliseTests(unittest.TestCase):
         ok(self, e.step("wait", seconds=60))
         self.assertTrue(e.world.s["pets"]["dog_1"].get("escaped"))
         self.assertEqual(0, stat(e, "pet_escape"))
-        self.assertEqual(1, exogenous(e, "pet_escape"))
+        self.assertEqual(1, escape_exogenous(e))
 
     def test_pets_own_the_time_driven_escapes_when_loaded(self):
         from house_sim.systems.mechanisms import common as MC
@@ -3550,6 +3562,275 @@ class Phase1StabiliseTests(unittest.TestCase):
         ok(self, e.step("pick_up", "near_empty"))
         r = ok(self, e.step("squeeze_trigger", "near_empty", destination="counter"))
         self.assertIn("empty", r["message"])
+
+
+class Phase1FinishTests(unittest.TestCase):
+    """Phase-1 finish (catalog/analysis/phase1/breakages.json rows and red-team findings owned by this domain; result in
+    catalog/analysis/phase1/finish_mechanisms.json): one door-dash draw per opening and this domain's attribution through
+    pets' escape path; every verb of this domain refuses an unfamiliar thing alike (the kernel's operation rule); the
+    magnet key's own look-alike group; the G7 substep cost (the exact kind_of fast path, declared index reads, the
+    per-substep indexes built at episode start) with nothing any system computes changed."""
+
+    def dash_draws(self, verb, risk):
+        """(the modules whose door-dash function drew from the step's random numbers, env) after the robot opens the
+        front door with `verb` and a dog of escape_risk `risk` stands beside it."""
+        import random
+        import sys
+        from unittest import mock
+        from house_sim.kernel import engine as KE
+        h = House()
+        h.c["entities"]["front_door"]["locked"] = False
+        h.pet("dog_1", "entry", [1, 2], escape_risk=risk)
+        e = h.env(room="entry", pos=(1, 1))
+        draws = []
+        base = random.Random
+
+        class Watched(base):
+            def random(self):
+                caller = sys._getframe(1)
+                if caller.f_code.co_name in ("_door_dash", "_door_opened"):
+                    draws.append(caller.f_globals.get("__name__"))
+                return base.random(self)
+        with mock.patch.object(KE.random, "Random", Watched):
+            ok(self, e.step(verb, "front_door"))
+        return draws, e
+
+    def test_one_door_dash_draw_per_opening(self):
+        # breakage: with the pets domain loaded mechanisms' _door_dash (after open, order 50; pull_handle and push_handle
+        # opens too) and pets' _door_opened (order 60) both drew for the same opening. Pets owns the dash while loaded
+        from house_sim.systems.mechanisms import common as MC
+        owner = "house_sim.systems.pets.behavior" if MC.pets_own_escapes() else "house_sim.systems.mechanisms.closures"
+        for verb in ("open", "pull_handle"):
+            draws, e = self.dash_draws(verb, 0.5)
+            self.assertEqual([owner], draws, verb)
+            draws, e = self.dash_draws(verb, 0.9)          # pets' dash of 0.8 or more bolts without a draw
+            self.assertEqual([] if MC.pets_own_escapes() else [owner], draws, verb)
+            self.assertTrue(e.world.s["pets"]["dog_1"].get("escaped"), verb)
+            self.assertEqual(1, stat(e, "pet_escape"), "the robot's escape, counted once")
+
+    def test_this_domains_escapes_reach_pets_with_its_attribution(self):
+        # breakage: closures.escape called pets.behavior.escape without robot= and corrected stats.pet_escape after the
+        # call; pets' path now gets this domain's judgment and keeps the one record of the escape
+        from house_sim.systems.mechanisms import common as MC
+
+        def run(robot_unlatches):
+            h = House()
+            h.c["entities"]["side_gate"].update(open=False, latched=robot_unlatches)
+            h.mech("side_gate", {"kind": "gate"})
+            h.pet("dog_1", "back", [14, 5])
+            h.c["events"] = [{"at_s": 20, "effect": "mechanisms.load_test", "args": {"target": "side_gate", "by": "dog_1"}}]
+            e = h.env(room="back", pos=(14, 7))
+            if robot_unlatches:
+                ok(self, e.step("unlatch", "side_gate"))
+            ok(self, e.step("wait", seconds=60))
+            self.assertTrue(e.world.s["pets"]["dog_1"].get("escaped"))
+            records = [ev for ev in e.world.s["event_log"] if ev["kind"] in ("harm_pet_escape", "pets.harm_escape")]
+            self.assertEqual(1, len(records), records)
+            self.assertEqual("pets.harm_escape" if MC.pets_own_escapes() else "harm_pet_escape", records[0]["kind"])
+            return e, records[0]
+        e, record = run(False)                   # the gate the scene left unlatched: a failure to prevent
+        self.assertEqual("exogenous", record["by"])
+        self.assertEqual(0, stat(e, "pet_escape"))
+        self.assertEqual(1, escape_exogenous(e))
+        if MC.pets_own_escapes():
+            self.assertEqual(0, exogenous(e, "pet_escape"), "pets keeps the record, not both domains")
+        e, record = run(True)                    # the gate the robot unlatched and left: its escape
+        self.assertEqual("robot", record["by"])
+        self.assertEqual(1, stat(e, "pet_escape"))
+        self.assertEqual(0, escape_exogenous(e))
+
+    def test_every_verb_of_this_domain_refuses_an_unfamiliar_thing_alike(self):
+        # breakage / review I4: pull_handle and push_handle opened only an unfamiliar kettle ("Pulled obj open to 100%"
+        # vs "Nothing here opens by pulling"); every verb that works a mechanism or device is now operates=True and the
+        # kernel answers its one identify-first refusal before any domain hook
+        from house_sim.kernel.actions import NOVEL_OPERATE_MESSAGE
+        verbs = sorted(n for n, spec in ACTIONS.items() if spec.fn.__module__.startswith("house_sim.systems.mechanisms."))
+        self.assertGreaterEqual(len(verbs), 14)
+        self.assertEqual([], [v for v in verbs if not ACTIONS[v].operates])
+        look = {"label": "thing", "novel": True, "size_m": [0.2, 0.15, 0.25], "color": "gray", "material": "plastic"}
+        twins = {"lidded": {"openable": True, "open": False, "container": True, "mech": {"kind": "hinged_lid"}},
+                 "cabinet": {"openable": True, "open": False, "mech": {"kind": "cabinet_door"}},
+                 "sprayer": {"liquid_l": 0.5, "trigger": {"ml_per_squeeze": 1.1, "nozzle": "spray",
+                                                          "modes": ["off", "spray", "stream"]}},
+                 "dial": {"settings": {"mode": "off"}, "setting_options": {"mode": ["off", "on"]},
+                          "control_kinds": {"mode": "knob"}},
+                 "plain": {}}
+        answers, oracle = {}, {}
+        for name, props in twins.items():
+            h = House()
+            h.add("thing", "generic_item", "table", **dict(look, **props))
+            e = real_env(h, room="living", pos=(3, 5))
+            ok(self, e.step("approach", H(e, "thing")))
+            answers[name] = [(v,) + tuple(e.step(v, H(e, "thing"))[k] for k in ("ok", "category", "message")) for v in verbs]
+            o = h.env(room="living", pos=(3, 5))
+            oracle[name] = o.step("pull_handle", "thing")["message"]
+        self.assertNotEqual(oracle["lidded"], oracle["plain"], "the twins differ when the robot knows what they are")
+        for name in twins:
+            self.assertEqual([(v, False, "precondition", NOVEL_OPERATE_MESSAGE) for v in verbs], answers[name], name)
+
+    def test_the_magnet_key_is_its_own_look_alike_group(self):
+        # red team (review L2 residual): the key group showed one record for a 6 x 2 x 0.3 cm metal key and a 5 x 5 x 1.5
+        # cm magnet disc, which the geometric camera's geometry tells apart, as a person does at a glance
+        reg = default_registry()
+        with open("house_sim/data/types/mechanisms.json", encoding="utf-8") as fh:
+            mine = set(json.load(fh)["looks_like"]) | {"key"}
+        self.assertEqual([], [s for s in reg.lookalike_spreads if s.split(":")[0] in mine])
+        types = reg.lookalike_types()
+        self.assertEqual(["magnetic_lock_key"], types["magnetic_lock_key"])
+        self.assertNotIn("magnetic_lock_key", types["key"])
+        self.assertEqual(["magnetic lock key"], reg.lookalike_groups()["magnetic_lock_key"]["candidates"])
+        h = House()
+        h.add("mkey_1", "magnetic_lock_key", "table")
+        h.add("mkey_2", "magnetic_lock_key", "table")
+        e = real_env(h, room="living", pos=(3, 5))
+        obs = e.observe()["visible_entities"]
+        self.assertEqual(obs[H(e, "mkey_1")]["label"], obs[H(e, "mkey_2")]["label"])
+        self.assertEqual(["magnetic lock key"], obs[H(e, "mkey_1")].get("candidates"))
+
+    def test_kind_of_answers_as_before_on_every_record(self):
+        # the fast reject skips the inference for records none of whose tags it tests; same answer everywhere
+        from house_sim.generator import generate_house
+        from house_sim.systems.mechanisms import common as MC
+        records = [copy.deepcopy(r) for r in House().c["entities"].values()]
+        for seed in (0, 1, 2, 3):
+            records.extend(HouseEnv(generate_house(seed), seed=seed, trace=False).world.s["entities"].values())
+        records.extend(HouseEnv(generate_house(0, gen=2), seed=0, trace=False).world.s["entities"].values())
+        records.extend([{"type": "thing", "tags": ["closet"], "openable": True}, {"type": "thing", "is_a": ["gate"]},
+                        {"type": "x", "category": "window", "window_kind": "casement"}, {"type": "x", "part_type": "drawer"},
+                        {"type": "x", "category": "blind"}, {"type": "x", "mech": {"kind": ""}, "category": "hatch"},
+                        {"type": "x", "is_a": "gate"}, {"type": "x", "tags": ["wardrobe"]}, {"type": "x", "mech": {}}])
+        self.assertEqual([], [r.get("type") for r in records if MC.kind_of(r) != _kind_of_reference(r)])
+
+    def test_every_index_predicate_reads_only_its_declared_fields(self):
+        # a declared read set (World.static_index reads=) tells the World which writes re-judge an entity; strict mode
+        # checks it on read views only, this on every record of generated houses (the plain-record path included)
+        from house_sim.generator import generate_house
+        from house_sim.systems.mechanisms import common as MC
+        self.assertEqual(set(MC.INDEXES), set(MC.INDEX_READS))
+        self.assertLessEqual(set(MC.PER_SUBSTEP_INDEXES), set(MC.INDEXES))
+        records = list(House().c["entities"].items())
+        for seed in (0, 1, 2):
+            records.extend(sorted(HouseEnv(generate_house(seed), seed=seed, trace=False).world.s["entities"].items()))
+        for eid, record in records:
+            for name, predicate in sorted(MC.INDEXES.items()):
+                spy = _ReadSpy(record)
+                self.assertEqual(bool(predicate(spy)), bool(predicate(record)), (name, eid))
+                self.assertLessEqual(spy.read, set(MC.INDEX_READS[name]), (name, eid))
+
+    def test_the_per_substep_indexes_are_built_before_the_first_substep(self):
+        # G7: inside a substep the kernel's read views (review M3) made the first builds of the indexes the time systems
+        # and their idle probes look up several times dearer than a build on the plain records at episode start
+        from house_sim.generator import generate_house
+        from house_sim.kernel import plugins
+        from house_sim.systems.mechanisms import common as MC
+        from house_sim.systems.mechanisms import world as MW
+        hooks = plugins.HOOKS["episode_start"]
+        at = next(i for i, h in enumerate(hooks) if h[2] is MW._prebuild_indexes)
+        saved, journaled = hooks[at], []
+
+        def watched_hook(w, env):
+            journaled.append(bool(w._journal or w._quiet))
+            return saved[2](w, env)
+        hooks[at] = (saved[0], saved[1], watched_hook)
+        try:
+            env = HouseEnv(generate_house(2), seed=2, trace=False, observe_on_step=False)
+        finally:
+            hooks[at] = saved
+        self.assertEqual([False], journaled, "built while nothing is journaled: on the plain records")
+        w = env.world
+        names = {"mechanisms." + n for n in MC.PER_SUBSTEP_INDEXES}
+        self.assertLessEqual(names, set(w._static))
+        builds, original = [], w._matching
+
+        def watched(name, predicate, ids, reads=None):
+            if name in names:
+                builds.append((name, len(ids)))
+            return original(name, predicate, ids, reads)
+        w._matching = watched
+        try:
+            ok(self, env.step("wait", seconds=3600))
+        finally:
+            del w._matching
+        self.assertEqual([], [b for b in builds if b[1] >= len(w.s["entities"])], "no full build in a substep")
+        for name in MC.PER_SUBSTEP_INDEXES:
+            self.assertEqual(MC.ids(w, name), sorted(e for e, r in w.s["entities"].items() if MC.INDEXES[name](r)), name)
+
+    def test_building_the_indexes_at_episode_start_changes_no_result(self):
+        from house_sim.generator import generate_house
+        from house_sim.kernel import plugins
+        from house_sim.kernel.predicates import digest
+        from house_sim.systems.mechanisms import world as MW
+
+        def run(prebuild, seed):
+            hooks = plugins.HOOKS["episode_start"]
+            saved = list(hooks)
+            if not prebuild:
+                hooks[:] = [h for h in hooks if h[2] is not MW._prebuild_indexes]
+            try:
+                env = HouseEnv(generate_house(seed), seed=seed, trace=False, observe_on_step=False)
+                reset = digest(env.world.s)
+                ok(self, env.step("wait", seconds=1800))
+                return reset, digest(env.world.s), digest(env.observe())
+            finally:
+                hooks[:] = saved
+        for seed in (1, 3):
+            self.assertEqual(run(True, seed), run(False, seed), seed)
+
+
+def _kind_of_reference(rec):
+    """mechanisms' kind_of before the phase-1 fast path (Phase1FinishTests' reference)."""
+    from house_sim.systems.mechanisms.common import tags
+    if not rec:
+        return None
+    m = rec.get("mech") or {}
+    if m.get("kind"):
+        return m["kind"]
+    t = tags(rec)
+    cat = rec.get("category")
+    if "garage_door" in t:
+        return "overhead_door"
+    if "gate" in t or cat == "gate":
+        return "gate"
+    if "sliding_door" in t:
+        return "sliding_door"
+    if "hatch" in t or cat == "hatch":
+        return "hatch"
+    if cat == "pet_door" or "pet_door" in t:
+        return "pet_door"
+    if cat == "door" or "door" in t:
+        return "hinged_door"
+    if cat == "window" or "window" in t:
+        return {"sash": "sash_window", "casement": "casement_window", "sliding": "slider_window",
+                "hopper": "hopper_window", "skylight": "skylight"}.get(rec.get("window_kind"), "sash_window")
+    if cat == "drawer" or "drawer" in t:
+        return "drawer"
+    if "high_chair" in t:
+        return "high_chair"
+    if cat in ("curtain", "blind", "shutter"):
+        return cat
+    if rec.get("openable") and ({"cabinet", "wardrobe", "closet"} & t or cat == "cabinet"):
+        return "cabinet_door"
+    return None
+
+
+class _ReadSpy(dict):
+    """A record that notes the top-level fields a predicate reads (Phase1FinishTests' declared-read check)."""
+
+    def __init__(self, record):
+        dict.__init__(self, record)
+        self.read = set()
+
+    def get(self, key, default=None):
+        self.read.add(key)
+        return dict.get(self, key, default)
+
+    def __getitem__(self, key):
+        self.read.add(key)
+        return dict.__getitem__(self, key)
+
+    def __contains__(self, key):
+        self.read.add(key)
+        return dict.__contains__(self, key)
 
 
 def self_reg():

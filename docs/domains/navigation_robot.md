@@ -35,7 +35,7 @@ adoption (physics, camera, body and sweep).
 | `follow.py` | `follow`, `lead` |
 | `robots.py` | robot vacuum/mop/mower state machine; `empty_robot_vacuum`, `clean_robot_brushes`, `refill_robot_tank`, `free_stuck_robot`; docking another robot |
 | `world.py` | observer, inspector, invariants, answerer `nav:` and its dialogue routes (`nav.where`, `nav.detail`), the `phase_start` refresh |
-| `scenarios.py`, `skills.py`, `furnish.py` | scenario helpers, reference skills, furnisher |
+| `scenarios.py`, `skills.py`, `furnish.py` | scenario helpers, reference skills, furnishers (`navigation_robot.features`; generation 2's final `navigation_robot.dock_check`) |
 
 Fidelity: G (0.5 m grid geometry: paths, clearances, reach heights, coverage, swing arcs) with P-approx
 traction (friction coefficients), stair balance (load limits) and instrument error. All iteration is over
@@ -108,7 +108,7 @@ aborted_runs, dock_zone_clear, cleaned_m2, speed_m2_per_min 1.6, drain_pct_per_m
 | Verb | Params | Preconditions (refusal category) | Effects | Time |
 |---|---|---|---|---|
 | `step` | target n/s/e/w/ne/nw/se/sw or `cell`; `over` bool; `speed` | adjacent free cell (argument/precondition); the body's mobility guard (`ctx.require_mobile`: "Robot cannot move" when fallen or with an actuator fault, "Step down first" on an aid, safety); not stuck | one cell (a motion record: the body charges it; a step the battery cannot afford leaves the robot in place and powers it down); `over=true` lifts the foot over items <= 0.2 m (no contact) | 0.5 m / effective speed x1.2 (x1.6 high step) |
-| `go_to` | target room / entity / person in sight / `home` / `dock` / remembered alias (`memory room_alias:<name>`); `avoid`; `speed`; `restore_doors`; `social` | known destination (perception/argument); known route (`robot.map_known=false` -> only observed rooms); no locked door on route (realistic: no lock the robot knows of; an untried locked door is walked to and tried, then it stops there) | chain of core approach/open/move/walk_to (every hook applies; each leg pays its own energy); `social` plans around pinch points, conversations, TV sightlines, call frames and sleepers, walking cell by cell; a leg the battery cuts short ends it: "Stopped in <room> (battery_depleted)" (ok, the robot powered down there) | sum of legs |
+| `go_to` | target room / entity / person in sight / `home` / `dock` / remembered alias (`memory room_alias:<name>`); `avoid`; `speed`; `restore_doors`; `social` | known destination (perception/argument); known route (`robot.map_known=false` -> only observed rooms); no locked door on route (realistic: no lock the robot knows of; an untried locked door is walked to and tried, then it stops there) | chain of core approach/open/move/walk_to (every hook applies; each leg pays its own energy); `social` plans around pinch points, conversations, TV sightlines, call frames and sleepers, walking cell by cell; a leg the battery cuts short ends it: "Stopped in <room> (battery_depleted)" (ok, the robot powered down there); geometric camera: an entity target whose place the robot knows (its dock, a fixed thing on its map, an inspected thing) but its cameras cannot make out on arrival (a dock plate across a dark room) is walked to by the map first (core walk_to, adjacent), then approached | sum of legs |
 | `follow` | target person; `distance_m` (1.5) | person here, awake, has a route (`_route`) | trails them room to room; <1.0 m clips heels when they stop; >2.5 m loses them at a closed door or stair landing; waits outside a private room they close | their walking time |
 | `lead` | target person; `destination` room; `pace` match/careful/normal/fast; `avoid_stairs`; `avoid`; `warn` | person here, awake, consenting | opens doors; stairs: wheelchair = inaccessible, walker/crutches = they fall; faster than them opens a gap (>3 m = left behind); unwarned low-vision/aid users trip on hazards | their pace |
 | `patrol` | `rooms` list; `report`; `speed`; `skip_occupied`; `dock_after`; `restore_doors` | rooms exist | go_to each, sweep from up to 3 viewpoints (coverage), inspect+report each anomaly (`report <target>.anomaly`), skip occupied bathrooms/bedrooms (logged) | sum |
@@ -270,7 +270,11 @@ causes say what it felt, never a mass or the hidden limit). `nav.stairs.<cid>` r
 | `navigation_robot.watch` | 190 | first substep / 10 min | re-evaluates watched routes/doors/areas/sightlines when something in their rooms moved |
 
 Entity sets come from static indexes (doors = `connects`, vehicles, `rv`, `leveling`, robot packs, `low_contrast`), never
-a scan of every entity per tick. Exact idle probes (kernel v3.1, `@system(idle=...)`): `doors` (no moving door, self-closing
+a scan of every entity per tick. Each predicate declares the one field it reads (`common.index_reads`) and is
+registered with `common.per_substep_index`; `common.prebuild_indexes` (`episode_start`, order -60, before any hook
+writes) builds all six from the plain records, so no system pays a first build through the kernel's read views inside
+a busy substep (an index's content is a pure function of the state, so nothing an episode computes changes:
+`TestPhase1Finish.test_the_prebuilt_indexes_change_no_result`). Exact idle probes (kernel v3.1, `@system(idle=...)`): `doors` (no moving door, self-closing
 door, latch-outside shut-in, vehicle, dash, tagging or wandering pet, or person route due), `elevator` (no car due to arrive
 or door due to close), `robot_vacuums` (no household robot in the house), `leveling` (no running appliance that walks) and
 `watch` (nothing watched) skip a substep only when the system would write nothing (state digests are identical with
@@ -281,8 +285,12 @@ Notices (`w.notice`, kernel v3.1; stored only while the notice bus is on or a wa
 as the doors open at a landing: call, ride and arrival), `garage_door` (70 dB, the motor), `vehicle` (70 dB, a car
 starting, reversing or pulling out), `household_robot` (60 dB, a robot vacuum or mower saying its status, `robots.SAYS`;
 with an app also a remote `device` notice). So `wait(interrupt_on=["elevator"])` / plan step `wait_for` ends at the
-chime instead of polling the doors' hidden state. Benchmark (`tools/bench_systems.py 40 0 1 2 3 --domain navigation_robot`): about
-0.05 ms per 30 s substep for all seven systems (0.15 ms in the worst case where every substep is a new step).
+chime instead of polling the doors' hidden state. Benchmark (the `tools/bench_systems.py 40 0 1 2 3` loop, this domain's
+systems timed, best of 3, three interleaved rounds on one snapshot of the tree, a loaded machine): 0.027-0.029 ms per
+30 s substep for all seven systems after the phase-1 finish, 0.059-0.060 before it (the P1 gate machine measured 0.052
+against ADOPT's 0.040); `robot` 0.011, `doors` 0.007, `robot_vacuums` 0.005, the other four 0.004 together. In the
+engine's 1 h wait (idle probes on) this domain costs about 3.3 ms per house (4.3 before); the episode-start index
+build costs 0.4 ms per reset, against about 1.1 ms of first builds inside substeps before.
 
 Kernel v2.1 hooks: `episode_start` derives the robot room's keep-out margins, robot-vacuum `dock_zone_clear` and the
 watched routes/doors/areas/sightlines before the evaluation baseline (they exist in the first observation);
@@ -403,6 +411,40 @@ Handoff: `catalog/analysis/phase1/navigation_robot.json`. What changed, each wit
   `test_refill_refusal_waits_for_a_real_pour`); the headlamp's charge is a tester reading
   (`test_headlamp_charge_needs_a_tester`).
 * D3 triage: `navigation_robot.move_watching` (adoption breakage 20; `test_move_watching_sees_the_floor_before_each_leg`).
+
+## 4d. Phase 1, finishing round
+
+Handoff: `catalog/analysis/phase1/finish_navigation_robot.json`. Tests in `TestPhase1Finish`:
+
+* Generation-2 layout follow-up (breakages.json): a vacuum dock's keep-clear zone left targets reachable only over
+  hazards (seed 25 couple_with_infant: the dock's own outlet boxed in by the zone and a tower fan; seed 27
+  multigenerational: two receptacles the electrical hookup mounted on the zone's wall afterwards). The final
+  `navigation_robot.dock_check` furnisher (section 9) moves such a dock; `layout_audit.py 30 --gen 2 --domain
+  navigation_robot`: 330 houses, 0 problems, 0 domain follow-ups (was 2). Tests
+  `test_gen2_docks_keep_every_target_reachable_without_hazards`, `test_dock_check_changes_nothing_when_the_zone_cuts_nothing`,
+  `test_a_dock_with_no_spot_left_leaves_the_house`.
+* K-LEAK request (handle hygiene): the patrol's finding order, `world._seen_only` and the stairs listing sort by
+  `realism.handles.peek` instead of `handles.handle`, which issued a handle for every anomaly in the room -- one in a
+  closed cabinet the sweep never noticed included -- and an issued handle is one the agent may act on. The order is
+  the same (`test_patrol_issues_no_handle_for_an_anomaly_it_never_noticed`).
+* P1 gate G7 (this domain's +0.012 ms share of the substep-cost increase): the six per-substep static indexes are built
+  at the episode start from declared reads (section 4); `doors` asks once per substep whether it owns the door closers
+  (no import per door), `elevator` lists its cars in one pass over the rooms, `robot_vacuums` returns at once in a house
+  without household robots. About 0.059 -> 0.028 ms per substep, every result unchanged (section 4 and the handoff's perf
+  note). Tests `test_prebuilt_index_predicates_declare_every_field_they_read`,
+  `test_indexes_are_built_at_the_episode_start_with_the_same_content`, `test_the_prebuilt_indexes_change_no_result`,
+  `test_elevator_cars_are_the_rooms_with_an_elevator_record`.
+* K-GATE2 request (T-03d77bbfc281a4-01, own mode PASS -> FAIL under the verifier's interim NeverActed rule): the wrong plan
+  "walks at the closed elevator doors" was refused at every move, so it never performed its mistake. Re-authored as
+  "calls the car and walks at its closed doors without waiting for it" (call_elevator, then the two moves before the
+  car has arrived): the robot acts and the plan still fails; 5/5 seeds in own mode, forced realistic and forced
+  realistic + geometric.
+* Forced realistic + geometric run of T-5ad61b6881821b-01 (seeds 1, 41): its wrong plans' `go_to dock` was refused
+  ("That is not visible here": a core approach needs the dock in view, and the geometric camera could not make the
+  dock plate out from where the robot entered the room), so they were no evidence. `go_to` now walks by the map to
+  beside a known target its cameras cannot make out before approaching it (section 2); room-camera runs are
+  unchanged. `test_go_to_dock_walks_by_the_map_when_the_camera_cannot_make_it_out`; the examples file passes 12/12
+  forced realistic + geometric again.
 
 ## 5. Observation and inspection
 
@@ -552,6 +594,19 @@ cord run across the floor for the electrical hookup to route), where its keep-cl
 and no access that fixed things leave (the outlet stays reachable from outside the zone); living room, hallway, dining
 room, office, entryway are tried in turn. The household robot on a dock is `docked` on the dock's cell(s), oriented
 to fit inside the grid.
+
+Furnisher `navigation_robot.dock_check` (order 120, generation 2 only, its own stream): the dock rule above judges the
+zone when the dock is placed, against the fixed things there at that time; later furnishers can still make the zone
+the only way to something (electrical.hookup mounts receptacles on the zone's wall when a small room has no
+hazard-free wall cell; a plugged-in tower fan placed earlier beside the dock's outlet is a loose thing the rule set
+aside, and the repair pass does not move it). So, after every other furnisher, each household-robot dock's zone is
+judged again in the finished house against every floor hazard (loose things too; the rings of people asleep in bed
+left out, as the layout audit does). A dock whose zone cuts a hazard-free route or the only hazard-free access to
+anything is moved, with the robots seated on it, to the first outlet spot that cuts nothing (`_dock_at_outlet`
+with `every_hazard`): its own room first, then living room, hallway, dining room, office, entryway. It keeps its id
+and record (placement and plug fields only; a cord run the hookup laid for it is lifted). With no such spot the house
+lacks it, as when no room had a spot at first. A dock whose zone cuts nothing is not touched (byte-identical), and
+generation 1 never runs the check (its houses and draws are frozen).
 
 -------------------------------------------------------------------------------------------------------
 
@@ -706,7 +761,8 @@ T-7e27e4a6a3b1e5 (C), T-09ef414351dfae (F), T-03d77bbfc281a4 (C).
 * Kernel puddles are labelled "spilled <liquid>"; this domain relabels the ones it makes ("clear liquid spill"), but
   puddles made by kernel laws keep the liquid's name (kernel request). The kernel's `fragile` flag counts only for
   materials without a finite drop tolerance, so a `generic_item` needs a real material (glass, ceramic) to break.
-* Layout audit (`tools/layout_audit.py 20 --domain navigation_robot`): clean on 20 seeds x 6 configurations (kernel v2.8).
+* Layout audit (`tools/layout_audit.py 20 --domain navigation_robot`): clean on 20 seeds x 6 configurations (kernel v2.8);
+  `--gen 2` (30 seeds x 11 configurations) clean with no domain follow-ups since the phase-1 finish (`dock_check`).
   The round-4 "hidden mount ... behind step_ladder_1" lines came from the generator's final repair pass re-standing a ladder
   that later furnishers' loose items had boxed in (its fallback ignores hidden mounts); a tall aid now goes only to a room
   with 4 spare spots after it. Kitchens no longer lose their scarce loose-item spots to the step stool (cleaning's

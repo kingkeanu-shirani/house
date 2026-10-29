@@ -452,6 +452,7 @@ def sync_audio(w):
         C.set_if(w, eid, "watched_by", watchers(state, eid))
 
 
+@C.declare_index("arc_audio", ("category", "arc_link", "ports"))
 def _is_arc_audio(rec):
     return rec.get("category") == "audio" or "arc_link" in rec or "hdmi_arc" in (rec.get("ports") or {})
 

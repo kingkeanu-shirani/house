@@ -163,6 +163,34 @@ def surface_wd(rec):
     return num(size[0], 0.5), num(size[1], 0.5)
 
 
+NOT_COILED = ("uncoiled", "none", "")
+
+
+def coil_of(rec):
+    """The coil a cord, cable or hose lies in, as a dict of what this domain's coil verb recorded (technique, loops,
+    diameter_m, twist_per_loop, kinks, secured; {} when the owner keeps only a flag), or None when it is not coiled.
+    Three domains write `coiled`: this domain a dict, plumbing_liquids a bool (a garden hose: true when coiled on its
+    reel or in loops), electrical a word (an extension cord's "loose", "tight", "over_under" or "coiled"; "uncoiled"
+    laid out). Every reader here goes through this (phase-1 coverage fuzz: velcro on a coiled garden hose crashed on
+    dict(True))."""
+    value = rec.get("coiled")
+    if isinstance(value, dict):
+        return value or None
+    if value is True or isinstance(value, str) and value not in NOT_COILED:
+        return {}
+    return None
+
+
+def roll_of(rec):
+    """The roll a mat, rug or towel is in, as a dict of what this domain's roll verb recorded (tight, aligned,
+    diameter_m, surface_out, strapped ...; {} for another domain's plain flag: textiles_laundry's rolled towel,
+    mechanisms' rolled blind), or None when it is not rolled."""
+    value = rec.get("rolled")
+    if isinstance(value, dict):
+        return value or None
+    return {} if value else None
+
+
 def yaw_of(rec):
     if "yaw_deg" in rec:
         return num(rec.get("yaw_deg")) % 360.0
@@ -624,10 +652,14 @@ def grip_outcome(w, eid, grip, hands):
     if hands == 2 and grip not in ("pinch", "gentle"):
         contacts = max(contacts, 8)
         cap = max(cap, 60.0)
-    if hands == 1 and grip in RATED_GRIPS and not supported:
-        cap = max(cap, rated_squeeze_n(w, eid, hand, contacts))
-    cap = min(cap, kbody.grip_limit_n(w.s, hand, "pinch" if grip in PINCH_GRIPS else "power"))
     required = 0.0 if supported else mass * G * GRIP_SAFETY / (contacts * mu)
+    if hands == 1 and grip in RATED_GRIPS and not supported:
+        # the adaptive one-hand squeeze rises to what holds the hand's rated load on a dry surface, and further, up to
+        # the hand's hardware limit, to what the surface it actually grips needs (phase-1 red team red_defects 8: a
+        # damp item slipped one-handed from 4.8 kg while the same item at 8.01 kg was held with two hands); only a
+        # surface that even the hardware limit cannot hold slips
+        cap = max(cap, rated_squeeze_n(w, eid, hand, contacts), required * 1.3)
+    cap = min(cap, kbody.grip_limit_n(w.s, hand, "pinch" if grip in PINCH_GRIPS else "power"))
     if adaptive:
         applied = min(cap, max(2.0, required * 1.3))
     else:
@@ -717,27 +749,55 @@ def show_break(w, eid):
 
 
 def note_hidden_break(w, eid):
-    """A shattering break an opaque wrap or the packaging hides is remembered (state.manipulation.unseen_breaks) until
-    that comes off (reveal_breaks, run by the manipulation.breaks system)."""
+    """A shattering break held in by a full wrap or the packaging (phys.impact.contained: its pieces hidden under an
+    opaque one, in view under a see-through one) is remembered (state.manipulation.unseen_breaks, the historic name)
+    until that comes off (reveal_breaks, run by the manipulation.breaks system; the robot's own unwrap and tear end it
+    at once through end_containment)."""
     ids = section(w).get("unseen_breaks") or ()
     if eid not in ids:
         w.sec(SECTION)["unseen_breaks"] = sorted(set(ids) | {eid})
 
 
-def reveal_breaks(w):
-    """Breaks hidden by a wrap or packaging (state.manipulation.unseen_breaks) show once that is off."""
+def end_containment(w, eid, by=None):
+    """The wrap or the packaging of a broken item came off: the pieces it held are out. The kernel's
+    phys.impact.uncontained shows the break (`shattered`), gives a sharp break on a floor its floor hazard and runs
+    the phys.uncontained hooks (the safety domain scatters the shard field an open break gets); a break whose pieces
+    the kernel does not release (a crack) still shows. Nothing happens while it is still contained, not broken, or its
+    pieces are out already (idempotent). by: "robot" for this domain's unwrap and tear; None lets the kernel attribute
+    it. Phase-1 red team red_defects 6: unwrapping a contained broken glass on the floor only set `shattered`, so no
+    floor hazard and no shards followed. Returns True when the kernel released anything."""
+    rec = w.s["entities"].get(eid)
+    if rec is None or not rec.get("broken") or kimpact.contained(rec):
+        return False
+    released = kimpact.uncontained(w, eid, by=by)
+    if not released and break_shows(w.ent(eid)):
+        show_break(w, eid)
+    ids = section(w).get("unseen_breaks") or ()
+    if eid in ids:
+        w.sec(SECTION)["unseen_breaks"] = [e for e in ids if e != eid]
+    return released
+
+
+def breaks_pending(w):
+    """Whether reveal_breaks would change anything: a remembered break is gone, mended, or no longer contained (the
+    exact idle probe of manipulation.breaks)."""
     ids = section(w).get("unseen_breaks") or ()
     ents = w.s["entities"]
-    keep = []
+    return any(eid not in ents or not ents[eid].get("broken") or not kimpact.contained(ents[eid]) for eid in ids)
+
+
+def reveal_breaks(w):
+    """Contained breaks (state.manipulation.unseen_breaks) whose wrap or packaging is off now, whoever took it off:
+    end_containment (the kernel attributes it). Forgets ids that are gone or no longer broken."""
+    ids = list(section(w).get("unseen_breaks") or ())
+    ents = w.s["entities"]
     for eid in ids:
         rec = ents.get(eid)
-        if rec is None or not rec.get("broken"):
-            continue
-        if break_shows(rec):
-            show_break(w, eid)
-        else:
-            keep.append(eid)
-    if len(keep) != len(ids):
+        if rec is not None and rec.get("broken") and not kimpact.contained(rec):
+            end_containment(w, eid)
+    current = section(w).get("unseen_breaks") or ()
+    keep = [eid for eid in current if eid in ents and ents[eid].get("broken")]
+    if len(keep) != len(current):
         w.sec(SECTION)["unseen_breaks"] = keep
 
 

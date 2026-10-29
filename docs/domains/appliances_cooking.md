@@ -186,7 +186,9 @@ breaks protruding jars), `close` (dishwasher door blocked by protruding items, a
   and anything owned by an idle oven, are released to the kernel/food thermal models (`_ac_heat`,
   `thermal_owner`, `foam_level` removed; liquid `boil_state` -> `cold`).
 * **Contents** of active appliances come from a location index built at most once per tick (only while something is
-  active) and shared by every sub-model (`common.tick_index_begin/end`).
+  active) and shared by every sub-model (`common.tick_index_begin/end`): one pass over the entities in dict order, each
+  location's ids sorted when first read (`common._bucket`), the same lists as an id-ordered build at about a fifth of
+  the cost (a quiet griddle or waffle maker reads one location per tick; phase-1 finish).
 * **Food**: hot food anywhere (`temperature_c` > 38 C, or a hot/active `_cook`), food under an active heater, and food
   in a switched-off slow/rice/pressure cooker pot (its danger-zone clock keeps running) get `cook.step_food`.
 
@@ -287,8 +289,12 @@ are `grid.hazards`), so it declares no `"room"` tiers.
 lid", kind "countertop cooker", candidates electric pressure cooker / rice cooker; `dial_thermometer` - "small dial
 thermometer", kind "thermometer", candidates fridge thermometer / oven thermometer. Until inspected they show the
 descriptor, the kind, the candidates and only the fields every member shows. Kernel round 5 shows an unresolved member
-at the group's size and colour: `countertop_cooker` sets `size_m` [0.30, 0.32, 0.27] (the members are 0.26-0.33 m, a
-difference a camera would see), the kettle and dial-thermometer members already agree, so the registry lint is clean.
+at the group's size and colour: `countertop_cooker` sets `size_m` [0.30, 0.32, 0.27] and `kettle_lookalike` [0.23,
+0.19, 0.24], and since the phase-1 finish every member of each group has that one true size too (rice and pressure
+cookers, cordless and stovetop kettles come in overlapping sizes, so size does not tell them in a real kitchen; with
+different true sizes the geometric camera's px, range and elevation told them apart), so neither registry lint
+(LookalikeWarning, LookalikeSizeWarning) names a group of this domain. Generation-1 kitchens keep the old sizes (section
+11).
 Whether a thing is identified is the kernel's `Realism.unresolved` (`percept.unidentified` defers to it, so a
 `derived_from` portion of an unresolved member and a thing destroyed during the step answer the same way).
 
@@ -302,9 +308,16 @@ Whether a thing is identified is the kernel's `Realism.unresolved` (`percept.uni
   the real reasons apply.
 * This domain's own type-specific refusals (in its verbs after the kernel's visibility, reach and permission checks, and
   in its hooks on core verbs: toaster slots, kettle base, blender and processor interlocks, coffee machine parts, oven
-  and dishwasher doors, filter access, burner pans, grill lid, setting hooks) become "That does not work on it" (same
-  category) when the target or destination is unidentified - an unresolved look-alike or an unfamiliar (`novel`) thing
-  such as a "Zorblax 3000" kettle (`percept.plain_refusals`). A pressurised cooker the robot has not identified answers
+  and dishwasher doors, filter access, burner pans, grill lid, setting hooks) become "That does not work on it" (always
+  category `precondition`: the reason's own category - argument, resource, safety - told types apart too) when the
+  target or destination is unidentified - an unresolved look-alike or an unfamiliar (`novel`) thing such as a "Zorblax
+  3000" kettle (`percept.plain_refusals`, `plain_check`).
+* An unfamiliar (novel) thing is handled as an object but not operated (the kernel's rule): this domain's device verbs
+  (`blend`, `brew`, `defrost`, `grind_coffee`, `ignite`, `light_grill`, `preheat`, `set_timer`) are declared
+  `operates=True`, so the engine refuses an unfamiliar target with the kernel's identify-first message before any hook,
+  and `load`, `steam_milk` and `grind_coffee` refuse an unfamiliar item or destination appliance alike
+  (`status._novel_guard`): an unfamiliar toaster oven used to preheat, a kitchen timer took a timer, and loading into
+  an unfamiliar appliance succeeded or not by its type. A pressurised cooker the robot has not identified answers
   "The lid will not open: it is locked shut" (never the float valve or the pressure). Kernel access refusals
   (`ActionError.kernel_access`: visibility, reach, robot state, permission) pass unchanged even when raised inside a
   `plain_refusals` block.
@@ -909,8 +922,9 @@ A-d9e7a4d5d112d2-01; people T-0908068a0b4269-01; cleaning, manipulation, electri
 specs with ovens, kettles, irons or hot items) pass as before, apart from the iron spec above.
 
 **Not fixed here (owners named in the handoff):** the geometric `view.px` and depth range follow the true size of an
-unresolved look-alike (kernel, review L2); the battery gauge weighs what the robot holds to 0.1 kg (kernel, L3);
-`wait(until)` on true values (kernel, H6); a novel thing's glance `openable` and core `open` (kernel, I4); harms of
+unresolved look-alike (kernel, review L2; the members' true sizes are aligned since 11.1, generation 1 aside); the
+battery gauge weighs what the robot holds to 0.1 kg (kernel, L3); `wait(until)` on true values (kernel, H6); a novel
+thing's glance `openable` and core `open` (kernel, I4; FIX2 fixed the kernel's part, 11.1 this domain's verbs); harms of
 inaction such as `unattended_cooking` or a forgotten pot boiling dry are charged to the robot during an idle run (kernel
 M9 rule pending: one harm API with a cause); the `appliances -> safety` coupling through `sys.modules`
 (`common.safety_module`; needs a kernel capabilities registry, review M2); per-field inspect acuity and the wet-film
@@ -919,3 +933,61 @@ entity id ("stovetop obj_..." for a kettle with the id `kettle` in a hand-writte
 (memorised burner, fixed milk timer, unguarded oven clock, delayed-start acceptance) are the next phase's.
 Generation-1 digests (`tests/test_generator_compat.py`) currently differ on every pinned house through other owners'
 concurrent edits; this domain's edits leave them unchanged (checked as above).
+
+### 11.1 Phase-1 finish (breakages.json, red_defects / red_leaks, gate G7)
+
+Handoff `catalog/analysis/phase1/finish_appliances_cooking.json`; tests in `PhaseOneFinishTests`.
+
+* **Holder flags** (breakages; review L3): kernel pours, spills, drips and rain pooled liquid in things that hold none.
+  `holes_mm` (it drains straight through to what is below: air-fryer basket 3 mm, cutlery basket 5, brew basket's
+  outlet 5, portafilter screen 0.3, chimney starter's grate and vents 20) and `watertight: false` (it runs out:
+  toaster and 4-slot toaster over the elements and out of the vented base, burr grinder through the burrs). `holes_mm`
+  rather than `perforated`, because manipulation's `tear` opens anything `perforated` "along its notch" (a steel
+  colander tears open today; request filed). A probe of every type of this domain, as made and opened, leaves only
+  real vessels as kernel holders (carafe, pots, inserts, jars, mixer and processor bowls, door bins, knock box, sump,
+  reservoirs, kettles) plus opened cavities (oven, microwave, dishwasher tub, air-fryer drawer, crisper), which catch
+  a spill as a real one does. Generation-1 houses gain the flags as record fields (no placement changes: 60 pinned
+  houses compared). Test `test_baskets_slots_and_open_throats_hold_no_kernel_liquid`.
+* **Look-alike sizes** (breakages / FIX2 / red_leaks 7, review L2 residual): the members of `countertop_cooker` (rice
+  cooker 0.26 x 0.33 x 0.21 m, pressure cooker 0.33 x 0.31 x 0.32) and `kettle_lookalike` (0.22 x 0.16 x 0.25 vs 0.24
+  x 0.20 x 0.22) differed in true size behind the shown size, so the geometric camera told unresolved twins apart (px
+  560 vs 650, range 0.6 vs 0.5 m, elevation -40 vs -35 for the cookers; px 370 vs 350 for the kettles). Each group now
+  has one true size, the group's shown one ([0.30, 0.32, 0.27]; the kettle group declares [0.23, 0.19, 0.24]); the
+  electric kettle keeps the 15 cm water column and 16 cm base plate its old size gave (explicit `inner_size_m`,
+  `base_diameter_m`), so it heats as before, and the stovetop kettle's derived geometry moves by under 2 %. Twins now
+  look alike in every view of both cameras. A generation-1 kitchen keeps the old sizes (`furnish.GEN1_SIZES`, through
+  `_GenerationOneTypes`, a registry view the placer measures and makes with; `GEN1_DROP` leaves out the two kettle
+  fields): its layout is frozen. Tests `test_look_alike_members_share_one_true_size`,
+  `test_generation_one_kitchens_keep_the_old_look_alike_sizes`.
+* **Unfamiliar appliances** (red_leaks 4, review I4, this domain's verbs): a sweep of every verb of this domain and the
+  core verbs it hooks over 20 unfamiliar twins found an unfamiliar toaster oven preheating, a kitchen timer or
+  microwave taking a timer, the generic reason in the type's own category (blend, brew, defrost, grind_coffee,
+  light_grill, steam_milk), and load into one succeeding or not by its type. The device verbs are `operates=True`, the
+  verbs working a destination refuse an unfamiliar item or destination (`status._novel_guard`), and the generic
+  reason always comes in one category (section 4a). The re-run sweep differs only where the kernel's `pick_up` also
+  does (an unfamiliar grill or freezer cannot be lifted: a physical trial). Tests
+  `test_unfamiliar_appliances_answer_this_domains_verbs_alike`, `test_the_generic_refusal_has_one_category`.
+* **Cost** (gate G7): this domain's share of the P1 increase was +0.006 ms per substep (gate record: cold 0.155 ->
+  0.159, tick 0.116 -> 0.118). Removed three times over with every result unchanged: the tick's location index is
+  built in one pass in dict order and sorted per location when read (about a fifth of the id-ordered build; a quiet
+  griddle, waffle maker or grill reads one location per tick); a fridge asks for its power supply once per substep
+  (again only after a defrost tick), the item heat load asks the lawbook once per unit, and an off oven no longer works
+  out its set point or its supply. Interleaved A/B on one frozen copy of the tree (4 pairs, best of 3 each,
+  `bench_systems` loop, seeds 0-3): cold + tick 0.285-0.296 -> 0.268-0.277 ms per substep (median -0.018 ms, -6 %;
+  tick -0.010, cold -0.006); this domain's share of the four 1 h waits 63-67 -> 62.5-63.5 ms. Exactness: state digests
+  of the bench loop (seeds 0-7, 40 substeps), 12 h waits in 30 min steps (generation 1 seeds 0-5, generation 2 seeds
+  0-3) and waits with idle probes off: 584 of 584 identical before and after. Test
+  `test_the_tick_location_index_reads_like_a_fresh_scan`.
+
+Verdicts: all 243 authored specs with HEAD's and this round's files of this domain on one frozen copy of the tree --
+own mode 242/243, realistic forced 241/243, the 51 realistic specs with the geometric camera 51/51 -- identical on both
+sides, wrong plans included (the failures are other owners'). The golden's changed classes (holder fields, the kettle
+fields, generation-2 kettle and cooker sizes and their knock-on placements in four spec houses, realistic handles) are
+listed in the handoff for the re-record.
+
+**Not fixed here:** generation-1 kitchens keep the old look-alike sizes (frozen layouts), so a furnished
+generation-1 electric kettle, rice cooker or pressure cooker still differs in true size from what it shows (the
+geometric camera's L2 residual, generation 1 only); the cold contents memo scans every entity's location once after a
+`begin()` (about 0.03 ms per step; needs a kernel touch log that spans steps, requested); every substep journals a full
+copy of each fridge and relaxing appliance (the World journal; a quiet field write would hide the change from the
+kernel thermal active set and other touch-log readers).

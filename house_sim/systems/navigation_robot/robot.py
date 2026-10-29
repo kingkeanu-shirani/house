@@ -530,6 +530,8 @@ def robot_system(w, dt, tick):
             H.refresh(w, rid)
 
 
+@C.per_substep_index("battery_packs")
+@C.index_reads("part_type")
 def _is_robot_pack(rec):
     return rec.get("part_type") == "robot_battery"
 

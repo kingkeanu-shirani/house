@@ -15,8 +15,8 @@ from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, hook
 from ..core import release_from_hands
 from .perceive import count_seen, dumps, has_read, perceives, privacy_violation, was_read
-from .common import (FLAT_M, admin_facts, drop_cell, authority, doc_keys, flat_spot, in_order, indexed, is_child, need_tool, refresh_paper, requester,
-                     printed_face_down, require_readable, set_face, sheet_count, sheets_of)
+from .common import (FLAT_M, admin_facts, drop_cell, authority, doc_keys, flat_spot, in_order, indexed, is_child, need_tool, reads,
+                     refresh_paper, requester, printed_face_down, require_readable, set_face, sheet_count, sheets_of)
 
 SHRED_PILE_FOOT_M = (0.28, 0.18)    # the pile covers the floor of a home shredder's bin (about 28 x 18 cm)
 SHRED_PILE_MIN_H_M = 0.02           # a thin layer of strips
@@ -26,6 +26,7 @@ DOC_META_KEYS = ("title", "doc_kind", "owner", "date", "sensitive", "original", 
                  "_pii", "shred_required", "numbered", "year", "category_hint", "secret_fields")
 
 
+@reads("category", "sheets")
 def is_document(record):
     return record is not None and record.get("category") == "document" and "sheets" in record
 
@@ -814,6 +815,7 @@ def _shredder_reverse(ctx, eid, name, old, new):
         w.mut(eid)["on"] = False
 
 
+@reads("shredder")
 def _is_shredder(record):
     return bool(record.get("shredder"))
 

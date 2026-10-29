@@ -748,10 +748,35 @@ def contaminate(w, eid, kind_, amount):
     cont[kind_] = rnd(min(1.0, num(cont.get(kind_)) + amount), 4)
 
 
-def wet(w, eid, level=1.0):
-    rec = w.ent(eid)
-    if num(rec.get("wetness")) < level:
-        w.mut(eid)["wetness"] = rnd(min(1.0, level), 3)
+WATER_DAMAGE_L = 0.02          # liquid reaching a water-sensitive thing before it is water damaged (a mouthful gets in;
+                               # drops do not): electrical's INGRESS_L, so both domains judge the same splash alike
+
+
+def wet(w, eid, liters, liquid="water", source=None):
+    """Liquid reaches eid: the kernel's wetting (phys.liquids.wet, TIER1_PHYSICS 5.7: a soaking body takes it up to
+    saturation, anything else a surface film of at most 1.5 mm over its top), and every phys.wetted hook sees the
+    litres that reached it -- electrical gear takes the ingress and its attribution, food what the liquid carries
+    (electrical's phase-1 request: this domain's splashes wrote wetness directly and no hook ran). Returns the litres
+    the thing kept; 0 for nothing or a gone id."""
+    liters = num(liters)
+    if liters <= 0 or eid not in w.s["entities"]:
+        return 0.0
+    return PL.wet(w, eid, liters, liquid or "water", source=source)
+
+
+def film_l(rec):
+    """Litres of the full surface film on a thing's top (the kernel's film model: top area x 1.5 mm)."""
+    return PL.top_area_m2(rec) * PL.SURFACE_FILM_MM
+
+
+def share_on(w, surface, eid, liters):
+    """The litres of a spill spread over a surface's top that reach one thing standing on it: its footprint's share of
+    the top (the expected wetted base of a thing standing anywhere on it), never more than the spill."""
+    top = PL.top_area_m2(w.ent(surface))
+    foot = PL.top_area_m2(w.ent(eid))
+    if top <= 0:
+        return num(liters)
+    return num(liters) * min(1.0, foot / top)
 
 
 def hazard_sound(obs, entry):

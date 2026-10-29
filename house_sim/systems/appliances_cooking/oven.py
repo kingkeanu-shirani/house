@@ -95,11 +95,10 @@ def step_oven(w, oid, dt):
     T = C.num(rec.get("internal_temp_c"), room_c)
     ho = dict(rec.get("_oven") or {})
     on = running(rec)
-    powered = C.powered_state(state, oid if rec.get("plug_required") else (rec.get("location") or oid))
-    if on and not powered:
+    if on and not C.powered_state(state, oid if rec.get("plug_required") else (rec.get("location") or oid)):
         on = False
     mode = mode_of(rec)
-    sp = setpoint_c(rec)
+    sp = setpoint_c(rec) if on else None        # only a running oven heats to it or shows it
     heating = bool(ho.get("heating"))
     if on:
         if T < sp - HYSTERESIS_C:
@@ -736,7 +735,7 @@ def _placed_in_oven(ctx, result):
 
 @action("preheat", params={"target": "entity", "temp": {"type": "number", "min": 30, "max": 600},
                            "unit": "?str:f|c", "mode": "?str:bake|convection_bake|roast|air_fry|toast"},
-        duration=4.0, energy=0.003, category="physical",
+        duration=4.0, energy=0.003, category="physical", operates=True,
         doc="Set an oven / toaster oven / air fryer to a mode and temperature and start heating. temp is in `unit` (default: the "
             "appliance's own display unit); the robot converts F/C and rounds to the panel's 5-degree steps. Returns the display "
             "read-back. Wait for `preheated` (beep) before putting food in.")

@@ -79,7 +79,7 @@ furnisher uses them when that domain is loaded (adding `cover_area_m2`, `wind_li
 | `bristles` | brushes stored on their bristles bend; wet bristles-up swell the ferrule |
 | `inflated`, `valve_open`, `deflated_size_m` | deflating inflatables (squeeze) |
 | `drapes` (or towel/blanket/sheet/tablecloth >= 0.9 m, cables >= 1.5 m) | trail when lifted without scoop/two_hand grip |
-| `coilable`, `length_m`, `min_bend_radius_m`, `coiled`, `tangle` {crossings, knots, with} | cords, ropes, hoses, chains |
+| `coilable`, `length_m`, `min_bend_radius_m`, `coiled`, `tangle` {crossings, knots, with} | cords, ropes, hoses, chains. `coiled` has three owners' shapes, all read through `common.coil_of`: this domain's dict {technique, loops, diameter_m, twist_per_loop, kinks, secured}, plumbing_liquids' bool (a garden hose) and electrical's word (`loose`, `tight`, `over_under`, `coiled`; `uncoiled` = laid out). `rolled` likewise (`common.roll_of`: this domain's dict or another domain's `true`). A strap (`velcro`) notes `secured` / `strapped` only in this domain's dicts; another owner's flag or word stays as written |
 | `thread` {direction, turns_to_seat, seat_torque_nm, max_torque_nm, child_resistant}, `cap` {id,on,loose,matched}, `carbonated` | caps and threaded parts |
 | `connector` {mates, key, engage_force_n, release, break_force_n}, `receptacles` {slot: {accepts, key, angle_deg, seat_force_n, max_force_n, latch, side}} | attach / insert |
 | `fasteners` {name: {count, click_force_n}}, `zipper`, `snaps`, `velcro`, `grommets` / `rings` | fasteners, curtain liners |
@@ -236,11 +236,14 @@ gap too narrow; tool too short), `argument`, `perception` (not visible/not here)
 * `pick_up` (after): grip physics (F_req = m g 1.2 / (n mu) against the mode's force cap; with no grip named one
   hand squeezes (`normal`) and both hands cradle it from below (`two_hand`, the recorded `held_grip`); the one-hand
   `normal` / `handle` squeeze may rise to what holds the hand's rated load (`body.hold_capacity_kg`, the capacity the
-  kernel's lift plan gives one hand) on a dry surface of the item with a clean hand (`common.rated_squeeze_n`,
-  clamped to `body.grip_limit_n`), so a lift the kernel gives one hand never slips on its mass alone (lift
-  monotonicity: 7.65-8.0 kg dry items used to drop while 8.01 kg was held with two hands); wet, oily or soapy
-  surfaces, slippery fingers and a `gripper_slip` fault still make it slip; slip drops
-  it from lift height; force above `crush_force_n` cracks or squashes; `grip_damage` breaks
+  kernel's lift plan gives one hand) on a dry surface of the item with a clean hand (`common.rated_squeeze_n`), and
+  further, up to the hand's hardware limit (`body.grip_limit_n`: 150 N power for a humanoid hand), to 1.3 x what the
+  surface it actually grips needs; so a lift the kernel gives one hand never slips on its mass alone (lift
+  monotonicity: 7.65-8.0 kg dry items used to drop while 8.01 kg was held with two hands) nor on a damp or wet
+  surface (phase-1 red team: a damp item slipped from 4.8 kg); only a surface that even the hardware limit cannot hold
+  (oily or soapy, from about 3 kg), slippery fingers and a `gripper_slip` fault make it slip; slip drops
+  it from lift height; force above `crush_force_n` cracks or squashes (a squeeze raised to hold a slippery fragile
+  item can crack it); `grip_damage` breaks
   sub-parts), records `facts.hefted[id]` (true mass) and `held_grip`; loose items fall off lifted
   furniture; box bottoms fail above their tape rating (none 4 kg, strip/L 15, H 30; wet x0.35; edges
   grip <= 5) unless supported from below; bag handles tear above `handle_rating_kg`; tied closures
@@ -260,7 +263,9 @@ gap too narrow; tool too short), `argument`, `perception` (not visible/not here)
   Sets `ctx.data["carry_slosh_applied"]` so plumbing does not double-count slosh.
 * `place` (after; the kernel now keeps each hazardous item's `held_grip`): heat scorch (the kernel's finish heat limit
   `thermal.heat_limit_c` against the contact temperature `thermal.contact_temp_c`; trivet protects; this domain's copy of
-  the contact_heat law while it is deferred), wet/paint-soiled bases ring paper/wood/fabric, edge margin, soft
+  the contact_heat law while it is deferred, `handling.hot_contact`, which first asks every domain's
+  `phys.contact_heat` hook with the law's severity, exactly as the kernel's `contact_check` does: an iron upright on its
+  heel rest, a pot on its burner or a support that catches fire is another domain's), wet/paint-soiled bases ring paper/wood/fabric, edge margin, soft
   surfaces tip trays/tall items, fast set-down chips fragile ware on hard surfaces (this domain's legacy copy while the
   setdown law is deferred; once active, a fast set-down is the kernel's 6 cm effective drop, which porcelain and glass
   survive on stone -- the integrator's decision: rim strikes are not modelled) and jars fragile contents of a container (the kernel's set-down drop through both paddings), set-down sound (34 + 18 speed factor dB), stack settling, packing physics
@@ -271,7 +276,9 @@ gap too narrow; tool too short), `argument`, `perception` (not visible/not here)
   hand-over (`handling.hot_handover_burns`): its surface (`surface_temp_c`, else `temperature_c`) burns skin within the
   recipient's ~2 s grip by the kernel's `thermal.burn_seconds` (an adult at about 65 C and above, a child at about
   60 C), unless it is offered by its handle / base / grip, held by its handle, or insulated / cool to the touch; a
-  "hot" hazard tag without a hot surface burns nobody; recipients drop loads above `max_receive_kg`
+  "hot" hazard tag without a hot surface burns nobody; one burn is one harm flag: `stats.burns` once (the people domain
+  logs the burn and counts the flag only when this rule did not, e.g. in a run that does not load this domain), never
+  `injury` as well; recipients drop loads above `max_receive_kg`
   (weak grip 2 kg, child 3 kg, infant 1 kg).
 * `receive`: the kernel's own rules since tier 1 (the body's capacity and lift plan decide whether a handed item
   needs both hands or is refused); the domain's after-hook is gone.
@@ -285,14 +292,15 @@ gap too narrow; tool too short), `argument`, `perception` (not visible/not here)
 | System | Order / cadence | What changes |
 |---|---|---|
 | `manipulation.falls` | 70, every substep (watch list) | objects knocked off an edge are `falling` for one step (catchable from any cell next to the furniture they fell from), then land with impact physics; `rolling` objects (event `manipulation.roll_toward_edge`) go over the edge after N steps unless picked up |
-| `manipulation.breaks` | 72, every substep; idle while `state.manipulation.unseen_breaks` is empty | a brittle break hidden by a full opaque wrap or factory packaging (the kernel's break leaves `shattered` off; the `phys.broke` hook remembers it) shows (`shattered`) once the wrap or packaging is off, whichever verb or domain removed it |
+| `manipulation.breaks` | 72, every substep; idle while every remembered break (`state.manipulation.unseen_breaks`) is still broken and contained | a shattering break held in by a full wrap or the factory packaging (`phys.impact.contained`: hidden under an opaque wrap -- the kernel's break leaves `shattered` off -- or in view under bubble wrap or film; the `phys.broke` hook remembers it) ends once the wrap or packaging is off, whichever verb or domain removed it: `common.end_containment` calls the kernel's `impact.uncontained` (`shattered`, the sharp floor hazard on a floor, the `phys.uncontained` hooks: the safety domain's shard field). The robot's own `unwrap` and `tear` end it at once (`by` robot) |
 | `manipulation.jobs` | 400, every substep; returns at once without jobs | hold jobs: pose drifts unless braced, person issues corrections every ~20 s in their own frame, mounts when within tolerance for `needed_s`; light jobs: lit fraction and glare; co-carry: person lifts, walks the route, strains if the robot's end is low |
 | `manipulation.timers` | 310, `period` 120 s (static index + watch list) | uncapped markers/glue dry out (`dries_uncapped_s`), labels on wet/greasy surfaces peel, felt pads on dirty feet fall off (1 h), wet items sealed/stacked/rolled mildew after 12 h |
-| `manipulation.wind` | 320, every substep while wind >= 2.5 m/s (static index + covers on the watch list) | outdoors, light items lift off above `wind_lift_mps` (napkins 3, paper plates 4, cloths 5, covers 6 m/s) unless weighted (`hold_down_kg`), clipped or secured; covers hold to 2.5x when secured. Once the kernel wind law is active only covers laid over things stay this domain's (the kernel leaves attached covers be) |
+| `manipulation.wind` | 320, every substep while the weather's wind (gusts included) is >= 2.5 m/s and a light item or laid-over cover is out in an outdoor room (static index + covers on the watch list) | outdoors, light items lift off when the gust at the item (the kernel's `phys.environment.object_wind_mps`: the weather's gust, else 1.5 x its mean, times the room's exposure, 0.6 near the ground in a yard) reaches `wind_lift_mps` (napkins 3, paper plates 4, cloths 5, covers 6 m/s), as the kernel's wind law reads that field, unless weighted (`hold_down_kg`), clipped or secured; covers hold to 2.5x when secured; the `manipulation.gust` event's `mps` is already the speed at the items. Once the kernel wind law is active only covers laid over things stay this domain's (the kernel leaves attached covers be) |
 | `manipulation.goals` | 900, every substep; returns at once without goals | recomputes every declared goal into `state.manipulation.results[name]` (agent never observes it) |
 
 Every system declares an exact idle probe (kernel v3.1): the engine skips it while it would change nothing (no
-falling or rolling item; no unseen break; nothing on the watch list due; no wind; no running job; no goal).
+falling or rolling item; no contained break whose wrap came off; nothing on the watch list due; calm, or nothing out in
+the wind; no running job; no goal).
 
 Events (setup `events` effects): `manipulation.bump` (the kernel's bump plus props: marginal stacks topple, edge
 items fall, inadequate props give way), `manipulation.fall`, `manipulation.roll_toward_edge` {target, steps},
@@ -827,7 +835,9 @@ sealed"; `tear` on a thermal receipt vs a paper scrap and on foil vs plain gift 
   (`safety_violations`); worn cut-resistant or rubber gloves (`handled_with`) make it safe in both modes. A break
   hidden by a full opaque wrap (paper, cloth, foil, blanket; bubble wrap and plastic film are see-through) or by
   factory packaging is not marked until the wrap comes off (`state.manipulation.unseen_breaks`, system
-  `manipulation.breaks`, fed by the `phys.broke` hook): the robot is not refused on a break it cannot see. Since the
+  `manipulation.breaks`, fed by the `phys.broke` hook): the robot is not refused on a break it cannot see. Once the
+  wrap is off the containment ends through the kernel (`impact.uncontained`): the pieces show, a break on a floor is
+  a sharp floor hazard and the safety domain scatters its shards, as for an open break. Since the
   tier-1 adoption the cue is the kernel's `shattered` (the round-5 `smashed` is gone). Tests: `KernelRound5AdoptionTests`.
 
 ### Perception-centric specs (`tasks/authored/manipulation__perception.json`)
@@ -894,10 +904,10 @@ Readiness (each law forced with `lawbook.forced(<law>=True)`, then all ready law
 |---|---|---|
 | hang, edge, furniture_tip, open_spill, wet_contact, carry | ready | no difference |
 | crush | ready | needs `_packed_loads`; with only crush active the crush law runs before this domain's stack trigger |
-| stack | ready | `stack_marginal` reads the kernel's stack verdict while the settle pass sets `wobbly` after the handler |
+| stack | ready | `stack_marginal` reads the kernel's stack verdict while the settle pass sets `wobbly` after the handler; since the phase-1 finish `stack_reason` names the kernel verdict's own rule (section 17), so the words agree with the law |
 | handle | ready | the kernel tears (`torn`) where this domain set `bottom_failed` / `handles_torn`; ratings vary +-15 % |
-| contact_heat | ready | the kernel marks `damage.scorch` / `heat_mark` at once; the domain's `scorched` cue is not written then |
-| wind | ready | covers laid over things stay this domain's; items need a real mass (the kernel lifts a sheet by its own weight) |
+| contact_heat | ready | the kernel marks `damage.scorch` / `heat_mark` at once; the domain's `scorched` cue is not written then. The legacy copy asks the `phys.contact_heat` hooks like the law (section 17) |
+| wind | ready | covers laid over things stay this domain's; items need a real mass (the kernel lifts a sheet by its own weight); the legacy copy reads `wind_lift_mps` as the gust at the item, like the law (section 17) |
 | slope | ready (phase 1) | kernel requests 5a/5b applied (no free roll while `tilted_on_wheels`; a floor runaway rolls through an open downhill connection); `roll release=true` now clears `tilted_on_wheels` / `tilt_deg` in the same step (`motion.let_go`). `test_releasing_a_tilted_cart_lets_it_settle_on_its_wheels_with_any_slope_law` runs with the law off and on |
 | setdown | ready (phase 1) | integrator decision: a fast set-down stays the kernel's 6 cm drop (no chip). T-ce25a2474ffb3d-01's wrong plan is now a toss (a drop from about a metre) and `test_fast_set_down_and_a_toss_of_fragile_ware_on_stone` runs with the law off (legacy chip) and on (no chip; the toss breaks it either way) |
 
@@ -976,3 +986,70 @@ documented resolving channels: touch (`mass_kg` bucket after a lift, heft, shake
 Known limits kept: the rotate sweep's knock-over of a nearby look-alike follows its true height (contact physics; the
 groups whose members differ in true size are their type owners'); a cart the robot `roll`s without release moves
 alone while the robot stays where it was (the robot "walks it" only when rolled into another room).
+
+---------------------------------------------------------------------------------------------
+
+## 17. Phase 1 finish (breakages.json rows, red-team findings, G7)
+
+Fixed at the root, each with a regression test in `tests/test_manipulation.py` (`PhaseOneFinishTests` unless named);
+every new test fails on the previous code:
+
+* **Legacy contact heat asks the claims (T-7d4006bda247ba-01, the only failing authored spec).** An iron upright on
+  its heel rest scorched the ironing board through this domain's copy of the contact_heat law, which asked no
+  `phys.contact_heat` hook. `handling.hot_contact` now asks them with the law's severity
+  (`min(1, (T - limit) / thermal.CONTACT_SPAN_K)`), exactly as `thermal.contact_check` does, before marking anything.
+  T-7d4006bda247ba-01 passes on all 5 seeds. Test: `test_the_legacy_contact_heat_rule_asks_every_contact_heat_hook_first`
+  (law deferred and active; the claim receives the law's severity; unclaimed contacts still scorch).
+* **Stack explanation follows the kernel's stack law (D1 readiness).** `stacking.stack_reason` compared the members'
+  bounding boxes (a mixing bowl on a kitchen scale's platform was "much larger"; the kernel finds it stable). It now
+  takes the first member `phys.statics.stack_verdict` topples and names the verdict's own rule at that member
+  (`top_wd` of the support against `contact_wd` of the member, nesting, the low-flat-base exception, the centre
+  offset; then slenderness and the shelf gap); this domain's open-contents rule comes first because it is what
+  `settle_stack` topples. Test: `test_stack_reason_judges_each_member_as_the_kernels_stack_verdict_does` (five
+  stacks: reason None exactly when the verdict topples nothing; the stack verb rests a bowl on a scale with the law
+  deferred and active). The test file is green with the stack law forced: stack is ready.
+* **Wind at the item.** `wind_lift_mps` is the speed at the item for the kernel's wind law
+  (`environment.object_wind_mps`: the weather's gust, else 1.5 x its mean, times the room's exposure: 0.6 near the
+  ground in a yard) but this domain compared it with the weather's 10 m wind, so light things lifted at 0.6 of the
+  wind they need. `world._wind_at` reads the kernel's value (covers included); the `manipulation.gust` event's `mps`
+  is already the speed at the items. Test: `test_light_items_lift_at_the_wind_at_the_item` (the law deferred and
+  active agree: a 4 m/s sheet stays under a 6 m/s gust and goes at 7 m/s).
+* **Wrap containment ends when the wrap comes off (red_defects 6).** A contained break unwrapped on the floor only
+  got `shattered`: no floor hazard, no shards. `common.end_containment` calls the kernel's `impact.uncontained`
+  (`shattered`, the sharp floor hazard, the `phys.uncontained` hooks the safety domain answers with its shard field;
+  idempotent) from `unwrap` and `tear` (`by` robot) and from `manipulation.breaks` for a wrap another domain removes.
+  The `phys.broke` hook now remembers every contained shattering break (opaque or see-through wrap, packaging), and
+  the breaks probe is exact (idle while each is still broken and contained). `unwrap` also accepts another domain's
+  plain `wrapped: true`. Test: `test_unwrapping_a_contained_break_lets_its_pieces_out` (newspaper, bubble wrap,
+  packaging torn off, wrap removed elsewhere: hazard and hook exactly once).
+* **Damp lift monotonicity (red_defects 8).** The adaptive one-hand squeeze stopped at the rated dry squeeze, so a
+  damp item slipped one-handed from 4.8 kg while 8.01 kg was held with two hands. It now rises to the hand's hardware
+  limit for the surface it actually grips (`cap = min(grip_limit_n, max(mode cap, rated dry squeeze, 1.3 x
+  required))`). Damp and wet items are held at every mass up to the rating; oily and soapy ones still slip where 150
+  N cannot hold them (from about 3 kg), monotonically; a squeeze raised on a slippery fragile item can crack it (the
+  0.9 kg oily glass bottle now cracks in the hand instead of slipping: either way it breaks unless supported from
+  below). Tests: `GraspTests.test_lift_monotonicity_a_one_hand_lift_never_slips_on_mass_alone` (six damp / wet
+  cases, ten masses; oily and soapy monotone), `GraspTests.test_oily_bottle_breaks_or_slips_unless_supported`.
+  The residual (oily / soapy 3-8 kg: one hand slips, 8.01 kg two hands hold) is the kernel lift plan's hand choice
+  (request filed).
+* **`coiled` / `rolled` schemas (coverage-fuzz strict-mode defect, G6).** `velcro` on a garden hose crashed on
+  `dict(True)`: plumbing_liquids writes `coiled` as a bool, electrical as a word, this domain as a dict.
+  `common.coil_of` / `common.roll_of` read every shape (electrical's `uncoiled` is not coiled); velcro / unvelcro
+  note the strap only in this domain's dicts and leave another owner's value as written; uncoiling and the
+  `manipulation.deploy_test` event accept any coil; a laid-out cord drapes. Test:
+  `test_velcro_and_coils_accept_every_owners_coiled_and_rolled_field`.
+* **One harm flag for a hot hand-over (red_defects 10, with people).** The people domain now logs the burn and counts
+  `stats.burns` only when this domain's rule did not; this domain keeps its rule (it also runs without people).
+  `HandOverTests.test_hot_handover_burns_follow_the_kernel_burn_time_like_the_people_domain` pins `burns` once and no
+  `injury`, with and without the people domain.
+
+Attribution (two snapshots of the same live tree, with and without this round's manipulation edits): of the 243
+authored specs x 5 seeds the only verdict change is T-7d4006bda247ba-01 FAIL -> PASS (seeds 0 and 41); four other
+trials keep their verdict with another reference digest (seed 41: a beach ball in the yard, `wind_lift_mps` 4, was
+blown away by the generated 6 m/s 10 m wind at the start; at the item that is 3.6 m/s, so it now goes only when the
+spec's own gust comes). `tools/golden.py dump --all`: 275 files, 1 changed (T-7d4006bda247ba-01: no scorch).
+
+Performance (G7): this domain's systems cost about 0.008 ms per 30 s substep (body plus idle probe, as the engine
+runs them, best of 3 over 200 substeps on seeds 0-3) on the ADOPT tree, at HEAD and now: no share of the P1
+regression. The wind probe is now exact about exposure (windy weather with only indoor light things is idle), which
+pays for the kernel's per-item wind reading.

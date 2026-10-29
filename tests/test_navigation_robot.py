@@ -3479,6 +3479,257 @@ class TestPhase1Stabilise(unittest.TestCase):
         self.assertAlmostEqual(env.world.s["facts"]["nav_last_measure"]["value"], 812.0, delta=2.5)
 
 
+def _without_furnisher(name):
+    """A context manager that leaves one furnisher out of house generation (the generator reads plugins.FURNISHERS)."""
+    import contextlib
+    from house_sim.kernel import plugins
+
+    @contextlib.contextmanager
+    def ctx():
+        saved = list(plugins.FURNISHERS)
+        plugins.FURNISHERS[:] = [f for f in saved if f[1] != name]
+        try:
+            yield
+        finally:
+            plugins.FURNISHERS[:] = saved
+    return ctx()
+
+
+class TestPhase1Finish(unittest.TestCase):
+    """Phase 1, finishing round: the generation-2 dock follow-up, handle hygiene and the substep cost (P1 gate G7)."""
+
+    # breakages.json (navigation_robot): layout_audit --gen 2 found a vacuum dock whose keep-clear zone left targets
+    # reachable only over hazards -- seed 25 couple_with_infant (a tower fan placed before the dock beside its outlet,
+    # set aside by the placement rule as a loose thing) and seed 27 multigenerational (electrical.hookup mounted two
+    # receptacles on the zone's wall after the dock was placed)
+    FOLLOW_UPS = ((25, {"residents": {"composition": "couple_with_infant"}, "pets": "none", "gen": 2}),
+                  (27, {"residents": {"composition": "multigenerational"}, "start": "2026-01-15T07:30:00", "gen": 2}))
+
+    @staticmethod
+    def _zone_ok(config, dock):
+        from house_sim.generator.place import Placer
+        from house_sim.systems.navigation_robot import furnish as F
+        p = Placer(config, default_registry(), None)
+        return F._zone_cuts_nothing(p, config["entities"][dock]["location"], dock, every_hazard=True, ignore=F._seated(config, dock))
+
+    def test_gen2_docks_keep_every_target_reachable_without_hazards(self):
+        from house_sim.generator import _generate
+        from house_sim.systems.navigation_robot import furnish as F
+        if not {"climate", "electrical"} <= plugin_domains():
+            self.skipTest("the audit's houses: climate's fans and electrical's receptacles")
+        for seed, opts in self.FOLLOW_UPS:
+            report = []
+            config = _generate(seed, report=report, **opts)
+            self.assertEqual([line for line in report if "robot_vacuum_dock" in line], [], (seed, report))
+            docks = [e for e, r in config["entities"].items() if r.get("rv_dock")]
+            for dock in docks:
+                self.assertTrue(self._zone_ok(config, dock), (seed, dock))
+                rec = config["entities"][dock]
+                outlet = config["entities"][rec["outlet"]]
+                self.assertEqual((outlet.get("category"), outlet.get("location")), ("outlet", rec["location"]))
+                self.assertEqual(min(body_cell_distance(rec, outlet["pos"])), 1, "plugged straight into the outlet beside it")
+                for robot in F._seated(config, dock):
+                    r = config["entities"][robot]
+                    self.assertEqual(r["location"], rec["location"])
+                    self.assertTrue(set(map(tuple, [r["pos"]])) & set(F.geometry.footprint(rec)), "seated on its dock")
+            # without the final check the same houses show the problem the audit reported
+            with _without_furnisher("navigation_robot.dock_check"):
+                report = []
+                old = _generate(seed, report=report, **opts)
+            self.assertTrue([line for line in report if "hazard-only access" in line and "robot_vacuum_dock" in line], seed)
+            self.assertEqual(sorted(old["entities"]["robot_vacuum_dock_1"]), sorted(config["entities"]["robot_vacuum_dock_1"]),
+                             "the dock keeps its id and record; only its placement changes")
+
+    def test_dock_check_changes_nothing_when_the_zone_cuts_nothing(self):
+        from house_sim.generator import _generate
+        from house_sim.systems.navigation_robot import furnish as F
+        import random
+        checked = 0
+        for seed in range(12):
+            for gen in (2, 1):
+                config = _generate(seed, gen=gen)
+                docks = [e for e, r in config["entities"].items() if r.get("rv_dock")]
+                if not docks:
+                    continue
+                checked += 1
+                if gen >= 2:
+                    for dock in docks:
+                        self.assertTrue(self._zone_ok(config, dock), (seed, dock))
+                before = json.dumps(config, sort_keys=True)
+                F.dock_check(config, random.Random(1), {"gen": gen}, default_registry())
+                self.assertEqual(json.dumps(config, sort_keys=True), before, (seed, gen))
+        self.assertGreater(checked, 0)
+        # generation 1 is frozen: the check never runs there, even on a dock whose zone cuts something
+        bad, dock = self.boxed_in_dock()
+        self.assertFalse(self._zone_ok(bad, dock))
+        before = json.dumps(bad, sort_keys=True)
+        F.dock_check(bad, random.Random(1), {"gen": 1}, default_registry())
+        self.assertEqual(json.dumps(bad, sort_keys=True), before)
+
+    @staticmethod
+    def boxed_in_dock(spare_outlet=True):
+        """The explicit house's living room (12 x 10 cells) with a vacuum dock on the west wall at [0, 8] facing east, its
+        robot seated on it and plugged into the outlet beside it at [0, 7]; a second receptacle at [0, 9] in the corner
+        is reachable only through the dock's keep-clear zone. spare_outlet: a free outlet on the south wall at [6, 9];
+        without it a cabinet stands at [0, 6], so no outlet in the house has a spot beside it whose zone cuts nothing."""
+        m = Mini()
+        c = m.c
+        outlets = [("outlet_dock", [0, 7]), ("outlet_corner", [0, 9])] + ([("outlet_spare", [6, 9])] if spare_outlet else [])
+        if not spare_outlet:
+            m.add("cabinet_1", "generic_item", "living", pos=[0, 6], label="cabinet", category="furniture", portable=False,
+                  blocks_path=True, size_m=[0.5, 0.5, 0.9], mass_kg=25.0)
+        for eid, pos in outlets:
+            m.add(eid, "generic_item", "living", pos=pos, label="wall outlet", category="outlet", mounted=True, mount_height_m=0.3,
+                  receptacles=2, portable=False, size_m=[0.07, 0.04, 0.12])
+        m.add("rvdock", "robot_vacuum_dock", "living", pos=[0, 8], rot=0, plugged_in=True, outlet="outlet_dock", _socket=1,
+              plug_seated=1.0, cord_route="along_wall", cord_cells=[["living", [0, 8]], ["living", [0, 7]]],
+              cord_length_used_m=0.8, cord_hazard=[])
+        m.add("rv", "robot_vacuum", "living", pos=[0, 8], relation="on", docked=True,
+              rv={"dock": "rvdock", "state": "docked", "docked": True, "schedule": []})
+        c["robot"] = {"room": "living", "pos": [0, 0], "home": "robot_dock_1"}
+        return copy.deepcopy(c), "rvdock"
+
+    def test_a_dock_whose_zone_boxes_something_in_is_moved_with_its_robot(self):
+        from house_sim.systems.navigation_robot import furnish as F
+        import random
+        config, dock = self.boxed_in_dock()
+        self.assertFalse(self._zone_ok(config, dock))
+        order = list(config["entities"])
+        F.dock_check(config, random.Random(1), {"gen": 2}, default_registry())
+        rec = config["entities"][dock]
+        self.assertEqual(list(config["entities"]), order, "same ids in the same order: nothing created or dropped")
+        self.assertNotEqual(rec["pos"], [0, 8])
+        outlet = config["entities"][rec["outlet"]]
+        self.assertEqual((rec["location"], outlet["category"], rec["plugged_in"]), ("living", "outlet", True))
+        self.assertEqual(min(body_cell_distance(rec, outlet["pos"])), 1, "beside the outlet it is plugged into")
+        self.assertEqual(rec["cord_cells"][-1], ["living", list(outlet["pos"])])
+        self.assertTrue(self._zone_ok(config, dock))
+        robot = config["entities"]["rv"]
+        self.assertEqual((robot["location"], robot["rv"]["dock"], robot["docked"]), ("living", dock, True))
+        self.assertIn(tuple(robot["pos"]), set(F.geometry.footprint(rec)))
+        # the house builds and the robot vacuum sits on its dock at the start
+        env = HouseEnv(config, seed=7)
+        self.assertEqual(env.world.s["entities"]["rv"]["rv"]["state"], "docked")
+        self.assertTrue(env.world.s["entities"]["rv"]["rv"].get("dock_zone_clear"))
+
+    def test_a_dock_with_no_spot_left_leaves_the_house(self):
+        # as at first placement: a dock whose zone cuts something and that has nowhere better to go is not kept
+        from house_sim.generator import _generate
+        from house_sim.systems.navigation_robot import furnish as F
+        import random
+        bad, dock = self.boxed_in_dock(spare_outlet=False)
+        self.assertFalse(self._zone_ok(bad, dock))
+        kept = [e for e in bad["entities"] if e not in (dock, "rv")]
+        F.dock_check(bad, random.Random(1), {"gen": 2}, default_registry())
+        self.assertEqual(list(bad["entities"]), kept, "the dock and the robot seated on it are gone, nothing else")
+        self.assertEqual(bad["entities"]["outlet_corner"].get("receptacles"), 2)
+
+    # K-LEAK request: domains sorting ids by handle use realism.handles.peek (handle() issues one, and an issued handle
+    # is one the agent may act on)
+    def test_patrol_issues_no_handle_for_an_anomaly_it_never_noticed(self):
+        m = Mini()
+        m.c["clock"]["start"] = "2026-10-09T23:00:00"
+        m.c["entities"]["light_hall"]["on"] = False
+        m.add("cab", "cabinet", "hall", pos=[1, 5], open=False)
+        m.add("chirper", "generic_item", "cab", label="smoke detector", category="device", anomaly="chirping", size_m=[0.1, 0.1, 0.05])
+        m.add("chirper2", "generic_item", "cab", label="smoke detector", category="device", anomaly="chirping", size_m=[0.1, 0.1, 0.05])
+        env = m.env(room="hall", pos=(1, 6), perception="realistic")
+        self.assertNotIn("chirper", env.realism.handles.by_id)
+        r = json.loads(ok(self, step(env, "patrol", rooms=["hall"]))["message"])
+        self.assertEqual(r["findings"], [], "shut in a closed cabinet in the dark: not noticed")
+        self.assertNotIn("chirper", env.realism.handles.by_id)
+        self.assertNotIn("chirper2", env.realism.handles.by_id)
+        # what the robot does perceive is still listed in handle order (the order peek gives is handle()'s)
+        from house_sim.systems.navigation_robot import world as NW
+        from house_sim.systems.navigation_robot import paths as P  # noqa: F401
+        env2 = Mini().env(perception="realistic")
+        ids = [e for e in env2.world.s["entities"] if e.startswith("door_") or e.startswith("light_")]
+        seen = NW._seen_only(type("Ctx", (), {"env": env2})(), env2.world.s, ids)
+        self.assertEqual(seen, sorted(seen, key=env2.realism.handles.handle))
+
+    # P1 gate G7 (this domain's share of the phase-1 substep-cost increase): the per-substep static indexes are built when
+    # the episode starts, from plain records with declared reads, instead of through read views in the first busy substep
+    def test_prebuilt_index_predicates_declare_every_field_they_read(self):
+        from house_sim.kernel.world import _ReadView
+        from house_sim.systems.navigation_robot import common as C
+        reg = default_registry()
+        self.assertEqual(sorted(C.PREBUILT), ["battery_packs", "household_robots", "leveled", "low_contrast", "passage_doors", "vehicles"])
+        samples = [dict(reg.make(t, "living")) for t in sorted(reg.types)]
+        samples += [{"connects": ["a", "b"]}, {"vehicle": {"state": "parked"}}, {"leveling": {"feet": 4}}, {"part_type": "robot_battery"},
+                    {"rv": {"state": "docked"}}, {"low_contrast": True}, {}]
+        for key, pred in sorted(C.PREBUILT.items()):
+            for rec in samples:
+                keys = set()
+                result = pred(_ReadView(rec, keys))
+                self.assertEqual(bool(result), bool(pred(rec)), key)
+                self.assertTrue(keys <= set(pred.reads), (key, sorted(keys - set(pred.reads))))
+
+    def test_indexes_are_built_at_the_episode_start_with_the_same_content(self):
+        from house_sim.generator import generate_house
+        from house_sim.systems.navigation_robot import common as C
+        for seed in (0, 1):
+            env = HouseEnv(generate_house(seed), seed=seed, trace=False, observe_on_step=False)
+            w = env.world
+            ents = w.s["entities"]
+            for key, pred in sorted(C.PREBUILT.items()):
+                self.assertIn("navigation_robot." + key, w._static, key)
+                self.assertEqual(C.ids_with(w, key, pred), sorted(e for e, r in ents.items() if pred(r)), key)
+
+    def test_the_prebuilt_indexes_change_no_result(self):
+        # the same 2 h wait, the same digest, with the episode-start build and without it (the first substep builds)
+        from house_sim.generator import generate_house
+        from house_sim.kernel import plugins
+        from house_sim.systems.navigation_robot import common as C
+        digests = []
+        for prebuild in (True, False):
+            saved = list(plugins.HOOKS["episode_start"])
+            if not prebuild:
+                plugins.HOOKS["episode_start"][:] = [h for h in saved if h[2] is not C.prebuild_indexes]
+            try:
+                env = HouseEnv(generate_house(2), seed=2, trace=False, observe_on_step=False)
+                if not prebuild:
+                    self.assertFalse([k for k in env.world._static if k.startswith("navigation_robot.leveled")])
+                env.step("wait", seconds=7200)
+                digests.append(digest(env.world.s))
+            finally:
+                plugins.HOOKS["episode_start"][:] = saved
+        self.assertEqual(digests[0], digests[1])
+
+    def test_go_to_dock_walks_by_the_map_when_the_camera_cannot_make_it_out(self):
+        # forced realistic + geometric run of T-5ad61b6881821b-01 (its wrong plans' go_to dock was refused, so under the
+        # verifier's NeverActed rule they were no evidence): go_to resolves a fixed thing on the robot's map (its own
+        # dock), but on arriving in a dark room the geometric camera could not make the dock out from the doorway and
+        # the core approach refused ("That is not visible here"). It now walks by the map to beside the dock first.
+        def dark():
+            m = Mini()
+            m.c["clock"]["start"] = "2026-10-09T23:00:00"
+            m.c["entities"]["light_living"]["on"] = False
+            m.add("lamp", "robot_headlamp", "robot", relation="worn")
+            return m
+        for perception in (None, "realistic"):
+            env = dark().env(room="kitchen", pos=(2, 4), perception=perception, camera="geometric", headlamp_on=True)
+            r = ok(self, step(env, "go_to", "dock"))
+            self.assertEqual(r["message"], "Arrived at dock")
+            self.assertEqual(env.world.s["robot"]["room"], "living")
+            ok(self, step(env, "dock"))
+            self.assertTrue(env.world.s["robot"]["docked"])
+            # the room camera sees the whole room: the same walk as before (no extra leg)
+            env2 = dark().env(room="kitchen", pos=(2, 4), perception=perception, headlamp_on=True)
+            ok(self, step(env2, "go_to", "dock"))
+            self.assertEqual(env2.world.s["robot"]["pos"], [2, 1])
+
+    def test_elevator_cars_are_the_rooms_with_an_elevator_record(self):
+        from house_sim.systems.navigation_robot import elevator as E
+        state = {"rooms": {"b": {"elevator": {"car_floor": 0}}, "a": {}, "c": {"elevator": {"car_floor": 1}}, "d": {"elevator": "x"}}}
+        self.assertEqual(E.cars(state), ["b", "c"])
+        self.assertEqual(E.cars(state), sorted(r for r in state["rooms"] if E.model(state, r)))
+
+
+def body_cell_distance(rec, cell):
+    from house_sim.kernel import geometry
+    return [geometry.chebyshev(tuple(cell), f) for f in geometry.footprint(rec)]
+
+
 class TestDeterminism(unittest.TestCase):
     def test_same_state_across_processes_and_hash_seeds(self):
         import os

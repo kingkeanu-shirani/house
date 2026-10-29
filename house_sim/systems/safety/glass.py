@@ -19,7 +19,9 @@ Loose shards put in a trash bag are a harm (safety.loose_sharps_in_trash). Drivi
 cells the robot actually walked (the motion record, cut short by a slip or a stop), never shards that broke during that
 same motion (spreading the field). People/pets stepping on shard cells barefoot get cut (walkers.py, evac, toddler).
 Wrap containment (kernel phys/impact.contained; independent review H11): a break inside a full wrap or intact packaging
-keeps its pieces in it -- no shard field is made while it holds, whoever breaks the item.
+keeps its pieces in it -- no shard field is made while it holds, whoever breaks the item. When the wrap or the packaging
+comes off (kernel phys/impact.uncontained, the phys.uncontained hook) the pieces are out: on a floor they become the
+item's shard field at once, elsewhere once the item lies on a floor (phase-1 red team, the hand-back path).
 """
 import math
 import random
@@ -41,6 +43,8 @@ def is_shard(rec):
                                                                                             "broken_glass" in (rec.get("tags") or []))
 
 
+@C.per_substep_index("glassy")
+@C.index_reads("type", "is_a", "category", "tags", "material")
 def _glassy(rec):
     """Static superset of shards: shard entities and anything made of glass (a glass item becomes the biggest piece of
     its own shard field when it shatters)."""
@@ -235,18 +239,43 @@ def kernel_glass_break(w, eid, info):
     shatter(w, eid, impact_cell=tuple(rec["pos"]) if rec.get("pos") else None, kernel_break=True)
 
 
+@hook("phys.uncontained")
+def glass_released(w, eid, info):
+    """Wrap containment ends (kernel phys/impact.uncontained, phase-1 red team: the hand-back path): the wrap or the
+    packaging of a contained break came off, so its pieces are out. On a floor they become the shard field an open break
+    gets (large pieces, small shards, hidden slivers, the cleared-zone bookkeeping); no breaking sound (nothing breaks
+    now). Pieces released elsewhere (in the robot's hand, on a counter) scatter once the item lies on a floor
+    (glass_system)."""
+    state = w.s
+    rec = state["entities"].get(eid)
+    if rec is None or (info or {}).get("mode", "shatter") != "shatter" or not breaks_into_shards(state, eid, rec):
+        return
+    shatter(w, eid, impact_cell=tuple(rec["pos"]) if rec.get("pos") else None, kernel_break=True)
+
+
+def _scatters(state, rec):
+    """A broken glass item glass_system turns into a shard field: broken by another domain and not shattered yet, or a
+    contained break whose pieces came out of the wrap (the kernel's _pieces_out) without a field yet; not contained."""
+    if not rec.get("broken") or rec.get("no_shards") or str(rec.get("material", "")) not in GLASS_MATERIALS or \
+            not rec.get("portable") or is_shard(rec) or rec.get("location") == "robot" or rec.get("category") in ("window",) \
+            or contained(rec):
+        return False
+    return not rec.get("shattered") or bool(rec.get("_pieces_out"))
+
+
 @system("safety.glass", order=350, max_dt=30.0)
 def glass_system(w, dt, tick):
     """Items that other domains broke (dropped glasses, knocked frames) shatter into shard fields, unless a full wrap or
-    their packaging still contains the pieces (contained)."""
+    their packaging still contains the pieces (contained); a contained break whose wrap came off away from a floor
+    scatters once it lies on one."""
     state = C.bind_world(w).s
     for eid in C.sindex(state, "glassy", _glassy):
         rec = state["entities"][eid]
-        if rec.get("broken") and not rec.get("shattered") and not rec.get("no_shards") and \
-                str(rec.get("material", "")) in GLASS_MATERIALS and rec.get("portable") and not is_shard(rec) and \
-                rec.get("location") != "robot" and rec.get("category") not in ("window",) and not contained(rec):
-            if (rec.get("location") in state["rooms"]) or rec.get("fell"):
+        if rec.get("broken") and _scatters(state, rec) and ((rec.get("location") in state["rooms"]) or rec.get("fell")):
+            if not rec.get("shattered"):
                 shatter(w, eid)
+            elif not has_shard_field(state, eid):
+                shatter(w, eid, kernel_break=True)      # pieces out of a wrap: no breaking sound
     _clear_zones(w)
 
 

@@ -1,0 +1,210 @@
+compare ADOPT -> P1F (packages: P1-ALL; allowed: fingerprint,gen1,obs,state,verdict; codes: ADOPT,P1)
+TREE PASS  the record was made on this tree (900b89239a85; <project>)
+G0   PASS  action fingerprint unchanged (0eec7120d723)
+G2   FAIL  1215 trials vs 1215: 210 verdict change(s) (210 reviewed, 0 signed), 1215 with changed state digests (allowed), 1139 with a changed observation digest (allowed)
+             verdict A-05a6ff57e7f3fd-01 seed 2: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 885290eb498d7cf1)
+             verdict A-0fec5aa3d9e10c-01 seed 0: passed True -> True [wrong] reviewed P1, UNSIGNED (digest c729ba4da0e70652)
+             verdict A-0fec5aa3d9e10c-01 seed 1: passed True -> True [wrong] reviewed P1, UNSIGNED (digest e1c5a21cb8216071)
+             verdict A-0fec5aa3d9e10c-01 seed 41: passed True -> True [wrong] reviewed P1, UNSIGNED (digest e1c5a21cb8216071)
+             verdict A-565da7517f3394-01 seed 0: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 44b399061a920430)
+             verdict A-565da7517f3394-01 seed 1: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 810ada1b37651f83)
+             verdict A-565da7517f3394-01 seed 97: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 810ada1b37651f83)
+             verdict A-afe8d8c6d6d883-01 seed 0: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 9c6bc0cb50d832eb)
+             verdict A-afe8d8c6d6d883-01 seed 1: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 21044028e28cab11)
+             verdict A-afe8d8c6d6d883-01 seed 2: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 9c6bc0cb50d832eb)
+             verdict A-afe8d8c6d6d883-01 seed 97: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 21044028e28cab11)
+             verdict A-c83efc7adcd8f5-01 seed 0: passed True -> True [wrong] reviewed P1, UNSIGNED (digest cc2908ce3bc3c30e)
+             verdict A-c83efc7adcd8f5-01 seed 1: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 01604fd448acb869)
+             verdict A-c83efc7adcd8f5-01 seed 2: passed True -> True [wrong] reviewed P1, UNSIGNED (digest a8dd040beec60292)
+             verdict A-c83efc7adcd8f5-01 seed 97: passed True -> True [wrong] reviewed P1, UNSIGNED (digest a8dd040beec60292)
+             verdict A-d9e7a4d5d112d2-01 seed 97: passed True -> True [wrong] reviewed P1, UNSIGNED (digest a1003fdd464b0bf9)
+             verdict P-47196e0991cdf4-01 seed 2: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 13d41dd047c106c3)
+             verdict P-6f82b375df3cc1-01 seed 97: passed True -> True [wrong] reviewed P1, UNSIGNED (digest e3b706ede412f64f)
+             verdict T-03d77bbfc281a4-01 seed 0: passed True -> True [wrong] reviewed P1, UNSIGNED (digest f4eff218fe1ee968)
+             verdict T-03d77bbfc281a4-01 seed 1: passed True -> True [wrong] reviewed P1, UNSIGNED (digest f4eff218fe1ee968)
+             verdict T-03d77bbfc281a4-01 seed 2: passed True -> True [wrong] reviewed P1, UNSIGNED (digest f4eff218fe1ee968)
+             verdict T-03d77bbfc281a4-01 seed 41: passed True -> True [wrong] reviewed P1, UNSIGNED (digest f4eff218fe1ee968)
+             verdict T-03d77bbfc281a4-01 seed 97: passed True -> True [wrong] reviewed P1, UNSIGNED (digest f4eff218fe1ee968)
+             verdict T-0908068a0b4269-01 seed 41: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 4939e507f88110e9)
+             verdict T-0908068a0b4269-01 seed 97: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 16bb28acfab81734)
+             verdict T-09ef414351dfae-01 seed 2: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 1050fc98950b7d42)
+             verdict T-0b4f248ae32c87-01 seed 41: passed True -> True [wrong] reviewed P1, UNSIGNED (digest f30f2b51b9145d36)
+             verdict T-0b4f248ae32c87-01 seed 97: passed True -> True [wrong] reviewed P1, UNSIGNED (digest f30f2b51b9145d36)
+             verdict T-0bd75d2bb80aab-01 seed 0: passed True -> True [wrong] reviewed P1, UNSIGNED (digest b960ef946ecf525e)
+             verdict T-0bd75d2bb80aab-01 seed 1: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 53b96862dcc6a7b1)
+             verdict T-0bd75d2bb80aab-01 seed 2: passed True -> True [wrong] reviewed P1, UNSIGNED (digest b960ef946ecf525e)
+             verdict T-0bd75d2bb80aab-01 seed 41: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 53b96862dcc6a7b1)
+             verdict T-0cd7f8f3019b40-01 seed 0: passed True -> True [wrong] reviewed P1, UNSIGNED (digest b2c9d22445378baa)
+             verdict T-0cd7f8f3019b40-01 seed 1: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 5fb5cdbf88821df3)
+             verdict T-0cd7f8f3019b40-01 seed 2: passed True -> True [wrong] reviewed P1, UNSIGNED (digest b2c9d22445378baa)
+             verdict T-0cd7f8f3019b40-01 seed 41: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 5fb5cdbf88821df3)
+             verdict T-0cd7f8f3019b40-01 seed 97: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 5fb5cdbf88821df3)
+             verdict T-0d397bf9de09a0-01 seed 2: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 1e0368bba5c6a850)
+             verdict T-0d397bf9de09a0-01 seed 41: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 06f09ad5ef2c02b1)
+             verdict T-123d987460eb2a-01 seed 0: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 3478308617cec616)
+             edited specs (spec_hash changed): A-d66994a566899c-01, T-0383801c7466a3-01, T-03d77bbfc281a4-01, T-089c40fb507289-01, T-0908068a0b4269-01, T-151f6733397156-01, T-28ff695081cd2c-01, T-5a9598c809336a-01, T-8e57df5742271b-01, T-9615ae9f7570b4-01, T-a31398ab2abf54-01, T-c072906a11f55c-01, T-c49fadcea69182-01, T-ce25a2474ffb3d-01
+             edited specs without a signature: A-d66994a566899c-01, T-0383801c7466a3-01, T-03d77bbfc281a4-01, T-089c40fb507289-01, T-0908068a0b4269-01, T-151f6733397156-01, T-28ff695081cd2c-01, T-5a9598c809336a-01, T-8e57df5742271b-01, T-9615ae9f7570b4-01, T-a31398ab2abf54-01, T-c072906a11f55c-01, T-c49fadcea69182-01, T-ce25a2474ffb3d-01
+             problem: 210 reviewed verdict change(s) without the main session's second signature
+             problem: 14 edited spec(s) without the main session's second signature
+G3   FAIL  1215 trials vs 1215: 218 verdict change(s) (217 reviewed, 0 signed), 1215 with changed state digests (allowed), 1215 with a changed observation digest (allowed)
+             verdict A-05a6ff57e7f3fd-01 seed 2: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 7de3cfcf72605e70)
+             verdict A-0fec5aa3d9e10c-01 seed 0: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 5aa10828ff6bf2ce)
+             verdict A-0fec5aa3d9e10c-01 seed 1: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 7cac0fd7a52d0a89)
+             verdict A-0fec5aa3d9e10c-01 seed 41: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 7cac0fd7a52d0a89)
+             verdict A-565da7517f3394-01 seed 0: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 44b399061a920430)
+             verdict A-565da7517f3394-01 seed 1: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 810ada1b37651f83)
+             verdict A-565da7517f3394-01 seed 97: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 810ada1b37651f83)
+             verdict A-afe8d8c6d6d883-01 seed 0: passed True -> True [wrong] reviewed P1, UNSIGNED (digest bf444e0024380f80)
+             verdict A-afe8d8c6d6d883-01 seed 1: passed True -> True [wrong] reviewed P1, UNSIGNED (digest b56f569b92b14642)
+             verdict A-afe8d8c6d6d883-01 seed 2: passed True -> True [wrong] reviewed P1, UNSIGNED (digest bf444e0024380f80)
+             verdict A-afe8d8c6d6d883-01 seed 97: passed True -> True [wrong] reviewed P1, UNSIGNED (digest b56f569b92b14642)
+             verdict A-c83efc7adcd8f5-01 seed 0: passed True -> True [wrong] reviewed P1, UNSIGNED (digest cc2908ce3bc3c30e)
+             verdict A-c83efc7adcd8f5-01 seed 1: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 01604fd448acb869)
+             verdict A-c83efc7adcd8f5-01 seed 2: passed True -> True [wrong] reviewed P1, UNSIGNED (digest a8dd040beec60292)
+             verdict A-c83efc7adcd8f5-01 seed 97: passed True -> True [wrong] reviewed P1, UNSIGNED (digest a8dd040beec60292)
+             verdict A-d9e7a4d5d112d2-01 seed 97: passed True -> True [wrong] reviewed P1, UNSIGNED (digest f9dcf695957a641d)
+             verdict P-47196e0991cdf4-01 seed 2: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 8d34a90220d7563b)
+             verdict P-6f82b375df3cc1-01 seed 97: passed True -> True [wrong] reviewed P1, UNSIGNED (digest c9614304d84ca294)
+             verdict T-03d77bbfc281a4-01 seed 0: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 73b32db81ca58c6f)
+             verdict T-03d77bbfc281a4-01 seed 1: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 73b32db81ca58c6f)
+             verdict T-03d77bbfc281a4-01 seed 2: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 73b32db81ca58c6f)
+             verdict T-03d77bbfc281a4-01 seed 41: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 73b32db81ca58c6f)
+             verdict T-03d77bbfc281a4-01 seed 97: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 73b32db81ca58c6f)
+             verdict T-0908068a0b4269-01 seed 41: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 84f962de45dc7f52)
+             verdict T-0908068a0b4269-01 seed 97: passed True -> True [wrong] reviewed P1, UNSIGNED (digest bd35f6a4094ece47)
+             verdict T-09ef414351dfae-01 seed 2: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 55203497f772cfa4)
+             verdict T-0b4f248ae32c87-01 seed 41: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 71bb25b76a6f8480)
+             verdict T-0b4f248ae32c87-01 seed 97: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 71bb25b76a6f8480)
+             verdict T-0bd75d2bb80aab-01 seed 0: passed True -> True [wrong] reviewed P1, UNSIGNED (digest b57eca23d8361ae1)
+             verdict T-0bd75d2bb80aab-01 seed 1: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 084d84efdc96fa0d)
+             verdict T-0bd75d2bb80aab-01 seed 2: passed True -> True [wrong] reviewed P1, UNSIGNED (digest b57eca23d8361ae1)
+             verdict T-0bd75d2bb80aab-01 seed 41: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 084d84efdc96fa0d)
+             verdict T-0cd7f8f3019b40-01 seed 0: passed True -> True [wrong] reviewed P1, UNSIGNED (digest d79a864839866460)
+             verdict T-0cd7f8f3019b40-01 seed 1: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 91ad58bf14450478)
+             verdict T-0cd7f8f3019b40-01 seed 2: passed True -> True [wrong] reviewed P1, UNSIGNED (digest d79a864839866460)
+             verdict T-0cd7f8f3019b40-01 seed 41: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 91ad58bf14450478)
+             verdict T-0cd7f8f3019b40-01 seed 97: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 91ad58bf14450478)
+             verdict T-0d397bf9de09a0-01 seed 2: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 1b943bb4f55ec4ef)
+             verdict T-0d397bf9de09a0-01 seed 41: passed True -> True [wrong] reviewed P1, UNSIGNED (digest 78f1e6ce29dd66bd)
+             verdict T-123d987460eb2a-01 seed 0: passed True -> True [wrong] reviewed P1, UNSIGNED (digest fb2328600041bd0b)
+             edited specs (spec_hash changed): A-d66994a566899c-01, T-0383801c7466a3-01, T-03d77bbfc281a4-01, T-089c40fb507289-01, T-0908068a0b4269-01, T-151f6733397156-01, T-28ff695081cd2c-01, T-5a9598c809336a-01, T-8e57df5742271b-01, T-9615ae9f7570b4-01, T-a31398ab2abf54-01, T-c072906a11f55c-01, T-c49fadcea69182-01, T-ce25a2474ffb3d-01
+             edited specs without a signature: A-d66994a566899c-01, T-0383801c7466a3-01, T-03d77bbfc281a4-01, T-089c40fb507289-01, T-0908068a0b4269-01, T-151f6733397156-01, T-28ff695081cd2c-01, T-5a9598c809336a-01, T-8e57df5742271b-01, T-9615ae9f7570b4-01, T-a31398ab2abf54-01, T-c072906a11f55c-01, T-c49fadcea69182-01, T-ce25a2474ffb3d-01
+             problem: 1 unreviewed verdict change(s)
+             problem: 217 reviewed verdict change(s) without the main session's second signature
+             problem: 14 edited spec(s) without the main session's second signature
+G5   PASS  layout counts equal (0 problems)
+           generation-1 digests vs previous gate: 0/60 equal
+             changed: {"bedrooms": 3, "pets": "none", "residents": [{"age": 41, "id": "resident_1", "label": "Jordan", "role": "adult"}, {"age": 9, "id": "child_1", "label": "Max", "
+             changed: {"bedrooms": 3, "pets": "none", "residents": [{"age": 41, "id": "resident_1", "label": "Jordan", "role": "adult"}, {"age": 9, "id": "child_1", "label": "Max", "
+             changed: {"bedrooms": 3, "pets": "none", "residents": [{"age": 41, "id": "resident_1", "label": "Jordan", "role": "adult"}, {"age": 9, "id": "child_1", "label": "Max", "
+             changed: {"bedrooms": 3, "pets": "none", "residents": [{"age": 41, "id": "resident_1", "label": "Jordan", "role": "adult"}, {"age": 9, "id": "child_1", "label": "Max", "
+             changed: {"bedrooms": 3, "pets": "none", "residents": [{"age": 41, "id": "resident_1", "label": "Jordan", "role": "adult"}, {"age": 9, "id": "child_1", "label": "Max", "
+             changed: {"dwelling": "house", "pets": "none", "require": ["shed"], "residents": "minimal"}|0
+             changed: {"dwelling": "house", "pets": "none", "require": ["shed"], "residents": "minimal"}|1
+             changed: {"dwelling": "house", "pets": "none", "require": ["shed"], "residents": "minimal"}|2
+             changed: {"dwelling": "house", "pets": "none", "require": ["shed"], "residents": "minimal"}|41
+             changed: {"dwelling": "house", "pets": "none", "require": ["shed"], "residents": "minimal"}|97
+G4   FAIL  perception audit: geometric: leaks 0 -> 5, errors 0 -> 0  [5 leaks; leaks 0 -> 5; exit status 1]
+           room: leaks 0 -> 3, errors 0 -> 0  [3 leaks; leaks 0 -> 3; exit status 1]
+G6   PASS  fuzz: battery: defects 0 -> 0, nondeterministic 0 -> 0, commands 1800 -> 1800, succeeded 229 -> 294, actions succeeding None -> 38 of 427
+           coverage: defects None -> 0, nondeterministic None -> 0, commands None -> 44295, succeeded None -> 30437, actions succeeding None -> 278 of 427
+           geometric: defects 0 -> 0, nondeterministic 0 -> 0, commands 1800 -> 1800, succeeded 531 -> 560, actions succeeding None -> 39 of 427
+           room: defects 0 -> 0, nondeterministic 0 -> 0, commands 1800 -> 1800, succeeded 469 -> 440, actions succeeding None -> 41 of 427
+           union: defects None -> None, nondeterministic None -> None, commands None -> None, succeeded None -> 281
+           coverage: 278 of 427 registered actions succeed at least once; never: address_envelope, aerate, align, assist_sit, bag_leaves, bind, blend, brew, brush_pet, call, cancel_watch, carve, catch, caulk, change_aquarium_water, change_litter, change_tire, check_calendar, clean_camera, clear_gutter, collect_eggs, condition, connect_charger, connect_hose, copy, crate, cross_off, crush, cube, cut_with, deadhead, decline_visitor, defrost, depill, descale, diff, dig, disassemble, drag, dress_assist, drill, drive_to, edge, fertilize, fillet, forget, free_stuck_robot, get_up, grate, grind, grind_coffee, harvest, hold_steady, insert, juice, jump_start, knead, lace_shoes, light...
+G7   PASS  substep_ms: 3.21 -> 2.69 (-16.2%; limit 3.371 = prev x 1.05)
+           wait_1h_s: 1.1327 -> 1.0201 (-9.9%; limit 1.189 = prev x 1.05)
+           day_s: 5.991 -> 5.513 (-8.0%; limit 6.291 = prev x 1.05)
+           largest per-system increases: outdoor_plants.weather +0.012 ms
+PERF PASS  wall-clock bounds alone: 38 run(s) of 27 bound(s), 0 failing every attempt
+G1   FAIL  8 test(s) removed, skipped or turned into expected failures vs ADOPT without an allowlist 'skip' entry or a signature: ["tests.test_climate (G1b isolated): skipped 1 -> 2", "tests.test_food (G1b isolated): skipped 2 -> 4", "tests.test_mechanisms (G1b isolated): skipped 2 -> 3", "tests.test_navigation_robot (G1b isolated): skipped 0 -> 1", "tests.test_perception (G1b core): skipped 1 -> 4", "tests.test_pets (G1b isolated): skipped 0 -> 2", "tests.test_plumbing_liquids (G1b isolated): skipped 0 -> 1", "tests.test_safety (G1b isolated): skipped 2 -> 3"]
+           test_admin_inventory.py (normal): ran 144 -> 158, skipped 0 -> 0
+           test_admin_inventory.py (strict): ran 144 -> 158, skipped 0 -> 0
+           test_appliances_cooking.py (normal): ran 181 -> 196, skipped 0 -> 0
+           test_appliances_cooking.py (strict): ran 181 -> 196, skipped 0 -> 0
+           test_body_core.py (normal): ran 40 -> 40, skipped 0 -> 1
+           test_body_core.py (strict): ran 40 -> 40, skipped 0 -> 1
+           test_body_engine.py (normal): ran 50 -> 50, skipped 0 -> 1
+           test_body_engine.py (strict): ran 50 -> 50, skipped 0 -> 1
+           test_body_model.py (normal): ran 93 -> 93, skipped 0 -> 1
+           test_body_model.py (strict): ran 93 -> 93, skipped 0 -> 1
+           test_body_perception.py (normal): ran 24 -> 24, skipped 0 -> 1
+           test_body_perception.py (strict): ran 24 -> 24, skipped 0 -> 1
+           test_camera.py (normal): ran 110 -> 110, skipped 0 -> 3
+           test_camera.py (strict): ran 110 -> 110, skipped 0 -> 3
+           test_camera_actions.py (normal): ran 62 -> 62, skipped 0 -> 1
+           test_camera_actions.py (strict): ran 62 -> 62, skipped 0 -> 1
+           test_camera_realism.py (normal): ran 50 -> 50, skipped 0 -> 1
+           test_camera_realism.py (strict): ran 50 -> 50, skipped 0 -> 1
+           test_cleaning.py (normal): ran 193 -> 216, skipped 0 -> 0
+           test_cleaning.py (strict): ran 193 -> 216, skipped 0 -> 0
+           test_climate.py (normal): ran 98 -> 112, skipped 0 -> 0
+           test_climate.py (strict): ran 98 -> 112, skipped 0 -> 0
+           test_dialogue.py (normal): ran 72 -> 72, skipped 0 -> 2
+           test_dialogue.py (strict): ran 72 -> 72, skipped 0 -> 2
+           test_electrical.py (normal): ran 154 -> 179, skipped 4 -> 4
+           test_electrical.py (strict): ran 154 -> 179, skipped 4 -> 4
+           test_eval_harness.py (normal): ran 59 -> 63, skipped 0 -> 0
+           test_eval_harness.py (strict): ran 59 -> 63, skipped 0 -> 0
+           test_eval_splits.py (normal): ran 38 -> 40, skipped 1 -> 1
+           test_eval_splits.py (strict): ran 38 -> 40, skipped 1 -> 1
+           test_food.py (normal): ran 157 -> 174, skipped 0 -> 0
+           test_food.py (strict): ran 157 -> 174, skipped 0 -> 0
+           new test file test_gate_tool.py (normal): 65 tests
+           new test file test_gate_tool.py (strict): 65 tests
+           test_generator_gen2.py (normal): ran 50 -> 52, skipped 0 -> 1
+           test_generator_gen2.py (strict): ran 50 -> 52, skipped 0 -> 1
+           new test file test_kernel_contracts.py (normal): 15 tests
+           new test file test_kernel_contracts.py (strict): 15 tests
+           new test file test_kernel_integration.py (normal): 14 tests
+           new test file test_kernel_integration.py (strict): 14 tests
+           new test file test_kernel_redteam.py (normal): 16 tests
+           new test file test_kernel_redteam.py (strict): 16 tests
+           new test file test_leaks_review.py (normal): 30 tests
+           new test file test_leaks_review.py (strict): 30 tests
+           test_manipulation.py (normal): ran 215 -> 226, skipped 0 -> 0
+           test_manipulation.py (strict): ran 215 -> 226, skipped 0 -> 0
+           test_mechanisms.py (normal): ran 194 -> 221, skipped 0 -> 0
+           test_mechanisms.py (strict): ran 194 -> 221, skipped 0 -> 0
+           test_mind.py (normal): ran 26 -> 26, skipped 0 -> 1
+           test_mind.py (strict): ran 26 -> 26, skipped 0 -> 1
+           test_navigation_robot.py (normal): ran 210 -> 228, skipped 1 -> 1
+           test_navigation_robot.py (strict): ran 210 -> 228, skipped 1 -> 1
+           test_outdoor_plants.py (normal): ran 128 -> 147, skipped 0 -> 0
+           test_outdoor_plants.py (strict): ran 128 -> 147, skipped 0 -> 0
+           test_people.py (normal): ran 172 -> 190, skipped 3 -> 3
+           test_people.py (strict): ran 172 -> 190, skipped 3 -> 3
+           test_perception.py (normal): ran 55 -> 59, skipped 0 -> 1
+           test_perception.py (strict): ran 55 -> 59, skipped 0 -> 1
+           test_pets.py (normal): ran 247 -> 274, skipped 0 -> 0
+           test_pets.py (strict): ran 247 -> 274, skipped 0 -> 0
+           test_physics_data.py (normal): ran 67 -> 67, skipped 0 -> 2
+           test_physics_data.py (strict): ran 67 -> 67, skipped 0 -> 2
+           test_physics_fluids.py (normal): ran 75 -> 79, skipped 0 -> 2
+           test_physics_fluids.py (strict): ran 75 -> 79, skipped 0 -> 2
+           test_physics_forces.py (normal): ran 29 -> 31, skipped 0 -> 0
+           test_physics_forces.py (strict): ran 29 -> 31, skipped 0 -> 0
+           test_physics_settle.py (normal): ran 49 -> 52, skipped 0 -> 3
+           test_physics_settle.py (strict): ran 49 -> 52, skipped 0 -> 3
+           test_physics_statics.py (normal): ran 76 -> 81, skipped 0 -> 2
+           test_physics_statics.py (strict): ran 76 -> 81, skipped 0 -> 2
+           test_physics_thermal.py (normal): ran 34 -> 34, skipped 0 -> 1
+           test_physics_thermal.py (strict): ran 34 -> 34, skipped 0 -> 1
+           test_plumbing_liquids.py (normal): ran 154 -> 179, skipped 0 -> 0
+           test_plumbing_liquids.py (strict): ran 154 -> 179, skipped 0 -> 0
+           test_reports.py (normal): ran 29 -> 29, skipped 0 -> 1
+           test_reports.py (strict): ran 29 -> 29, skipped 0 -> 1
+           test_safety.py (normal): ran 184 -> 205, skipped 0 -> 0
+           test_safety.py (strict): ran 184 -> 205, skipped 0 -> 0
+           test_sight.py (normal): ran 65 -> 65, skipped 0 -> 1
+           test_sight.py (strict): ran 65 -> 65, skipped 0 -> 1
+           test_textiles_laundry.py (normal): ran 141 -> 151, skipped 0 -> 0
+           test_textiles_laundry.py (strict): ran 141 -> 151, skipped 0 -> 0
+           test_tools_vehicles.py (normal): ran 145 -> 175, skipped 0 -> 0
+           test_tools_vehicles.py (strict): ran 145 -> 175, skipped 0 -> 0
+           new test file test_verify_records.py (normal): 14 tests
+           new test file test_verify_records.py (strict): 14 tests
+REC  FAIL  this record's own G0, G1c, G4, G5, G7, G9, G10: G0 PASS, G1c N/A, G4 FAIL, G5 PASS, G7 PASS, G9 FAIL, G10 PASS
+             G4 FAIL: perception audit geometric: 5 leaks, 0 crashes; room: 3 leaks, 0 crashes
+             G9 FAIL: physics_audit: ok; camera: geometric tool runs in G4/G6 failed; body_audit: ok; sweep_bench: ok; gen-2 timing: gen2/gen1 time 1.04 ok; layout_audit gen 2: ok; test_generator_compat: ok; test_generator_gen2: ok
+compare result: FAIL

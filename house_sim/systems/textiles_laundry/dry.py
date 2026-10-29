@@ -869,12 +869,9 @@ def heat_context(w, heaters=None):
     return near_rooms, contact
 
 
-def _needs_tick(w, eid, rec, heat):
-    """Event-sensitive textiles the per-substep system must process: wet/damp ones (drying thresholds, drips, rain,
-    souring timers), hung with a hanger risk, soaking, pretreated, set out to dry, fitted corners about to pop,
-    carried by another domain's wind, in a room with an active space heater/fire, or touching an active radiator or
-    a lit cooking appliance. Everything else is idle (dry) and only wrinkles in heaps / relaxes when hung, which the
-    periodic idle system handles."""
+def _record_ticks(rec):
+    """The half of _needs_tick read from the textile's own record (all of it while no heater is active): wet or damp,
+    the kernel's body moisture left behind, a FAST_KEYS state, or carried by another domain's wind."""
     if float(rec.get("wetness", 0.0) or 0.0) > 0.0005 or float(rec.get("_core_wetness", 0.0) or 0.0) > 0.0005:
         return True
     if float(rec.get("moisture", 0.0) or 0.0) > 0.0:
@@ -882,7 +879,51 @@ def _needs_tick(w, eid, rec, heat):
     for key in FAST_KEYS:
         if rec.get(key):
             return True
-    if _wind_moved(rec):
+    return bool(_wind_moved(rec))
+
+
+EXPOSED_MODES = ("hung", "pinned", "flat", "spread", "draped", "bunched")    # _tick_textile's exposure modes
+
+
+def rain_rooms(w):
+    """Outdoor rooms where this domain's own rain rule (_tick_textile) wets what lies out in them now: the weather
+    says rain, the kernel's rain law is not wetting things itself (physical.kernel_rain) and the room is not covered.
+    Empty otherwise."""
+    weather = w.s.get("weather") or {}
+    if weather.get("condition", "clear") not in RAIN or P.kernel_rain(w):
+        return frozenset()
+    return frozenset(rid for rid, room in w.s["rooms"].items() if room.get("outdoor")
+                     and not (room.get("type") in COVERED_ROOMS or room.get("covered") or room.get("roofed")))
+
+
+def textiles_in_rain(w, rain=None):
+    """Whether some textile is in one of the rain_rooms (the idle probes' and notes' rain condition)."""
+    rain = rain_rooms(w) if rain is None else rain
+    if not rain:
+        return False
+    ents = w.s["entities"]
+    return any(M.room_of(w, eid) in rain for eid in M.textile_ids(w) if eid in ents)
+
+
+def _in_the_rain(w, eid, rec, rain):
+    """This domain's rain rule wets the textile now: out in the weather (the kernel's exposure rule) in one of the
+    rain_rooms, hung, lying or heaped (phase 1: a dry textile was never looked at, so laundry left out in the rain stayed
+    dry while the kernel's rain law is deferred; another domain's dried records are not this rule's)."""
+    if M.dried_elsewhere(rec):
+        return False
+    mode, rid = drying_context(w, eid, rec)
+    return rid in rain and mode in EXPOSED_MODES and P.out_in_weather(w.s, eid)
+
+
+def _needs_tick(w, eid, rec, heat, rain=()):
+    """Event-sensitive textiles the per-substep system must process: wet/damp ones (drying thresholds, drips, rain,
+    souring timers), hung with a hanger risk, soaking, pretreated, set out to dry, fitted corners about to pop,
+    carried by another domain's wind, out in the rain (`rain`: rain_rooms), in a room with an active space heater/fire,
+    or touching an active radiator or a lit cooking appliance. Everything else is idle (dry) and only wrinkles in heaps /
+    relaxes when hung, which the periodic idle system handles."""
+    if _record_ticks(rec):
+        return True
+    if rain and _in_the_rain(w, eid, rec, rain):
         return True
     if not heat:
         return False
@@ -896,12 +937,14 @@ def _needs_tick(w, eid, rec, heat):
 # exact idle probe of the fabric system (kernel v3.1 @system(idle=), TIER1_SWEEP 6.7)
 #
 # A run that wrote nothing (World.mutation_count unchanged) while every device was idle with no timer pending, no
-# textile needed a tick, no heater was active and nobody was inside a washer or dryer leaves a transient note: the
-# World, its touch-log reset token (World.phys_scratch is a new dict after every begin(), rollback() and
-# rollback_to()) and the touch-log cursor at that moment. The next substep's run would again write nothing when, since
-# then, no textile or device was written, created or destroyed (the touch log: _needs_tick and the device tickers read
-# only those records once no heater is on), still no heater is active and nobody is inside a drum, and every device is
-# still idle (an iron's or steamer's temperature keeps chasing its ambient, so the room temperature is re-checked).
+# textile needed a tick, no heater was active, no textile lay in a room this domain's rain rule wets (textiles_in_rain)
+# and nobody was inside a washer or dryer leaves a transient note: the World, its touch-log reset token
+# (World.phys_scratch is a new dict after every begin(), rollback() and rollback_to()) and the touch-log cursor at that
+# moment. The next substep's run would again write nothing when, since then, no textile or device was written, created
+# or destroyed (the touch log: _needs_tick and the device tickers read only those records once no heater is on and no
+# textile is in the rain), still no heater is active, no textile is in the rain and nobody is inside a drum, and every
+# device is still idle (an iron's or steamer's temperature keeps chasing its ambient, so the room temperature is
+# re-checked).
 # Then the probe answers True and the engine skips the call; otherwise the system runs and checks everything itself.
 # The note is never state.
 
@@ -913,9 +956,10 @@ QUIET_C = 0.01          # temperature steps the device tickers do not write
 MAX_DT_S = 30.0
 
 
-def _index_set(w, name, predicate):
-    """The ids of a static index as a set (memoised per index list: the kernel rebuilds the list on create/destroy)."""
-    ids = w.static_index(name, predicate)
+def _index_set(w, name, predicate, reads=None):
+    """The ids of a static index as a set (memoised per index list: the kernel rebuilds the list when its members
+    change)."""
+    ids = w.static_index(name, predicate, reads=reads)
     found = _SETS.get(name)
     if found is None or found[0] is not ids:
         found = _SETS[name] = (ids, frozenset(ids))
@@ -969,6 +1013,70 @@ def _devices_idle(w, now):
                if eid in ents)
 
 
+# ---------------------------------------------------------------------------
+# which textiles a run of the fabric system reads (phase 1, G7 substep cost; exact)
+#
+# While no heater is active and it does not rain on a room this domain's rain rule wets, _needs_tick reads only the
+# textile's own record (_record_ticks). A static index keeps the textiles whose record asked for a tick when the step
+# began (the kernel applies every committed change to it; its fields are declared); a textile whose record says so now
+# but did not then was written since, and every write but the kernel thermal's quiet temperatures is in the touch log.
+# So a textile that is neither in the index nor written this step cannot need a tick, and the run passes it by without
+# reading it. The textiles written this step are a transient note keyed like the idle probe's (World, touch-log reset
+# token, cursor) and brought up to date from the touch log through its own consumer, also inside the run (a tick may
+# write a textile later in the order) and by the idle probe when it skips a substep (it has then seen no textile
+# written). When the step's log is no longer complete from its start (trimmed, then rolled back to a savepoint) the
+# note is unknown and the run reads every textile, as it does while a heater is active or it rains (the proximity and
+# exposure rules read rooms and containers too). The note is never state.
+
+TICKING_INDEX = "textiles_laundry.ticking"
+TICKING_READS = (("textile", "launderable", "tool_kind", "category", "umbrella", "type", "is_a",
+                  "wetness", "_core_wetness", "moisture", "_wind_moved_m", "_wind_seen_m") + FAST_KEYS)
+_WRITTEN = {"world": None, "token": None, "cursor": None, "ids": None}
+_SCAN_CONSUMER = "textiles_laundry.fabric.written"
+
+
+def _may_tick(rec):
+    """STATIC-index predicate: a textile or umbrella whose own record asks for a tick (_record_ticks)."""
+    return M.is_fabric_candidate(rec) and _record_ticks(rec)
+
+
+def _ticking(w):
+    """The ids of TICKING_INDEX as a set (textiles whose record asked for a tick when the step began)."""
+    return _index_set(w, TICKING_INDEX, _may_tick, reads=TICKING_READS)
+
+
+def _written_textiles(w, textiles):
+    """The textiles (ids in `textiles`) written since the step began: the transient note's set, brought up to date from
+    the touch log (the caller may keep the set: later calls update it in place); None when this step's touch log is no
+    longer complete from its start, so who was written is unknown."""
+    memo = _WRITTEN
+    if memo["world"] is w and memo["token"] is w.phys_scratch and memo["ids"] is not None:
+        ids, end = w.touched_since(memo["cursor"], consumer=_SCAN_CONSUMER)
+        written = memo["ids"]
+    else:
+        ids, end = w.touched_since(0, consumer=_SCAN_CONSUMER)
+        if len(ids) != end:
+            memo.update(world=None, token=None, cursor=None, ids=None)
+            return None
+        written = set()
+    if ids:
+        written.update(textiles.intersection(ids))
+    memo.update(world=w, token=w.phys_scratch, cursor=end, ids=written)
+    return written
+
+
+def _written_skipped(w, start, end):
+    """The idle probe skipped a substep after reading the touch log from `start` to `end` and finding no textile in
+    it: the note of written textiles moves on with it if it stood at `start` (else it is forgotten), and the touch
+    log may drop what both have read."""
+    memo = _WRITTEN
+    if memo["world"] is w and memo["token"] is w.phys_scratch and memo["ids"] is not None and memo["cursor"] == start:
+        memo["cursor"] = end
+    else:
+        memo.update(world=None, token=None, cursor=None, ids=None)
+    w.touched_since(_END, consumer=_SCAN_CONSUMER)
+
+
 def fabric_idle(w):
     """Exact idle probe of textiles_laundry.fabric (see above). Writes nothing: it reads the touch log through its own
     cursor and keeps the transient note."""
@@ -982,8 +1090,9 @@ def fabric_idle(w):
         textiles = _index_set(w, "textiles_laundry.textiles", M.is_fabric_candidate)
         if any(eid not in ents or eid in devices or eid in textiles for eid in set(ids)):
             return False
-    if M.heat_sources(w) or _agents_inside(w) or not _devices_idle(w, M.now(w)):
+    if M.heat_sources(w) or textiles_in_rain(w) or _agents_inside(w) or not _devices_idle(w, M.now(w)):
         return False
+    _written_skipped(w, memo["cursor"], end)
     memo["cursor"] = end
     return True
 
@@ -1001,8 +1110,9 @@ def _note_idle(w, idle):
 def fabric_system(w, dt, tick):
     before = w.mutation_count
     ticked = _fabric_run(w, dt)
-    idle = (w.mutation_count == before and not ticked and not M.heat_sources(w) and not _agents_inside(w)
-            and _devices_idle(w, M.now(w)))
+    idle = (w.mutation_count == before and not ticked and not M.heat_sources(w) and not textiles_in_rain(w)
+            and not _agents_inside(w) and _devices_idle(w, M.now(w)))
+    _written_textiles(w, _index_set(w, "textiles_laundry.textiles", M.is_fabric_candidate))   # read up to the end
     _note_idle(w, idle)
 
 
@@ -1022,11 +1132,23 @@ def _fabric_run(w, dt):
                 break
     heaters = M.heat_sources(w)
     heat = heat_context(w, heaters)
+    rain = rain_rooms(w)
+    textiles = _index_set(w, "textiles_laundry.textiles", M.is_fabric_candidate)
+    written = _written_textiles(w, textiles)
+    # with no heater active and no rain only textiles ticking at step start or written since can need a tick (above)
+    ticking = _ticking(w) if heat is None and not rain and written is not None else None
+    count = w.mutation_count
     env_cache = {}
     groups = {}
     for eid in M.textile_ids(w):
+        if ticking is not None:
+            if w.mutation_count != count:       # a tick wrote something: maybe a textile further on (updates `written`)
+                _written_textiles(w, _index_set(w, "textiles_laundry.textiles", M.is_fabric_candidate))
+                count = w.mutation_count
+            if eid not in ticking and eid not in written:
+                continue
         rec = ents.get(eid)
-        if rec is None or not _needs_tick(w, eid, rec, heat):
+        if rec is None or not _needs_tick(w, eid, rec, heat, rain):
             continue
         ticked = True
         wet = float(rec.get("wetness", 0.0) or 0.0)
@@ -1092,15 +1214,17 @@ def claim_textile_moisture(w, env):
     for eid in w.static_index("textiles_laundry.devices", _is_device):
         if eid in ents and isinstance(ents[eid].get("odor"), (int, float)):
             M.normalize_odor(w, eid)
+    _ticking(w)         # build the ticking index now, not inside the first substep
 
 
 IDLE_PERIOD_S = 300.0
 
 
 # exact idle probe of the wrinkle system (the same note as the fabric system's): a run that wrote nothing with no heater
-# on writes nothing again while no textile, nor anything that holds one (a hamper opened or closed changes whether
-# what is in it lies heaped or shut away), was written, created or destroyed and still no heater is on: every
-# wrinkle-prone dry textile is then still at its cap or floor, or lies where its creases do not change
+# on and no textile in the rain writes nothing again while no textile, nor anything that holds one (a hamper opened or
+# closed changes whether what is in it lies heaped or shut away), was written, created or destroyed and still no heater
+# is on and no textile is in the rain: every wrinkle-prone dry textile is then still at its cap or floor, or lies where
+# its creases do not change
 _IDLE_WRINKLES = {"world": None, "token": None, "cursor": None}
 _WRINKLE_CONSUMER = "textiles_laundry.fabric_idle"
 
@@ -1123,7 +1247,7 @@ def wrinkles_idle(w):
                 holders.update(M.chain(w, eid))
         if touched & holders:
             return False
-    if M.heat_sources(w):
+    if M.heat_sources(w) or textiles_in_rain(w):
         return False
     memo["cursor"] = end
     return True
@@ -1137,7 +1261,7 @@ def fabric_idle_system(w, dt, tick):
     before = w.mutation_count
     _wrinkle_run(w, dt)
     _, end = w.touched_since(_END, consumer=_WRINKLE_CONSUMER)
-    if w.mutation_count == before and not M.heat_sources(w):
+    if w.mutation_count == before and not M.heat_sources(w) and not textiles_in_rain(w):
         _IDLE_WRINKLES.update(world=w, token=w.phys_scratch, cursor=end)
     else:
         _IDLE_WRINKLES.update(world=None, token=None, cursor=None)
@@ -1157,8 +1281,8 @@ def _wrinkle_run(w, dt):
         wrinkled = float(rec.get("wrinkled", 0.0) or 0.0)
         cap, floor = round(0.8 * prone + 0.1, 4), round(0.1 * prone, 4)    # stored values are 4-decimal: no no-op writes
         if heat is False:
-            heat = heat_context(w)
-        if _needs_tick(w, eid, rec, heat) or M.dried_elsewhere(rec):
+            heat, rain = heat_context(w), rain_rooms(w)
+        if _needs_tick(w, eid, rec, heat, rain) or M.dried_elsewhere(rec):
             continue
         mode, _ = drying_context(w, eid, rec)
         if mode in ("bunched", "held") and wrinkled < cap:

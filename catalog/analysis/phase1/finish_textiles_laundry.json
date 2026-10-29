@@ -1,0 +1,90 @@
+{
+ "id": "textiles_laundry",
+ "fixed": [
+  {
+   "item": "breakages.json (textiles_laundry): a switched-on space heater with no power (breaker tripped, unplugged) still scorched and ignited the rug it stood on (T-702453ef553c00-01 seed 41 before electrical's setup fix: textile_near_heat at 300 s, fire at 1800 s with the breaker tripped from the start)",
+   "how": "house_sim/systems/textiles_laundry/model.py: heater_active(w, eid, rec) (was heater_active(rec)): lit or burning -> active (a fire needs no power); a radiator above 45 C -> active (its water/oil holds the heat); switched on -> active only when not electric or house_sim.kernel.physics.is_powered(w, eid) (is_electric_heater: plug_required, hardwired, a circuit or battery_powered; is_powered covers unplugged, grid outage, electrical's tripped breakers and switched strips through its 'powered' hook). heat_sources(w) passes w and eid; every caller (fabric run, heat context, both idle probes) goes through it. T-702453ef553c00-01 passes before and after (its setup was fixed by electrical); its golden end state changes only in two decorative pillows' hidden _wet_mine_t (processed when the heater gets power, 5.925 -> 39.818 s).",
+   "test": "tests/test_textiles_laundry.py PhaseOneFinishTests.test_a_switched_on_heater_without_power_neither_scorches_nor_ignites_what_lies_on_it (unplugged, plugged in, grid outage, hardwired in an outage, not electric; a lit fireplace and a hot radiator heat without power, a hardwired electric fire does not). Fails on HEAD's code."
+  },
+  {
+   "item": "breakages.json (textiles_laundry): kernel pours, spills, drips and rain pooled liquid in hamper_section (a sorter's fabric bag), which carried none of the liquid-tightness flags INT's kernel rule reads",
+   "how": "house_sim/data/types/textiles_laundry.json: hamper_section 'watertight': false (doc updated). A probe over all 176 of this domain's types (scratch holders_probe.py: kernel phys.liquids.holds_liquid as made and opened) found three more that do not hold liquid in reality: garment_pocket (an open cloth pocket), sandal (open straps; its shoe room is 1 l) and dryer_sheet_box (a paperboard carton) -- all 'watertight': false. The other 23 kernel holders among this domain's types hold liquid in reality (washer drums, wash basin, jugs, iron/steamer tanks, dispenser drawer and compartment, rubber and snow boots, the rimmed boot tray, the umbrella stand's drip tray, the plastic pod tub and sewing box). dryer_sheet_box is furnished in every generation-1 laundry room: its records gain the field (39 records in gen-1 seeds 0-19 and gen-2 seeds 0-9; the only difference between the two trees' houses, no placement change: scratch gen_diff.py).",
+   "test": "PhaseOneFinishTests.test_the_hamper_bag_pocket_sandal_and_sheet_carton_hold_no_liquid (kernel holds_liquid / liquid_tight false for all four, an opened pocket included; a kernel spill onto a hamper section runs through to the floor while a wash basin holds 0.5 l). Fails on HEAD's data."
+  },
+  {
+   "item": "Found while measuring the fabric system: with the kernel's rain law deferred (the current state) a dry textile left out in the rain never got wet -- _tick_textile's rain rule only reached textiles the fabric system already processed (wet ones, ones set out with hang_dry), so a dry shirt on the lawn stayed at wetness 0.0 through 30 min of rain while a slightly damp one was soaked to 0.95",
+   "how": "house_sim/systems/textiles_laundry/dry.py: rain_rooms(w) (uncovered outdoor rooms while the weather condition is rain and physical.kernel_rain is false), _in_the_rain (the kernel's exposure rule, the exposure modes of _tick_textile, not another domain's dried records) and _needs_tick(..., rain): a textile out in the weather in such a room needs a tick, so the existing rule soaks it. The idle probes and idle notes of both fabric systems treat a textile in a rain room like an active heater (textiles_in_rain), so they stay exact; the wrinkle run skips those textiles as it skips other ticking ones. With the rain law active the kernel wets things and this rule stands down. Probes on vs off in 14 rainy generated houses (gen 2 seeds 0-11, gen 1 seeds 0-1, 2 h): identical states; the one exposed front-yard coir doormat (gen 2 seed 1) is soaked, the porch ones stay dry (scratch rain_probe_exact.py).",
+   "test": "PhaseOneFinishTests.test_dry_laundry_left_out_in_the_rain_is_soaked_and_sheltered_laundry_stays_dry (lawn shirt soaked and rained_on; one in a closed bin and one indoors stay dry; probes on/off identical; rain law forced with a rain rate: rain_rooms empty, the kernel wets it). Fails on HEAD's code."
+  },
+  {
+   "item": "P1 gate G7 (substep cost): the fabric system evaluated _needs_tick for every textile (~54 per generated house) on every 30 s substep, although with no heater on a textile can need a tick only if its own record says so",
+   "how": "dry.py: _needs_tick split into _record_ticks (record-level half) + the rain and heat halves; a static index textiles_laundry.ticking (_may_tick, fields declared in TICKING_READS, built at episode start by claim_textile_moisture) holds the textiles whose record asked for a tick when the step began; the transient note _WRITTEN (World, touch-log reset token, cursor; own consumer 'textiles_laundry.fabric.written') holds the textiles written since the step began, refreshed from the touch log at the run start, inside the run after any write (a tick may write a textile later in the order) and at the run end, and moved on by the idle probe when it skips a substep (it has then seen no textile written; it also advances the consumer so the touch log can still be trimmed). With no heater active and no rain the run passes by every textile in neither set; when the step's touch log is no longer complete from its start (trimmed, then rolled back to a savepoint: len(ids) != end) or a heater is on or it rains, it scans every textile as before. Never state.",
+   "test": "PhaseOneFinishTests.test_the_fabric_run_reads_only_textiles_that_can_need_a_tick_and_changes_nothing_by_it (index holds only the wet textile; another system wets a dry towel in the middle of one 3600 s wait step and it dries within that step; filter on vs off: identical state digests). Evidence: scratch ab_digest.py, 22 runs identical filter on vs off (bench loop gen 1 and 2 x seeds 0-3 x 80 substeps, 3 h engine waits, wet/dry/heater/wash/moved/rain/savepoint-rollback scenarios, the last with a trimmed log)."
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "T-ed45170be6256e-01 under forced realistic + geometric camera (D3 preview; re-checked: 0/5 seeds, 'pick_up generic_item_N: That is not visible here'); own mode and forced realistic room camera pass",
+   "why": "Kernel camera rule (K-CAM request restated in requests): the phone lies under the duvet at the middle of a queen bed and the wrist's 1.0 m peek depth is measured from the duvet's overhanging edge, 1.05 m short from every side. Not this domain's code; a domain verb to turn back the duvet would be a feature."
+  },
+  {
+   "item": "Review L4 residue / red_leaks.json finding 8 (owner: kernel realism + data/physics/liquids.json): an unresolved laundry jug's spill shows its liquid's floor-hazard kind (bleach 'wet', detergents 'slip')",
+   "why": "Kernel liquid data and rendering of grid.hazards for an unresolved source (cleaning's request, which this domain supports for laundry jugs; restated in requests). The jugs themselves are one jug to every physical channel since phase 1."
+  },
+  {
+   "item": "Dew, sun fade, insects and pollen on dry outdoor textiles that are not being dried (a dry dark shirt on a garden chair does not fade, a dry doormat stays dry at night)",
+   "why": "Documented limit (docs/domains/textiles_laundry.md section 9). Extending those rules to every outdoor textile would age outdoor furnishings (the generated front-yard coir doormats) on idle days -- an exogenous-change decision for the owner / the verifier-hardening ledger, not a phase-1 fix. Rain, the one with clear consequences, is fixed."
+  },
+  {
+   "item": "The fabric system is rarely idle in a generated house (108-120 of 120 substeps per 1 h wait)",
+   "why": "The clothes iron's ticker writes its temperature whenever it is more than 0.2 C from a drifting room temperature. Making that write quantised or quiet (World.set_quiet) changes state digests, i.e. results; left for a reviewed change. The rest of the run is now cheap (perf)."
+  },
+  {
+   "item": "Coverage fuzz: 8 of this domain's actions never succeed (depill, lace_shoes, polish_shoes, repair_seam, soak, steam, take_off_hanger, tuck; unroll_sleeves now succeeds) -- fuzz.py --coverage on the live tree: 0 defects, 0 nondeterministic, 278 of 427 actions",
+   "why": "Each needs a preparation the walk's generic repairs never make (a tool in the other hand, a state of the target, a dressed bed); success paths are unit-tested. Spec authoring or a smarter walk (fuzz owner request from phase 1 stands)."
+  },
+  {
+   "item": "Sofa cushions in generation 2 (K-FIX request; phase-1 not_fixed)",
+   "why": "Unchanged: needs GEN (data/generator/furnishings.json, furnisher order) and a generation-2 re-verification by the main session; this domain's half is ready."
+  },
+  {
+   "item": "red_defects.json / red_leaks.json",
+   "why": "No finding there is owned by textiles_laundry (owners checked; red_defects closed item 4 mentions this domain only for adoption breakage 21 = the T-ed45170be6256e-01 camera case above; red_leaks finding 7's size-spread groups contain none of this domain's groups -- the registry's LookalikeSizeWarning lists none of them)."
+  }
+ ],
+ "specs_changed_outcome": [],
+ "perf": "Measured with tools/bench_systems.py's loop (scratch prof_fabric.py: 40 substeps x seeds 0-3, no probes) and a timed 1 h engine wait (scratch wait_prof.py: seeds 0-3, idle probes on, the two textiles systems and probes timed inside the engine). Baseline on archived trees (tools/bench_systems.py 40 0 1 2 3 --domain textiles_laundry): ADOPT 0.066 + 0.023 = 0.089 ms/substep, HEAD 0.063 + 0.020 = 0.083 -- textiles had no share in the G7 regression. Profile of the 1 h wait: the fabric system ran on 108-120 of 120 substeps per seed (the iron's temperature chases the room), and _needs_tick over ~54 textiles was ~60 % of each run. After the exact scan filter, on paired tree copies differing only in this domain's files (scratch ab_bench.py, best of 5 and of 4 interleaved rounds in two sessions on a shared machine): fabric 0.069 / 0.067 -> 0.047 / 0.047 ms per substep, fabric_idle 0.024 / 0.021 -> 0.025 / 0.022 (code unchanged), together 0.093 / 0.087 -> 0.072 / 0.068 (-22 %, below ADOPT's 0.089); 1 h wait, systems 29.9 / 27.5 -> 23.0 / 20.8 ms per four seed-hours, probes 1.29 / 1.15 -> 1.36 / 1.19 ms (the added rain check), wall 1.201 -> 1.199 s (noise). Quiet day (bench_systems --day 0 1 2): textiles_laundry.fabric 65.6 -> 49.2 ms per simulated day, fabric_idle 21.7 -> 22.1. Official tools/bench_systems.py 40 0 1 2 3 on the live tree afterwards: fabric 0.044, fabric_idle 0.021 (all systems 3.11 ms/substep at that moment). No result changed by the perf part: identical state digests with the filter on vs off in 22 runs (scratch ab_digest.py) and in the unit test; idle probes on vs off identical (unit tests and rainy generated houses). Remaining cost: the device tickers (the iron's temperature writes; not_fixed).",
+ "tests": {
+  "count": 151,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 15,
+  "passed": 15
+ },
+ "requests": [
+  {
+   "owner": "main session",
+   "request": "Re-record after phase 1 (tests/data/gen1_digests.json, tests/data/room_golden.json; both already differ on the shared tree from other domains' changes). This domain's classes: (1) type data -- dryer_sheet_box records gain 'watertight': false (39 records in gen-1 seeds 0-19 and gen-2 0-9, the only difference in the generated houses, no placement change; hamper_section, garment_pocket and sandal are not furnished in generation 1); (2) realistic-mode handles, which follow the changed initial state (obs.visible_entities.*, obs.grid.hazards.*.source, obs.nav.dock, obs.robot.home, obs.climate.sunlit_windows.*, obs.connections.*.door); (3) T-702453ef553c00-01: entities.decorative_pillow_*._wet_mine_t 5.925 -> 39.818 (the heater power fix: the pillows are first processed when the heater gets power). Evidence: golden dump of tree A (HEAD's textiles files) vs tree B (this change) on one snapshot of the rest: 8 path patterns, exactly these (scratch golden_diff.txt). No spec outcome changed; tasks/specs.jsonl needs no recompile (no spec edited)."
+  },
+  {
+   "owner": "kernel",
+   "request": "K-CAM (restated, still open): camera._within_wrist_depth measures HW.wrist.deep_m from the edge of a lifted cover's box nearest the robot, and a duvet's box overhangs its bed; a thing 'under' a support is centred under it. Repro: python -m house_sim --check tasks/authored/textiles_laundry__examples.json --ids T-ed45170be6256e-01 --perception realistic --camera geometric -> 0/5 seeds ('pick_up generic_item_N: That is not visible here'). Suggested: measure from the support's edge for a liftable cover, or clip a cover's box to its support."
+  },
+  {
+   "owner": "kernel",
+   "request": "Restated: grid.hazards / the puddle kind of an unresolved look-alike source should show the group's kind until identified (cleaning's request) -- for laundry jugs a bleach puddle is 'wet', detergent / softener / presoak 'slip' (data/physics/liquids.json floor_hazard), which identifies an unread jug (review L4)."
+  },
+  {
+   "owner": "kernel",
+   "request": "Pin the touch-log contract textiles_laundry's scan filter relies on (low priority; KERNEL_API and a kernel test): World.touched_since(0) returns the step's whole log exactly when len(ids) == end (no trim since begin()/rollback()); rollback_to truncates without resetting absolute cursors; World.phys_scratch is a new object after begin(), rollback() and rollback_to(); every write except set_quiet / mut_quiet is a touch. A public w.touch_log_complete() would make the first explicit."
+  },
+  {
+   "owner": "electrical",
+   "request": "docs/domains/electrical.md (~line 846) lists 'textiles_laundry: heater_active should ask is_powered' as open; it is done (model.heater_active asks physics.is_powered for corded and battery heaters)."
+  }
+ ],
+ "notes": "Files changed (all in this domain's grant): house_sim/systems/textiles_laundry/model.py (heater_active, is_electric_heater, heat_sources), house_sim/systems/textiles_laundry/dry.py (_record_ticks, rain_rooms, textiles_in_rain, _in_the_rain, _needs_tick rain argument, the ticking index and _WRITTEN note, probes and idle notes, _wrinkle_run), house_sim/data/types/textiles_laundry.json (watertight false on hamper_section, garment_pocket, sandal, dryer_sheet_box), tests/test_textiles_laundry.py (PhaseOneFinishTests, 4 tests: 147 -> 151), docs/domains/textiles_laundry.md (sections 1, 3, 9, 10 and the new 'Phase 1 finish' in 11). house_sim/systems/textiles_laundry/shoes.py had CRLF line endings in the working tree only (index LF): normalised to LF, no content change for git. Spec files untouched. No commits; nothing under %USERPROFILE%\\.house_ai; no network or paid calls; docs/design/VERIFY_HARDENING.md not touched.\n\nGREEN on the shared tree at the end: tests/test_textiles_laundry.py 151/151 normal, HOUSE_SIM_STRICT=1 and HOUSE_SIM_DOMAINS=core,textiles_laundry; 151/151 with all 19 deferred laws forced (scratch forced_tests.py). Specs (5 seeds, own mode): examples 12/12 (T-7d4006bda247ba-01 passes now that manipulation's contact-heat copy asks contact_claimed), perception 3/3 and 3/3 with --camera geometric; both files 15/15 with stack alone forced and with all 19 forced (scratch forced_specs.py). The six other-domain specs the changes can reach (rain: T-6203fdc5fa8986-01, A-8910a09f802fbf-01, T-118437362c4ab8-01, T-149e27671dec82-01; heaters: T-702453ef553c00-01, X-1c71303328a5b8-01) pass. tools/perception_audit.py 20 80 --verbose: 1600 steps, 0 leaks, 0 crashes, nothing attributed to textiles_laundry. tools/layout_audit.py 20 --domain textiles_laundry: 120 houses, 0 problems. tools/fuzz.py --coverage: 0 defects (none in textiles_laundry), 0 nondeterministic. tests.test_manipulation TierOneAdoptionTests.test_every_system_has_an_exact_idle_probe_and_a_quiet_house_is_idle passes. tests/test_generator_compat.py and the room golden already fail on the shared tree without this change (other domains' type data); see the main-session request for this domain's classes.\n\nEvidence (scratch <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1f_textiles_laundry): prof_fabric.py, wait_prof.py, why_busy.py, ab_bench.py (ab_bench_out.txt, ab_bench_out2.txt), ab_digest.py, holders_probe.py, rain_probe.py, rain_probe_exact.py, outdoor_textiles.py, affected_specs.py, forced_tests.py, forced_specs.py (forced_all.txt, forced_stack.txt), gen_dump.py / gen_diff.py, golden_A / golden_B / golden_diff.txt, fuzz_cov.json, perception_audit.txt, layout.txt; treeA / treeB are the paired tree copies (HEAD's textiles files vs this change)."
+}

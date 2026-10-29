@@ -241,6 +241,8 @@ def poured(ctx, result):
 # battery shorts
 
 
+@C.per_substep_index("short_cells")
+@C.index_reads("category", "chemistry")
 def _is_cell(rec):
     return rec.get("category") == "battery" and rec.get("chemistry") in SHORT_CHEMISTRY
 

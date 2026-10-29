@@ -33,15 +33,17 @@ def norm(offset):
     return offset - 86400.0 if offset > 43200.0 else offset
 
 
-def displayed_seconds(state, rec):
-    return (C.local_seconds(state) + C.num((rec.get("clock") or {}).get("offset_s"), 0.0)) % 86400
+def displayed_seconds(state, rec, local=None):
+    """Seconds into the day the clock shows (local: C.local_seconds(state) when the caller has it)."""
+    local = C.local_seconds(state) if local is None else local
+    return (local + C.num((rec.get("clock") or {}).get("offset_s"), 0.0)) % 86400
 
 
-def display_text(state, rec):
+def display_text(state, rec, local=None):
     clk = rec.get("clock") or {}
     if rec.get("power_state") == "off" and rec.get("plug_required") and not clk.get("battery_backup"):
         return ""
-    s = int(displayed_seconds(state, rec))
+    s = int(displayed_seconds(state, rec, local))
     h, m = s // 3600, (s % 3600) // 60
     if clk.get("format_24h"):
         text = "{:02d}:{:02d}".format(h, m)
@@ -97,7 +99,7 @@ def clocks_system(w, dt, tick):
                 w.mut(eid)["clock"]["offset_s"] = 0.0
         # alarms
         alarms = rec.get("alarms") or {}
-        shown_now = displayed_seconds(state, rec)
+        shown_now = displayed_seconds(state, rec, now_local)
         shown_prev = (shown_now - dt) % 86400
         for name in sorted(alarms):
             alarm = alarms[name]
@@ -249,7 +251,10 @@ def set_time(ctx):
 @C.refresher(60)
 def sync_clock_display(w):
     state = w.s
+    local = None
     for eid in C.ids(w, "clocks"):
         rec = state["entities"].get(eid)
         if rec is not None and has_clock(rec):
-            C.set_if(w, eid, "display_time", display_text(state, rec))
+            if local is None:
+                local = C.local_seconds(state)
+            C.set_if(w, eid, "display_time", display_text(state, rec, local))

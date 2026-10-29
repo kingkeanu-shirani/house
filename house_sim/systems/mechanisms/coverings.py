@@ -412,6 +412,7 @@ def tilt(ctx, eid, angle):
                          "lock": {"type": "bool", "default": True}, "force": {"type": "str", "default": "normal", "choices": list(C.FORCES)},
                          "grip": {"type": "str", "default": "handle", "choices": ["handle", "surface", "edge", "rail"]}},
         duration=lambda ctx: 4.0 + ctx.data.get("extra_s", 0.0), energy=0.01, noise=0.02, category="physical",
+        operates=True,
         doc="Raise a blind/shade (to_frac lift 0..1; cord_angle_deg > 20 skews a cord-lock blind; lock=false lets it drop), a sash "
             "window (to_frac opening; part=upper_sash), a hinged lid (to_deg; below its stay-open detent it falls back), a security "
             "bar or a manually released garage door.")
@@ -454,6 +455,7 @@ def raise_(ctx):
                          "speed": {"type": "str", "default": "controlled", "choices": ["controlled", "release", "drop"]},
                          "force": {"type": "str", "default": "normal", "choices": list(C.FORCES)}},
         duration=lambda ctx: 4.0 + ctx.data.get("extra_s", 0.0), energy=0.01, noise=0.02, category="physical",
+        operates=True,
         doc="Lower a blind/shade (to_frac lift; speed=release lets it fall), a sash (to_frac opening; part=upper_sash; lowering to "
             "0 closes it), a hinged lid (controlled close; speed=drop slams it), a slider's security bar (part=security_bar) "
             "or a manually released garage door.")
@@ -491,7 +493,7 @@ def lower(ctx):
 
 
 @action("tilt_slats", params={"target": "entity", "angle_deg": "?number", "direction": "?str:open|closed_down|closed_up"},
-        duration=2.5, energy=0.004, category="physical",
+        duration=2.5, energy=0.004, category="physical", operates=True,
         inverse=lambda ctx, before: {"action": "tilt_slats", "target": ctx.args["target"],
                                      "angle_deg": ((before.get("entity") or {}).get("mech") or {}).get("tilt_deg", 0.0)},
         doc="Rotate a venetian/vertical blind's or shutter's slats with the wand: angle_deg -80..80 (0 open; +80 closed with the "

@@ -354,7 +354,14 @@ def inspect_details(w, eid, record, details, ctx):
             details["floor_under"] = {k: frec.get("_cells", {}).get(k, {}) for k in cells if frec.get("_cells", {}).get(k)}
             details["clearance_m"] = S.clearance_m(rec)
     realistic = ctx is not None and getattr(ctx, "realistic", False)
-    if S.is_waste_container(rec):
+    # an unfamiliar (novel) thing the robot cannot identify: none of the extras below, whose presence comes from what
+    # it is (a bin's fill and liner, a waste item's resin, a product's amount, a tool's wear, a lamp's bulb heat:
+    # review I4); the kernel shows it by NOVEL_FIELDS only. A deliberate look inside private waste still counts.
+    unfamiliar = realistic and S.unfamiliar(ctx, eid, rec)
+    if S.is_waste_container(rec) and rec.get("private_contents") and where == "inside":
+        w.stat("privacy_violations")
+        S.glog(w, "inspected_private_waste", container=eid)
+    if S.is_waste_container(rec) and not unfamiliar:
         # receptacles only: other domains tag ITEMS with the stream they belong to (a battery, a bulb), and those are
         # not bins (no fill level, lid or liner)
         details["waste_stream"] = rec["waste_stream"]
@@ -375,14 +382,13 @@ def inspect_details(w, eid, record, details, ctx):
             details["odor"] = copy.deepcopy(rec["odor"])
         if rec.get("fruit_flies"):
             details["fruit_flies"] = True
-        if rec.get("private_contents") and where != "inside":
-            if not realistic:
-                details["contents"] = "not inspected (private)"
+        if rec.get("private_contents") and where != "inside" and not realistic:
+            details["contents"] = "not inspected (private)"
             # realistic: no note - whose waste is private is not something a camera sees (a never-tier flag); a
-            # deliberate look inside (where=inside) at private waste is still a privacy violation
-        elif rec.get("private_contents") and where == "inside":
-            w.stat("privacy_violations")
-            S.glog(w, "inspected_private_waste", container=eid)
+            # deliberate look inside (where=inside) at private waste is still a privacy violation (above)
+    if unfamiliar:
+        _realistic_details(w, eid, rec, details, ctx)
+        return
     if rec.get("waste_kind"):
         for key in ("waste_kind", "material", "resin_code", "residue", "has_cap", "has_sticker", "greasy", "flattened"):
             if key in rec:
@@ -436,7 +442,7 @@ def inspect_details(w, eid, record, details, ctx):
 
 
 SPRAY_GROUP = "spray_bottle"
-SPRAY_HIDDEN = ("liquid_l", "fill_level", "level", "liquid", "murky", "sudsy")
+SPRAY_HIDDEN = ("liquid_l", "fill_level", "level", "liquid", "murky", "sudsy", "vessel_feel")
 
 
 @inspector("cleaning.spray_fill", order=130)
@@ -444,7 +450,14 @@ def spray_fill(w, eid, record, details, ctx):
     """Realistic perception, after every other inspector (mechanisms' sprayer details at 110, plumbing's fill level at
     120): an unresolved member of the spray_bottle look-alike group -- a labelled product, a refill bottle, mechanisms'
     trigger bottle -- shows how full it is in the same words (fill_estimate) and no litres, level, liquid name,
-    murkiness or suds, whichever domain's type it is (cleaning extends the kernel group and keeps its members alike)."""
+    murkiness or suds, whichever domain's type it is (cleaning extends the kernel group and keeps its members alike).
+
+    A close look (where=closely) is a hand on the outside of the bottle for every member alike: plumbing's inspector
+    feels the temperature of a vessel holding litres (a refill, a trigger bottle) and grants that touch, which would
+    make the kernel's physics inspector (order 150) add a "feel" for those members only, this time and on every later
+    inspection (phase-1 twin sweep); a product's bottle (an amount, not litres) got neither. So every member gets the
+    same touch grant here, where the robot can reach it (the kernel's grant gate), and none shows plumbing's
+    vessel_feel (the kernel's temperature_c reading says the same for all of them)."""
     if ctx is None or not getattr(ctx, "realistic", False) or not ctx.unresolved(eid):
         return
     rec = w.s["entities"].get(eid)
@@ -456,6 +469,10 @@ def spray_fill(w, eid, record, details, ctx):
         estimate = _other_fill(ctx, rec)
         if estimate is not None:
             details["fill_estimate"] = estimate
+    if (getattr(ctx, "args", None) or {}).get("where") == "closely":
+        from ...kernel.actions import motion_records
+        if ctx.env.realism.grant_problem(w.s, eid, "touch", w, motion_records(ctx)) is None:
+            ctx.grant(eid, "touch", ["temperature_c"])
 
 
 DAMAGE_WORDS = ((0.15, "slight"), (0.4, "moderate"))

@@ -2038,6 +2038,7 @@
      "floor": "{kitchen}",
      "props": {
       "label": "kitchen trash can",
+      "category": "waste_container",
       "waste_stream": "trash",
       "accepts_items": true,
       "container": true,

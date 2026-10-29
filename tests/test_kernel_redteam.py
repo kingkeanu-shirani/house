@@ -234,8 +234,10 @@ class RememberedSubjectTests(unittest.TestCase):
             rows = []
             for action, kw in (("report", dict(kind="finding", subject=name, issue="missing")),
                                ("report", dict(kind="finding", subject=name, issue="frobnicated")),
-                               ("ask", dict(target="ana", about=name, aspect="where", channel="text"))):
-                # (aspect owner: people's answerer still says "Which one?" for a missing record -- breakages.json)
+                               ("ask", dict(target="ana", about=name, aspect="where", channel="text")),
+                               ("ask", dict(target="ana", about=name, aspect="owner", channel="text"))):
+                # aspect owner: people's answerer said "Which one?" for a destroyed thing (fixed in the phase-1
+                # finish: people knowledge._known_record answers from the record the household knew)
                 result = env.step(action, **kw)
                 rows.append((result["ok"], result["category"], str(result["message"]).replace(name, "<subject>")))
             out[eid] = rows
@@ -264,6 +266,9 @@ class UnfamiliarThingTests(unittest.TestCase):
                    "capacity_l": 1.7},
         "switched": {"switchable": True, "on": False, "plug_required": True},
         "plain": {},
+        # read-tier fields of its true type (phase-1 finish, food's request: an unfamiliar flour bag read out its
+        # allergens and net weight, a knife "nothing legible")
+        "printed": {"expiration": "2027-01-15", "care_label": "machine wash cold", "instructions": "use within 3 days"},
     }
 
     def env_for(self, props):
@@ -280,12 +285,13 @@ class UnfamiliarThingTests(unittest.TestCase):
             glance = sorted(env.observe()["visible_entities"][handle])
             inspect = env.step("inspect", handle)
             outcomes = []
-            for action in ("open", "close", "switch_on", "switch_off", "set_mode", "start"):
+            for action in ("open", "close", "switch_on", "switch_off", "set_mode", "start", "read"):
                 result = env.step(action, handle)
                 outcomes.append((result["ok"], result["category"], result["message"]))
             seen[name] = (glance, sorted(json.loads(inspect["message"])), outcomes)
         self.assertEqual(seen["lidded"], seen["switched"])
         self.assertEqual(seen["lidded"], seen["plain"])
+        self.assertEqual(seen["lidded"], seen["printed"])
         self.assertNotIn("openable", seen["lidded"][0])
         self.assertFalse(any(ok for ok, _, _ in seen["lidded"][2]))
 

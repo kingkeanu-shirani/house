@@ -7,6 +7,9 @@ Phase 1 of the stabilisation after the independent review (REVIEW_REPORT H17, P5
   counted as "ran" and passed the spec; any other exception aborted the whole trial);
 * every wrong-plan record keeps its failure labels in full, their reason classes and the goal fraction (before: the
   first five labels, the goal fraction only when nothing else failed);
+* a wrong plan that never acts (every action it attempted refused, waiting aside; a physical "success" that changed
+  nothing counts as no act) is not evidence either (phase-1 red team, second pass; a strict-block refusal and a
+  declared `mistake` are left to VERIFY_HARDENING 14.3 rule 1);
 * running a wrong plan one top-level step at a time reaches exactly the state run_plan(strict=False) reaches;
 * run_trial(capture=) hands back the environments the tier-1 gate digests;
 * --verify-on-the-fly verifies in the run's forced camera mode (--camera) and records it.
@@ -177,6 +180,58 @@ class WrongPlanRecordTests(unittest.TestCase):
         self.assertFalse(env.last_step_malformed)
         self.assertFalse(env.step("wait", seconds=10 ** 9)["ok"])          # outside the parameter's declared range
         self.assertTrue(env.last_step_malformed)
+
+    def test_a_wrong_plan_that_never_acts_is_not_evidence(self):
+        """Phase-1 red team, second pass (W8: two pick_up steps out of reach, both refused, passed): a wrong plan
+        whose every attempted action was refused never performs its mistake -- it ends like the idle check. Waiting
+        is no act, nor is a physical action that "succeeds" without changing the world; a strict-block refusal and a
+        plan with a declared `mistake` are VERIFY_HARDENING 14.3 rule 1's (interim rule only)."""
+        refused = {"name": "picks up what is not there", "plan": [{"do": "pick_up", "target": "no_such_thing"},
+                                                                 {"do": "wait", "seconds": 30},
+                                                                 {"do": "pick_up", "target": "nor_this"}]}
+        trial = verify.run_trial(spec(SAYS_TWO, refused), 0)
+        self.assertNotIn("error", trial)
+        self.assertTrue(trial["reference_passes"])
+        self.assertFalse(trial["passed"])
+        self.assertFalse(trial["wrong_ran"])
+        two, never = trial["wrong"]
+        self.assertTrue(two["ran"])
+        self.assertEqual((two["attempted"], two["acted"]), (1, True))
+        self.assertEqual((never["ran"], never["error_class"]), (False, "NeverActed"))
+        self.assertEqual((never["attempted"], never["acted"], never["refusals"]), (2, False, 2))
+        self.assertIn("carried out none of the 2 action(s)", never["not_evidence"])
+        self.assertIn("NeverActed", trial["wrong_not_run"][0])
+        # one action carried out: a possible mistake (VERIFY_HARDENING 14.3 rule 1 judges its refused steps later)
+        acted = {"name": "says two, then reaches for nothing",
+                 "plan": [{"do": "announce", "text": "two"}, {"do": "pick_up", "target": "no_such_thing"}]}
+        self.assertTrue(verify.run_trial(spec(SAYS_TWO, acted), 0)["passed"])
+        # a declared mistake is left to the full rule
+        declared = verify.run_trial(spec(SAYS_TWO, dict(refused, mistake=[0])), 0)
+        self.assertTrue(declared["wrong"][1]["ran"])
+        # a physical action that succeeds without changing anything is no act either
+        env = make_env(*build(spec(), 0)[:2], 0)
+        if env.world.s["robot"].get("posture") == "standing":
+            noop = {"name": "stands, then reaches for nothing",
+                    "plan": [{"do": "stand"}, {"do": "pick_up", "target": "no_such_thing"}]}
+            record = verify.run_trial(spec(SAYS_TWO, noop), 0)["wrong"][1]
+            self.assertEqual((record["error_class"], record["attempted"], record["acted"]), ("NeverActed", 2, False))
+
+    def test_a_strict_block_refusal_stays_evidence(self):
+        """The robot stopped from a harm (a safety, privacy, social or authority refusal) is what VERIFY_HARDENING
+        14.3 rule 1 accepts with an expect "strict:" pattern: such a plan is not ruled out by the never-acted rule."""
+        env = make_env(*build(spec(), 0)[:2], 0)
+        real_step = env.step
+
+        def blocked(action, target="", destination="", **kwargs):
+            if action == "pick_up":
+                result = real_step("pick_up", "no_such_thing")
+                return dict(result, category="safety", message="That would hurt someone")
+            return real_step(action, target, destination, **kwargs)
+        with mock.patch.object(env, "step", blocked):
+            record = verify.wrong_plan_record(env, {"name": "grabs the hot pan", "plan": [
+                {"do": "pick_up", "target": "hot_pan"}]}, {})
+        self.assertTrue(record["ran"], record)
+        self.assertEqual(record["refused_categories"], ["safety"])
 
     def test_capture_hands_back_the_environments(self):
         captured = {}

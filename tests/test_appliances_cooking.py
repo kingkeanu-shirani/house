@@ -3961,5 +3961,209 @@ class ReviewStabiliseTests(unittest.TestCase):
             self.assertIn("looks", json.loads(ok(env, "check_doneness", h("steak"), method="visual")["message"]), mode)
 
 
+class PhaseOneFinishTests(unittest.TestCase):
+    """Phase 1 (stabilise), the domain's finish: breakages.json rows and the red team's findings owned here."""
+
+    DRAINS = ("air_fryer_basket", "dishwasher_utensil_basket", "coffee_filter_basket", "portafilter", "chimney_starter")
+    RUNS_OUT = ("toaster", "toaster_4slot", "coffee_grinder")
+    VESSELS = ("coffee_carafe", "rice_cooker_pot", "mixer_bowl", "fridge_door_bin", "knock_box", "dishwasher_sump")
+
+    def test_baskets_slots_and_open_throats_hold_no_kernel_liquid(self):
+        """breakages.json (holder flags, review L3): kernel pours, spills, drips and rain pooled liquid in a toaster's
+        slots, the perforated baskets (air fryer, cutlery, brew basket, portafilter), a chimney starter's grate and a burr
+        grinder's hopper, which hold none in a real kitchen. The type data says so now (holes_mm: it drains through;
+        watertight false: it runs out over the elements), so phys.liquids refuses them as holders and a kernel pour runs
+        on to what is below; the real vessels of the domain still hold. (holes_mm, not `perforated`: a perforated thing
+        also tears open "along its perforation".)"""
+        from house_sim.kernel.phys import liquids
+        reg = default_registry()
+        for name in self.DRAINS + self.RUNS_OUT + self.VESSELS:
+            rec = dict(reg.make(name, "kitchen"), id="x")
+            state = {"entities": {"x": rec}, "rooms": {"kitchen": {}}}
+            self.assertEqual(liquids.holds_liquid(state, "x"), name in self.VESSELS, name)
+            self.assertEqual(liquids.drains_through(rec), name in self.DRAINS, name)
+            self.assertFalse(rec.get("perforated"), name)
+            if AC.system_loaded("plumbing_liquids.water") and name not in self.VESSELS:
+                from house_sim.systems.plumbing_liquids import liquids as PL        # its verbs' rule agrees
+                self.assertFalse(PL.holds_liquid(rec), name)
+        for name in self.DRAINS + ("toaster", "mixer_bowl"):
+            kit = Kit("electric_coil")
+            kit.add("thing", name, "counter_2")
+            env = kit.env()
+            w = env.world
+            w.begin()
+            kept, lost = liquids.pour_in(w, "thing", 0.3, "water")
+            w.commit()
+            if name == "mixer_bowl":
+                self.assertEqual((kept, lost), (0.3, 0.0))
+                continue
+            self.assertEqual((kept, lost), (0.0, 0.3), name)
+            self.assertLess(AC.num(ent(env, "thing").get("liquid_l")), 1e-9, name)
+            self.assertGreaterEqual(stat(env, "phys_spills"), 1, name)            # it landed on what is below
+
+    def twin_views(self, pair, camera="geometric"):
+        """What the robot observes of `thing` (each member of a look-alike group in turn, same spot) at the reset, after
+        approach and after face, with handles translated back to true ids (handles are per episode)."""
+        rows = []
+        for type_name in pair:
+            kit = Kit("electric_coil")
+            kit.add("thing", type_name, "counter_2")
+            env = HouseEnv(copy.deepcopy(kit.c), None, 0, perception="realistic", camera=camera)
+            ids = {env.realism.handles.handle(e): e for e in env.world.s["entities"]}
+            h = H(env, "thing")
+            seen_now = []
+            for verb in (None, "approach", "face"):
+                if verb:
+                    ok(env, verb, h)
+                rec = dict(env.observe()["visible_entities"].get(h) or {})
+                rec["location"] = ids.get(rec.get("location"), rec.get("location"))
+                seen_now.append(rec)
+            rows.append(seen_now)
+        return rows
+
+    def test_look_alike_members_share_one_true_size(self):
+        """breakages.json / FIX2 / red_leaks 7 (review L2 residual): the countertop_cooker members (rice cooker 0.26 x
+        0.33 x 0.21 m, pressure cooker 0.33 x 0.31 x 0.32) and the kettle_lookalike members (0.22 x 0.16 x 0.25 vs 0.24 x
+        0.20 x 0.22) differed in true size behind the group's shown size, so the geometric camera's px, range and
+        elevation told them apart (cooker twins px 560 vs 650, range 0.6 vs 0.5 m, elevation -40 vs -35). Each group's
+        members now have the group's one size (both come in overlapping sizes), and twins look alike in every view; the
+        electric kettle keeps the 15 cm water column and 16 cm base plate its old size gave, so it heats as before."""
+        reg = default_registry()
+        self.assertFalse([s for s in reg.lookalike_size_spreads() if s.split(":")[0] in ("countertop_cooker", "kettle_lookalike")])
+        for group in ("countertop_cooker", "kettle_lookalike"):
+            spec = reg.looks_like[group]
+            self.assertEqual({tuple(reg.resolve(t)["size_m"]) for t in spec["members"]}, {tuple(spec["size_m"])}, group)
+        kettle = reg.resolve("electric_kettle")
+        old = {k: v for k, v in kettle.items() if k not in ("inner_size_m", "base_diameter_m")}
+        old["size_m"] = [0.22, 0.16, 0.25]
+        self.assertAlmostEqual(AC.base_diameter_m(kettle), AC.base_diameter_m(old))
+        side = min(old["size_m"][:2]) * 0.95                     # stove._step_vessel's inner without inner_size_m
+        for a, b in zip(kettle["inner_size_m"], [side, side, old["size_m"][2] * 0.9]):
+            self.assertAlmostEqual(a, b)
+        for pair in (("electric_kettle", "stovetop_kettle"), ("rice_cooker", "electric_pressure_cooker")):
+            first, second = self.twin_views(pair)
+            self.assertEqual(first, second, pair)
+            self.assertIn("px", first[1]["view"])
+
+    def test_generation_one_kitchens_keep_the_old_look_alike_sizes(self):
+        """Generation-1 houses stay byte-identical (TIER1_INTEGRATION 3.2): a generation-1 kitchen places, measures and
+        keeps the kettle and the countertop cookers at their old size (furnish.GEN1_SIZES through _GenerationOneTypes)
+        and leaves out the kettle fields that pin what that size gave (GEN1_DROP); generation 2 has the new sizes."""
+        from house_sim.systems.appliances_cooking import furnish
+        reg = default_registry()
+        for gen in (1, 2):
+            seen_types = set()
+            for seed in range(40):
+                config = generate_house(seed, gen=gen) if gen == 2 else generate_house(seed)
+                for rec in config["entities"].values():
+                    name = rec.get("type")
+                    if name not in furnish.GEN1_SIZES:
+                        continue
+                    seen_types.add(name)
+                    self.assertEqual(rec["size_m"], furnish.GEN1_SIZES[name] if gen == 1 else reg.resolve(name)["size_m"],
+                                     (gen, seed, name))
+                    for field in furnish.GEN1_DROP.get(name, ()):
+                        self.assertEqual(field in rec, gen == 2, (gen, seed, name, field))
+                if seen_types == set(furnish.GEN1_SIZES):
+                    break
+            self.assertTrue(seen_types, gen)                     # (every one of them in a full engine: seeds 1, 0 and 8)
+
+    def novel_answer(self, type_name, verb, role, extra):
+        kit = Kit("electric_coil")
+        kit.add("thing", type_name, "counter_2", novel=True, label="gadget", size_m=[0.25, 0.2, 0.25], color="gray",
+                material="plastic")
+        kit.item("mug", "counter_2", category="mug", size_m=[0.09, 0.09, 0.1], mass_kg=0.3, material="ceramic")
+        kit.add("pitcher", "steaming_pitcher", "counter_2", liquid="milk", liquid_l=0.2)
+        kit.add("grinder", "coffee_grinder", "counter_2")
+        env = HouseEnv(copy.deepcopy(kit.c), None, 0, perception="realistic")
+        ok(env, "approach", H(env, "thing"))
+        args = {k: (H(env, v) if v in ("mug", "pitcher", "grinder") else v) for k, v in extra.items()}
+        if role == "destination" and extra.get("target") in ("mug", "pitcher"):
+            ok(env, "pick_up", H(env, extra["target"]))
+        args[role] = H(env, "thing")
+        res = env.step(verb, **args)
+        return res["ok"], res["category"], res["message"]
+
+    def test_unfamiliar_appliances_answer_this_domains_verbs_alike(self):
+        """red_leaks 4 (review I4) for this domain's verbs: an unfamiliar (novel) appliance was told apart by them -- an
+        unfamiliar toaster oven preheated and a kitchen timer or microwave took a timer, blend / brew / defrost /
+        grind_coffee / light_grill gave the generic reason in the type's own category (precondition, safety, resource vs
+        argument), and load / steam_milk / grind_coffee into one succeeded or refused by its type. The device verbs are
+        declared operates=True (the engine refuses an unfamiliar target first) and the verbs working a destination
+        appliance refuse an unfamiliar one alike: every twin gets the kernel's identify-first refusal."""
+        from house_sim.kernel.actions import NOVEL_OPERATE_MESSAGE
+        types = ("electric_kettle", "toaster_oven", "kitchen_timer", "drip_coffee_maker", "blender", "coffee_grinder",
+                 "espresso_machine", "upright_freezer", "gas_grill", "microwave")
+        commands = [("blend", "target", {}), ("brew", "target", {}), ("defrost", "target", {}),
+                    ("grind_coffee", "target", {"destination": "mug", "grams": 10}), ("ignite", "target", {}),
+                    ("light_grill", "target", {}), ("preheat", "target", {"temp": 350}), ("set_timer", "target", {"minutes": 5}),
+                    ("load", "destination", {"target": "mug"}), ("steam_milk", "destination", {"target": "pitcher"}),
+                    ("grind_coffee", "destination", {"target": "grinder", "grams": 10})]
+        for verb, role, extra in commands:
+            answers = {t: self.novel_answer(t, verb, role, extra) for t in types}
+            self.assertEqual(set(answers.values()), {(False, "precondition", NOVEL_OPERATE_MESSAGE)}, (verb, role, answers))
+        # an identified one still works (oracle-free: realistic, not novel)
+        kit = Kit("electric_coil")
+        kit.add("timer", "kitchen_timer", "counter_2")
+        env = renv(kit)
+        ok(env, "approach", H(env, "timer"))
+        ok(env, "set_timer", H(env, "timer"), minutes=5)
+
+    def test_the_generic_refusal_has_one_category(self):
+        """A type-specific reason made generic for an unidentified thing (percept.plain_refusals / plain_check) kept its
+        own category, which told the types apart (an unfamiliar freezer's defrost answered 'safety', a grinder's
+        'resource', others 'argument'). The generic reason now always comes in one category; kernel access refusals and
+        identified things keep theirs."""
+        from house_sim.kernel.actions import access_error
+        from house_sim.kernel.errors import ActionError
+        from house_sim.systems.appliances_cooking import percept as P
+        kit = Kit("electric_coil")
+        kit.add("kettle", "electric_kettle", "counter_2")
+        kit.add("known", "kitchen_timer", "counter_2")
+        env = renv(kit)
+
+        class Ctx:
+            realistic = True
+        ctx = Ctx()
+        ctx.env = env
+        for category in ("safety", "resource", "argument", "precondition"):
+            with self.assertRaises(ActionError) as caught:
+                with P.plain_refusals(ctx, "kettle"):
+                    raise ActionError("Seat the kettle on its base", category)
+            self.assertEqual((str(caught.exception), caught.exception.category), (P.GENERIC_REFUSAL, P.GENERIC_CATEGORY))
+            self.assertEqual(P.plain_check(lambda w, eid, *a, **k: ("Put the inner pot in first", category))(
+                env.world, "kettle", ctx), (P.GENERIC_REFUSAL, P.GENERIC_CATEGORY))
+        with self.assertRaises(ActionError) as caught:
+            with P.plain_refusals(ctx, "known"):
+                raise ActionError("Every channel is busy", "resource")
+        self.assertEqual(caught.exception.category, "resource")
+        with self.assertRaises(ActionError) as caught:
+            with P.plain_refusals(ctx, "kettle"):
+                raise access_error("Approach it first", "capability")
+        self.assertEqual(caught.exception.category, "capability")
+
+    def test_the_tick_location_index_reads_like_a_fresh_scan(self):
+        """Phase-1 finish (G7 cost): the tick's location index is one pass in dict order with each location sorted when
+        first read; children() and descendants() inside the tick give exactly what the id-ordered scans outside it give,
+        for every location of a generated house, including after an entity is created mid-tick."""
+        from house_sim.kernel.world import World
+        state = copy.deepcopy(generate_house(1))
+        state.setdefault("robot", {"room": None, "hands": {}})
+        w = World(state)
+        w.begin()
+        locations = sorted({r.get("location") for r in state["entities"].values() if r.get("location")} | set(state["entities"]))
+        outside = {loc: (AC.children(state, loc), AC.children(state, loc, "in"), AC.descendants(state, loc)) for loc in locations}
+        AC.tick_index_begin(w)
+        try:
+            for loc in reversed(locations):                     # read order does not matter
+                self.assertEqual((AC.children(state, loc), AC.children(state, loc, "in"), AC.descendants(state, loc)),
+                                 outside[loc], loc)
+            host = next(e for e in locations if AC.children(state, e))
+            w.create("zz_new", {"type": "generic_item", "location": host, "relation": "on"})
+            self.assertEqual(AC.children(state, host), sorted(outside[host][0] + ["zz_new"]))
+        finally:
+            AC.tick_index_end()
+
+
 if __name__ == "__main__":
     unittest.main()

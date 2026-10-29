@@ -43,7 +43,10 @@ All iteration that changes state is over sorted ids; randomness only through `ct
 or the setup rng. Systems never scan every entity: each iterates a kernel v2.1 static index (`common.index(w, name,
 predicate)` -> `w.static_index("tools_vehicles.<name>", ...)` over static fields such as type/category/slot layout/setup
 dicts) and re-checks the dynamic fields on the records; processes that actions start on arbitrary entities register the
-id in `facts.tools_vehicles.active.<kind>` (`common.activate` / `deactivate`; today: `curing` for spackle patches).
+id in `facts.tools_vehicles.active.<kind>` (`common.activate` / `deactivate`; today: `curing` for spackle patches). Every
+index predicate declares the fields it reads (`common.index_reads`, the World's `reads=`), and the indexes looked up on
+every substep or step (`common.per_step_index`) are built by an `episode_start` hook while nothing is journaled, on the
+plain records (section 13.1).
 
 ---------------------------------------------------------------------------------------------------------------------
 
@@ -57,9 +60,9 @@ id in `facts.tools_vehicles.active.<kind>` (`common.activate` / `deactivate`; to
 | Pliers | `pliers_slip_joint`, `pliers_needle_nose` (pointed), `pliers_locking`, `diagonal_cutters` (settings.jaws open/closed) |
 | Striking, cutting | `claw_hammer` (0.45 kg head, marks finishes), `rubber_mallet`, `utility_knife` (settings.blade retracted/extended -> hazards sharp), `tool_scissors`, `putty_knife`, `plastic_scraper_tv`, `ice_scraper`, `staple_gun` (settings.safety, jammed), `caulk_gun` (tube slot) |
 | Power tools | `power_tool` base (battery slot accepting `tool_pack_brand_a_18v` = electrical's 18 V pack, `water_safe` false): `cordless_drill` (settings clutch 1-20 = 0.6 + 0.45 x N N m or "drill" 40 N m, direction, speed; bit slot), `cordless_jigsaw`, `circular_saw` (guard, blade slot), `stud_finder`, `pressure_washer` (1900 psi = 131 bar, 4.5 l/min, settings.nozzle 0/15/25/40/soap) |
-| Storage | `toolbox` (22 l, latching), `pegboard` (vertical surface with `outlines` {id: {tool_kind, spos, size}}), `tool_bin` (holds_category), `hardware_organizer` + `organizer_compartment` (holds_kind), `parts_tray` / `hardware_bag_tv` (hardware_counts) |
+| Storage | `toolbox` (22 l, latching), `pegboard` (vertical surface with `outlines` {id: {tool_kind, spos, size}}), `tool_bin` (holds_category), `hardware_organizer` + `organizer_compartment` (holds_kind), `parts_tray` / `hardware_bag_tv` (hardware_counts). Liquid (the kernel's pours, drips, spills and rain, section 13.2): the organizer cabinet is a frame of drawer slots open at the front (`watertight: false`); a drawer, the steel parts tray and the plastic tool bin are closed trays that hold it |
 | Fasteners, hanging | `fastener_lot` (count, hidden `_kind`), `hanging_hardware` base (`hardware_kind`, `rated_kg`, `adhesive`, `waterproof`, `cure_s` 3600): `adhesive_hook_small` (0.23 kg = 0.5 lb), `_medium` (1.36 kg), `_large` (2.27 kg), `_bath`, `picture_hanging_strips` (7.3 kg), `adhesive_cable_clip`, `adhesive_towel_hook`, `adhesive_led_light`, `picture_hook_nail` (13.6 kg, needs hammer, hole), `finishing_nail`, `door_bumper`; `wall_anchor` (printed rated_kg by wall material: drywall 4.5 / plaster 6.8; once installed its holding power in that wall - stud 45 kg, oversize hole x0.2 - is `mount.rated_kg`, the print stays as printed), `wall_anchor_toggle` (36 kg), `wall_anchor_masonry` |
-| Pads, seals | `felt_pad_19/25/38/51mm` (diameter_mm, thickness 4 mm), `furniture_cup`, `adjustable_glide`, `paper_shim` (temporary); `weatherstrip` base (thickness_mm, compression, adhesive, length_m): `foam_tape_quarter_in` (6.4 mm -> 2.6 mm compressed), `foam_tape_3_8in` (9.5 -> 4.3 mm), `kerf_weatherstrip`, `v_strip`, `door_sweep` |
+| Pads, seals | `felt_pad_19/25/38/51mm` (diameter_mm, thickness 4 mm; no look-alike group: section 13.3), `furniture_cup`, `adjustable_glide`, `paper_shim` (temporary); `weatherstrip` base (thickness_mm, compression, adhesive, length_m): `foam_tape_quarter_in` (6.4 mm -> 2.6 mm compressed), `foam_tape_3_8in` (9.5 -> 4.3 mm), `kerf_weatherstrip`, `v_strip`, `door_sweep` |
 | Products | `shop_product` base (openable = cap): lubricants `silicone_spray`, `white_lithium_grease`, `light_machine_oil`, `penetrating_oil`, `graphite_powder`, `bike_chain_lube` (`product`, `dispense` aerosol/drip); `paint_can` (paint_color, sheen, recoat 2 h), `primer_can`, `spackle_tub`, `caulk_tube` (nozzle_cut, cure_s 24 h), `grout_bag` (72 h), `deck_sealer` (6.6 m2/l, 10-32 C, 24 h dry), `car_shampoo`, `wheel_cleaner_acid` / `_neutral`, `bike_degreaser`, automotive `motor_oil_jug`, `antifreeze_jug` (toxic_to_pets), `washer_fluid_jug`, `used_motor_oil_container`, `car_wax`, `gas_can` |
 | Filters, parts | `water_filter_cartridge` (filter_model EDR1RXD1, flush_l 15), `water_filter_cartridge_alt` (look-alike RPWFE), `undersink_filter_cartridge` (CB-10, 12 l), `toilet_flapper` (seal), `jigsaw_blade` |
 | Flat-pack | `flatpack_box` (carton), `flatpack_panel` (part_type, finished_face), `flatpack_hardware_pack` (hardware_counts), `flatpack_assembly` (assembly dict), `assembly_manual` (steps) |
@@ -222,13 +225,14 @@ timestamp- or linear-in-dt based, so any dt is exact. Candidate index (static pr
 | `tools_vehicles.filter_load` | period 600 s [`air_filter_hosts`] | installed filter in a running host: `_load` += dt / 90 days (climate's `hvac_filter`s track `dirtiness` instead) |
 | `tools_vehicles.drains` | substep [`clogged_drains`: `_clog` dict, except basins the plumbing domain simulates (a `plumb` record: plumbing fills, drains and overflows those from the same `_clog`); faucets from `water_fixtures`] | running water through a clogged drain fills the basin and overflows (`spills`, > 5 l `flood`, when the robot caused it: section 5; the first overflow is a seen event and a `splash` notice); 8 l flushes drain cleaner |
 | `tools_vehicles.toilets` | substep [`toilets`: `_tank` dict] | `wasted_l` at the leak rate (0.25 phantom, 2-7 l/min running) |
-| `tools_vehicles.disposals` | substep [`disposals`: `_jam` dict] | jammed + switched on hums and trips the thermal reset after 20 s; anything in the hopper the plate cannot grind (a spoon: not food waste) jams it when it runs; free + on runs (`ran_ok`; jamming again, or something it cannot grind dropped in, clears it) |
+| `tools_vehicles.disposals` | substep [`disposals`: `_jam` dict] | jammed + switched on hums and trips the thermal reset after 20 s; anything in the hopper the plate cannot grind (a spoon: not food waste) jams it when it runs (the hopper is looked into only while the plate turns); free + on runs (`ran_ok`; jamming again, or something it cannot grind dropped in, clears it) |
 | `tools_vehicles.cure` | substep [`curable`: setup `holes`, caulk_joint, grout, seal, sealable; + `facts.tools_vehicles.active.curing`] | spackle dries (filled / recessed), caulk cures or washes out, grout cures/fails (skim), sealer cures or washes out in rain, outdoor sealable surfaces wet in rain and (without cleaning) dry in ~36 h. Settled surfaces are skipped after a few field reads; `patch` registers the surface it wets and the system drops it when dry |
 | `tools_vehicles.leaks` | substep [`inflatables`: inflation/wheels/tires] | punctured tubes/balls lose pressure (`_leak_bar_h`) |
 | `tools_vehicles.cabin` | substep [`cars`: vehicle_kind car] | cabin temperature relaxes exactly (exp, 15 min) to ambient +22 C in sun with doors shut, else +2 C; cars start the episode at that steady temperature (`episode_start`; a scenario keeps a preset `cabin_temp_c` with `cabin_temp_fixed: true`), so a parked car is not rewritten every substep; a child/pet locked inside above 35 C for 10 min -> `injury` when the robot shut or locked them in (section 5; the first overheating posts a `crying` notice); car-wash soap dries in 4 min in sun (soap spots), water in 10 min (water spots), wet jambs drip |
 | `tools_vehicles.charging` | substep [`chargeables`: ev / e-bike pack / battery slot] | only records with `charging` set: EV soc at 7.7 kW to its target (charger `status` complete, a remote `device` notice); e-bike pack at 4 A x 36 V |
 
-`episode_start` hooks (kernel v2.1, run at reset before the baseline): cabin temperatures settle (above); toilets and
+`episode_start` hooks (kernel v2.1, run at reset before the baseline): the per-step static indexes are built (order -90,
+before any hook writes; section 13.1); cabin temperatures settle (above); toilets and
 clogged drains derive `running` / `_leak_lpm` / `drain_speed` / `_drain_lpm` from their hidden state before the first
 observation. The sound observer reads only the toilet/disposal/water-filter indexes.
 
@@ -661,20 +665,19 @@ inspects every member of every read group and requires identical results).
 
 | Group | Descriptor (kind) | Resolve | Members / candidates |
 |---|---|---|---|
-| cross_tip_screwdriver | cross-tip screwdriver (screwdriver) | inspect | Phillips #1, Phillips #2, Pozidriv PZ2 |
-| flat_blade_screwdriver | flat-blade screwdriver (screwdriver) | inspect | 3/16 in, 1/4 in flathead |
-| star_tip_screwdriver | star-tip screwdriver (screwdriver) | inspect | Torx T20, T25 |
+| cross_tip_screwdriver | cross-tip screwdriver (screwdriver) | inspect | Phillips #1, Phillips #2, Pozidriv PZ2 (one size, 0.24 m) |
+| flat_blade_screwdriver | flat-blade screwdriver (screwdriver) | inspect | 3/16 in, 1/4 in flathead (one size, 0.24 m) |
+| star_tip_screwdriver | star-tip screwdriver (screwdriver) | inspect | Torx T20, T25 (one size, 0.23 m) |
 | hex_key | L-shaped hex key (hex key) | inspect | 3/4/5/6 mm, 5/32 in, 3/16 in, 1/4 in |
-| combination_wrench | combination wrench (wrench) | inspect | 10/13 mm, 7/16, 1/2, 9/16 in |
+| combination_wrench | combination wrench (wrench) | inspect | 10/13 mm, 7/16, 1/2, 9/16 in (one length, 0.18 m: section 13.3) |
 | chrome_socket | chrome socket (socket) | inspect | 8/10/13 mm, 3/8, 7/16, 1/2 in |
 | driver_bit / drill_bit | hex-shank driver bit / drill bit | inspect | PH2, PH1, PZ2, T25 / 3 mm and 6 mm wood, 6 mm masonry |
 | adhesive_hook | white plastic adhesive hook | inspect | small, medium, large, bath |
-| felt_pad | round felt pad | inspect | 19/25/38/51 mm |
 | foam_weatherstrip | roll of foam weatherstrip tape (weatherstrip) | inspect | 1/4 in, 3/8 in |
 | aerosol_lubricant | aerosol can of lubricant (lubricant) | read | silicone spray, white lithium grease, penetrating oil / "silicone lubricant", "lithium grease spray", "water-displacing penetrant" |
 | drip_oil_bottle | small squeeze bottle of oil (oil) | read | 3-in-1 machine oil, chain lube / "multi-purpose oil", "dry chain lubricant" |
 | wheel_cleaner | spray bottle of wheel cleaner | read | acid, pH-neutral |
-| automotive_jug | plastic jug of automotive fluid (automotive fluid) | read | motor oil, antifreeze, washer fluid / "engine oil", "engine coolant", "windshield washer fluid" |
+| automotive_jug | plastic jug of automotive fluid (automotive fluid) | read | motor oil, antifreeze, washer fluid / "engine oil", "engine coolant", "windshield washer fluid" (one jug size, 0.20 x 0.11 x 0.28 m) |
 | quart_paint_can | quart-size paint tin (paint) | read | paint, primer / "latex wall paint", "paint primer" |
 | fridge_water_filter / undersink_cartridge | fridge filter cartridge / 10 in filter cartridge | read | EDR1RXD1, RPWFE (look-alike model) / under-sink cartridges |
 | loose_fasteners | handful of small fasteners (fasteners) | inspect | `fastener_lot` (all kinds; candidates wood/drywall/machine/sheet-metal screws, nails, anchors, washers, nuts, bolts) |
@@ -683,7 +686,10 @@ inspects every member of every read group and requires identical results).
 | wash_bucket | 5-gallon bucket (bucket) | inspect | wash vs rinse bucket |
 | key_fob | car key fob | inspect | `car_key_fob` (its own group, not the kernel's metal `key`) |
 
-A read-resolved member without a label stays an "unidentified ..." (kernel).
+A read-resolved member without a label stays an "unidentified ..." (kernel). Every group's members share one true
+`size_m` (section 13.3): the geometric camera's pixels, range, elevation, occlusion and the lidar follow the true size,
+so a group whose members differ in size is no look-alike to it. Felt pads are in no group: a pad's diameter is what it
+is, and a 19 mm pad is not even made out from where a 25 mm one is.
 
 ### 10.3 What reveals what
 
@@ -954,6 +960,8 @@ group replaces; true sizes differ by less than the camera resolution or the grou
 bucket; perception blocks are inherited along `is_a`. A twin differ (each member alone in the same spot, room camera, a
 battery of glance, approach, pick_up, place, inspect, inspect closely, and for read-resolved groups lubricate, open,
 close, shake and count) finds no difference while the member is unresolved. The registry prints no LookalikeWarning.
+(Corrected in section 13.3: the census looked at the glance record only; five groups had members of different true
+size, which the geometric camera's geometry tells apart, and the Torx pair differed by 1 cm.)
 
 ### 12.7 Success paths (K-GATE coverage request)
 
@@ -987,3 +995,94 @@ charging, `flatpack` for (dis)assembly, `power_drill` and `wall` for drilling).
   Recording the resolved true id (`ctx.args["target"]`) would let every domain's attribution read it directly.
 * `tools/fuzz.py --coverage` reaches only authored specs; a helper-staged walk (the scenario helpers above) would
   cover the 15 actions without new specs.
+
+---------------------------------------------------------------------------------------------------------------------
+
+## 13. Phase 1 finish (2026-10-28)
+
+The rows of `catalog/analysis/phase1/breakages.json` owned by this domain and the red-team finding naming its groups
+(`red_leaks.json` 7, review L2 residual) are handled below. The handoff is `catalog/analysis/phase1/finish_tools_vehicles.json`.
+`FinishPhase1Tests` (9 tests) pins each fix. Every one of them fails on the phase-1 code, the geometric twin test
+included.
+
+### 13.1 Substep cost (P1 gate G7)
+
+The loop of `tools/bench_systems.py 40 0 1 2 3`, this domain's systems only, takes each system's best of 5 runs. There
+were two interleaved rounds on one shared, loaded machine. The "first substep" column is the static-index builds of a
+fresh house:
+
+| Tree | ms per substep | of which first substep |
+|---|---|---|
+| ADOPT (42533e2) | 0.066-0.070 | 0.024 |
+| phase 1 (this domain's code at fc942e0, today's tree otherwise) | 0.130-0.137 | 0.055 |
+| now | 0.036-0.037 | 0.001 |
+
+* **Disposals** (0.001 -> 0.027 -> 0.001): the phase-1 hopper rule means anything the plate cannot grind wedges it.
+  It ran `w.children` (a scan of every entity) for every disposal on every substep, even when the disposal was
+  switched off. The scan now runs only while the plate turns. Off, nothing reads the hopper, so the result is the same.
+* **Index builds** (0.024 -> 0.055 in the first substep, plus 0.009 -> 0.017 in the first runs of the 300 s systems):
+  the kernel's read views (review M3) cost about three times a build on the plain records. Every predicate now declares
+  the fields it reads (`common.index_reads`). The 16 indexes that a system, an idle probe or an invariant looks up on
+  every substep or step (`common.per_step_index`) are built by `_prebuild_indexes` (`episode_start`, order -90, before
+  any hook writes, so the World evaluates them on the plain records). That costs 1.4-2.0 ms per house at reset. The same
+  builds through read views mid-step cost 3.7-5.4 ms. The cost moves out of the measured substeps, and the total work
+  of an episode goes down too. `water_fixtures` and `heat_sources` are looked up only by actions and overflows, so they
+  stay lazy.
+* **Exactness:** an index's content is a pure function of the state (`World.static_index`). State digests of 12 cases
+  are identical with the phase-1 code (type data held fixed). The cases are gen-1 seeds 0-5, gen-2 seeds 0-3 and realistic + geometric seeds
+  0 and 1, each taken after reset, after the 40-substep loop and after a 1 h wait. Two tests guard this:
+  `test_building_the_indexes_at_episode_start_changes_no_result` and
+  `test_every_index_predicate_reads_only_its_declared_fields` (all records of three generated houses through a
+  read-noting record; strict mode checks the view path).
+* The engine's 1 h wait on this machine varied from 0.54 to 1.04 s per run for the same tree while other jobs ran.
+  This domain's share of it is a few ms, so no change is claimed there.
+
+### 13.2 Liquid holders (review L3; the kernel follows plumbing's liquid-tightness rule)
+
+* `hardware_organizer`: a frame of drawer slots, open at the front. It carries `watertight: false`, so pours, drips,
+  spills and rain run out of it.
+* `organizer_compartment` (a molded drawer), `parts_tray` (a steel dish) and `tool_bin` (a closed-bottom plastic
+  bin) keep holding liquid, as they would in a real house. They are open-topped, liquid-tight trays. Plumbing's `pour`
+  verb still pours only into vessels of its liquid categories; that is a policy of the verb, not of the tray.
+* Test: `test_the_organizer_frame_lets_liquid_out_and_its_drawers_hold_it`.
+
+### 13.3 True sizes behind look-alike groups (review L2 residual)
+
+The geometric camera's pixels, range, elevation, occlusion, the bearing after `face` and the lidar follow a member's
+true `size_m`. A group's displayed size only fixes the record. Every group now has one true size:
+
+| Group | Before | Now |
+|---|---|---|
+| automotive_jug | antifreeze and washer fluid 0.18 m, motor oil 0.22 m wide | all 0.20 x 0.11 x 0.28 m (the fluid is told by the label, not by the jug) |
+| combination_wrench | 0.15 (10 mm), 0.16 (7/16 in), 0.18, 0.18, 0.20 m (9/16 in) | all 0.18 m (the group's size; long-pattern small sizes are that long) |
+| cross_tip_screwdriver | Phillips #1 0.20 m, #2 and PZ2 0.24 m | all 0.24 x 0.035 x 0.035 m |
+| flat_blade_screwdriver | 0.21 and 0.26 m | both 0.24 x 0.035 x 0.035 m (the group's size) |
+| star_tip_screwdriver | T20 0.22, T25 0.23 m (inside the registry lint, but the red team's twin script separated them in geometric mode) | both 0.23 m |
+| felt_pad | one group of 19, 25, 38 and 51 mm pads | no group. A pad's diameter is what it is: a 19 mm pad is not made out from where a 25 mm pad is, and every size is told by eye in a real house. Each pad shows its own label. |
+
+`registry.lookalike_spreads` lists none of this domain's groups. The red team's twin script found no difference while
+members were unresolved: `p1_red_leaks/id/twins_lookalike.py` over all 22 groups found 0 in room mode (seed 5), and
+over the five sized groups in geometric mode found 0 (seeds 5 and 2). Tests:
+`test_no_look_alike_group_of_this_domain_differs_in_true_size` and
+`test_unresolved_members_look_the_same_to_the_geometric_camera` (reset view, look at it, approach it, from four cells).
+
+### 13.4 T-5a9598c809336a-01 (FIX2 interim rule; VERIFY_HARDENING 14.3 rule 1)
+
+The camera wrong plan began with `{"do": "look", "around": true}`, which `look` refuses for its form. Its inspects
+and reports were then refused too, so the plan never made its mistake. It now walks into the room (`go_room`), looks
+around (`look target=around`) and reports every tool fine with a typed status report
+(`kind=status, subject=<tool>, state=ok`). A typed report needs only that the robot has seen the tool; a legacy
+condition report needs an accepted inspect, and in geometric mode no inspect works from where the robot stands. Every
+step now runs, with 0 refusals on all 5 seeds, and the plan fails. Specific `expect` labels are the hardened
+verifier's to add. Tests: `test_every_authored_step_uses_parameters_its_action_has` (all steps of both spec files) and
+`test_the_bench_glance_wrong_plan_runs_every_step_and_fails`.
+
+### 13.5 Re-record classes and requests
+
+* Gen-1 digests and the room golden: `entities.*.size_m` (the jugs, the 13 mm wrench, the flathead screwdrivers
+  furnished in shops and toolboxes) and `entities.*.watertight` (the organizer). The realistic handle and observation
+  paths follow from the changed initial state. No reference outcome changes: a golden dump --all before and after the
+  type change differs in no evaluation. `tasks/specs.jsonl` needs recompiling for T-5a9598c809336a-01.
+* Kernel: build a declared-read index on the plain record of every entity with no journal or quiet entry, even
+  mid-step (cleaning asked for the same thing). Index builds after reset, for example for entities created during the
+  episode, would then cost a third of what they do today.

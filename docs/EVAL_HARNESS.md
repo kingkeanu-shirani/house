@@ -301,8 +301,13 @@ A catalog id authored in more than one `tasks/authored/*.json` file (while an au
 Verification (`house_sim/tasks/verify.py`) runs on every seed: the initial state and waiting out the budget must not
 satisfy the task, the reference plan must (strictly), and every wrong plan must run fully and fail. A wrong plan that
 raises (PlanError or any exception) never performs its mistake, so it is not evidence: its spec fails, with a
-`wrong_not_run` message naming the plan and the step. Each wrong plan's record keeps its failure labels, their
-classes (`reasons`) and its goal fraction.
+`wrong_not_run` message naming the plan and the step. The same holds, until VERIFY_HARDENING 14.3 rule 1 lands, for a
+wrong plan that names an unknown action (the spec fails to build), whose step is refused for its form (an unknown
+parameter, a missing or mistyped argument: `MalformedStep`) or that never acts: every action it attempted was
+refused, waiting aside, with a physical "success" that changed nothing counting as no act (`NeverActed`; a refusal
+that stopped a harm -- safety, privacy, social, authority -- and a plan declaring its `mistake` steps are left to the
+full rule). Each wrong plan's record keeps its failure labels, their classes (`reasons`), its goal fraction, the
+actions it attempted and whether it acted.
 
 Three tools stand between an edit and a spec counted as verified; none of them trusts an agent's own report:
 
@@ -311,12 +316,18 @@ Three tools stand between an edit and a spec counted as verified; none of them t
   (G2-ABS) and every test passes, except unexpired entries of the main session's dated allowlist. Every verdict
   change and every edited spec needs the package's reviewed row (bound to the spec files the package owns) and the
   main session's committed signature. Audits fail on any leak, crash, defect or nondeterministic replay; a check that
-  should have run and did not counts as a failure; the fuzzer reports per-action success coverage.
+  should have run and did not counts as a failure; the fuzzer reports per-action success coverage (a physical action
+  that "succeeds" without changing the world is no success). A record is a hand-over only when it ran every check on
+  one tree (this project or an isolated copy of one of its commits), on all verification seeds with the package's
+  extras, and was compared with the package's hand-over base. Wall-clock bounds are no correctness test: the unit
+  runs skip them (`HOUSE_SIM_PERF_TESTS=0`) and G7 runs them alone, each passing when one of 3 attempts meets it.
 * **Orchestrator checks** (`tools/orchestration/run_check.py`): the authoring workflow re-runs `--check` itself
   after every author and review step and appends the verdicts to a hash-chained log
   (`catalog/review/check_log/orchestrator.jsonl`); the batch's result is the tool's passing set.
 * **CI** (`.github/workflows/ci.yml`): the unit suite and every spec on one seed, on Python 3.9 and 3.14, Windows and
-  Linux, offline (`HOUSE_AI_FORBID_NETWORK=1`), no secrets.
+  Linux, offline (`HOUSE_AI_FORBID_NETWORK=1`), no secrets; a spec the gate's committed allowlist excuses on its
+  failing seed does not fail the spec step. The wall-clock bounds run in a separate, informational `perf` job
+  (`tools/orchestration/green_tests.py --perf`: alone, best of 3), so a slow shared runner never turns CI red.
 
 ## Results (`results/<run_id>/`)
 

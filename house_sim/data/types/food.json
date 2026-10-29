@@ -126,28 +126,6 @@
     "vegetable_oil_bottle"
    ]
   },
-  "measuring_cup": {
-   "descriptor": "nesting measuring cup",
-   "kind": "measuring cup",
-   "resolve": "inspect",
-   "members": [
-    "measuring_cup_1",
-    "measuring_cup_half",
-    "measuring_cup_third",
-    "measuring_cup_quarter"
-   ]
-  },
-  "measuring_spoon": {
-   "descriptor": "measuring spoon",
-   "kind": "measuring spoon",
-   "resolve": "inspect",
-   "members": [
-    "measuring_spoon_tbsp",
-    "measuring_spoon_tsp",
-    "measuring_spoon_half_tsp",
-    "measuring_spoon_quarter_tsp"
-   ]
-  },
   "egg_in_shell": {
    "descriptor": "egg in its shell",
    "kind": "egg",

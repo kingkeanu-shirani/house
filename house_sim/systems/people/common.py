@@ -20,6 +20,7 @@ import math
 import re
 
 from ...kernel import body, clock, geometry
+from ...kernel.plugins import hook
 from ...kernel.predicates import root_room
 
 CELL = geometry.CELL
@@ -293,6 +294,13 @@ def weekday(state):
     return wall(state).strftime("%A")
 
 
+def minute_and_weekday(state):
+    """(minute_of_day(state), weekday(state)) from one wall-clock reading (the same values)."""
+    current = wall(state)
+    h = current.hour + current.minute / 60.0 + current.second / 3600.0
+    return int(h * 60) % 1440, current.strftime("%A")
+
+
 # ----------------------------------------------------------------------
 # geometry in meters
 
@@ -399,11 +407,51 @@ def chebyshev_cells(a, b):
     return geometry.chebyshev(tuple(a), tuple(b))
 
 
-def static_ids(w, name, predicate):
-    """Ids of entities matching a predicate over STATIC fields (kernel w.static_index, cached until an entity is
-    created or destroyed). Callers re-check dynamic fields on the records."""
+# people's static indexes (kernel World.static_index): name -> (predicate over static fields, every field it reads).
+# The declared reads let the kernel evaluate a build on the plain records while a step's journal is empty (it then
+# needs no read views), and strict mode checks them; the content is the same as without them.
+INDEXES = {
+    "windows": (lambda r: r.get("category") == "window", ("category",)),
+    "lights": (lambda r: r.get("category") == "light", ("category",)),
+    "switches": (lambda r: r.get("category") == "switch" and bool(r.get("controls")), ("category", "controls")),
+    "care_devices": (lambda r: r.get("category") in ("heating_pad", "hearing_aid"), ("category",)),
+    "gates": (lambda r: bool(r.get("safety_gate")) or r.get("category") == "safety_gate", ("safety_gate", "category")),
+    "portable": (lambda r: bool(r.get("portable")) or "handle_out" in r, ("portable", "handle_out")),
+    "mobility_aids": (lambda r: bool(r.get("mobility_aid")), ("mobility_aid",)),
+    "noisy": (lambda r: "noise_db" in r, ("noise_db",)),
+    "owned": (lambda r: bool(r.get("owner")), ("owner",)),
+}
+# built at episode start (warm_indexes): the indexes people's time systems and idle probes read from their first
+# substep on -- the care devices in every house (people.care's idle probe), windows and lights where people live
+# (people.routine's dusk rule and light_level, people.reach)
+WARM_ALWAYS = ("care_devices",)
+WARM_WITH_PEOPLE = ("windows", "lights")
+
+
+def static_ids(w, name, predicate=None):
+    """Ids of entities matching a predicate over STATIC fields (kernel w.static_index, kept current by the kernel).
+    A name in INDEXES uses its predicate and declared reads; another name needs its predicate. Callers re-check
+    dynamic fields on the records."""
     ents = w.s["entities"]
-    return [e for e in w.static_index("people." + name, predicate) if e in ents]
+    known = INDEXES.get(name)
+    if known is not None:
+        ids = w.static_index("people." + name, known[0], known[1])
+    else:
+        ids = w.static_index("people." + name, predicate)
+    return [e for e in ids if e in ents]
+
+
+@hook("episode_start", order=0)
+def warm_indexes(w, env):
+    """Build the static indexes people's systems read every substep before anything is written at the episode start
+    (order 0: the journal is still empty): with declared reads the kernel's first build then evaluates the plain
+    records (World._matching), several times cheaper than the read views a first build inside a busy substep goes
+    through (P1 gate G7, phase-1 finish). The content is the same either way -- a pure function of the state, kept
+    current by the kernel -- so nothing an episode computes changes."""
+    names = WARM_ALWAYS + (WARM_WITH_PEOPLE if w.s.get("people") else ())
+    for name in names:
+        predicate, reads = INDEXES[name]
+        w.static_index("people." + name, predicate, reads)
 
 
 def by_location(state):
@@ -434,7 +482,7 @@ def room_items(state, rid, by_loc=None):
 
 
 def portable_ids(w):
-    return static_ids(w, "portable", lambda r: bool(r.get("portable")) or "handle_out" in r)
+    return static_ids(w, "portable")
 
 
 REFRESH_S = 120.0
@@ -476,13 +524,13 @@ def light_level(w, rid):
         level = clock.daylight(state)
     else:
         exposure = 0.0
-        for wid in static_ids(w, "windows", lambda r: r.get("category") == "window"):
+        for wid in static_ids(w, "windows"):
             rec = ents[wid]
             if rec.get("location") == rid:
                 exposure += 0.45 * (1.0 - float(rec.get("covered", 0.0)))
         level = clock.daylight(state) * min(1.0, exposure)
     grid = state.get("utilities", {}).get("power", True)
-    for eid in static_ids(w, "lights", lambda r: r.get("category") == "light"):
+    for eid in static_ids(w, "lights"):
         rec = ents[eid]
         if rec.get("on") and not rec.get("burnt_out") and (rec.get("powered", True) and grid or rec.get("battery_powered")) \
                 and root_room(state, eid) == rid:

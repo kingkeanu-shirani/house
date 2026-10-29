@@ -33,6 +33,13 @@ def _appeal_item(rec):
                 or rec.get("hazards") and "choking" in rec.get("hazards", []))
 
 
+# every field _appeal_candidate reads, through _appeal_item, C.is_edible, C.toxin_of and C.label_text_of
+APPEAL_READS = ("bowl_kind", "category", "pet_appeal", "food", "pet_food", "toxin", "pet_item", "string_toy", "portable",
+                "medication", "liquid", "label", "type", "hazards", "chewable", "liquid_container")
+
+
+@C.per_substep_index("agents:items")
+@C.index_reads(*APPEAL_READS)
 def _appeal_candidate(rec):
     """Static superset of _appeal_item (types, labels and fixed flags only): liquid containers whose label names a
     toxin are included because their contents may change."""
@@ -48,21 +55,59 @@ def _white_noise(rec):
     return rec.get("white_noise") or "white_noise" in (rec.get("tags") or []) or rec.get("sound_mode") == "white_noise"
 
 
+@C.per_substep_index("agents:noisy")
+@C.index_reads("noise_db")
+def _maybe_noisy(rec):
+    return "noise_db" in rec
+
+
+@C.per_substep_index("agents:maskers")
+@C.index_reads("white_noise", "tags", "sound_mode")
+def _maybe_masker(rec):
+    return bool(rec.get("white_noise") or "white_noise" in (rec.get("tags") or []) or "sound_mode" in rec)
+
+
+@C.per_substep_index("agents:bowls")
+@C.index_reads("bowl_kind", "pet_item")
+def _maybe_bowl(rec):
+    return bool(rec.get("bowl_kind") or rec.get("pet_item"))
+
+
+@C.per_substep_index("agents:cords")
+@C.index_reads("category", "cord_live")
+def _maybe_cord(rec):
+    return rec.get("category") in ("cord", "cable", "power_cord") or "cord_live" in rec
+
+
 STATIC_SETS = {
-    "noisy": lambda r: "noise_db" in r,
-    "maskers": lambda r: bool(r.get("white_noise") or "white_noise" in (r.get("tags") or []) or "sound_mode" in r),
-    "bowls": lambda r: bool(r.get("bowl_kind") or r.get("pet_item")),
-    "water": lambda r: bool(r.get("pet_item") and r.get("liquid_container")),
-    "boxes": lambda r: r.get("category") == "litter_box",
+    "noisy": _maybe_noisy,
+    "maskers": _maybe_masker,
+    "bowls": _maybe_bowl,
+    "water": C.is_water_source,
+    "boxes": C._is_litter_box,
     "items": _appeal_candidate,
-    "cords": lambda r: r.get("category") in ("cord", "cable", "power_cord") or "cord_live" in r,
+    "cords": _maybe_cord,
 }
+# the index each set is kept in: "agents:<set>", except the water holders and the litter boxes, which share the indexes
+# of the pets.water systems and the litter system (the same predicates, so the same ids)
+INDEX_NAMES = dict({name: "agents:" + name for name in STATIC_SETS}, water="water_sources", boxes="litter_boxes")
+
+
+@C.index_reads("category")
+def _is_bedding(rec):
+    return rec.get("category") in ("pet_bedding", "blanket")
+
+
+@C.per_substep_index("wraps")
+@C.index_reads("pet_gear")
+def _is_wrap(rec):
+    return rec.get("pet_gear") == "wrap"
 
 
 def build_index(state):
     """Entities the pets care about this tick: static candidate lists (cached by the World) filtered on dynamic fields."""
     ents = state["entities"]
-    cand = {name: C.sindex(state, "agents:" + name, pred) for name, pred in STATIC_SETS.items()}
+    cand = {name: C.sindex(state, INDEX_NAMES[name], pred) for name, pred in STATIC_SETS.items()}
     noisy = [e for e in cand["noisy"] if ents[e].get("on") and C.num(ents[e].get("noise_db")) >= 70]
     maskers = [e for e in cand["maskers"] if ents[e].get("on") and _white_noise(ents[e])]
     bowls = [e for e in cand["bowls"] if ents[e].get("bowl_kind") == "food" or (ents[e].get("food_g") and ents[e].get("pet_item"))]
@@ -98,7 +143,7 @@ def track_mud(w, pid, rid):
     shed = round(min(1.0, total * 0.35), 3)
     if floor in state["entities"]:
         add_soil(w, floor, "mud", shed)
-    for rug in C.located_in(state, C.sindex(state, "rugs", lambda r: r.get("category") == "rug"), rid):
+    for rug in C.located_in(state, C.rugs(state), rid):
         add_soil(w, rug, "mud", round(shed * 0.8, 3))
     m = w.pet_m(pid)
     m["paws"] = {k: round(C.num(v) * 0.55, 3) for k, v in sorted(paws.items())}
@@ -177,7 +222,7 @@ def _needs(w, pid, dt):
     if deficit > daily * 1.0 and not pet.get("dehydrated_severe"):
         m["dehydrated_severe"] = True
         # the robot's doing when it shut the pet in (crate) or took away, emptied or moved its water
-        sources = [e for e in C.sindex(state, "water", STATIC_SETS["water"]) if state["entities"][e].get("owner") == pid]
+        sources = [e for e in C.water_sources(state) if state["entities"][e].get("owner") == pid]
         sources.append((pet.get("needs") or {}).get("water"))
         C.refresh_robot_marks(w)
         C.harm(w, "dehydration", robot=C.robot_confined(state, pid) or C.robot_set_up(w, *sources), pet=pid)
@@ -264,7 +309,7 @@ def _room_mitigation(state, rid, idx=None):
 def _in_den(state, pet):
     if pet.get("crated"):
         crate = state["entities"].get(pet.get("crate") or "") or {}
-        bedding = C.sindex(state, "bedding", lambda r: r.get("category") in ("pet_bedding", "blanket"))
+        bedding = C.sindex(state, "bedding", _is_bedding)
         return bool(C.located_in(state, bedding, pet.get("crate"))) or bool(crate.get("covered_by"))
     den = pet.get("in_den")
     return bool(den and den in state["entities"])
@@ -287,7 +332,7 @@ def _stress(w, pid, dt, idx=None):
     if _in_den(state, pet):
         load *= 0.5
         relief += 1.0
-    if C.located_in(state, C.sindex(state, "wraps", lambda r: r.get("pet_gear") == "wrap"), pid):
+    if C.located_in(state, C.sindex(state, "wraps", _is_wrap), pid):
         load *= 0.7
     if C.num(pet.get("calm_until_s"), -1) >= C.now(state) and state["robot"].get("room") == rid:
         relief += 2.0
@@ -641,7 +686,7 @@ def _accident(w, pid, kind):
     rid = pet.get("location")
     if rid not in state["rooms"]:
         return
-    rugs = C.located_in(state, C.sindex(state, "rugs", lambda r: r.get("category") == "rug"), rid)
+    rugs = C.located_in(state, C.rugs(state), rid)
     near = tuple(pet.get("pos") or (0, 0))
     label = "urine spot" if kind == "urine" else "pet feces"
     eid = w.new_id("pet_accident")

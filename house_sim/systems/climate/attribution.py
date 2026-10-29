@@ -174,7 +174,7 @@ def _room_scan(w):
     entities = state["entities"]
     house = {side: False for side in SIDES}
     rooms = {side: set() for side in SIDES}
-    for door in C.static_ids(w, "climate.connecting", lambda r: bool(r.get("connects"))):
+    for door in C.static_ids(w, "climate.connecting", C.connects_rooms):
         rec = entities.get(door)
         if rec is None or not rec.get(C.ROBOT_FIELD) or not outside_door(state, rec):
             continue
@@ -189,7 +189,7 @@ def _room_scan(w):
             rid = C.room_of(state, wid)
             for side in SIDES:
                 rooms[side].add(rid)
-    for eid in C.static_ids(w, "climate.kinds", lambda r: bool(r.get("climate_kind"))):
+    for eid in C.static_ids(w, "climate.kinds", C.has_kind):
         rec = entities.get(eid)
         if rec is None:
             continue
@@ -244,7 +244,7 @@ def _hvac_scan(w, sid):
     slot = ((rec.get("slots") or {}).get("filter") or {}).get("item")
     if slot and C.robot_touched(w, slot):
         return True             # the filter in it is one the robot fitted, opened or wrapped
-    for eid in C.static_ids(w, "climate.kinds", lambda r: bool(r.get("climate_kind"))):
+    for eid in C.static_ids(w, "climate.kinds", C.has_kind):
         other = entities.get(eid) or {}
         k = other.get("climate_kind")
         if k == "thermostat" and other.get("controls_hvac") in (None, sid) and other.get(C.ROBOT_FIELD):

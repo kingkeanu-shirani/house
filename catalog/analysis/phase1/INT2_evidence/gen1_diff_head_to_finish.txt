@@ -1,0 +1,26 @@
+dumped 60 houses -> <scratch p1f_INT2>/gen1_head; 60 equal to the pinned digest
+dumped 60 houses -> <scratch p1f_INT2>/gen1_dom; 0 equal to the pinned digest
+   505  entities.*.watertight  {'dryer_sheet_box': 64, 'mail_organizer': 60, 'curbside_mailbox': 52, 'napkin_holder': 47, 'hardware_organizer': 46, 'document_feeder': 41}
+           house_000.json entities.apartment_mailbox_1.watertight: '<absent>' -> False
+           house_000.json entities.document_feeder_1.watertight: '<absent>' -> False
+   368  entities.*.size_m  {'flange_plunger': 116, 'cup_plunger': 60, 'screwdriver_flat_large': 60, 'screwdriver_flat_small': 46, 'motor_oil_jug': 32, 'antifreeze_jug': 30}
+           house_000.json entities.cup_plunger_1.size_m: [0.14, 0.14, 0.45] -> [0.15, 0.15, 0.5]
+           house_000.json entities.flange_plunger_1.size_m: [0.15, 0.15, 0.55] -> [0.15, 0.15, 0.5]
+    60  *.digest  
+           index.json 0.digest: '1e73dba80ff406c1b88dfec1e9e34a7130ff611415fe5c3b5695929018696fbd' -> '44c8b79b2182a873f2535ea76904428fea1bbe1e545e72b3131b92d3bfbf05f9'
+           index.json 1.digest: '2235bf8e4d3079cee67930ab8fcdc1d734a2f4793852c6a35a05747fd6b8b3d8' -> '009679f9d5a72032f336c2a4ae26c28e7413335b0dbd6c4cab06763ab9a7ed85'
+    54  entities.dishwasher_1_basket.holes_mm  {'dishwasher_utensil_basket': 54}
+           house_000.json entities.dishwasher_1_basket.holes_mm: '<absent>' -> 5.0
+           house_001.json entities.dishwasher_1_basket.holes_mm: '<absent>' -> 5.0
+    39  entities.drip_coffee_maker_1_basket.holes_mm  {'coffee_filter_basket': 39}
+           house_000.json entities.drip_coffee_maker_1_basket.holes_mm: '<absent>' -> 5.0
+           house_001.json entities.drip_coffee_maker_1_basket.holes_mm: '<absent>' -> 5.0
+    22  entities.air_fryer_1_basket.holes_mm  {'air_fryer_basket': 22}
+           house_000.json entities.air_fryer_1_basket.holes_mm: '<absent>' -> 3.0
+           house_003.json entities.air_fryer_1_basket.holes_mm: '<absent>' -> 3.0
+    13  entities.*.holes_mm  {'skimmer_basket': 13}
+           house_013.json entities.skimmer_basket_1.holes_mm: '<absent>' -> 4.0
+           house_022.json entities.skimmer_basket_1.holes_mm: '<absent>' -> 4.0
+     5  entities.espresso_machine_1_portafilter.holes_mm  {'portafilter': 5}
+           house_008.json entities.espresso_machine_1_portafilter.holes_mm: '<absent>' -> 0.3
+           house_012.json entities.espresso_machine_1_portafilter.holes_mm: '<absent>' -> 0.3

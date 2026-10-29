@@ -1,0 +1,84 @@
+{
+ "id": "cleaning",
+ "fixed": [
+  {
+   "item": "breakages.json cleaning row (review I4, electrical's request): an unidentified unfamiliar (novel) table lamp was told apart by inspect -- cleaning.details added bulb_hot (and bulb_temp_c with the thermal sensor) to any light by category / bulb_type",
+   "how": "house_sim/systems/cleaning/state.py unfamiliar(ctx, eid) (the kernel's Realism.novel_unidentified); house_sim/systems/cleaning/perception.py inspect_details gives an unidentified unfamiliar thing none of its type-keyed extras (bulb heat, bin fill/liner/stream, waste-item resin, product amount, tool wear, vacuum parts, spill/pile details); a deliberate look inside private waste is still counted as a privacy violation (moved ahead of the bin block, same semantics). Oracle mode and identified things unchanged. (The kernel's NOVEL_FIELDS filter already masked the keys in the agent's message; the domain no longer computes them from the true record.)",
+   "test": "tests/test_cleaning.py Phase1Finish.test_an_unfamiliar_lamp_gets_no_bulb_heat_from_inspection (calls the inspector directly, before the kernel's filter; fails on the phase-1 commit with {'bulb_hot': True}); all domains, strict and HOUSE_SIM_DOMAINS=core,cleaning"
+  },
+  {
+   "item": "breakages.json cleaning row (review I4, phase-1 red team novel sweep): empty_into judged the true record of an unidentified unfamiliar target or destination ('Emptied ...; poured a lot' for a bleach bottle vs 'Emptied ...' for the others; 'Open the lid of <thing> first' for a kettle as destination)",
+   "how": "house_sim/systems/cleaning/state.py refuse_unfamiliar(ctx, *eids): the kernel's operation rule for this domain -- one refusal with kernel.actions.NOVEL_OPERATE_MESSAGE ('precondition'); house_sim/systems/cleaning/waste.py empty_into calls it for target and destination right after the visibility checks and before any check that depends on what the thing is. The re-run red-team novel sweep (twins_generic.py novel_sweep --sweep, 597 commands x 6 types) shows no cleaning verb among its 13 remaining differences (fill, flip, food container verbs, pull/push_handle, read, read_aloud, rotate, support: other owners or physical trials).",
+   "test": "Phase1Finish.test_an_unfamiliar_thing_is_neither_emptied_nor_emptied_into (jug / kettle / remote as target and as destination: one refusal; a known jug still empties; fails on the phase-1 commit)"
+  },
+  {
+   "item": "breakages.json cleaning row + red_leaks finding 8 (review L4 residual): the plain spray_bottle was told from the product sprays by heft ('Feels light' vs 'Feels medium'), fill estimate ('empty' vs 'full') and shake (no slosh) because it defaulted empty (0.1 kg, liquid_l 0.0)",
+   "how": "house_sim/data/types/cleaning.json spray_bottle: liquid 'water', liquid_l 0.75 (= capacity_l) in its 0.1 kg bottle -- full like mechanisms' trigger_bottle and every product spray (0.85 kg full); the type doc says to stage an empty or decanted refill with its own liquid/liquid_l (the glass-cleaner spec's decoy does). No generated house holds a spray_bottle (gen 1 and 2, seeds 0-19), so no furnished record changes (generated-house digests identical with and without the change).",
+   "test": "Phase1Finish.test_the_refill_spray_bottle_comes_full_and_hefts_like_its_look_alikes (type default and manipulation's support heft; fails on the phase-1 commit: 0.0 != 0.75)"
+  },
+  {
+   "item": "New, found by re-running the red team's lookalike_sweep on this tree: an unresolved refill or trigger bottle inspected closely showed plumbing's vessel_feel and, from then on, the kernel's 'feel' (plumbing's inspector grants touch on temperature_c to vessels holding litres); a product spray (an amount, not litres) showed neither",
+   "how": "house_sim/systems/cleaning/perception.py spray_fill (order 130, unresolved spray_bottle-group members only): hides vessel_feel and, on where=closely, gives every member the same touch grant on temperature_c after asking the kernel's grant gate (Realism.grant_problem with the step's motion records), so the kernel's physics inspector (order 150) adds 'feel' alike and strict mode never sees a refused grant. Re-run sweep: the cleaning groups' only remaining differences are the reads themselves.",
+   "test": "Phase1Finish.test_every_unread_spray_bottle_inspects_closely_and_afterwards_alike (glass cleaner, mildew remover, refill, trigger bottle; room and geometric camera; fails on the phase-1 commit)"
+  },
+  {
+   "item": "breakages.json cleaning row + red_leaks finding 8 first half (review L4 / FIX2 residual): route probing of an unidentified puddle through domain path_blocked / visible_floor_hazard hooks",
+   "how": "No code change needed in this domain: cleaning defines no path_blocked hook, and its visible_floor_hazard veto (perception.wet_floor_seen) judges only the room's own wet cells (source == the room id) and returns None for any spill source; FIX2's kernel route_hazards already keeps routes out of an unidentified spill for any of wet/slip/sticky. Verified on cleaning spills (scratch route_probe.py) and pinned.",
+   "test": "Phase1Finish.test_route_probing_an_unidentified_spill_does_not_tell_its_liquid (spills of chlorine bleach 'wet', laundry detergent and cooking oil 'slip', water: same grid.hazards kind, same kept-out cells for avoid slip / wet / sticky / trip, same cells from every path_blocked hook, veto None, same walk_to outcome; passes before and after -- a pin)"
+  },
+  {
+   "item": "P1 gate G7 (substep cost): cleaning's share of the phase-1 increase (gate record 0.085 -> 0.104 ms per substep over cleaning's systems: spills, waste, air, streams)",
+   "how": "Exact fast paths in house_sim/systems/cleaning/systems.py: soak skips an inert filled holder (_inert: no cl_chem / cl_soil_g, _cl_ref_l unset or equal to liquid_l so norm_solution writes nothing, not boiling over, cannot hold items) and soak_idle counts inert holders as idle (a quiet house's product bottles and pet bowls kept soak running every substep of every wait); waste finds the food inside bins from the scraps up (_food_inside: the food-scrap static index + location chains) instead of a children index of every entity per run (_child_index / _descendants removed); spills builds the debris index only when the house has pets; soak_containers' litre filter skips holders without litres before float(). Bench-house state digests identical before and after; tools/golden.py dump --all of the two cleaning versions on one snapshot of the other domains: 0 of 275 files differ.",
+   "test": "Phase1Finish.test_soak_skips_inert_holders_exactly_and_a_quiet_house_is_idle (fast vs full pass: identical digests, the kettle still boils over and the knife still hides; soak idle on a quiet house) and Phase1Finish.test_waste_finds_food_from_the_scraps_up_exactly_as_a_walk_of_every_bin (vs a brute-force descendant walk: identical digests through odour, a dog tearing a bag and raccoons raiding an open cart); Tier1Adoption.test_idle_probes_are_exact (probes on / off digests) still passes"
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "red_leaks finding 3 / review I2: the glass-cleaner spec (tasks/authored/cleaning__perception.json T-3fb8a84f20876c-01) fixes look-alike roles by explicit spos",
+   "why": "docs/design/VERIFY_HARDENING.md WP9 (seeded arrange / shuffle setup ops, 9.2, and the 200-build rank audits, 9.7) is the planned fix and the next phase; changing the spec's placement now would pre-empt that design (FIX2's not_fixed agrees)."
+  },
+  {
+   "item": "red_leaks finding 1 / review L7: an offline rebuild of a public (spec, seed) decodes staged look-alikes by content (the cleaning glass-cleaner spec is the red team's example)",
+   "why": "Harness / generator design (house_sim/eval/run.py, house_sim/tasks/setup.py), not a domain fix; it belongs to WP9 with nonce-drawn permutations in scored episodes (the red team's note to the next phase)."
+  },
+  {
+   "item": "Remaining steady cost: cleaning.drying (~0.023 ms per substep: a scan of every entity's 5 drying fields once per 120 s period, 70-75 us on an 871-entity house) and soak's litre filter over ~176 holders (8 us per substep)",
+   "why": "No exact cheaper candidate set exists with today's kernel API: a static index is exact only for step-start records, every record carries wetness, and journal_keys() holds ~800 entities at the drying substeps (kernel thermal's quiet writes). Kernel request filed."
+  },
+  {
+   "item": "First lookups of a fresh house (cleaning's eight static-index builds: ~0.042 ms per substep in the 40-substep bench, 0.024 at ADOPT)",
+   "why": "The kernel's read-view index builds (review M3 fix) cost about twice the old ones (0.14-0.37 ms each on 871 entities); building them at episode start would only move the cost out of the measured window, so it was not done. Kernel request filed."
+  },
+  {
+   "item": "breakages.json rows that came from cleaning's phase-1 requests but belong to other owners: the closed trigger-sprayer pour (plumbing_liquids) and the chemical presets staging cleaning products with their own sizes and masses (safety)",
+   "why": "Other owners' files (house_sim/systems/plumbing_liquids/transfer.py, house_sim/systems/safety/helpers.py)."
+  }
+ ],
+ "specs_changed_outcome": [],
+ "perf": "Bench loop of tools/bench_systems.py 40 0 1 2 3, cleaning systems only, sum of each system's best of 6 interleaved runs (shared, heavily loaded machine; first lookups = the index builds of a fresh house): ADOPT tree 0.103 ms/substep (0.024 first + 0.078 steady); phase-1 cleaning 0.120 (0.042 + 0.077); this change 0.099 (0.042 + 0.057) -- below ADOPT, so cleaning's share of the G7 regression (+0.017 here, +0.019 in the gate record) is removed. The increase itself was the kernel's dearer index builds; the steady state is now 26 % below phase 1 (soak 0.035 -> 0.021, waste steady 0.0070 -> 0.0014). Official bench_systems.py at a quiet moment: soak 0.020, waste 0.028, drying 0.027, spills 0.011, air 0.011, streams 0.002, chemistry 0.001 (= 0.100; phase-1 per-system bests 0.123). Per call (seed 1, 871 entities): soak 21 -> 11 us, a waste run 71 -> 6 us. Quiet simulated day (--day 0 1 2, idle probes on): cleaning.soak ran every substep (133 ms/day at best), now no cleaning system runs at all. Results unchanged: bench-house state digests identical; golden dump --all of the two cleaning versions on one snapshot of the rest: 0 of 275 files differ. Scratch: ab2_runs.txt, bench_official.txt, day_runs.txt, time_systems.py.",
+ "tests": {
+  "count": 216,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 16,
+  "passed": 16
+ },
+ "requests": [
+  {
+   "owner": "kernel",
+   "request": "A current-record view of a static index, or World.journaled_entities(): the entity ids journaled by mut / create / destroy in the current step, without the quiet temperature-only ones. With it a system can visit static_index(predicate reading a dynamic field) | journaled ids, filtered by the current record, exactly. Use: cleaning.drying scans the 5 drying fields of every entity once per 120 s (70-75 us per run on seed 1's 871 entities, ~0.023 ms per substep in bench_systems) and cleaning.soak filters ~176 holders for litres each substep (8 us). journal_keys() is not a substitute: at drying's substeps of the bench it holds ~800 entities (kernel thermal's set_quiet writes; repro: scratch p1f_cleaning/journal_bench.py)."
+  },
+  {
+   "owner": "kernel",
+   "request": "Cheaper static-index builds when the caller declares reads=(...): evaluate the plain record for entities with no journal or quiet entry even mid-step (their _start_view is the record itself) and a view only for journaled ones. Since the read views (review M3) cleaning's eight first lookups cost 0.14-0.37 ms each on an 871-entity house (repro: scratch p1f_cleaning/index_build.py: liners 0.37, wet_floor_signs 0.36, liquid_holders 0.33, waste_containers 0.29, food_scraps / spills / debris / appliances ~0.2), ~0.042 ms per substep of the 40-substep bench vs 0.024 at ADOPT; cleaning would then declare its predicates' reads."
+  },
+  {
+   "owner": "plumbing_liquids",
+   "request": "plumbing_liquids.details (order 120) gives vessel_feel and a touch grant on temperature_c on a close look only to vessels holding litres (L.holds_liquid / liquid_container), and grants the touch without asking the grant gate (out of reach it raises in strict mode). Members of a look-alike group that record an amount instead (cleaning's product sprays: amount_ml) get neither, so an unresolved refill inspected unlike its group-mates; cleaning now hides vessel_feel and equalises the grant for the spray_bottle group (perception.spray_fill), but the general fix is the same close-look percept for every closed liquid vessel (litres or an amount; the contained-liquid accessor, cleaning-10) and a gate check before the grant. Repro: scratch p1f_cleaning/spray_twins.py against the phase-1 cleaning files."
+  }
+ ],
+ "notes": "Scope: the four 'cleaning' rows of catalog/analysis/phase1/breakages.json, red_leaks findings 5 (novel things) and 8 (L4 residuals), the red team's twin sweeps re-run on this tree, and G7. Files changed: house_sim/systems/cleaning/{state,perception,waste,systems}.py, house_sim/data/types/cleaning.json (spray_bottle default fill and doc), tests/test_cleaning.py (Phase1Finish, 7 tests), docs/domains/cleaning.md (sections 1, 3, 13 and a new 17; header counts). GREEN on this tree: python -m unittest tests/test_cleaning.py 216 tests OK normal, HOUSE_SIM_STRICT=1, HOUSE_SIM_DOMAINS=core,cleaning (normal and strict; 1 skip: manipulation's heft absent there); 6 of the 7 new tests fail on the phase-1 commit (the route test is a pin). Specs: --check cleaning__examples.json 13/13 and cleaning__perception.json 3/3 on seeds 0 1 2 41 97 in their own modes (all gen 2; the 3 perception specs realistic + geometric), and --camera geometric 3/3. perception_audit.py 20 80 --verbose: 0 leaks, 0 crashes (room) and 0 / 0 with --camera geometric. layout_audit.py 20 --domain cleaning: 0 problems on 120 houses, 0 on 220 with --gen 2 (0 domain follow-ups). fuzz.py --coverage: 1 distinct strict-mode defect, admin_inventory's known close-look heft grant (admin_inventory/knowledge.py:253, T-ab9a26cd6a795e-01 seed 97), none in cleaning; 2 nondeterministic replays of people's A-c0f8c53da99d24-01 (the people domain was being edited while the fuzz ran, so its replays loaded newer code). Also ran: test_climate Phase1StabiliseTests, test_mechanisms Tier1SweepAdoptionTests, test_plumbing_liquids RealisticPerception, test_kernel_redteam (39 tests OK). Goldens: tests/test_room_golden.py and tests/test_generator_compat.py currently fail on the live tree because of other domains' concurrent edits (every reset digest differs); generated-house digests and a golden dump --all are identical with the phase-1 and the new cleaning files on one snapshot of the rest (0 of 275 files), so this change needs no re-record. Not done on purpose: prebuilding cleaning's static indexes at episode start (it would only move the first-lookup cost out of G7's window). Nothing committed; nothing under %USERPROFILE%/.house_ai; no network or paid calls; all files LF. Scratch: <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1f_cleaning (repro.py, route_probe.py, spray_twins.py, time_systems.py, ab2.sh / ab2_runs.txt, bench_official.txt, day_runs.txt, novel_sweep.out, lookalike_sweep.out, fuzz_cov.json, dump_diff.txt; tree_adopt / tree_head exports and tree_mine / tree_snap snapshots)."
+}

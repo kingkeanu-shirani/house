@@ -142,6 +142,8 @@ def hide_unperceived_margins(ctx, rid):
         w.robot_m()[H.PLAN_UNKNOWN] = [list(k) for k in sorted(unknown)]
 
 
+@C.per_substep_index("low_contrast")
+@C.index_reads("low_contrast")
 def _low_contrast(rec):
     return bool(rec.get("low_contrast"))
 

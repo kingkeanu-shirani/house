@@ -206,9 +206,14 @@ def table_of_base(w, bid):
     return None
 
 
+@C.index_reads("ballast")
+def _is_ballast(record):
+    return bool(record.get("ballast"))
+
+
 def ballast_items(w):
     """Static index of ballast items (sand bags, water weights)."""
-    return C.static_ids(w, "ballast", lambda r: bool(r.get("ballast")))
+    return C.static_ids(w, "ballast", _is_ballast)
 
 
 def ballast_on(w, parent):
@@ -216,6 +221,7 @@ def ballast_on(w, parent):
     return [c for c in ballast_items(w) if c in ents and ents[c].get("location") == parent and ents[c].get("ballast")]
 
 
+@C.index_reads("type", "is_a", "seat", "category")
 def seat_like(record):
     return C.is_type(record, "chair") or bool(record.get("seat")) or record.get("category") == "seat"
 
@@ -462,11 +468,17 @@ def move_ash(ctx, source_id, dest_id, kg):
     return take
 
 
+@C.episode_index("fire_holders")
+@C.index_reads("type", "is_a", "_ember_c", "ash_c")
+def _fire_holder(record):
+    return C.is_type(record, "fire_pit") or "_ember_c" in record or "ash_c" in record
+
+
 def fire_candidates(w):
     """Fire pits and anything holding embers/ash (static index) plus containers that received hot ash at runtime
     (metadata.op_ash_holders, written by move_ash)."""
     ents = w.s["entities"]
-    ids = set(C.static_ids(w, "fire_holders", lambda r: C.is_type(r, "fire_pit") or "_ember_c" in r or "ash_c" in r))
+    ids = set(C.static_ids(w, "fire_holders", _fire_holder))
     ids.update((w.s.get("metadata") or {}).get("op_ash_holders") or [])
     return sorted(e for e in ids if e in ents)
 
@@ -689,6 +701,8 @@ for _verb in ("push", "pull", "drag", "slide", "roll"):
     _grill_moved_hook(_verb)
 
 
+@C.episode_index("propane_tanks")
+@C.index_reads("category", "tags", "type")
 def is_propane_tank(record):
     return record.get("category") == "propane_tank" or "propane_tank" in (record.get("tags") or []) or str(record.get("type", "")) == "propane_tank"
 
@@ -700,7 +714,7 @@ def propane_tank_indoors(state, baseline, world=None):
     from ...kernel.predicates import root_room
     ents = state["entities"]
     if world is not None and world.s is state:
-        candidates = world.static_index("op:propane_tanks", is_propane_tank)
+        candidates = C.static_ids(world, "propane_tanks", is_propane_tank)
     else:
         candidates = sorted(e for e, r in ents.items() if is_propane_tank(r))
     for eid in candidates:
@@ -754,6 +768,11 @@ def _after_pick_up_patio(ctx, result):
     loc = None
     for uid in C.find_types(w, ["patio_umbrella"], room=w.robot["room"]):
         umbrella_status(w, uid)
+
+
+for _names in (("outdoor_cushion",), ("firewood_rack",), ("furniture_cover",), ("patio_umbrella",), ("cover_pump",),
+               ("fire_pit",)):
+    C.episode_types(*_names)
 
 
 @system("outdoor_plants.patio", order=128, max_dt=C.SLOW_S, period=C.SLOW_S)

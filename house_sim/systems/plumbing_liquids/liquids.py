@@ -199,8 +199,10 @@ def material_volume_l(rec):
 def displacement_l(w, eid):
     rec = w.ent(eid)
     total = C.num(rec.get("ice_g")) / 1000.0
-    for child in w.children(eid):
-        crec = w.ent(child)
+    entities = w.s["entities"]
+    # w.children's scan (sorted ids located in eid) as one list comprehension: the same children, summed in the same order
+    for child in sorted([c for c, r in entities.items() if r.get("location") == eid]):
+        crec = entities[child]
         if crec.get("relation") != "in" or crec.get("category") == "spill":
             continue
         total += material_volume_l(crec) + C.num(crec.get("liquid_l")) * (0.0 if crec.get("open", True) else 1.0)
@@ -405,6 +407,22 @@ def residue(w, eid, mix):
                 C.add_soil(w, eid, kind, 0.12 * level)
             elif kind == "biohazard" and amount > 0.005:
                 C.contaminate(w, eid, "biohazard", 0.5)
+
+
+def split_parcel(parcel, frac):
+    """(part, rest): a parcel divided by volume, frac of it in part (composition, dissolved products and the products
+    a pour hook moves scaled alike; solids stay with the rest). Pure: the parcel itself is not changed."""
+    frac = C.clamp(C.num(frac), 0.0, 1.0)
+    out = []
+    for share in (frac, 1.0 - frac):
+        piece = dict(parcel, liters=C.num(parcel.get("liters")) * share,
+                     mix={k: v * share for k, v in (parcel.get("mix") or {}).items()},
+                     chem={k: C.num(v) * share for k, v in (parcel.get("chem") or {}).items()})
+        if parcel.get("named_chem"):
+            piece["named_chem"] = {k: C.num(v) * share for k, v in parcel["named_chem"].items()}
+        out.append(piece)
+    out[0]["solids"] = {}
+    return out[0], out[1]
 
 
 def make_parcel(liquid, liters_, temp_c=21.0, chem=None, solids=None, flags=None, source=None, fresh=True):

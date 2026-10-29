@@ -221,7 +221,7 @@ def describe(state, cid, from_room, env=None):
     if env is not None:
         visible = [e for e in visible if C.perceives(env, state, e)]
         if getattr(env, "realism", None) is not None:
-            visible.sort(key=env.realism.handles.handle)     # listing order must not follow true ids
+            visible.sort(key=env.realism.handles.peek)     # listing order must not follow true ids
         if C.light_level(state, from_room) < 0.2 and not C.robot_has_light(state):
             wet = None
     return {"connection": cid, "to": other, "dir": direction(state, conn, from_room, other), "steps": conn.get("steps", 12),

@@ -28,6 +28,8 @@ wall outlet (its plug goes straight into it: no cord run across the floor) where
 hazard-free route; the robot sitting on it is marked `docked`. Rooms that have no such spot are skipped (the next
 plausible room is tried, else the house simply lacks the item).
 """
+import copy
+
 from ...generator.place import Placer
 from ...kernel import geometry
 from ...kernel.plugins import furnisher
@@ -286,20 +288,30 @@ def _outlets(config, rid):
     return out
 
 
-def _zone_cuts_nothing(p, rid, dock):
+def _zone_cuts_nothing(p, rid, dock, every_hazard=False, ignore=()):
     """The dock's keep-clear zone (1.5 m in front, 0.5 m beside it) is a no-go area for a careful robot: it must not
-    cut a hazard-free route or the only hazard-free access to anything in the room."""
+    cut a hazard-free route or the only hazard-free access to anything in the room.
+
+    every_hazard (generation 2's final check, dock_check): count every floor hazard of the finished room -- loose things
+    too, which the final repair pass re-places only when they cut a route on their own (a plugged-in tower fan beside
+    the dock's outlet stays) -- except the keep-out rings of people asleep in bed (temporary; the layout audit leaves
+    them out as well). ignore: the household robots seated on this dock (their cells are the dock's)."""
     state = p.state()
     zone = set(H.dock_zone(state, dock))
     if not zone:
         return True
-    blocked = set(geometry.blocked_cells(state, rid, include_agents=False))
-    # fixed hazards only (loose things can be moved, and the final repair pass re-places those that cut a route)
-    fixed = {c for c, items in geometry.placement_hazards(state, rid).items()
-             if any(s != dock and not _movable(state, s) for _, s in items)}
-    targets = geometry.access_targets(state, rid, level="all", ignore=(dock,))
-    before = geometry.access_report(state, rid, blocked | fixed, targets)
-    after = geometry.access_report(state, rid, blocked | fixed | zone, targets)
+    ignore = tuple(ignore)
+    blocked = set(geometry.blocked_cells(state, rid, ignore=ignore, include_agents=False))
+    hazards = geometry.placement_hazards(state, rid)
+    if every_hazard:
+        sleepers = {aid for aid, agent in state.get("people", {}).items() if agent.get("in_bed") and agent.get("location") == rid}
+        others = {c for c, items in hazards.items() if any(s != dock and s not in ignore and s not in sleepers for _, s in items)}
+    else:
+        # fixed hazards only (loose things can be moved, and the final repair pass re-places those that cut a route)
+        others = {c for c, items in hazards.items() if any(s != dock and not _movable(state, s) for _, s in items)}
+    targets = geometry.access_targets(state, rid, level="all", ignore=(dock,) + ignore)
+    before = geometry.access_report(state, rid, blocked | others, targets)
+    after = geometry.access_report(state, rid, blocked | others | zone, targets)
     return geometry.not_worse(before, after)
 
 
@@ -318,11 +330,11 @@ def _free_receptacle(config, outlet):
     return None
 
 
-def _dock_at_outlet(p, rid, dock_type):
+def _dock_at_outlet(p, rid, dock_type, every_hazard=False):
     """A dock standing against the wall right beside an outlet with a free receptacle (placed by Placer.furniture, so
     access is not made worse) whose clearance zone cuts nothing - the outlet itself stays reachable from outside the
     zone. The dock is plugged straight into it (a 0.5 m cord along the skirting: no cord across the floor). Returns the
-    dock id or None."""
+    dock id or None. every_hazard: the zone is judged against every floor hazard (_zone_cuts_nothing)."""
     room = p.c["rooms"][rid]
     for oid, cell in _outlets(p.c, rid):
         socket = _free_receptacle(p.c, oid)
@@ -336,7 +348,8 @@ def _dock_at_outlet(p, rid, dock_type):
                 continue
             rec = p.c["entities"][dock]
             foot = geometry.footprint(rec)
-            if cell not in foot and min(geometry.chebyshev(cell, f) for f in foot) == 1 and _zone_cuts_nothing(p, rid, dock):
+            if cell not in foot and min(geometry.chebyshev(cell, f) for f in foot) == 1 and \
+                    _zone_cuts_nothing(p, rid, dock, every_hazard=every_hazard):
                 plug = min(foot, key=lambda f: (geometry.chebyshev(cell, f), f[1], f[0]))
                 rec.update(plugged_in=True, outlet=oid, _socket=socket, plug_seated=1.0, cord_route="along_wall",
                            cord_cells=[[rid, [plug[0], plug[1]]], [rid, [cell[0], cell[1]]]], cord_length_used_m=0.8, cord_hazard=[])
@@ -520,3 +533,75 @@ def furnish(config, rng, opts, registry):
             config["entities"][p.new_id("robot_mower")] = mower
     if gen2:
         _gen2_extras(p, config, gen_rng)
+
+
+# fields Placer.furniture and _dock_at_outlet give a dock's placement (moved onto the dock's own record on relocation)
+DOCK_PLACEMENT = ("location", "pos", "rot", "plugged_in", "outlet", "_socket", "plug_seated", "cord_route", "cord_cells",
+                  "cord_length_used_m", "cord_hazard")
+
+
+def _seated(config, dock):
+    """Household robots seated on a dock (sorted ids)."""
+    return sorted(e for e, r in config["entities"].items() if isinstance(r.get("rv"), dict) and r["rv"].get("dock") == dock)
+
+
+def _relocate_dock(p, config, dock, rooms):
+    """Move a dock (and the robots seated on it) to the first spot of `rooms` beside an outlet with a free receptacle
+    (_dock_at_outlet: plugged straight in, no cord across the floor) where its zone cuts nothing in the finished house
+    (every hazard counted). The dock keeps its id and record; only its placement and plug change (a cord run the
+    electrical hookup laid for it is lifted). False when no room has such a spot (everything stays as it was)."""
+    ents = config["entities"]
+    rec = ents[dock]
+    robots = _seated(config, dock)
+    # off the grid (and out of its receptacle) while the search runs
+    parked = {(e, f): ents[e].pop(f) for e in [dock] + robots for f in ("pos", "outlet") if f in ents[e]}
+    found = None
+    for rid in rooms:
+        found = _dock_at_outlet(p, rid, rec["type"], every_hazard=True)
+        if found is not None:
+            break
+    if found is None:
+        for (e, field), value in parked.items():
+            ents[e][field] = value
+        return False
+    new = ents.pop(found)
+    for field in DOCK_PLACEMENT:
+        if field in new:
+            rec[field] = copy.deepcopy(new[field])
+        else:
+            rec.pop(field, None)
+    for room in config["rooms"].values():
+        if any(h.get("source") == dock and h.get("cord") for h in room.get("floor_hazards") or []):
+            room["floor_hazards"] = [h for h in room["floor_hazards"] if not (h.get("source") == dock and h.get("cord"))]
+    for e in robots:
+        ents[e]["location"] = rec["location"]
+        _seat_on_dock(config, ents[e], dock)
+    return True
+
+
+@furnisher("navigation_robot.dock_check", order=120)
+def dock_check(config, rng, opts, registry):
+    """Generation 2 (layout follow-up of phase 1): every household-robot dock's keep-clear zone, judged in the finished
+    house -- after the furnishers that run after navigation_robot.features (climate's fans before it are loose things the
+    placement rule set aside; electrical.hookup mounts receptacles later, on the zone's wall when the room has no
+    hazard-free wall cell) -- must cut no hazard-free route and no only hazard-free access to anything. A dock whose zone
+    does is moved, with the robots seated on it, to the first spot that keeps everything reachable: its own room first,
+    then the rooms the vacuum is kept in (VACUUM_ROOMS); else the house lacks it, as when no room had a spot at first.
+    Generation 1 is untouched (its houses and draws are frozen); this furnisher's own stream changes no other draw."""
+    if int(opts.get("gen") or 1) < 2:
+        return
+    p = Placer(config, registry, rng)
+    ents = config["entities"]
+    for dock in sorted(e for e, r in ents.items() if r.get("rv_dock") and r.get("pos")):
+        if dock not in ents:
+            continue
+        rid = ents[dock].get("location")
+        if rid not in config["rooms"] or _zone_cuts_nothing(p, rid, dock, every_hazard=True, ignore=_seated(config, dock)):
+            continue
+        rooms = [rid]
+        if ents[dock].get("type") != "robot_mower_dock":
+            rooms += [r for kind in VACUUM_ROOMS for r in p.rooms(kind) if r != rid
+                      and not any(config["rooms"][r].get(k) for k in ("shared", "private", "off_limits", "outdoor"))]
+        if not _relocate_dock(p, config, dock, rooms):
+            for e in [dock] + _seated(config, dock):
+                del ents[e]

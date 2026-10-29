@@ -1,0 +1,72 @@
+[
+ {
+  "domain": "manipulation",
+  "source": "appliances_cooking (finish_appliances_cooking.json request)",
+  "problem": "Tearing a perforated thing that is not packaging opens it 'along its notch': a stainless steel colander (food.json colander, perforated true -- the kernel's and plumbing's drain flag) held and torn answers 'Tore col open along its notch' and gets open / torn_open true.",
+  "cause": "house_sim/systems/manipulation/wrapping.py tear: `along in ('perforation', 'notch') and rec.get('perforated')` reads the drain flag as a tear perforation.",
+  "change": "Tear along a perforation only on tearable packaging (tears_by_hand material, packaged / sealed, or an explicit tear_perforation flag); a rigid perforated body refuses like any rigid thing. Repro: Kit('electric_coil') of tests/test_appliances_cooking.py, kit.add('col', 'colander', 'counter_2'), approach, pick_up, tear col."
+ },
+ {
+  "domain": "pets",
+  "source": "mechanisms (finish_mechanisms.json request)",
+  "problem": "With pets loaded the dog bolts through a door the robot only test-pulled or test-pushed: pets' _door_pulled_open / _door_pushed_open dash for any opening, including the 10 % an unlatched door swings on pull_handle / push_handle test=True ('It moves: ... it swung open a little'; mech.open_frac 0.1), where mechanisms' own dash (now standing down while pets owns escapes) needed an opening of 30 % or more.",
+  "cause": "house_sim/systems/pets/behavior.py _door_pulled_open / _door_pushed_open call _door_opened whenever the door's record is open after the verb, whatever its opening fraction.",
+  "change": "Decide and pin it: gate the dash on ((rec.get('mech') or {}).get('open_frac', 1.0)) >= 0.3 (mechanisms' former rule), or document why a 10 % crack lets a pet bolt. Repro: tests/test_mechanisms.py House(); front_door locked=False, latched=False; dog_1 in the entry at [1, 2], escape_risk 0.9; robot in the entry at (1, 1); step('pull_handle', 'front_door', test=True): the dog bolts with pets loaded, not with HOUSE_SIM_DOMAINS=core,mechanisms."
+ },
+ {
+  "domain": "manipulation",
+  "source": "food (finish_food.json request; red_leaks I4, review I4)",
+  "problem": "Unfamiliar (novel) things are still told apart by manipulation: its inspector adds 'packing' (fill fraction, order) for an unfamiliar container (a novel mixing bowl), and shake says 'it feels empty' for an unfamiliar knife but not for an unfamiliar closed flour bag (judged by the true contents).",
+  "cause": "house_sim/systems/manipulation inspector and shake read the true record of a thing the robot takes for an unfamiliar object (ctx.unresolved / realism.novel_unidentified not asked).",
+  "change": "For an unidentified unfamiliar thing show only the kernel's NOVEL_FIELDS (no 'packing' extra) and give shake one answer whatever it is (or the kernel's identify-first refusal). Repro: scratchpad p1_food/f3/novel_food_probe.py (tests/test_food.py PhaseOneFinish.NOVEL_KINDS scenes)."
+ },
+ {
+  "domain": "admin_inventory",
+  "source": "food (finish_food.json not_fixed, red_leaks I4)",
+  "problem": "count lists an unfamiliar (novel) pot's contents: an unidentified unfamiliar thing is told apart by what count reports inside it.",
+  "cause": "admin_inventory's count reads the true contents of a target the robot takes for an unfamiliar object.",
+  "change": "Refuse alike (or count nothing inside) while realism.novel_unidentified(target). Repro: the NOVEL_KINDS stock_pot scene of tests/test_food.py PhaseOneFinish (a novel stock pot holding chili), count <handle>."
+ },
+ {
+  "domain": "manipulation",
+  "source": "people (finish_people.json request; red_leaks 6 residual)",
+  "problem": "ask about=<handle of a thing destroyed out of view> with aspect keep / intended / how / status answers \"I'm not sure what you mean.\" where a thing merely out of view gets its answer -- an existence oracle (48 differences in people's probe).",
+  "cause": "house_sim/systems/manipulation/world.py _answer (manip:<key>:<entity>) answers from state.entities only.",
+  "change": "Answer from the record the household knew, as people's owner answer does (people knowledge._known_record: env._baseline entities, else {} for an id in kernel dialogue.remembered_ids(env)). Repro: scratch probe_gone.py of p1f_people (the tests/test_kernel_redteam.py RememberedSubjectTests scene; ask ana about=<handle> aspect keep|intended|how|status). tests/test_kernel_redteam.py RememberedSubjectTests covers aspects where and owner; add these aspects there once fixed."
+ },
+ {
+  "domain": "electrical",
+  "source": "plumbing_liquids (finish_plumbing_liquids.json request)",
+  "problem": "Live mains gear under a dripping pot never takes ingress however much water gathers: plumbing's drips arrive at phys.wetted in ~5 ml portions (leaks.drip_onto, one call per substep), each below INGRESS_L (0.02 L).",
+  "cause": "house_sim/systems/electrical/physical.py judges ingress per phys.wetted call, not per device over time.",
+  "change": "Accumulate liquid arriving per device (e.g. a pooled_l / ingress_l field reset when it dries) and judge INGRESS_L on the sum. Repro: tests/test_plumbing_liquids.py Phase1Finish.test_drips_onto_gear_run_the_wetting_hooks_and_damage_it_once_water_gathers with electrical loaded and the tv plugged in."
+ },
+ {
+  "domain": "electrical",
+  "source": "textiles_laundry (finish_textiles_laundry.json request); INT2",
+  "problem": "docs/domains/electrical.md (~lines 855-861) still lists as open items that were fixed in the phase-1 finish: textiles_laundry's heater_active asking physics.is_powered, plumbing_liquids' common.wet bypassing the kernel's liquids.wet (phys.wetted now runs for its spills and splashes), cleaning's bulb_hot / bulb_temperature and safety's battery_indicator on unfamiliar things.",
+  "cause": "Doc not updated after the other owners' fixes.",
+  "change": "Mark those items done (textiles model.heater_active; plumbing_liquids common.wet through the kernel; cleaning details and safety hazard_cues ask ctx.unresolved)."
+ },
+ {
+  "domain": "admin_inventory",
+  "source": "INT2 (new perception_audit read probe, people's request)",
+  "problem": "Look-alike group felt_marker: read (and, with the geometric camera, read_aloud) of an unresolved washable_marker is refused ('There is nothing legible to read on it', category perception) while an unresolved marker_pen reads -- the refusal names the member before it is resolved (the pill-bottle class people fixed in this phase).",
+  "cause": "house_sim/data/types/admin_inventory.json: washable_marker has no read-tier printed field while marker_pen has one.",
+  "change": "Give every member of the group printed text of the same form (a label_text / barrel print), or a blank label (label_text '' reads as blank for every member alike). Repro: python catalog/analysis/phase1/INT2_evidence/read_probe.py . room felt_marker (or tools/perception_audit.py 6 150 --workers 4: kind 'read')."
+ },
+ {
+  "domain": "navigation_robot",
+  "source": "INT2 (new perception_audit read probe, people's request)",
+  "problem": "Look-alike group robot_vacuum: read and read_aloud of an unresolved robot_vacuum are refused ('There is nothing legible to read on it') while an unresolved robot_vacuum_mop reads its mop-tank label -- the members are told apart before resolution.",
+  "cause": "house_sim/data/types/navigation_robot.json: robot_vacuum has no printed field, robot_vacuum_mop has label_text.",
+  "change": "Give robot_vacuum a printed label of the same form (its own care / dustbin label) or move the mop label to a field read only after resolution. Repro: python catalog/analysis/phase1/INT2_evidence/read_probe.py . room robot_vacuum."
+ },
+ {
+  "domain": "mechanisms",
+  "source": "INT2 (new perception_audit read probe, people's request); group owner cleaning",
+  "problem": "Look-alike group spray_bottle (cleaning's group): read of an unresolved trigger_bottle is refused ('There is nothing legible to read on it') while an unresolved all_purpose_cleaner reads its label -- the refusal names the plain trigger bottle before it is resolved.",
+  "cause": "house_sim/data/types/mechanisms.json trigger_bottle (a member of cleaning's spray_bottle group) has no printed field; the product sprays carry label_text.",
+  "change": "With cleaning (the group's owner): give trigger_bottle a blank label (label_text '' reads as blank, alike in form) or printed text, or take it out of the group if a plain bottle is visibly different. Repro: python catalog/analysis/phase1/INT2_evidence/read_probe.py . room spray_bottle."
+ }
+]

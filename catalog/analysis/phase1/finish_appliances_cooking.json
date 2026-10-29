@@ -1,0 +1,87 @@
+{
+ "id": "appliances_cooking",
+ "fixed": [
+  {
+   "item": "breakages.json (appliances_cooking, holder flags; review L3): kernel pours, spills, drips and rain pooled liquid in toaster, toaster_4slot (slots), air_fryer_basket, dishwasher_utensil_basket, coffee_filter_basket, portafilter (perforated) and chimney_starter (open bottom) -- and, found with every type of the domain made and opened, the burr coffee_grinder (its hopper feeds the burrs through an open throat)",
+   "how": "house_sim/data/types/appliances_cooking.json: holes_mm on the things liquid runs straight through (air-fryer basket 3 mm, cutlery basket 5, brew basket outlet 5, portafilter screen 0.3, chimney starter grate and vents 20: kernel drains_through, a pour lands on what is below) and watertight false on the things it runs out of (toaster, inherited by toaster_4slot; coffee_grinder: kernel liquid_tight false, a pour spills onto it and down); each doc says why. holes_mm rather than perforated, because manipulation's tear opens anything perforated 'along its notch' (request below). Kernel holds_liquid and plumbing's holds_liquid now refuse all eight; the remaining kernel holders of the domain, made and opened (scratch holders_open.py), are real vessels (carafe, pots, inserts, jars, mixer and processor bowls, door bins, knock box, sump, reservoirs, kettles, French press, pitcher) and opened cavities (oven, microwave, dishwasher tub, air-fryer drawer, crisper, bread machine) that catch a spill as real ones do. Generation-1 houses gain the flags as record fields only (60 pinned houses generated with and without: dishwasher_utensil_basket/coffee_filter_basket/air_fryer_basket/portafilter holes_mm and toaster watertight are the only differences, no placement moves)",
+   "test": "tests/test_appliances_cooking.py PhaseOneFinishTests.test_baskets_slots_and_open_throats_hold_no_kernel_liquid"
+  },
+  {
+   "item": "breakages.json (appliances_cooking, look-alike sizes; FIX2) + red_leaks.json finding 7 (review L2 residual): countertop_cooker members 0.26-0.33 m (rice cooker 0.26 x 0.33 x 0.21, pressure cooker 0.33 x 0.31 x 0.32) and kettle_lookalike members 0.22-0.24 m (0.22 x 0.16 x 0.25 vs 0.24 x 0.20 x 0.22) behind one shown size; the geometric camera told unresolved twins apart (cookers px 560 vs 650, range 0.6 vs 0.5 m, elevation -40 vs -35; kettles px 370 vs 350)",
+   "how": "Type data: both cookers take the group's shown size [0.30, 0.32, 0.27], both kettles [0.23, 0.19, 0.24], which kettle_lookalike now declares as its group size_m (real rice and pressure cookers, cordless and stovetop kettles come in overlapping sizes: size does not tell them; tools_vehicles' and plumbing's approach). The electric kettle keeps what its old size gave its physics (explicit inner_size_m [0.152, 0.152, 0.225] and base_diameter_m 0.16: it heats and fits a hob exactly as before); the stovetop kettle's derived heat-loss area moves +1.5 %. registry.lookalike_spreads lists no group of this domain; twins differing only in the member (realistic, room and geometric camera, at reset, after approach and face) observe identically. Generation-1 kitchens are frozen: furnish.GEN1_SIZES keeps their old sizes through _GenerationOneTypes (a view of the registry the placer resolves and makes with, so placement, fits and records are byte-identical) and GEN1_DROP leaves out the two kettle fields (verified: 60 generation-1 houses differ only by the holder flags above)",
+   "test": "tests/test_appliances_cooking.py PhaseOneFinishTests.test_look_alike_members_share_one_true_size; PhaseOneFinishTests.test_generation_one_kitchens_keep_the_old_look_alike_sizes"
+  },
+  {
+   "item": "red_leaks.json finding 4 (review I4) for this domain's verbs: an unfamiliar (novel) appliance was told apart by them -- sweep of every verb of the domain plus the core verbs it hooks over 20 unfamiliar twins (scratch novel_probe.py, room and geometric): an unfamiliar toaster oven preheated ('Display: PREHEATING 350F'), a kitchen timer or microwave took a timer, blend/brew/defrost/grind_coffee/light_grill/steam_milk gave the generic reason in the type's own category (precondition, safety, resource vs argument), load into one succeeded or refused by its type",
+   "how": "The device verbs blend, brew, defrost, grind_coffee, ignite, light_grill, preheat and set_timer are declared operates=True (kernel: the engine refuses an unfamiliar target with NOVEL_OPERATE_MESSAGE before any hook; not part of the action fingerprint); status._novel_guard refuses an unfamiliar item or destination of load, steam_milk and grind_coffee the same way (percept.DESTINATION_VERBS). The re-run sweep differs only where the kernel's own pick_up does (an unfamiliar grill or freezer cannot be lifted: a physical trial). FIX2's kernel part (glance openable, core open/switch) re-checked with the red team's repro_novel_inspect.py: all six twins identical in both cameras; twins_generic.py novel_sweep --sweep: the 5 remaining sweep findings are other owners' (flip spilling a liquid bottle, read / read_aloud of printed text, rotate's knock angle, support's heft)",
+   "test": "tests/test_appliances_cooking.py PhaseOneFinishTests.test_unfamiliar_appliances_answer_this_domains_verbs_alike"
+  },
+  {
+   "item": "The generic refusal of percept.plain_refusals / plain_check kept the type-specific reason's category, which told unidentified things (unresolved look-alikes and unfamiliar ones) apart (found with the sweep above)",
+   "how": "The generic 'That does not work on it' always comes with category precondition (percept.GENERIC_CATEGORY); kernel access refusals inside the block keep theirs, identified things keep their own reasons. No spec reads a block category (safety_blocks is not in any verdict)",
+   "test": "tests/test_appliances_cooking.py PhaseOneFinishTests.test_the_generic_refusal_has_one_category"
+  },
+  {
+   "item": "P1 gate G7 (substep cost 3.21 -> 3.86 ms): this domain's share (gate record: appliances_cooking.cold 0.155 -> 0.159, tick 0.116 -> 0.118, +0.006 ms per substep)",
+   "how": "Removed about three times over with every result unchanged. common._tick_index (the tick's location index, built whenever an active appliance needs contents: a relaxing griddle, waffle maker or grill every tick) is one pass in dict order with each location sorted when first read (common._bucket; the same lists as the id-ordered build, about a fifth of its cost); cold.step_cold asks for the supply once per substep (again only after a defrost tick, whose meltwater may reach other hooks); cold.item_heat_load_w asks lawbook.active('thermal_tau') once per unit instead of per item; oven.step_oven works out the set point and the supply only for a running oven. Exactness: state digests of the bench loop (seeds 0-7, 40 substeps each), 12 h waits in 30 min steps (generation 1 seeds 0-5, generation 2 seeds 0-3) and waits with idle probes off: 584 of 584 identical on one frozen copy of the tree with and without the change",
+   "test": "tests/test_appliances_cooking.py PhaseOneFinishTests.test_the_tick_location_index_reads_like_a_fresh_scan (and the digest A/B, scratch ab_digest.py)"
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "Generation-1 kitchens keep the old look-alike sizes, so a furnished generation-1 electric kettle (0.22 x 0.16 x 0.25), rice cooker or pressure cooker still differs in true size from the size its group shows (the geometric camera's L2 residual, generation 1 only; generation 2, helper-made and spec-spawned members are aligned)",
+   "why": "Generation-1 layouts are frozen (TIER1_INTEGRATION 3.2, TIER1_SWEEP 14.1: re-records only for record fields, never a placement); a new size moves counters' and cabinets' placements. The kernel half (px and standoff from the displayed size while unresolved, phase-1 request) would close it"
+  },
+  {
+   "item": "cold._unchanged scans every entity's location once after each begin() (about 0.03 ms per step; the bench loop and agent episodes take a fresh step per substep)",
+   "why": "Kernel: after begin() the touch log restarts, so a memo cannot learn what moved between its last look and the new step without a scan; request below"
+  },
+  {
+   "item": "Every substep journals a full copy of each fridge and each relaxing appliance (6-10 us per record: World.mut clones)",
+   "why": "The World journal; a quiet field write (set_quiet) would hide the change from the kernel thermal active set and other touch-log readers, a result risk, not a pure cost change"
+  },
+  {
+   "item": "An unfamiliar fixed appliance (grill, freezer) is refused by unload where a portable one is lifted",
+   "why": "The kernel's pick_up tells the same fact by trying to lift it ('It is fixed in place or too large to lift'): a physical trial, not a type rule"
+  },
+  {
+   "item": "An opened oven, microwave, dishwasher tub or air-fryer drawer pools a kernel pour up to its storage capacity_l (75 L for a range oven) where its floor lip would hold about a litre",
+   "why": "Kernel: hold_capacity_l takes capacity_l, which this domain needs as the storage volume of the cavity; a separate pooled-litres field is a kernel decision (request below)"
+  },
+  {
+   "item": "Earlier phase-1 items of this domain still open (harms of inaction M9, capability registry M2, wait(until) on true values H6, outbound id rewrite of label words, per-field inspect acuity) and the spec weaknesses the review found (memorised burner T-032657e9583337-01, fixed milk timer A-2bbd9d39ff1512-01, unguarded oven clock T-0d397bf9de09a0-01, delayed-start acceptance T-ec38fe45bca9ab-01)",
+   "why": "Kernel requests filed in phase 1 (catalog/analysis/phase1/appliances_cooking.json); the spec repair belongs to the verifier-hardening phase (docs/design/VERIFY_HARDENING.md)"
+  }
+ ],
+ "specs_changed_outcome": [],
+ "perf": "Interleaved A/B on one frozen copy of the tree (scratch snap0 = this round's correctness changes, snap1 = plus the cost changes; 4 pairs, best of 3 rounds each; bench_systems loop, seeds 0-3, 40 substeps): appliances_cooking.cold + tick 0.2850 -> 0.2675, 0.2959 -> 0.2773, 0.2867 -> 0.2753, 0.3323 -> 0.2873 ms per substep (median -0.018 ms, -6 %; tick 0.123 -> 0.114, cold 0.164 -> 0.158); this domain's systems and idle probe inside the four 1 h waits 63.4-69.2 -> 62.5-63.5 ms (G7's wait_1h_s for the whole engine 1.07-1.19 s, unchanged within noise). The gate record's share was +0.006 ms (cold 0.155 -> 0.159, tick 0.116 -> 0.118). Profile of a 1 h wait (seeds 0-3): the tick runs in 366 of 480 substeps (ovens, dishwashers and grills relaxing toward a moving room temperature write every substep, so the exact idle probe cannot skip them), the cold system in all 480; the remaining cost is the per-step journal copy of each written record and cold._unchanged's location scan (kernel request). Measured on a shared machine (CPU 30-100 % from other sessions): absolute numbers drift +-10 % between runs, the pairwise differences were consistent",
+ "tests": {
+  "count": 196,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 17,
+  "passed": 17
+ },
+ "requests": [
+  {
+   "owner": "kernel",
+   "request": "World touch log across begin(): a consumer that read the log up to some cursor in step n cannot learn what was written after that in step n once begin() restarts the log, so appliances_cooking's fridge-contents memo (cold.contents_of_units / _unchanged) re-checks by scanning every entity's location once per step (~0.03 ms on a 650-930 entity house, every substep of the bench loop and of agent episodes). Ask: keep the previous step's tail for named consumers (touched_since(cursor, consumer) valid across one begin(), e.g. a step-qualified cursor), or a monotone per-entity location epoch (w.location_epoch or a 'moved since token' query). Repro: python <scratch>/p1f_appliances_cooking/parts.py 5 (cold._unchanged 0.03-0.06 ms per substep)"
+  },
+  {
+   "owner": "kernel",
+   "request": "INT / main session re-records (this domain's classes, all record fields from type data): tests/data/gen1_digests.json -- generation-1 houses gain entities.<dishwasher_utensil_basket|coffee_filter_basket|air_fryer_basket|portafilter>.holes_mm and entities.<toaster>.watertight (60 pinned houses checked in-process with and without this round's type data: no other difference, no placement); tests/data/room_golden.json -- golden dump --all of HEAD's and this round's appliances_cooking files on one frozen tree: entities.*.holes_mm / watertight (and the oracle obs.visible_entities.* copies), entities.electric_kettle_*.inner_size_m / base_diameter_m (type data now; a generation-1 kettle gets them at reset), entities.*.size_m of kettles and cookers in generation-2 and helper-made kitchens (T-03d77bbfc281a4-01, T-0b4f248ae32c87-01, T-3c114c8e4796ec-01, T-73a13fb297c40f-01, T-b122adaae3586f-01, T-b1456a2d293d2f-01), the generation-2 knock-on placements of four spec houses (A-c0f8c53da99d24-01, P-47196e0991cdf4-01, T-8df3105ebc8486-01, T-d1f9385dbb80fc-01: pantry and fridge contents' location/shelf and their dates, spoilage and thermal fields, extra eggs, cord routes, a ball's pos), and realistic observations' per-episode handles. Verdicts: all 243 authored specs in own mode identical between the two versions (own mode 242/243 both sides, realistic forced 241/243 both, the 51 realistic specs with --camera geometric 51/51 both, wrong-plan outcomes identical)"
+  },
+  {
+   "owner": "manipulation",
+   "request": "manipulation/wrapping.py tear: `along in ('perforation', 'notch') and rec.get('perforated')` opens anything perforated -- the kernel's and plumbing's drain flag -- 'along its notch': a stainless steel colander (food.json colander, perforated true) held and torn answers 'Tore col open along its notch' and gets open/torn_open true. Repro: Kit('electric_coil') of tests/test_appliances_cooking.py, kit.add('col', 'colander', 'counter_2'), approach, pick_up, tear col. Suggest: a tear perforation only on tearable packaging (tears_by_hand material, packaged/sealed, or an explicit tear_perforation flag); this domain uses holes_mm for its baskets to stay clear of it"
+  },
+  {
+   "owner": "kernel",
+   "request": "phys.liquids.hold_capacity_l takes capacity_l, so an opened cavity (range oven 75 L, microwave 25 L, dishwasher tub 600 L, air-fryer drawer 8 L) pools a kernel pour up to its storage volume; a real oven floor holds about a litre before it runs over the door. Ask: an optional pooled-litres field (e.g. pool_l, or let rim_m win over capacity_l) that domains can set on cavities whose storage capacity is not a vessel's"
+  }
+ ],
+ "notes": "Work on one frozen copy of the tree (scratch p1f_appliances_cooking/snap0, snap1, snapH) because other sessions edited electrical, climate and navigation_robot meanwhile. GREEN on the live tree: tests/test_appliances_cooking.py 196 tests OK normal, HOUSE_SIM_STRICT=1, HOUSE_SIM_DOMAINS=core,appliances_cooking (also strict); spec files appliances_cooking__examples.json 12/12 and appliances_cooking__perception.json 5/5 own mode and 5/5 --camera geometric (seeds 0 1 2 41 97, every spec gen 2); perception_audit.py 20 80 --verbose: 0 leaks, 0 crashes (and 12 x 80 --camera geometric: 0 / 0); layout_audit.py 20 --domain appliances_cooking: 120 houses 0 problems, --gen 2: 220 houses 0 problems, 0 domain follow-ups; fuzz.py --coverage: 44,294 commands, 0 defects, 0 nondeterministic (278 of 427 actions; this domain's never-succeeded list equals the P1 gate's). All authored specs, HEAD's vs this round's appliances_cooking files on the frozen tree (scratch ab_specs.py): own mode 242/243 both, realistic forced 241/243 both (T-dda4e199f3f5b0-01 seed 1, the known pets urgency judgement), the 51 realistic specs with --camera geometric 51/51 both; verdicts and wrong-plan outcomes identical everywhere (T-8e57df5742271b-01 fails on both sides: another owner's concurrent edit). Docs: docs/domains/appliances_cooking.md sections 3, 4a, 11 and the new 11.1. The kettle perception spec T-b1456a2d293d2f-01 still passes in both cameras (its wrong plan 'a kettle goes on the stove' loads the unresolved kettle onto a burner; load is not in the look-alike guard on purpose, so the plan still runs as authored). Not touched: the verifier-hardening design (VERIFY_HARDENING.md)."
+}

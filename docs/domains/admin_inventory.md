@@ -595,7 +595,9 @@ Kernel default groups apply too (the mailbox key on the key hook is a "metal key
   colour in bright light, battery tester display ("37%", key `battery_test`, an instrument reading passed through via
   `_perceived`; `charge` in oracle mode), the identity of a labeled bottle only once its label was read, the
   period-after-opening verdict only once its dates were read, an opaque stock jug's level (a heft and a tilt: touch
-  grant on its `liquid_l`).
+  grant on its `liquid_l`, only where a hand can be on it -- the kernel's touch gate `Realism.grant_problem`; a close
+  look the head camera resolves from a doorway reports the level as unknown and grants nothing, section 19), a bulk
+  jar's bands only through clear walls or an open mouth.
 * `sort_pages` reads page numbers and headers (read grant on the page fields); `file` by date/title/author/label
   reads the sort key of the paper and of those it passes; `rotate_stock` reads every date label (needs light and a
   clean camera; read grants) and its `what` filter matches only what a read can tell (an unlabeled look-alike is its
@@ -929,3 +931,48 @@ Not this domain's (requests): manipulation's and tools_vehicles' legacy contact-
 requester's own private paper (owner exemption); the address encodes the seed (generator, H5); positional roles of
 staged mail and trays (WP9 placement permutation of the verifier hardening); id echo of `parcel_1_item_1`-style ids
 (kernel `Realism.inbound`, I6, in progress); GEN's key-bowl spot (adoption request 5).
+
+## 19. Phase 1 finish (2026-10-28)
+
+Inputs: this domain's rows of `catalog/analysis/phase1/breakages.json`, the red-team files `red_defects.json` /
+`red_leaks.json`, the open requests to this domain (K-LEAK, INT, manipulation's finish round) and the P1 gate's G7.
+Result record: `catalog/analysis/phase1/finish_admin_inventory.json`. One regression test each in `StabiliseTests`.
+
+* **No heft from the doorway (the coverage fuzz's only strict-mode defect).** `inspect where=closely` of an opaque,
+  closed stock jug reports its level and grants touch of `liquid_l` / `mass_kg` ("a heft and a tilt") only where a hand
+  can be on it: held, or the kernel's touch gate (`Realism.grant_problem(..., "touch", ..., motion_records)`: within
+  arm's reach, crouching counts, or passed within reach on this step's walk). The geometric head camera can resolve the
+  jug from the closet doorway (the close look itself is allowed), but the reply now says
+  `"unknown: opaque, lift it or inspect it closely within reach"` and grants nothing, so `HOUSE_SIM_STRICT=1` no
+  longer raises and the level no longer leaks in normal mode (it did: T-ab9a26cd6a795e-01 seeds 1, 2, 41 and 97
+  reported the true level from the doorway, the kernel only dropped the grant). A jug seen into (clear walls, or an
+  open, non-opaque one) still shows its level to the eye, without a touch grant from afar. The same rule for bulk
+  jars: their bands (`layers`) show through clear walls or an open mouth, never through an opaque, closed one.
+* **Holder flags (review L3).** The kernel's liquid holders (`phys.liquids.holds_liquid`, plumbing_liquids' rule) are
+  now only this domain's real vessels: the key bowl, the pen cup, sorting bins, refill and pump bottles, the steel
+  document box, a poly mailer, a hard-shell suitcase and the shredder's bin. `"watertight": false` on the open-frame
+  napkin holder, the wall mail organizer, the inbox (letter) tray, the printer's document feeder, output tray and
+  paper tray, the outgoing mail slot, the curbside and apartment mailboxes (they open at the front), the filing
+  cabinet's drawers, an open ring binder, the hole punch, the pencil sharpener and all packing fill: kernel pours,
+  spills, drips and rain run out of them. A furnished-record change (gen-1 digest and room-golden re-record class
+  `entities.*.watertight`, plus the realistic handle renames any record change brings, the handle salt hashing the
+  initial house).
+* **Taking packaging off a broken item (manipulation's request; red team, wrap containment).** `remove_packing` on a
+  product clears its wrapper, film or blister pack and then ends the kernel's wrap containment
+  (`phys.impact.uncontained(w, target, by="robot")`): a shattered break shows, gets the sharp floor hazard on a floor
+  and the `phys.uncontained` hooks run (safety's shards), once and by the robot's hand (it used to come out later
+  through manipulation.breaks, attributed as exogenous).
+* **G7 (substep cost).** This domain's two time systems cost 0.059 ms per substep in the ADOPT record and 0.090 in P1
+  (same-day A/B bench, gc off: ADOPT 0.070, P1 tree 0.104). The whole increase is the first build of its static
+  indexes (printers, printer parts, paper stacks, documents, shredders, carts, rolls, consumables, exposure) through
+  the kernel's read views (the M3 contract: every predicate evaluation in a step goes through a view noting the fields
+  it reads, about 2.3 times a plain scan); the steady state is unchanged (0.044 vs 0.047 ms over 400 substeps). The
+  predicates now declare their fields (`common.reads`, passed as `World.static_index(reads=...)`; a test checks every
+  field they can read is declared) and `_is_part` no longer builds a generator per entity; results are unchanged
+  (equal digests, normal and strict). The remaining cost is removed by the kernel evaluating a declared-read predicate
+  on the plain record of every entity that is not journaled and has no quiet change in a declared field (a request;
+  with that change prototyped the two systems cost 0.070 ms, the ADOPT level).
+
+Not this domain's or the next phase's: the positional roles of staged mail and letter trays (review I2, red_leaks;
+VERIFY_HARDENING WP9 placement permutation); K-GATE's coverage list (17 of 34 actions never driven to success: the
+next phase's spec repair); the kernel fast path above; GEN's key-bowl spot (adoption request 5).

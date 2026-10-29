@@ -34,6 +34,7 @@ import copy
 import datetime
 import hashlib
 import math
+from bisect import bisect_left
 from statistics import NormalDist
 
 from ...kernel import camera, clock, geometry, timeline
@@ -106,7 +107,7 @@ def _rain_db(mm_h):
 def _windows_by_room(w):
     ents = w.s["entities"]
     out = {}
-    for eid in C.static_ids(w, "windows", lambda r: r.get("category") == "window"):
+    for eid in C.static_ids(w, "windows", C.is_window):
         rec = ents.get(eid)
         if rec is not None:
             out.setdefault(rec.get("location"), True)
@@ -529,29 +530,38 @@ def forecast_window(w, hours, key="rain_mm"):
 # ---------------------------------------------------------------------------
 # wind physics
 
+WIND_TYPES = frozenset(("patio_umbrella", "furniture_cover", "leaf_pile"))   # the kinds below that go by type
+
+
 def wind_effects(w, dt):
+    """This domain's wind pass over the outdoor things, in id order: umbrellas, covers laid over things, plant covers,
+    leaf piles and (while the kernel's wind law is deferred) loose things. Cost (phase-1 G7): the children map is built
+    only when a handler that may write or read it runs (always before the pass's first write, so it is the map of the
+    state the pass started from, as when it was built up front), the loose candidates are a sorted static index searched
+    by bisection (no per-substep set of every candidate in the house), and a loose thing the kernel's own cheap bound
+    keeps in place costs no exposure, footprint or doorway-clearance work (_object_wind)."""
     g = C.gust(w)
     if g < 6.0:
         return
-    vx, vy = C.wind_vector(w)
     state = w.s
     rooms_of = C.outdoor_map(w)
     if not rooms_of:
         return
-    kids = {}
-    for eid in sorted(rooms_of):
-        loc = state["entities"].get(eid, {}).get("location")
-        kids.setdefault(loc, []).append(eid)
     # loose things are the kernel's wind model's (routed through it below while the law is deferred, its own system's
     # once the law is active); the static candidates are built once per entity set
-    loose = set() if lawbook.active("wind") else set(C.static_ids(w, "wind_loose", wind_candidate))
-    gusts = WindPass(w, kids)
+    loose = () if lawbook.active("wind") else C.static_ids(w, "wind_loose", wind_candidate)
+    gusts = WindPass(w, rooms_of=rooms_of)
+    ents = state["entities"]
     for eid in sorted(rooms_of):
-        record = state["entities"].get(eid)
+        record = ents.get(eid)
         if record is None:
             continue
-        kind = None
-        if C.is_type(record, "patio_umbrella"):
+        if record.get("type") not in WIND_TYPES and WIND_TYPES.isdisjoint(record.get("is_a", [])) \
+                and record.get("category") != "plant_cover":
+            if not _sorted_has(loose, eid):
+                continue                    # none of the kinds below: the common case, decided without the chain
+            kind = "object"
+        elif C.is_type(record, "patio_umbrella"):
             kind = "umbrella"
         elif C.is_type(record, "furniture_cover") and record.get("covers"):
             kind = "cover"
@@ -559,9 +569,9 @@ def wind_effects(w, dt):
             kind = "plant_cover"
         elif C.is_type(record, "leaf_pile"):
             kind = "pile"
-        elif eid in loose:
+        elif _sorted_has(loose, eid):
             kind = "object"
-        if kind is None:
+        else:
             continue
         rid = rooms_of.get(eid)
         if rid is None:
@@ -571,6 +581,7 @@ def wind_effects(w, dt):
             continue
         if C.is_roofed(w, rid) and g < 15.0:
             continue
+        kids = gusts.cmap()                         # before this handler's first write
         if kind == "umbrella":
             _umbrella_wind(w, eid, g)
         elif kind == "cover":
@@ -579,6 +590,12 @@ def wind_effects(w, dt):
             _pile_wind(w, eid, g, dt)
         elif kind == "plant_cover":
             _plant_cover_wind(w, eid, g, kids)
+
+
+def _sorted_has(ids, eid):
+    """eid is in the sorted list ids (a static index)."""
+    i = bisect_left(ids, eid)
+    return i < len(ids) and ids[i] == eid
 
 
 def _current_kids(w, kids, eid):
@@ -601,6 +618,37 @@ def _current_kids(w, kids, eid):
 MAX_RAY_STEPS = 64          # cells along a downwind line (12 m at 45 degrees with the rounding repeats)
 
 
+def _resting_dims(record):
+    """(w, d, h) as the item rests (phys.environment's rule: a thing on its side lies on its longer footprint side)."""
+    w_, d_, h_ = phys_processes.dims(record)
+    if record.get("orientation") == "on_side":
+        if w_ >= d_:
+            w_, h_ = h_, w_
+        else:
+            d_, h_ = h_, d_
+    return w_, d_, h_
+
+
+def kernel_cannot_move(record, v, gust):
+    """The kernel's cheap bound before phys.environment.wind_effect does anything, term for term (its private
+    _cannot_move; kernel request to publish it): with the item's own mass only (a load on it can only add), the lowest
+    friction and the largest drag coefficient it can have, neither the gust lifts or tips it nor the sustained wind v
+    slides it. wind_effect returns at this bound without a write, so _object_wind checks it before its exposure,
+    footprint and doorway-clearance work (phase-1 G7). Pinned to the kernel's function by tests/test_outdoor_plants.py."""
+    gust = max(v, gust)
+    weight = phys_processes.num(record.get("mass_kg")) * kenv.G
+    if kenv.lift_force_n(record, gust) > weight:
+        return False
+    cd = max(kenv.CD_DEFAULT, phys_processes.finite(record.get("drag_cd")) or 0.0)
+    area = 0.5 * kenv.RHO_AIR * cd * kenv.frontal_area_m2(record)
+    w_, d_, h_ = _resting_dims(record)
+    tip = weight * min(w_, d_) / h_ if h_ > 0 else math.inf
+    lowest = kenv.CASTER_CRR_LOWEST if record.get("casters") else kenv.MU_LOWEST
+    return area * v * v <= lowest * (weight - kenv.lift_force_n(record, v)) and area * gust * gust <= tip
+
+
+@C.episode_index("wind_loose", outdoor=True)
+@C.index_reads("wind_lift_mps", "portable", "wheeled", "casters", "category", "is_a")
 def wind_candidate(record):
     """Static part of what the wind can move at all (phys.environment's free-standing rule): portable things, things
     on wheels or casters, free-standing furniture and loose covers. Manipulation's light sheets (an explicit
@@ -615,19 +663,22 @@ class WindPass(object):
     """Per-substep scratch of the loose-object wind: the children map of the outdoor things (the outdoor map's
     location -> sorted ids: every child of an outdoor thing is outdoors too, so it is the kernel's children map
     restricted to them, without its O(all entities) pass), the room's rest-cell blockers (rebuilt after anything in
-    that room moved) and the weather at the item. kids: that map when the caller has built it."""
+    that room moved) and the weather at the item. kids: that map when the caller has built it; rooms_of: the outdoor map
+    to build it from on first use (default: C.outdoor_map at that time)."""
 
-    def __init__(self, w, kids=None):
+    def __init__(self, w, kids=None, rooms_of=None):
         self.w = w
         self.weather = w.s.get("weather") or {}
         self.direction = kenv.wind_direction_deg(self.weather)
         self._kids = kids
+        self._rooms_of = rooms_of
         self._rooms = {}
 
     def cmap(self):
         if self._kids is None:
             self._kids = {}
-            for eid in sorted(C.outdoor_map(self.w)):
+            rooms_of = C.outdoor_map(self.w) if self._rooms_of is None else self._rooms_of
+            for eid in sorted(rooms_of):
                 loc = self.w.s["entities"].get(eid, {}).get("location")
                 self._kids.setdefault(loc, []).append(eid)
         return self._kids
@@ -708,9 +759,11 @@ def _object_wind(w, eid, rid, gusts):
     record = state["entities"][eid]
     if record.get("location") == "robot" or record.get("relation", "on") in kenv.FIXED_RELATIONS or record.get("covering"):
         return      # held, hung (hang ratings are the statics law's), inside, worn, attached; a laid cover is manipulation's
+    sustained, gust = kenv.object_wind_mps(state, eid, gusts.weather)
+    if kernel_cannot_move(record, sustained, gust):
+        return      # the kernel's wind_effect would return at its own cheap bound (no write): nothing below can matter
     if not kenv.exposed(state, eid):
         return      # under a porch roof, a cover, a table, in a closed box, or a plant / soil-water holder (phys.exposed)
-    sustained, gust = kenv.object_wind_mps(state, eid, gusts.weather)
     frid, start = phys_processes.floor_cell(state, eid)
     if frid != rid or start is None:
         return
@@ -1064,8 +1117,12 @@ OWN_DRYING = ("outdoor_cushion", "furniture_cover", "grill_cover", "pool_cover",
               "plastic_sheet", "garden_gloves", "deck_box", "firewood_log", "garden_tool", "garden_product", "garden_gnome", "sand_bag")
 
 
+_OWN_DRYING = frozenset(OWN_DRYING)
+
+
 def own_drying(record):
-    return any(C.is_type(record, t) for t in OWN_DRYING)
+    """This domain dries the record (its type or an ancestor is one of OWN_DRYING; reads type and is_a only)."""
+    return record.get("type") in _OWN_DRYING or not _OWN_DRYING.isdisjoint(record.get("is_a") or ())
 
 
 _GENERIC = []
@@ -1083,12 +1140,19 @@ def _surface_like(record):
     return record.get("category") == "floor" or C.is_type(record, "walkway")
 
 
+@C.episode_index("slow_weather")
+@C.index_reads("type", "is_a", "category")
+def _slow_weather_candidate(record):
+    """The static part of slow_candidates: this domain's own-drying types and ground surfaces (one index; it was two,
+    own_drying and surfaces, whose union the tick walked)."""
+    return own_drying(record) or _surface_like(record)
+
+
 def slow_candidates(w):
     """Entities the slow weather tick can change: this domain's own-drying types and ground surfaces (static
-    indexes). Without a generic drying domain loaded it also dries foreign things outdoors or rained on."""
+    index). Without a generic drying domain loaded it also dries foreign things outdoors or rained on."""
     ents = w.s["entities"]
-    ids = set(C.static_ids(w, "own_drying", own_drying))
-    ids.update(C.static_ids(w, "surfaces", _surface_like))
+    ids = set(C.static_ids(w, "slow_weather", _slow_weather_candidate))
     if not generic_drying_present():
         ids.update(C.outdoor_map(w))
         ids.update(e for e, r in ents.items() if r.get("_wx_wet"))
@@ -1129,7 +1193,7 @@ def slow_weather(w, periods):
         rid = C.room_of(w, eid)
         room = state["rooms"].get(rid, {})
         outdoor = bool(room.get("outdoor"))
-        if not (outdoor or record.get("_wx_wet") or any(C.is_type(record, t) for t in OWN_DRYING)):
+        if not (outdoor or record.get("_wx_wet") or own_drying(record)):
             continue  # indoor drying of other domains' things is theirs
         box = C.enclosed(w, eid)
         m = None
@@ -1314,7 +1378,7 @@ def _after_move_drip(ctx, result):
         return
     for eid in list(w.held_items()):
         rec = w.s["entities"].get(eid) or {}
-        if not (rec.get("_wx_wet") or any(C.is_type(rec, t) for t in OWN_DRYING)):
+        if not (rec.get("_wx_wet") or own_drying(rec)):
             continue
         wet = float(rec.get("wetness", 0.0) or 0.0)
         snow = float(rec.get("snow_cm", 0.0) or 0.0)

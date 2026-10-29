@@ -189,11 +189,27 @@ def _water_quality_effects(w, eid, tank, liters, dt, robot=False):
         m["wick_scale"] = C.rnd(min(1.0, C.num(rec.get("wick_scale")) + liters * ppm / 200000.0), 4)
 
 
+@C.index_reads("surface", "category", "blocks_path")
+def _settle_candidate(rec):
+    """Surfaces and furniture an ultrasonic humidifier's white mineral dust can settle on."""
+    return bool(rec.get("surface") or rec.get("category") in SETTLE_CATS or "blocks_path" in rec)
+
+
+@C.index_reads("category")
+def _floor_candidate(rec):
+    return rec.get("category") == "floor"
+
+
+@C.index_reads("category")
+def _mist_candidate(rec):
+    return rec.get("category") in MIST_SENSITIVE
+
+
 def _settle_minerals(w, eid, grams):
     """White mineral dust from an ultrasonic humidifier settles on surfaces within 1.5 m."""
     state = w.s
     rid, x, y = C.entity_xy(state, eid)
-    cands = C.static_ids(w, "climate.dust_settle", lambda r: bool(r.get("surface") or r.get("category") in SETTLE_CATS or "blocks_path" in r))
+    cands = C.static_ids(w, "climate.dust_settle", _settle_candidate)
     for other in cands:
         orec = state["entities"].get(other)
         if orec is None or other == eid or orec.get("location") == "robot" or C.room_of(state, other) != rid:
@@ -226,13 +242,13 @@ def _placement_effects(w, eid, rid, dt, vapour_g_s, robot=False):
             C.charge(w, "damage", robot)
             C.log(w, "water_marks", target=parent_id, source=eid, by=C.by_word(robot))
     if near_floor and rec.get("humidifier_type") != "warm_mist":
-        floor = next((f for f in C.static_ids(w, "climate.floors", lambda r: r.get("category") == "floor")
+        floor = next((f for f in C.static_ids(w, "climate.floors", _floor_candidate)
                       if (state["entities"].get(f) or {}).get("location") == rid), None)
         if floor and state["rooms"][rid].get("floor_material") in ("carpet", "hardwood"):
             fm = w.mut(floor)
             fm["_mist_s"] = C.rnd(C.num(state["entities"][floor].get("_mist_s")) + dt, 1)
     _, x, y = C.entity_xy(state, eid)
-    for other in C.static_ids(w, "climate.mist_sensitive", lambda r: r.get("category") in MIST_SENSITIVE):
+    for other in C.static_ids(w, "climate.mist_sensitive", _mist_candidate):
         orec = state["entities"].get(other)
         if orec is None or C.room_of(state, other) != rid:
             continue

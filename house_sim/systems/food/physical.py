@@ -21,9 +21,11 @@ through the kernel:
   wet surface, the spill statistics and their attribution); the residue it leaves stays a food soil mark.
 * `freeze_burst`: a sealed rigid container of liquid food bursts (or a can bulges) by the kernel's freeze-burst rule
   (phys.thermal), with the food's own fill and ice fraction.
+* `hot_contact`: this domain's copy of the kernel's contact_heat law while the law is deferred (a hot dish set down on
+  a table marks its finish), with the kernel's own numbers and every domain's claims (phase-1 breakage).
 """
 from ...kernel import physics
-from ...kernel.phys import impact, liquids, processes, props as phys_props, thermal
+from ...kernel.phys import impact, lawbook, liquids, processes, props as phys_props, thermal
 from ...kernel.plugins import hook
 from . import common as C
 from . import data as D
@@ -363,6 +365,69 @@ def soak_from_vessel(w, eid, rec, vessel):
     for key, level in sorted(marks.items()):
         rose = M.raise_contam(w, eid, key, level) or rose
     return rose
+
+
+# ----------------------------------------------------------------------
+# hot things set down on a finish (the contact_heat law's legacy copy)
+
+_COPIES = {}
+
+
+def other_copy_loaded(law_id):
+    """True when a domain that laws.json names as keeping its own legacy copy of a deferred law (its duplicated_by row)
+    is loaded: that copy handles every contact, so this domain's steps aside -- one mark per contact, not one per domain
+    (a hot dish on a wooden board drew heat_mark from appliances_cooking, scorch from manipulation and food's own
+    heat_mark, each counted in stats.damage). Cached per plugin-table size (domains load once, before any episode)."""
+    from ...kernel.plugins import OWNERS
+    key = (law_id, len(OWNERS))
+    found = _COPIES.get(key)
+    if found is None:
+        prefixes = tuple("house_sim.systems.{}.".format(d) for d in lawbook.LAWS[law_id]["duplicated_by"] if d != "food")
+        found = _COPIES[key] = bool(prefixes) and any(str(owner).startswith(prefixes) for owner in OWNERS.values())
+    return found
+
+
+def hot_contact(w, hot, support, by="robot"):
+    """This domain's copy of the kernel's contact_heat law while the law is deferred (TIER1_PHYSICS 5.9, 10.3): `hot`
+    set down ON `support` marks its finish when its contact face (phys.thermal.contact_temp_c: a vessel's wall is cooler
+    than its liquid) is hotter than the support's heat limit (phys.thermal.heat_limit_c: finished wood 60 C, plastic
+    100 C, laminate 120 C, a trivet or another heat-resistant top about 400 C, stone 300 C), with the mark of its finish
+    (phys.thermal.contact_mark: melted for plastics, a white ring in a wood finish below 150 C, else a scorch) at the
+    law's severity, recorded through phys.impact.damage (the global damage flag once per kind, the robot's: the place
+    is its action). Before marking it asks every domain's phys.contact_heat hook (phys.thermal.contact_claimed), as the
+    law's contact_check does: a contact another domain owns -- an iron upright on its heel rest, a pot on its own
+    burner, a support that catches fire instead -- is not this rule's to mark. A brittle top (glass, stone with a
+    thermal-shock tolerance) is the law's shock check, not a mark. Once the law is active the kernel owns all of it and
+    this copy steps aside; so it does while a domain laws.json lists as duplicating the law (manipulation,
+    appliances_cooking) is loaded, whose copy marks the same contact (other_copy_loaded). Returns the mark made, or
+    None.
+
+    Phase-1 breakage (T-7d4006bda247ba-01, appliances_cooking's request): the old rule marked any item above 70 C on
+    wood, laminate or plastic with heat_mark 0.4 and a damage count on every placement, whatever the support's heat
+    limit and whoever claimed the contact (a claimed 200 C steel pan on a table still got heat_mark 0.4)."""
+    state = w.s
+    entities = state["entities"]
+    rec = entities.get(hot)
+    if rec is None or support not in entities or rec.get("location") != support or rec.get("relation", "on") != "on":
+        return None
+    if lawbook.active("contact_heat") or other_copy_loaded("contact_heat"):
+        return None                                   # the kernel's law (or another domain's copy) owns the contact
+    limit = thermal.heat_limit_c(state, support)
+    temp = thermal.contact_temp_c(state, hot)
+    if limit is None or temp <= limit:
+        return None
+    severity = round(min(1.0, (temp - limit) / thermal.CONTACT_SPAN_K), 4)
+    if thermal.contact_claimed(w, hot, support, temp, severity):
+        return None
+    p = phys_props.props(state, support)
+    if p.brittle and processes.finite(p.shock_k) is not None:
+        return None                                   # the law shock-checks a brittle top instead of marking it
+    kind = thermal.contact_mark(p.cls, temp)
+    if impact.damage(w, support, kind, severity, detail="hot item rested on it", by=by,
+                     note="{} was marked by heat".format(support)):
+        w.emit("heat_mark", target=support, source=hot, damage=kind)
+        return kind
+    return None
 
 
 # ----------------------------------------------------------------------

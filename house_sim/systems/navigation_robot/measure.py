@@ -403,6 +403,8 @@ def mark(ctx):
     return "Marked {} at {:.3f} m".format(target, height)
 
 
+@C.per_substep_index("leveled")
+@C.index_reads("leveling")
 def _is_leveled(rec):
     return bool(rec.get("leveling"))
 

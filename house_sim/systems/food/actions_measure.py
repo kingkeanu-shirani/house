@@ -68,11 +68,13 @@ def _grams_by_eye(ctx, fid):
     ctx.refuse_unidentified(fid, "Unidentified contents: measure by volume (amount_ml) or on a scale, not grams by eye")
 
 
-def _scale_under(state, vessel):
+def _scale_under(state, vessel, env=None):
+    """The kitchen scale vessel stands on (directly or through what it rests on), or None. With realistic perception
+    an unfamiliar (novel) thing is no scale the robot knows of, whatever it really is (P.unfamiliar_first)."""
     rec = state["entities"].get(vessel)
     loc = rec.get("location") if rec else None
     while loc in state["entities"]:
-        if state["entities"][loc].get("tool_kind") == "kitchen_scale":
+        if state["entities"][loc].get("tool_kind") == "kitchen_scale" and not P.unfamiliar(env, loc):
             return loc
         loc = state["entities"][loc].get("location")
     return None
@@ -88,8 +90,13 @@ def weigh(ctx):
     w = ctx.w
     tid = ctx.args["target"]
     rec = ctx.obj(tid, touch=bool(ctx.args.get("tare") or ctx.args.get("unit")))
-    scale = tid if rec.get("tool_kind") == "kitchen_scale" else _scale_under(w.s, tid)
-    require(scale, "Put it on a kitchen scale first", "precondition")
+    # an unfamiliar thing is weighed as an object, never read as the scale itself (whatever it is)
+    known_scale = rec.get("tool_kind") == "kitchen_scale" and not P.unfamiliar(ctx.env, tid)
+    scale = tid if known_scale else _scale_under(w.s, tid, ctx.env)
+    # (for an unfamiliar thing the refusal names no kind of thing: the kernel rewrites an unfamiliar target's true type
+    # words in a message, so "kitchen scale" would read differently for an unfamiliar kitchen scale)
+    require(scale, "Put it on a scale first" if P.unfamiliar(ctx.env, tid) else "Put it on a kitchen scale first",
+            "precondition")
     srec = ctx.obj(scale, touch=bool(ctx.args.get("tare") or ctx.args.get("unit") or not w.ent(scale).get("on")))
     require(not srec.get("broken"), "The scale is broken", "resource")
     require(float(srec.get("battery_level", 1.0)) > 0.02, "The scale's battery is flat", "resource")
@@ -152,7 +159,7 @@ def _measure_ml(trec):
 @action("scoop", params={"target": "entity", "tool": "?entity", "destination": "?entity",
                          "technique": "?str:spoon_and_level|dip_and_sweep|packed|heaped|rounded|level",
                          "count": {"type": "int", "default": 1, "min": 1, "max": 40}, "item": "?entity"},
-        duration=C.duration(6.0), irreversible=True, noise=0.02,
+        duration=C.duration(6.0), irreversible=True, operates=True, noise=0.02,
         doc="Fill a held measuring cup/spoon or scoop from an open source (bag, canister, tub, bowl) count times, levelled "
             "or heaped as the technique says, emptying each into the destination (or keeping it in the tool). Flour: "
             "spoon_and_level ~125 g/cup; dip_and_sweep packs ~150 g/cup. Brown sugar is measured packed. A wet scoop "
@@ -170,7 +177,7 @@ def scoop(ctx):
     k = f.get("kind")
     if technique == "spoon_and_level":
         require(ctx.free_hand() is None and any(h != tool_id and (w.ent(h).get("tool_kind") in ("spoon", "measuring_spoon", "scoop", "table_knife", "butter_knife")
-                                                         or "scoop" in w.ent(h).get("capabilities", [])) for h in w.held_items()),
+                                                         or "scoop" in w.ent(h).get("capabilities", [])) for h in C.held_known(ctx)),
                 "Spoon-and-level needs a spoon (or straight edge) in the other hand", "capability")
     dens_table = D.DENSITY.get(k)
     if f.get("phase") in ("powder", "granular"):
@@ -239,7 +246,7 @@ def scoop(ctx):
                             "tool": "?entity", "method": "?str:pour|scrape|ladle|spoon|tongs|funnel|slotted|skim",
                             "rate": "?str:slow|normal|fast", "read": "?str:eye_level|above|tilted",
                             "careful": {"type": "bool", "default": True}},
-        duration=C.duration(15.0), irreversible=True, noise=0.05,
+        duration=C.duration(15.0), irreversible=True, operates=True, noise=0.05,
         doc="Move food from a source (a food item, package or a vessel's contents; item= picks one food in it) into a "
             "destination vessel, plate, bag, bin or sink: amount_g / amount_ml / fraction / units / all, or pour onto a scale "
             "until_reading shows a value (display units). Scrape with a spatula to get it all; ladle or funnel liquids; "
@@ -277,7 +284,7 @@ def transfer(ctx):
     grams = None
     out = {"source": fid, "destination": dest, "method": method}
     if ctx.args.get("until_reading"):
-        scale = _scale_under(w.s, dest)
+        scale = _scale_under(w.s, dest, ctx.env)
         require(scale, "The destination is not on a kitchen scale", "precondition")
         reading = S.scale_reading(w.s, scale)
         require(reading is not None, "Switch the scale on first", "precondition")
@@ -431,7 +438,7 @@ def transfer(ctx):
 
 @action("portion", params={"target": "entity", "into": "list", "amount_g": {"type": "number", "default": 0, "min": 0, "max": 20000},
                            "method": "?str:scale|eyeball", "item": "?entity", "press_air": {"type": "bool", "default": False}},
-        duration=C.duration(60.0), irreversible=True, noise=0.03,
+        duration=C.duration(60.0), irreversible=True, operates=True, noise=0.03,
         doc="Divide food into the listed containers/bags/plates: equal shares (or amount_g each). method=scale weighs each "
             "portion on a switched-on kitchen scale within reach (+/-2 %); eyeballing gives the first containers too much "
             "(up to +/-30 %). press_air pushes the air out of bags before sealing (prevents freezer burn).")
@@ -449,7 +456,8 @@ def portion(ctx):
     if method == "scale":
         for eid in sorted(w.s["entities"]):
             rec = w.s["entities"][eid]
-            if rec.get("tool_kind") == "kitchen_scale" and rec.get("on") and ctx.visible(eid) and geometry.reach_problem(w.s, eid) is None:
+            if rec.get("tool_kind") == "kitchen_scale" and rec.get("on") and ctx.visible(eid) and \
+                    geometry.reach_problem(w.s, eid) is None and not P.unfamiliar(ctx.env, eid):
                 scale = eid
                 break
         require(scale, "A switched-on kitchen scale within reach is needed", "precondition")
@@ -522,7 +530,7 @@ def _alive(w, fid, placed):
                          "amount_g": {"type": "number", "default": 0, "min": 0, "max": 3000},
                          "pieces": {"type": "int", "default": 0, "min": 0, "max": 200}, "tool": "?entity",
                          "on_top_of": "?entity", "careful": {"type": "bool", "default": True}},
-        duration=C.duration(12.0), irreversible=True, noise=0.02,
+        duration=C.duration(12.0), irreversible=True, operates=True, noise=0.02,
         doc="Serve a portion from a pot/serving dish/board onto a plate or bowl with a serving utensil (tongs, spoon, ladle "
             "or spatula). It lands in its own spot on the plate (or on_top_of another food, e.g. sauce over pasta). "
             "careful=false drips on the rim. The serving utensil carries allergens between dishes.")
@@ -537,7 +545,7 @@ def plate(ctx):
     if tool_id:
         require(ctx.holding(tool_id), "Hold the serving utensil", "capability")
     else:
-        tool_id = next((h for h in w.held_items() if set(w.ent(h).get("capabilities", [])) & {"serve", "ladle", "grip_food", "scoop"}), None)
+        tool_id = next((h for h in C.held_known(ctx) if set(w.ent(h).get("capabilities", [])) & {"serve", "ladle", "grip_food", "scoop"}), None)
         require(tool_id or M.food(frec).get("phase") in ("solid",), "Hold a serving utensil", "capability")
     f = frec["food"]
     pieces = int(ctx.args.get("pieces") or 0)
@@ -615,7 +623,7 @@ def src_arg_empty(w, fid, src_arg):
 
 @action("garnish", params={"target": "entity", "garnish": "entity", "amount_g": {"type": "number", "default": 2.0, "min": 0.1, "max": 100},
                            "placement": "?str:on_food|scatter|side"},
-        duration=C.duration(6.0), irreversible=True, noise=0.0,
+        duration=C.duration(6.0), irreversible=True, operates=True, noise=0.0,
         doc="Garnish a plated dish (target = the plate or a food on it) from a garnish source (chopped herbs, seeds, lemon "
             "wedges, sour cream) placed on the food; scatter also dusts the rim. Mind each eater's aversions/allergies.")
 @P.perceived_result
@@ -653,7 +661,7 @@ def garnish(ctx):
 
 @action("thaw", params={"target": "entity", "method": "str:fridge|cold_water|counter|microwave", "destination": "?entity",
                         "refresh_water": {"type": "bool", "default": False}},
-        duration=C.duration(10.0), noise=0.0,
+        duration=C.duration(10.0), operates=True, noise=0.0,
         doc="Start thawing a frozen item: fridge = set it (in its package or a container) on a tray/plate low in the fridge "
             "(destination) -- about a day per 2 kg; cold_water = submerge the sealed item in a bowl of cold water "
             "(destination; refresh the water every 30 min); counter = leave it out (unsafe: the surface warms past 5 C "

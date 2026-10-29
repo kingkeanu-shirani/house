@@ -235,6 +235,47 @@ def unidentified(env, eid):
     return unresolved(env, eid, at=0)
 
 
+# ----------------------------------------------------------------------
+# unfamiliar (novel) things: handled as objects, never worked by a food verb
+
+ENTITY_PARAMS = ("entity", "target", "agent", "person", "pet")
+
+
+def unfamiliar(env, eid):
+    """Realistic perception: the robot takes eid for an unfamiliar (novel) thing it cannot identify -- a novel object
+    or a portion of one (the kernel's Realism.novel_unidentified; a novel thing is never identified). False in oracle
+    mode and for unknown ids."""
+    r = realism(env)
+    if r is None or not isinstance(eid, str):
+        return False
+    rec = env.world.s["entities"].get(eid)
+    return rec is not None and bool(r.novel_unidentified(eid, rec))
+
+
+def unfamiliar_first(ctx):
+    """Before hook (order 1) of every food verb: an unfamiliar thing in any of its entity parameters (the source, a
+    destination, a tool, the garnish, a list of containers) gets the kernel's one identify-first refusal
+    (kernel.actions.NOVEL_OPERATE_MESSAGE) before any guard reads what it really is. The kernel refuses one as the
+    verb's own target (the verbs declare operates=True); this covers the other parameters. Review I4 and the phase-1
+    red team's novel sweep: garnish, plate, portion, scoop and transfer said "Open it first" for an unfamiliar electric
+    kettle (openable, closed) and "It is empty" for an unfamiliar phone, knife, hair dryer, bleach jug or remote; a knife
+    verb cut with an unfamiliar chef's knife and refused an unfamiliar kettle. weigh treats the thing weighed as an
+    object (see the verb). No-op in oracle mode."""
+    if realism(ctx.env) is None:
+        return
+    from ...kernel.actions import NOVEL_OPERATE_MESSAGE
+    from ...kernel.errors import ActionError
+    for pname, p in sorted(ctx.spec.params.items()):
+        if pname == "target" and not ctx.spec.operates:
+            continue                    # weigh: a thing weighed on a scale is handled as an object
+        value = ctx.args.get(pname)
+        values = value if p.get("type") == "list" and isinstance(value, list) else \
+            [value] if p.get("type") in ENTITY_PARAMS else ()
+        for eid in values:
+            if unfamiliar(ctx.env, eid):
+                raise ActionError(NOVEL_OPERATE_MESSAGE, "precondition")
+
+
 def layer_name(env, layer):
     """A coating layer as the robot knows it: its kind if the coating's source was identified, else "unidentified
     coating" (a dredge from an unresolved bag of white powder must not name flour or sugar)."""

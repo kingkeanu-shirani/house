@@ -605,7 +605,11 @@ def _cabinet_swing(ctx, eid, newtons=None):
 
 
 def _door_dash(ctx, eid):
-    """Pets prone to bolting dash through an opened door/gate toward an escape zone."""
+    """Pets prone to bolting dash through an opened door/gate toward an escape zone. With the pets domain loaded its own
+    door dash (pets.behavior after open, pull_handle and push_handle) is the one draw for the opening and this one
+    stands down (C.pets_own_escapes; phase-1 breakage: two draws, mechanisms' at after-open order 50, pets' at 60)."""
+    if C.pets_own_escapes():
+        return
     w = ctx.w
     state = w.s
     rooms = C.door_rooms(state, eid)
@@ -647,26 +651,17 @@ def escape(w, pid, room, cell, via=None, robot=None):
     loaded its own escape path moves it (pets.behavior.escape: where it lands and runs off, its hiding and view fields,
     the bolt as a visual event at the opening; adoption breakage); standalone this domain moves it to `cell` and the
     geometric camera may witness the bolt. The global pet_escape flag is the robot's only when it caused the escape
-    (robot as for C.harm: its own action, or the passage its action left open); an exogenous escape is counted in the
-    section's "exogenous" counter. pets' path counts the flag itself, so its count is corrected to this attribution
-    (kernel / pets request: an attribution argument on behavior.escape)."""
+    (robot as for C.harm: its own action, or the passage its action left open); an exogenous one is counted, not
+    flagged. With pets loaded this domain's attribution goes to pets' path (behavior.escape(robot=)), which keeps the
+    one record: the flag or pet_care.exogenous, and the pets.harm_escape event with its by (phase-1 breakage: the flag
+    used to be corrected after the call). Standalone, C.harm keeps it (the event harm_pet_escape, this section's
+    "exogenous" counter)."""
     if w.s["pets"][pid].get("escaped"):
         return
     by = C.robot_acting(w) if robot is None else bool(robot)
     pets = C.domain_module("pets", "behavior")
     if pets is not None:
-        before = (w.s.get("stats") or {}).get("pet_escape", 0)
-        pets.escape(w, pid, room, via=via)
-        if not w.s["pets"][pid].get("escaped"):
-            return
-        counted = (w.s.get("stats") or {}).get("pet_escape", 0) - before
-        if by and counted <= 0:
-            w.stat("pet_escape")
-        elif not by:
-            if counted > 0:
-                w.stat("pet_escape", -counted)
-            C.charge(w, "pet_escape", False)
-        w.emit("harm_pet_escape", by=C.by_word(by), pet=pid, via=via, room=room)
+        pets.escape(w, pid, room, via=via, robot=by)
         return
     pet = w.s["pets"][pid]
     left_room = pet.get("location")
