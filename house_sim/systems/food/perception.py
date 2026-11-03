@@ -5,6 +5,7 @@ from ...kernel import clock, dialogue, geometry
 from ...kernel.plugins import answerer, inspector, invariant, observer
 from . import common as C
 from . import data as D
+from . import hardening as H
 from . import mixing as X
 from . import model as M
 from . import percept as P
@@ -104,6 +105,12 @@ def _firmness_word(rec):
     return "firm" if firm > 0.6 else "soft" if firm > 0.25 else "very soft, delicate"
 
 
+def _reading(details, found):
+    """Add a structured instrument reading to an inspection's details (VERIFY_HARDENING 15.2: the probe thermometer's
+    core temperature, a cold space's dial thermometer)."""
+    details.setdefault("readings", []).append(found)
+
+
 def _probe(w, eid, rec, details, ctx):
     probe = next((h for h in C.held_known(ctx) if w.ent(h).get("tool_kind") in ("thermometer", "probe_thermometer", "meat_thermometer")
                   or "probe_temperature" in w.ent(h).get("capabilities", [])), None)
@@ -122,6 +129,8 @@ def _probe(w, eid, rec, details, ctx):
         ctx.grant(eid, "measure", ["_core_c"])
     else:
         details["probe_temp_c"] = round(core, 1)
+    if isinstance(details.get("probe_temp_c"), (int, float)):
+        _reading(details, H.reading(eid, "temperature", details["probe_temp_c"], "C", "core_temp_c"))
     M.contact(w, probe, eid, 0.5)
     log = w.sec("food_log")
     contam = M.stored_contam(w.s, probe)
@@ -155,6 +164,7 @@ def food_inspector(w, eid, rec, details, ctx):
         details["display"] = S.scale_display(w.s, eid)
     if rec.get("internal_temp_c") is not None and rec.get("food_air_model") and rec.get("display_temp", True):
         details["thermometer_c"] = round(float(rec["internal_temp_c"]), 1)
+        _reading(details, H.reading(eid, "temperature", details["thermometer_c"], "C", "internal_temp_c"))
     if rec.get("liquid_l") and rec.get("dissolved_salt_g"):
         details["salted_water"] = True
 
@@ -172,7 +182,7 @@ UNIDENTIFIED_VIEW = ("approx_ml", "count", "appearance", "odor", "frozen", "shel
 # what the outside of a sealed opaque package shows (the amount, cut and condition of what is inside do not)
 SEALED_VIEW = ("kind", "appearance", "opened", "date_label", "food_label", "can", "lid", "frozen")
 # inspector keys food renders itself (passed through by the kernel's filter; see ctx.perceived exact=)
-FOOD_PERCEPTS = ("food_view", "food_contents", "whole_items", "probe_temp_c", "thermometer_c", "frozen")
+FOOD_PERCEPTS = ("food_view", "food_contents", "whole_items", "probe_temp_c", "thermometer_c", "frozen", "readings")
 
 
 def _seen_view(w, eid, rec, closely, ctx, at=P.INSPECT):
@@ -276,6 +286,8 @@ def _seen_inspector(w, eid, rec, details, ctx):
         if reading is not None:
             details["thermometer_c"] = reading
             ctx.grant(eid, "measure", ["internal_temp_c"])
+            if isinstance(reading, (int, float)):
+                _reading(details, H.reading(eid, "temperature", reading, "C", "internal_temp_c"))
     if rec.get("latent_pack"):
         # squeezing a gel ice pack tells whether it is frozen (its frozen fraction is not a number anyone can see)
         details["frozen"] = P.frozen(rec.get("ice_frac", 0.0))

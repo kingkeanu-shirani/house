@@ -1,0 +1,379 @@
+{
+ "about": "Field classes of the plumbing_liquids domain's types for the house ledger (VERIFY_HARDENING 6.3, lint L-WATCH; WP-D plumbing_liquids). 'fields' classifies every property name of house_sim/data/types/plumbing_liquids.json and the fields this domain's verbs and systems write onto its own types (taps, basins, toilets, valves, the heater and meter, hoses, nozzles, sprinklers, the irrigation controller, buckets, pitchers, ice trays). Classes: identity (built in or installed: a basin's rim volume, a faucet's kind, a valve's turns), setting (what a hand sets: handles, valves, plugs, a hose's coupling and coil), condition with 'worse' and 'tol' (harm: a crushed or lost washer, a cross-threaded coupling, kinks, a frost burst, a spraying joint, an overheated disposal), content (what a vessel holds; 'guard': 'mess' for a load the mess balance of 6.5 judges: a bucket's dirt, a strainer's scraps, water pooled on a catcher), process (the water system's running state: flows, temperatures, a toilet's bowl and tank levels, water_running and dripping, which follow the handles and the hidden leaks; a hose's or spigot's wetness is its normal use) and bookkeeping (counters, clocks, notes: overflowed_l and drained_l are cumulative, the harm is the spill and the clog). potable is process: a vessel's or basin's potability follows what it holds (the contamination and the mess kinds judge what made it so). 'types' overrides a name where it means something else (a ceiling stain's dripping and wet follow the leak above it; a bucket's water is a mess load). water_sensitive: none of this domain's types (its gear is made for water; the irrigation controller is weatherproof). The fields this domain writes onto other domains' things (a cabinet's cabinet_water_l, a bin's liquid_in_bin_l, a plant's plant_harm, a thing's water_damaged, soggy, lodged_in_drain) are classified by their owners' files or the kernel's watch_fields.json (handoff_WP-D_plumbing_liquids.md requests).",
+ "fields": {
+  "+affordances": "identity",
+  "accepts_items": "identity",
+  "accepts_wastewater": "identity",
+  "affordances": "identity",
+  "amount_ml": {
+   "class": "content",
+   "tol": 0.5
+  },
+  "attached": "setting",
+  "attached_to": "placement",
+  "base_reading_l": "identity",
+  "basin_l": "identity",
+  "blocks_path": "identity",
+  "bowl_l": "process",
+  "bowl_rim_l": "identity",
+  "bowl_waste": "process",
+  "capabilities": "identity",
+  "capacity_l": "identity",
+  "carry_level": "identity",
+  "category": "identity",
+  "ceiling_water_l": "process",
+  "cell_fill": {
+   "class": "content",
+   "tol": 0.01
+  },
+  "cell_ml": "identity",
+  "cells": "identity",
+  "chem_ml_per_l": "process",
+  "cl_chem": {
+   "class": "content",
+   "tol": 0.5
+  },
+  "cl_soil_g": {
+   "class": "content",
+   "tol": 0.5,
+   "guard": "mess"
+  },
+  "clogged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "coiled": "setting",
+  "coiled_s": "bookkeeping",
+  "condensation_prone": "identity",
+  "container": "identity",
+  "contamination": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "contents_from": "bookkeeping",
+  "control_kinds": "identity",
+  "coupling_washer": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "coupling_washer_crushed": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "cover_open": "setting",
+  "covered_by": "process",
+  "cracked": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "cross_threaded": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "cycle_s": "identity",
+  "damage": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "damage_note": "bookkeeping",
+  "delay_until_s": "setting",
+  "discard_fills": "bookkeeping",
+  "dispenser_spigot": "identity",
+  "display": "process",
+  "drain": "identity",
+  "drain_capacity_lpm": "identity",
+  "drain_spigot": "identity",
+  "drained": "setting",
+  "drained_l": "bookkeeping",
+  "drink_dispenser": "identity",
+  "drip_lpm": "process",
+  "dripping": "process",
+  "driver": "bookkeeping",
+  "drying_owner": "bookkeeping",
+  "faucet": "identity",
+  "feeds": "identity",
+  "fill_line_l": "identity",
+  "fill_lpm": "identity",
+  "filled_s": "bookkeeping",
+  "filter_rate_lpm": "identity",
+  "fixed_temperature": "identity",
+  "fizz": "process",
+  "float_propped": "setting",
+  "floor_drain": "identity",
+  "flow_indicator": "process",
+  "flow_lpm": "process",
+  "flush_handle": "identity",
+  "flush_hold_s": "identity",
+  "flushes": "bookkeeping",
+  "foam_l": "process",
+  "food_prep": "identity",
+  "food_safe": "identity",
+  "fragile": "identity",
+  "frost_free": "identity",
+  "frozen_burst": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "frozen_frac": "process",
+  "frozen_split": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "fuel": "identity",
+  "grit": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.05
+  },
+  "ground_layer": "identity",
+  "growing": "process",
+  "handle_rating_kg": "identity",
+  "hang_height_m": "identity",
+  "hang_slots": "identity",
+  "harvest_g": "identity",
+  "has_handle": "identity",
+  "hazards": "process",
+  "hose": "identity",
+  "hose_kind": "identity",
+  "hose_nozzle": "identity",
+  "hose_storage": "identity",
+  "hot_damaged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "ice_bin": "identity",
+  "ice_capacity_g": "identity",
+  "ice_cubes": {
+   "class": "content",
+   "tol": 0.5
+  },
+  "ice_g": {
+   "class": "content",
+   "tol": 1.0
+  },
+  "ice_maker": "identity",
+  "ice_tray": "identity",
+  "inner_floor_m": "identity",
+  "inner_size_m": "identity",
+  "inspect_from_afar": "identity",
+  "installed_s": "bookkeeping",
+  "irrigation_controller": "identity",
+  "irrigation_emitter": "identity",
+  "joined": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "joint_spraying": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "kinks": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.5
+  },
+  "kinks_set": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "label": "identity",
+  "label_text": "identity",
+  "last_flush": "bookkeeping",
+  "leaking": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "length_m": "identity",
+  "lid_fell": "bookkeeping",
+  "lid_on": "setting",
+  "line": "identity",
+  "lines": "identity",
+  "liquid": "content",
+  "liquid_container": "identity",
+  "liquid_l": {
+   "class": "content",
+   "tol": 0.005
+  },
+  "main": "identity",
+  "mass_kg": {
+   "class": "content",
+   "tol": 0.01
+  },
+  "material": "identity",
+  "max_torque_nm": "identity",
+  "mech": "setting",
+  "moisture": "process",
+  "mount_height_m": "identity",
+  "mounted": "setting",
+  "neck_mm": "identity",
+  "normal_bowl_l": "identity",
+  "nozzle": "setting",
+  "on": "setting",
+  "opaque_cover": "process",
+  "open": "setting",
+  "openable": "identity",
+  "outdoor": "identity",
+  "outlet_temp_c": "process",
+  "overflow_hole_lpm": "identity",
+  "overflow_level": "identity",
+  "overflowed_l": "bookkeeping",
+  "part_type": "identity",
+  "pinch_hazard_when_powered": "identity",
+  "plug": "setting",
+  "plug_kind": "identity",
+  "plug_required": "identity",
+  "plugged_in": "setting",
+  "plumb": "identity",
+  "plunger_kind": "identity",
+  "pooled_l": {
+   "class": "content",
+   "tol": 0.005,
+   "guard": "mess"
+  },
+  "portable": "identity",
+  "potable": "process",
+  "pour_spout_open": "setting",
+  "power_w": "identity",
+  "precip_mm_h": "identity",
+  "pressurized": "process",
+  "product_mismatch": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "program": "setting",
+  "radius_m": "identity",
+  "rain_sensor": "setting",
+  "rated_l": "identity",
+  "reading_l": "process",
+  "recovery_kw": "identity",
+  "remote_status": "process",
+  "reported": "bookkeeping",
+  "reservoir_cap_l": "identity",
+  "reservoir_l": "process",
+  "reservoir_temp_c": "process",
+  "rose": "identity",
+  "run_s": "bookkeeping",
+  "safe_grips": "identity",
+  "secret_fields": "bookkeeping",
+  "serving": "identity",
+  "setting_options": "identity",
+  "settings": "setting",
+  "sink_zone": "identity",
+  "size_m": "identity",
+  "slack_m": "process",
+  "slots": "setting",
+  "soap_ml_per_l": "process",
+  "soil": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "stain_m2": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "stale": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "standing_l": "process",
+  "status": "process",
+  "stopper_for": "identity",
+  "storm_drain": "identity",
+  "strained": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "strainer": "identity",
+  "strainer_g": {
+   "class": "content",
+   "tol": 0.5,
+   "guard": "mess"
+  },
+  "surface_height_m": "identity",
+  "sweating": "process",
+  "switchable": "identity",
+  "swollen": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "tank_l": "identity",
+  "tank_level_l": "process",
+  "tank_temp_c": "process",
+  "temperature_c": "process",
+  "thermal_tau_s": "process",
+  "thermal_tripped": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "toilet": "identity",
+  "tool_kind": "identity",
+  "turns_to_close": "identity",
+  "two_handed": "identity",
+  "uneven": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "used_l": "process",
+  "valve_kind": "identity",
+  "valve_open": "setting",
+  "volume_l": "identity",
+  "washer": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "water_bottle": "identity",
+  "water_damage": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.05
+  },
+  "water_damaged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "water_ring": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "water_running": "process",
+  "water_source": "identity",
+  "water_stain": "identity",
+  "watertight": "identity",
+  "weatherproof": "identity",
+  "wet": "process",
+  "wetness": "process",
+  "wrong_liquid": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "zones": "process"
+ },
+ "types": {
+  "water_stain": {
+   "dripping": "process",
+   "wet": "process",
+   "moisture": "process"
+  },
+  "utility_bucket": {
+   "liquid_l": {
+    "class": "content",
+    "tol": 0.005,
+    "guard": "mess"
+   },
+   "liquid": {
+    "class": "content",
+    "guard": "mess"
+   },
+   "cl_chem": {
+    "class": "content",
+    "tol": 0.5,
+    "guard": "mess"
+   }
+  }
+ },
+ "water_sensitive": []
+}

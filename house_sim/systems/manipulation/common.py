@@ -1310,20 +1310,17 @@ NOVEL_SLOTS = ("tool", "aid", "destination", "compartment")
 
 def novel_unidentified(ctx, eid):
     """Realistic mode: whether the robot takes eid for an unfamiliar thing (a novel object, or a portion of one: kernel
-    Realism.novel_unidentified), whatever it really is. False in oracle mode and for anything that is not an entity."""
-    realism = getattr(getattr(ctx, "env", None), "realism", None)
-    if realism is None or not realistic(ctx) or not isinstance(eid, str):
-        return False
-    record = ctx.w.s["entities"].get(eid)
-    return record is not None and bool(realism.novel_unidentified(eid, record))
+    Realism.novel_unidentified), whatever it really is. False in oracle mode and for anything that is not an entity.
+    The kernel's rule (Ctx.unfamiliar, phase-1 close-out); this domain kept its own copy until then."""
+    return realistic(ctx) and ctx.unfamiliar(eid)
 
 
 def refuse_novel(ctx, *eids):
     """Refuse with the kernel's one identify-first message (the engine's refusal of an operates=True verb's unfamiliar
-    target) when any of eids is an unfamiliar thing the robot has not identified; no-op otherwise."""
-    if any(novel_unidentified(ctx, eid) for eid in eids):
-        from ...kernel.actions import NOVEL_OPERATE_MESSAGE
-        raise ActionError(NOVEL_OPERATE_MESSAGE, "precondition")
+    target) when any of eids is an unfamiliar thing the robot has not identified; no-op otherwise (Ctx.refuse_unfamiliar,
+    the kernel's helper)."""
+    if realistic(ctx):
+        ctx.refuse_unfamiliar(*eids)
 
 
 def novel_guard(ctx):

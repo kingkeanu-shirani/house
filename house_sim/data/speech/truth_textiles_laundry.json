@@ -1,0 +1,95 @@
+{
+ "about": "The textiles_laundry domain's truth mappings for claims about its state (kernel/speech.py truth(); VERIFY_HARDENING 13.1-13.3, 13.6; WP-D textiles_laundry; the format of truth.json, whose keys this file never repeats). The words are this domain's vocabulary (house_sim/data/vocab/textiles_laundry.json); the kernel already maps wet / dry (wetness), folded / unfolded, wrinkled, shrunk, torn, scorched and mold, and cleaning maps clean, dirty, stained and mildew. states: made / unmade read the bed's made flag (make_bed sets it; refresh_bed clears it when the layers come off or rumple past 0.3; schema-4 evaluation reads it live through the derived field), inside_out / right_side_out a garment's inside_out. issues (any present condition that holds makes the issue true, all present and false make it false, none present leaves it unknown): pilled at a pilling level of 0.2 or more (the depill threshold a person notices), felted / snagged / melted when the damage dict holds that kind (every textile carries a damage dict, so a felted claim about an undamaged sweater is false), stretched at 5 % or more or a stretched damage, dye_transfer at a dye_damage of 0.1 or more (a visible tint), melted also at an iron shine of 0.3 or more, linty at 0.05 of lint or pet hair on it (a soil kind absent from the dict leaves the claim unknown, never false). missing_button and split_seam are left unmapped: their evidence is a per-slot button or per-seam record the claim conditions cannot read.",
+ "states": {
+  "made": [
+   {
+    "field": "made",
+    "op": "is_true"
+   }
+  ],
+  "unmade": [
+   {
+    "field": "made",
+    "op": "is_false"
+   }
+  ],
+  "inside_out": [
+   {
+    "field": "inside_out",
+    "op": "is_true"
+   }
+  ],
+  "right_side_out": [
+   {
+    "field": "inside_out",
+    "op": "is_false"
+   }
+  ]
+ },
+ "issues": {
+  "pilled": [
+   {
+    "field": "pilling",
+    "op": "gte",
+    "value": 0.2
+   }
+  ],
+  "felted": [
+   {
+    "field": "damage",
+    "op": "contains",
+    "value": "felted"
+   }
+  ],
+  "snagged": [
+   {
+    "field": "damage",
+    "op": "contains",
+    "value": "snagged"
+   }
+  ],
+  "stretched": [
+   {
+    "field": "stretched",
+    "op": "gte",
+    "value": 0.05
+   },
+   {
+    "field": "damage",
+    "op": "contains",
+    "value": "stretched"
+   }
+  ],
+  "dye_transfer": [
+   {
+    "field": "dye_damage",
+    "op": "gte",
+    "value": 0.1
+   }
+  ],
+  "melted": [
+   {
+    "field": "damage",
+    "op": "contains",
+    "value": "melted"
+   },
+   {
+    "field": "shine",
+    "op": "gte",
+    "value": 0.3
+   }
+  ],
+  "linty": [
+   {
+    "field": "soil.lint",
+    "op": "gte",
+    "value": 0.05
+   },
+   {
+    "field": "soil.pet_hair",
+    "op": "gte",
+    "value": 0.05
+   }
+  ]
+ }
+}

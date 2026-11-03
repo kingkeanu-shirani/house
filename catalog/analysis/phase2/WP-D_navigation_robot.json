@@ -1,0 +1,96 @@
+{
+ "id": "WP-D_navigation_robot",
+ "landed": [
+  "house_sim/data/verify/watch/navigation_robot.json: field classes for every property of the 26 types and every sub-key of their dict fields (field_census --unclassified --domain navigation_robot: 0, was 43 names / 77 pairs); rv run state / charging / errors / timers process, rv.bin_fill and bag_fill content guard mess, tank content, brush hair / bumper_ok / damaged / pad_damage conditions, counters bookkeeping, settings (open, on, plugged_in, docked, spreader_lock, rv.schedule), robot_battery_pack health / capacity_wh process (swap_battery rewrites the record), standing_height_m identity; water_sensitive electronic types",
+  "writer classes and causes (6.2): navigation_robot.doors writes residents' driving and walking and pets' following / wandering as volition (navigation_robot.vehicles / .people / .pets); a household robot's substep runs under cause=<robot> (linked when the robot started it, not when its schedule did); self-closing and motor doors cite the door, walking appliances themselves, spare packs their station, elevator arrivals the call",
+  "mess flows with origins (6.5): robot-vacuum runs move debris grams floor -> entity:<rv> (tally rv._bin_g); auto-empty dock rv -> dock (_bag_g); empty_robot_vacuum bin / bag -> trash; swallowed / jammed / dumped items via core.log_mess_move; foot soil tracked in = created:robot_feet debris / pet_waste and wet footprints liquid:spill; slopped and spilled liquid created:<container> with origin <class>:<container> (common.liquid_mess)",
+  "truth mappings (13.1-13.3): house_sim/data/speech/truth_navigation_robot.json + vocabulary words: states docked / undocked, issues bin_full, water_on_floor, unexpected_person",
+  "derived field (8.2): @derived_field docked on household robots (hardening.docked_now: seated on its own dock); leveling _tilt_deg / _wobble_mm kept true by the leveling system whatever wrote the feet (idle probe sees a stale one)",
+  "settings skills (10.3): plugged_in of docks and the charging station, docked of household robots",
+  "structured instrument readings (15.2): measure and check_level return readings [{subject, quantity, value, unit, dimension, field|to}] (returned result only; stored records unchanged)",
+  "fix: navigation_robot.dock_setup reseats the robot's dock when no front cell can be reached and never binds no blocker (WP11: T-5ad61b6881821b-01 held-out seed 502 now passes)",
+  "fix (23.3): navigation_robot.go walks a route descending unguided winders at the careful pace (core go_room's rule)",
+  "carry-over closeout_REV 7 (VER2 6): mark refuses an unfamiliar target identify-first",
+  "carry-over closeout_REV 5 (VER2 4), navigation_robot's half: probe sweep of every verb x entity parameter (table and held, room and geometric) for the robot_vacuum and bubble_level groups and 39 unfamiliar twins: 0 differences; pinned by a guard test",
+  "carry-over closeout_breakages tenth row (optional): common.unfamiliar / refuse_unfamiliar delegate to Ctx.unfamiliar / Ctx.refuse_unfamiliar",
+  "docs/domains/navigation_robot.md section 4f + Latched fields table (docked, registered recompute) + module table",
+  "tests/test_navigation_robot_hardening.py: 23 tests (20 fail on HEAD; a registration check and a look-alike guard pass there; a door-closer case skips while mechanisms / safety own closers)",
+  "catalog/analysis/phase2/handoff_WP-D_navigation_robot.md"
+ ],
+ "deviations": [
+  {
+   "what": "no @mess_kind registered",
+   "why": "6.5 assigns debris, liquid:* and pet_waste to cleaning, plumbing_liquids and pets (one registration per name); this domain logs flows of their kinds"
+  },
+  {
+   "what": "_tilt_deg / _wobble_mm not registered as derived fields; kept true by the leveling system instead",
+   "why": "tools_vehicles' fasteners write the same names; a second @derived_field registration is a load-time ValueError (requested from tools_vehicles)"
+  },
+  {
+   "what": "no resource meter added for docks / the battery charger",
+   "why": "a standby_w on the types would run climate.meter in every generated house with a dock and move those energy digests; left as a known gap"
+  },
+  {
+   "what": "check_level's angle readings carry no SI value",
+   "why": "the kernel vocabulary has no angle quantity and adding one in a domain file risks a cross-domain collision (requested from WP1)"
+  },
+  {
+   "what": "water_on_floor truth reads the room's things, not its wet cells",
+   "why": "speech.issue_truth aggregates a room over its entities; a room with only wet cells stays unknown (never false)"
+  },
+  {
+   "what": "hazard_created types, zones / passability: none",
+   "why": "the domain's verbs create no entity (spills are mess parcels, shards the kernel's) and it owns no people or pets"
+  },
+  {
+   "what": "WP9 scenario-helper requests (placer.order, sample_roles, ctx.audit) not applied",
+   "why": "no navigation_robot helper places look-alike members or takes a role list; ctx.audit skipping is optional"
+  }
+ ],
+ "not_done": [
+  {
+   "what": "A-926bc611ae9158-01 held-out seed 506: the privacy-mode wrong plan passes",
+   "why": "pre-existing on HEAD; the single-cell glass panel is walked round after the robot approaches it from the side, and a start-side approach binding did not settle it on 506 (another equally short path); the wrong plan is WP12's (requests)"
+  },
+  {
+   "what": "T-9615ae9f7570b4-01 held-out seed 502 (WP11's second navigation_robot row)",
+   "why": "the failing placement is core setup's spawn floor op (WP9's tasks/setup.py), not a navigation_robot file"
+  },
+  {
+   "what": "flows for spills the kernel makes inside its own calls (impact.fall of a knocked-off open container, body_faults.drop_held) and for a vacuum-mop wetting a rug",
+   "why": "the amounts are inside kernel calls; house.wet judges the rug"
+  },
+  {
+   "what": "kernel field classes for fields this domain writes on other domains' types (marks, tangled_in, placed_on_wet, open_angle_deg, vehicle.*, moving, away, scuffed)",
+   "why": "a domain watch file's per-field entries apply only to the domain's own types; requested from WP1"
+  },
+  {
+   "what": "damaging verbs for B14",
+   "why": "no registry exists yet (WP6); this domain's damaging verbs are listed in the docs and requested"
+  }
+ ],
+ "outcome_changes": [
+  "T-5ad61b6881821b-01 held-out seed 502: FAIL -> PASS (dock_setup now places the blocker; verification seeds 0 1 2 41 97 pass before and after). A/B HEAD vs HEAD + this package on seeds 500-509 for all 15 navigation_robot specs: no other change.",
+  "room golden (not a verdict): final-state digests of specs/T-89530941a65283-01 and specs/X-f05f58a6388176-01 change by logs.mess_flows (and rv._bin_g in the second); steps, time and evaluation unchanged; neither is a fixed spec (main session re-record requested)"
+ ],
+ "tests": {
+  "new_tests": 23,
+  "passed": true,
+  "strict_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 243
+ },
+ "requests": [
+  "main session: re-record the room golden's specs/T-89530941a65283-01 and specs/X-f05f58a6388176-01 (class logs.mess_flows; entities.robot_vacuum_mop_1.rv._bin_g in the second); rerun python tools/vocab.py --markdown for docs/DIALOGUE.md (navigation_robot's new vocabulary words docked / undocked / bin_full, and people's new vocabulary file: tests/test_dialogue.py test_the_docs_tables_are_generated_from_the_data fails until then)",
+  "WP1: let waterproof / weatherproof true on a record win over the water_sensitive type list (robot_mower / robot_mower_dock inherit robot_vacuum / robot_vacuum_dock); kernel classes for marks (condition), tangled_in (condition), placed_on_wet (bookkeeping), open_angle_deg (setting, ambient with open on interior doors, restore open path), vehicle.* / moving / away (process), scuffed (condition, true worse); an angle quantity in the kernel vocabulary",
+  "WP-D_tools_vehicles: own one @derived_field each for _tilt_deg and _wobble_mm whose recompute hands a record with leveling to navigation_robot.measure.compute_level (navigation_robot registers neither)",
+  "WP-D_cleaning: if the debris measure should see robot-vacuum bins and auto-empty bags as parcels, read rv._bin_g and _bag_g (grams); count a floor entity's top-level soil loose kinds as floor:<room> parcels at cleaning's g/m2 x room area (the robot vacuum lifts from it)",
+  "WP4: truth.json stuck could also read rv.state eq stuck, and folded / unfolded a climbing aid's open (domain files cannot redefine kernel words)",
+  "WP6: a damaging-verb registry for B14's damaged probe (navigation_robot: free_stuck_robot method=drag, refill_robot_tank with a forbidden liquid)",
+  "WP9: T-9615ae9f7570b4-01 held-out seed 502 -- spawn floor: {room} must land on a cell the robot can reach",
+  "WP12 navigation_robot: A-926bc611ae9158-01 held-out seed 506 -- the privacy-mode wrong plan does not realise its mistake (the single-cell glass panel is walked round)"
+ ],
+ "notes": "Verification on the shared live tree (other packages editing): tests/test_navigation_robot_hardening.py (23) and tests/test_navigation_robot.py (232) OK normal, strict and HOUSE_SIM_DOMAINS=core,navigation_robot; 20 of the 23 new tests fail on a git-archive copy of HEAD. green_tests.py 3: 5,640 tests per mode, the navigation_robot files ok; 10 failing runs attributed on HEAD + this package's files only: test_dialogue's generated-docs check is this package's (and people's) vocabulary change -- docs/DIALOGUE.md needs tools/vocab.py --markdown (main session); test_ledger, test_lint and test_room_golden fail from cleaning's concurrent changes (all three pass on HEAD + this package), test_verify_hardening's private held-out test from WP6. All 243 authored specs pass --check in their own mode (live tree, workers 3). perception_audit 6 150: 0 leaks room and geometric; layout_audit 40: 0 problems; field_census --unclassified navigation_robot 0, --check 0; py39_lint 0. Room golden on HEAD + this package: 2 of 243 reference digests change by logs.mess_flows only (T-89530941a65283-01, X-f05f58a6388176-01; not fixed specs). Scratch: C:/Users/keanu/AppData/Local/Temp/claude/C--Users-keanu-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_WP-D_navigation_robot/ (probe_six.py, heldout_ab.sh, mk_mine.sh, spec_final.py, before/, mine/)."
+}

@@ -636,6 +636,7 @@ def _dry_room(w, rid, dt):
         r = w.room_m(rid)
         r["water_film"] = new_film
         S._write_wet(r, new_film, foreign, old_keys=set(film))
+        S.sync_floor_wetness(w, rid)
         if mine - set(new_film):
             kept = sorted(mine & set(new_film), key=lambda s: S.pk(s)[::-1])
             if kept:
@@ -647,6 +648,7 @@ def _dry_room(w, rid, dt):
     if water_damage > 0 and floor:
         S.damage(w, floor, "water_damage", water_damage, "standing water on {}".format(M.material_key(frec)),
                  robot=robot_water)
+        w.cause(floor, "rooms:" + rid)      # the standing film is the cause (6.2: linked to whoever wetted the floor)
 
 
 def _is_spill(rec):

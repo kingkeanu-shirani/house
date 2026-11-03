@@ -23,7 +23,44 @@ def _opt(**kwargs):
 
 @skill("navigation_robot.go")
 def go(r, target, avoid=None, speed=None, social=False, restore_doors=False):
+    """go_to the target; with no pace given, a route that descends a winder flight the robot cannot take guided (a free
+    working hand, a usable rail, light) is walked at the careful pace, as core go_room does (VERIFY_HARDENING 23.3,
+    WP11's rule tasks/skills._unguided_winders: a heel on a winder's narrow end is a fall on held-out houses)."""
+    if speed is None and _winders_on_route(r, target):
+        speed = "careful"
     r.do("go_to", target=target, **_opt(avoid=avoid, speed=speed, social=social or None, restore_doors=restore_doors or None))
+
+
+def _destination_room(state, target):
+    if target in state.get("rooms", {}):
+        return target
+    if target in ("home", "dock"):
+        target = (state.get("robot") or {}).get("home") or target
+    for group in ("people", "pets"):
+        if target in (state.get(group) or {}):
+            return (state[group][target] or {}).get("location")
+    if target in state.get("entities", {}):
+        from ...kernel.predicates import root_room
+        return root_room(state, target)
+    return None
+
+
+def _winders_on_route(r, target):
+    """The room route to target descends a winder flight the robot cannot take guided (S._unguided_winders)."""
+    state = r.state
+    here = state["robot"]["room"]
+    dest = _destination_room(state, target)
+    if dest is None or dest == here:
+        return False
+    route = S.room_route(state, here, dest)
+    if not route:
+        return False
+    prev = here
+    for nxt, cid in route:
+        if cid and state.get("connections", {}).get(cid, {}).get("kind") == "stairs" and S._unguided_winders(r, cid, prev, nxt):
+            return True
+        prev = nxt
+    return False
 
 
 def _geometric(r):

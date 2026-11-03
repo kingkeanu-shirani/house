@@ -47,6 +47,22 @@ def _set(w, eid, **fields):
     return data
 
 
+def bin_grams(rec):
+    """Grams of debris in a household robot's bin (VERIFY_HARDENING 6.5 mess flows): the tally of what it picked up
+    (rv._bin_g, kept from its first run on), else its fill at the bin's packed density."""
+    data = rv(rec)
+    if "_bin_g" in data:
+        return C.num(data["_bin_g"])
+    return C.num(data.get("bin_fill")) * C.num(data.get("bin_capacity_l"), 0.45) * C.BIN_DEBRIS_G_PER_L
+
+
+def bag_grams(rec):
+    """Grams of debris in an auto-empty dock's bag (its _bag_g tally, else its fill at the packed density)."""
+    if "_bag_g" in rec:
+        return C.num(rec["_bag_g"])
+    return C.num(rec.get("bag_fill")) * C.num(rec.get("bag_capacity_l"), 2.5) * C.BIN_DEBRIS_G_PER_L
+
+
 def dock_entity(state, eid):
     dock = rv(state["entities"][eid]).get("dock")
     return dock if dock in state["entities"] else None
@@ -201,6 +217,7 @@ def _encounters(w, eid):
             m["location"], m["relation"] = eid, "in"
             m.pop("pos", None)
             w.log_move(item, rid, eid)
+            C.log_mess_move(w, item, rid, eid)
             _set(w, eid, state="stuck", stuck_reason="brush_jammed", ingested=list(data.get("ingested", [])) + [item])
             C.incident(w, "rv_brush_jammed", robot=eid, by=item, witness={"source": eid})
             announce(w, eid, "brush_jammed")
@@ -210,6 +227,7 @@ def _encounters(w, eid):
             m["location"], m["relation"] = eid, "in"
             m.pop("pos", None)
             w.log_move(item, rid, eid)
+            C.log_mess_move(w, item, rid, eid)
             data = _set(w, eid, ingested=list(rv(w.ent(eid)).get("ingested", [])) + [item])
             C.log(w, "rv_swallowed", robot=eid, item=item)
 
@@ -224,18 +242,24 @@ def _clean_floor(w, eid, dt):
     frac = min(1.0, C.num(data.get("speed_m2_per_min"), 1.6) * dt / 60.0 / _room_area(state, rid))
     eff = 0.8 * (1.0 - C.num(data.get("bin_fill"))) * (1.0 - 0.7 * C.num(data.get("brush_hair")))
     soil = dict((state["entities"][fid].get("soil") or {}))
-    collected, hair = 0.0, 0.0
+    collected, hair, grams = 0.0, 0.0, 0.0
+    area = _room_area(state, rid)
     for kind in ("dust", "crumbs", "dirt", "hair", "pet_hair", "sand", "litter"):
         v = C.num(soil.get(kind))
         if v <= 0:
             continue
         take = round(v * eff * frac * 3.0, 4)
-        soil[kind] = round(max(0.0, v - take), 4)
+        left = round(max(0.0, v - take), 4)
+        soil[kind] = left
         collected += take
+        grams += C.soil_grams(kind, v - left, area)
         if kind in ("hair", "pet_hair"):
             hair += take
     if collected > 0:
         w.mut(fid)["soil"] = soil
+        # 6.5: what it lifts off the floor goes into its bin (an accepting sink for debris: the vacuum class)
+        C.mess_flow(w, "debris", grams, C.floor_key(state, rid), ["entity", eid])
+        _set(w, eid, _bin_g=round(bin_grams(state["entities"][eid]) + grams, 3))
     bin_fill = round(min(1.0, C.num(data.get("bin_fill")) + collected * 0.6 + 0.002 * dt / 30.0), 4)
     brush = round(min(1.0, C.num(data.get("brush_hair")) + hair * 0.5 + 0.0005 * dt / 30.0), 4)
     _set(w, eid, bin_fill=bin_fill, brush_hair=brush, side_brush_hair=round(min(1.0, C.num(data.get("side_brush_hair")) + hair * 0.3), 4),
@@ -269,8 +293,13 @@ def try_dock(w, eid):
     announce(w, eid, "done")
     if C.is_type(drec, "auto_empty_dock") and C.num(data.get("bin_fill")) > 0:
         added = C.num(data.get("bin_fill")) * C.num(data.get("bin_capacity_l"), 0.45) / max(0.1, C.num(drec.get("bag_capacity_l"), 2.5))
-        w.mut(dock)["bag_fill"] = round(min(1.0, C.num(drec.get("bag_fill")) + added), 4)
-        _set(w, eid, bin_fill=0.0)
+        grams = bin_grams(state["entities"][eid])
+        bag = bag_grams(drec)
+        dm = w.mut(dock)
+        dm["bag_fill"] = round(min(1.0, C.num(drec.get("bag_fill")) + added), 4)
+        dm["_bag_g"] = round(bag + grams, 3)
+        C.mess_flow(w, "debris", grams, ["entity", eid], ["entity", dock])
+        _set(w, eid, bin_fill=0.0, _bin_g=0.0)
     return True
 
 
@@ -309,73 +338,82 @@ def rv_system(w, dt, tick):
     if not ids:
         return
     state = w.s
-    now = C.now(state)
     from ...kernel import clock
     hour = clock.hour(state)
     prev_hour = hour - dt / 3600.0
     for eid in ids:
-        rec = state["entities"][eid]
-        data = refresh_dock_zone(w, eid, force=C.first_substep(tick))
-        st = data.get("state")
-        battery = C.num(rec.get("battery_level"), 1.0)
-        dock = dock_entity(state, eid)
-        if st == "docked":
-            drec = state["entities"].get(dock or "", {})
-            powered = drec.get("plugged_in", True) is not False and (state.get("utilities") or {}).get("power", True)
-            if powered and battery < 1.0:
-                w.mut(eid)["battery_level"] = round(min(1.0, battery + 0.015 * dt / 60.0), 4)
-            if bool(data.get("charging")) != bool(powered):
-                _set(w, eid, charging=bool(powered))
-            if C.num(data.get("mop_pad_wet")) > 0.3 and data.get("mop"):
-                wet_s = C.num(data.get("pad_wet_docked_s")) + dt
-                upd = {"pad_wet_docked_s": wet_s}
-                rid = C.room_of(state, eid)
-                if wet_s >= 8 * 3600.0 and not data.get("pad_damage") and C.floor_material(state, rid) in ("hardwood", "laminate"):
-                    w.stat("damage")
-                    upd["pad_damage"] = True
-                    if C.floor_id(state, rid):
-                        C.damage_entity(w, C.floor_id(state, rid), "water_damage", 0.3)
-                    C.incident(w, "wet_mop_pad_damaged_floor", robot=eid, room=rid)
-                _set(w, eid, **upd)
-            for entry in data.get("schedule") or []:
-                try:
-                    at = C.num(str(entry.get("at", "")).split(":")[0]) + C.num(str(entry.get("at", "0:0")).split(":")[1]) / 60.0
-                except (IndexError, ValueError):
-                    continue
-                if prev_hour < at <= hour and battery >= 0.2 and rec.get("location") in state["rooms"]:
-                    start_run(w, eid, entry.get("room") if entry.get("room") in state["rooms"] else None, reason="schedule")
-                    break
-            continue
-        if st == "cleaning":
-            if rec.get("location") not in state["rooms"]:
-                _set(w, eid, state="idle")
+        # the robot's own run: everything it does (floor it cleans, cords it chews, devices it unplugs, rugs it
+        # wets) is a physical consequence caused by it (VERIFY_HARDENING 6.2: linked to the robot when the robot
+        # started or set it up, not when its schedule did)
+        with w.writing("physical", cause=eid):
+            _tick_robot(w, eid, dt, tick, hour, prev_hour)
+
+
+def _tick_robot(w, eid, dt, tick, hour, prev_hour):
+    """One household robot's substep (rv_system)."""
+    state = w.s
+    rec = state["entities"][eid]
+    data = refresh_dock_zone(w, eid, force=C.first_substep(tick))
+    st = data.get("state")
+    battery = C.num(rec.get("battery_level"), 1.0)
+    dock = dock_entity(state, eid)
+    if st == "docked":
+        drec = state["entities"].get(dock or "", {})
+        powered = drec.get("plugged_in", True) is not False and (state.get("utilities") or {}).get("power", True)
+        if powered and battery < 1.0:
+            w.mut(eid)["battery_level"] = round(min(1.0, battery + 0.015 * dt / 60.0), 4)
+        if bool(data.get("charging")) != bool(powered):
+            _set(w, eid, charging=bool(powered))
+        if C.num(data.get("mop_pad_wet")) > 0.3 and data.get("mop"):
+            wet_s = C.num(data.get("pad_wet_docked_s")) + dt
+            upd = {"pad_wet_docked_s": wet_s}
+            rid = C.room_of(state, eid)
+            if wet_s >= 8 * 3600.0 and not data.get("pad_damage") and C.floor_material(state, rid) in ("hardwood", "laminate"):
+                w.stat("damage")
+                upd["pad_damage"] = True
+                if C.floor_id(state, rid):
+                    C.damage_entity(w, C.floor_id(state, rid), "water_damage", 0.3)
+                C.incident(w, "wet_mop_pad_damaged_floor", robot=eid, room=rid)
+            _set(w, eid, **upd)
+        for entry in data.get("schedule") or []:
+            try:
+                at = C.num(str(entry.get("at", "")).split(":")[0]) + C.num(str(entry.get("at", "0:0")).split(":")[1]) / 60.0
+            except (IndexError, ValueError):
                 continue
-            if not data.get("encounters_done"):
-                _set(w, eid, encounters_done=True)
-                _encounters(w, eid)
-                if rv(w.ent(eid)).get("state") != "cleaning":
-                    continue
-            _clean_floor(w, eid, dt)
-            battery = round(max(0.0, battery - C.num(data.get("drain_pct_per_min"), 0.9) / 100.0 * dt / 60.0), 4)
-            w.mut(eid)["battery_level"] = battery
-            data = rv(w.ent(eid))
-            if data.get("state") != "cleaning":
-                continue
-            remaining = C.num(data.get("run_remaining_s")) - dt
-            _set(w, eid, run_remaining_s=round(max(0.0, remaining), 1))
-            if remaining <= 0 or battery <= 0.15:
-                _set(w, eid, state="returning")
-            continue
-        if st == "returning":
-            if not try_dock(w, eid):
-                continue
-            continue
-        if st in ("stuck", "error") and battery > 0:
-            battery = round(max(0.0, battery - 0.2 / 100.0 * dt / 60.0), 4)
-            w.mut(eid)["battery_level"] = battery
-            if battery <= 0:
-                _set(w, eid, state="dead", error="battery_empty")
-                announce(w, eid, "battery_empty")
+            if prev_hour < at <= hour and battery >= 0.2 and rec.get("location") in state["rooms"]:
+                start_run(w, eid, entry.get("room") if entry.get("room") in state["rooms"] else None, reason="schedule")
+                break
+        return
+    if st == "cleaning":
+        if rec.get("location") not in state["rooms"]:
+            _set(w, eid, state="idle")
+            return
+        if not data.get("encounters_done"):
+            _set(w, eid, encounters_done=True)
+            _encounters(w, eid)
+            if rv(w.ent(eid)).get("state") != "cleaning":
+                return
+        _clean_floor(w, eid, dt)
+        battery = round(max(0.0, battery - C.num(data.get("drain_pct_per_min"), 0.9) / 100.0 * dt / 60.0), 4)
+        w.mut(eid)["battery_level"] = battery
+        data = rv(w.ent(eid))
+        if data.get("state") != "cleaning":
+            return
+        remaining = C.num(data.get("run_remaining_s")) - dt
+        _set(w, eid, run_remaining_s=round(max(0.0, remaining), 1))
+        if remaining <= 0 or battery <= 0.15:
+            _set(w, eid, state="returning")
+        return
+    if st == "returning":
+        if not try_dock(w, eid):
+            return
+        return
+    if st in ("stuck", "error") and battery > 0:
+        battery = round(max(0.0, battery - 0.2 / 100.0 * dt / 60.0), 4)
+        w.mut(eid)["battery_level"] = battery
+        if battery <= 0:
+            _set(w, eid, state="dead", error="battery_empty")
+            announce(w, eid, "battery_empty")
 
 
 # ----------------------------------------------------------------------
@@ -412,7 +450,11 @@ def empty_robot_vacuum(ctx):
     require(not drec.get("openable") or drec.get("open"), "Open the trash can first")
     if trec.get("rv_dock"):
         require(C.num(trec.get("bag_fill")) > 0.0, "The dock bag is empty")
-        w.mut(target)["bag_fill"] = 0.0
+        grams = bag_grams(trec)
+        m = w.mut(target)
+        m["bag_fill"] = 0.0
+        m["_bag_g"] = 0.0
+        C.mess_flow(w, "debris", grams, ["entity", target], ["entity", dest])       # 6.5: the bag into the trash
         C.log(w, "rv_dock_bag_emptied", dock=target, into=dest)
         return "Emptied the dock bag into {}".format(dest)
     data = rv(trec)
@@ -423,9 +465,11 @@ def empty_robot_vacuum(ctx):
         m = w.mut(item)
         m["location"], m["relation"] = dest, "in"
         w.log_move(item, target, dest)
+        C.log_mess_move(w, item, target, dest, "in")
     if "fill_l" in drec:
         w.mut(dest)["fill_l"] = round(C.num(drec.get("fill_l")) + C.num(data.get("bin_fill")) * C.num(data.get("bin_capacity_l"), 0.45), 3)
-    _set(w, target, bin_fill=0.0, ingested=[], error=None if data.get("error") == "bin_full" else data.get("error"),
+    C.mess_flow(w, "debris", bin_grams(trec), ["entity", target], ["entity", dest])      # 6.5: the bin into the trash
+    _set(w, target, bin_fill=0.0, _bin_g=0.0, ingested=[], error=None if data.get("error") == "bin_full" else data.get("error"),
          state="idle" if data.get("error") == "bin_full" else data.get("state"))
     if lost:
         C.log(w, "rv_bin_dumped_items", robot=target, items=lost, into=dest)
@@ -452,6 +496,7 @@ def clean_robot_brushes(ctx):
         m = w.mut(item)
         m["location"], m["relation"], m["pos"] = rid, "on", list(w.robot.get("pos") or [0, 0])
         w.log_move(item, target, rid)
+        C.log_mess_move(w, item, target, rid, "in")
     if tool:
         upd = {"brush_hair": 0.0, "side_brush_hair": 0.0}
         note = "cut away all wrapped hair"

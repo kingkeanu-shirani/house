@@ -159,6 +159,7 @@ def elevator_system(w, dt, tick):
         el = state["rooms"][rid]["elevator"]
         if el.get("moving_to") is not None and now >= C.num(el.get("arrive_at_s")):
             room = w.room_m(rid)
+            w.cause("rooms:" + rid, "rooms:" + rid)     # the car answers the call that set moving_to (6.2)
             m = room["elevator"]
             m["car_floor"] = m["moving_to"]
             m["moving_to"] = None

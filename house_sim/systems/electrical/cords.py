@@ -183,11 +183,12 @@ def _heat_source(rec):
     return False
 
 
-def cord_hazards(state, device, cells):
+def cord_hazards(state, device, cells, walk_memo=None):
     """Hazard kinds for routed cord cells [(room, cell)]. The device's own floor footprint is not part of its cord (the
     CordCheck rule): a heater standing in a walkway or on a rug is itself the obstacle there, not a trip-cord or a cord
     under the rug. Nor is the device a heat source for its own cord: a space heater's cord leaves the heater by design
-    (a cord near another heater, or near a radiator, still counts)."""
+    (a cord near another heater, or near a radiator, still counts). walk_memo: {room: walkway cells} shared by the
+    calls of one evaluation pass (live_hazards)."""
     hazards, trip = set(), []
     by_room = {}
     drec = state["entities"].get(device) or {}
@@ -198,7 +199,12 @@ def cord_hazards(state, device, cells):
             continue
         by_room.setdefault(rid, []).append(c)
     for rid, cs in sorted(by_room.items()):
-        walk = walkway_cells(state, rid)
+        if walk_memo is None:
+            walk = walkway_cells(state, rid)
+        else:
+            walk = walk_memo.get(rid)
+            if walk is None:
+                walk = walk_memo[rid] = walkway_cells(state, rid)
         blocked = set(geometry.blocked_cells(state, rid, include_agents=False))
         doors = set(door_cells(state, rid))
         rugs = set()
@@ -227,6 +233,38 @@ def cord_hazards(state, device, cells):
             if c in heat:
                 hazards.add("near_heat")
     return sorted(hazards), trip
+
+
+_LIVE_MEMO = {"key": None, "walk": {}}
+
+
+def live_hazards(state, device):
+    """The hazard kinds of a plugged device's cord as the room is now (VERIFY_HARDENING 8.2, WP-D electrical): the
+    recorded `cord_hazard` is written when the cord is routed, so a rug laid over the cord, a heater set beside it or
+    a puddle's sink moved later never showed, and a rug taken off it kept `under_rug`. Recomputed from the cord's
+    cells with the routing rule (cord_hazards, plus `doorway` for a run through a door). An unplugged device has
+    none; a cord with no floor cells (dressed, held, a wall-mounted plug) keeps what was recorded."""
+    rec = (state.get("entities") or {}).get(device)
+    if not rec or not rec.get("plugged_in"):
+        return []
+    cells = rec.get("cord_cells") or []
+    rooms = state.get("rooms") or {}
+    pairs = []
+    for item in cells:
+        try:
+            rid, cell = item[0], (int(item[1][0]), int(item[1][1]))
+        except (TypeError, ValueError, IndexError):
+            return list(rec.get("cord_hazard") or [])
+        if rid not in rooms:
+            return list(rec.get("cord_hazard") or [])
+        pairs.append((rid, cell))
+    if not pairs:
+        return list(rec.get("cord_hazard") or [])
+    key = (id(state), state.get("steps"), state.get("time_s"))
+    if _LIVE_MEMO["key"] != key:
+        _LIVE_MEMO["key"], _LIVE_MEMO["walk"] = key, {}
+    more, _ = cord_hazards(state, device, pairs, _LIVE_MEMO["walk"])
+    return sorted(set(more) | ({"doorway"} if len({r for r, _ in pairs}) > 1 else set()))
 
 
 class CordCheck:

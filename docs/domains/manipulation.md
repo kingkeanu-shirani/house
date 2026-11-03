@@ -1125,3 +1125,149 @@ its type apart (receptacle, "Open it first", "Put it on that, not in it"); neste
 dialogue routes get no env, so `manipulation.items` stays a weak (fallback) topic for a destroyed thing that carried
 hidden truth where the one out of view gets a plain topic (identical answers unless a later domain route answers a
 gone id); the aspects keep / intended / how / status belong in `RememberedSubjectTests`.
+
+---------------------------------------------------------------------------------------------
+
+## 19. Verification hardening (phase 2, WP-D manipulation; docs/design/VERIFY_HARDENING.md)
+
+What this domain gives the schema-4 evaluator (house ledger, content guards, battery). Legacy (schema 2 / 3)
+evaluation is unchanged; the world-behaviour fixes below apply to every schema (P10) and are listed with the legacy
+specs they touch in `catalog/analysis/phase2/WP-D_manipulation.json`.
+
+### Field classes (6.3, L-WATCH)
+
+`house_sim/data/verify/watch/manipulation.json` classifies every property of this domain's type data (L-WATCH part 2:
+`python tools/field_census.py --unclassified --domain manipulation` lists none) and every field this domain's verbs
+and systems write, by name (`fields`) and per type (`types`):
+
+| Class | This domain's fields (examples) |
+|---|---|
+| identity | static props: ratings (`handle_rating_kg`, `load_capacity_kg`, `max_load_kg`, `crush_kg`, `drop_tolerance_m`), printed text (`load_rating_text`, a price tag's `text`), shape and kind flags (`hollow`, `round`, `rolls`, `soft_sided`, `toy_category`, `wrap_material`, `tape_kind`), rated limits (`heat_limit_c`, `max_temp_c`: not process, whatever the kernel's `*_c` pattern says) |
+| placement | `nested`, `stack_offset_m`, `pack_seq` / `pack_z_m` / `pack_on`, `inserted` / `slot` / `seated`, `covering`, `clipped_to`, `leaning_on`, `wedged`, `tilted_on_wheels`, `mounted_pose` / `mount_height_m`, `laid_out`, `routed` (plus the kernel's `xy_m`, `yaw_deg`, `stack_member`, `covered_by`) |
+| setting | `zipper.*`, `velcro.*`, `snaps.*`, `knot.*`, `closure.*`, `cap.*`, `thread.*` (how far and how tight a cap is turned), `clipped_by`, `covered`, `cover_coverage`, `cover_secured`, `taped`, `flattened`, `rolled_turns`, `inflated`, `kickstand`, `assembled`, `connector.*`, `propped` / `propped_by`, `tangle.with` |
+| condition | true is worse: `cross_threaded`, `zipper.snagged`, `zipper.teeth_split`, `misfastened`, `squashed`, `warped`, `handles_torn`, `bottom_failed`, `wrap_melted`, `foil_corroded`, `water_line_kinked`, `ink_run`, `mildewed`, `torn_open`, `label_peeled` ...; `packaging_intact` (false is worse); up is worse: `tangle.crossings`, `tangle.knots`, `abraded_m` |
+| content | `cards`, `pieces`, `components.*`; a consumable roll's `length_m` (per type: tape, wrap and twine rolls -- tearing wrap or tape off uses it up, allowed by `envelope.consume`); `pooled_water_l` (rain on a cover: `guard: mess`, the mess balance judges it) |
+| process | `falling`, `rolling`, `agitation`, `emulsified`, `separated` |
+| bookkeeping | `receptacles.*` (a rack's slots mirror what is seated: the seated thing's placement is judged), `stack_count` (the base's count of the stack above it), `attached_parts`, `co_held_by`, `held_for_job`, `level_checked`, `label_fallen_text`, `sealed_contents`, `unrolled_size_m`, `waste` (the mess balance owns refuse) |
+
+`water_sensitive`: paper, cardboard and framed prints (moving and gift boxes, wrap and tissue paper, trading cards,
+puzzles, label sheets, price and gift tags, picture frames; `house.wet`). `writes` lists the field names this domain
+writes on things of any type (a core mug's `stack_member`, a bag's `closure`, another domain's cover's `covering`):
+the ledger applies a domain's `fields` only to that domain's own types, so on other types these names fall back to the
+kernel table (or the watched default `setting`) until the kernel reads the list (request to WP1).
+
+### Writer classes and causes (6.2)
+
+Every system is tagged `writer="physical"` explicitly and cites the thing it changes as its cause, so a physical
+change the robot did not start is ruled out (`env.robot_attributable` False) instead of "link unknown" (None, which the
+ledger's conservative default charges):
+
+| System | Cause cited |
+|---|---|
+| `manipulation.falls` | the falling or rolling thing (whoever set it rolling or falling -- the robot's push, a scheduled bump -- wrote it last) |
+| `manipulation.breaks` | the broken thing (its wrap or packaging field was written by whoever took it off) |
+| `manipulation.timers` | the thing it changes (the cap left off, the label put on a wet jar, pads on dirty feet, a wet item sealed or stacked: all that thing's fields) |
+| `manipulation.wind` | a blown-off cover: the cover and what it covered; a light item lifted off: nothing (what held it down -- a weight, a clip, things resting on it -- may have been taken off by anyone, so the conservative default applies) |
+| `manipulation.jobs` | a mount: the mounted item (the robot holds it) |
+| `manipulation.goals` | (bookkeeping section only) |
+
+The co-carry partner's own steps (`support mode=follow`) are written `volition` (`manipulation.partner`): the robot
+does not carry them, so their room change is no `house.agent_moved`; the load stays the robot's.
+
+### Relation records kept true (8.2; a world fix, P10)
+
+A relation record (a stacked item's `stack_member` and the base's `stack_count`, a seated item's `inserted` and the
+rack slot's `item`, a packed item's `pack_seq`, a cover's `covered_by` / `covered` / `cover_coverage`, a clip's
+`closure` / `sealed` / `clipped_by`, a wrap sheet's `wrapped`, a threaded cap's `cap` / `sealed`, a prop's `propped`)
+outlived a move made by another verb: core `pick_up` of a stacked plate left the base counting 2; core `pick_up` of a
+seated dumbbell left the saddle holding it; `detach` of a cover, a clip or a wrap sheet left the bowl covered, the bag
+clipped shut and the vase wrapped -- a goal read off those records passed after the work was undone (the B6 displace
+family), a claim about them was judged against a stale record, and inspect showed it.
+
+`records.reconcile(w)` (an after-hook, order 995, of every verb of this domain and of the core verbs it hooks:
+`pick_up`, `place`, `hand_over`, `receive`, `move`, `approach`, `walk_to`, `open`, `close`; and inside the falls and
+wind systems) looks at every thing that moved in the step: it drops its own placement records that predate the move
+and no longer hold, and the thing it left forgets it (uncovered, unclipped, unwrapped, re-sealed from what is still
+fitted, unpropped, its slot emptied, its stack recounted). A record the verb wrote for the new place is kept. `detach`
+no longer writes a `connector` record onto a thing that has none.
+
+For schema-4 evaluation the same rules, read from the state alone, are registered as derived fields (the overlay
+recomputes them wherever a success, failure or temporal predicate reads them, so a move made by a verb no hook of this
+domain sees still cannot leave a goal true). Only the names no other domain writes are registered; the shared names
+(`wrapped`, `covered_by`, `covered`, `seated`, `receptacles`, `propped`, `sealed`: other domains write them with their
+own meaning) are kept true by the world rule.
+
+### Latched fields
+
+| Field | Recompute (records.py) |
+|---|---|
+| `stack_member` | dropped unless the thing rests (relation on) on a stack's base (`stack_count`) or a member resting on one |
+| `stack_count` | 1 + the valid stack members above the base |
+| `inserted` | dropped unless the thing still lies in what it was inserted into (that receptacle's slot names it) |
+| `pack_seq` | dropped unless the thing lies in (relation in) a thing |
+| `pack_z_m` | as `pack_seq` |
+| `pack_on` | as `pack_seq` |
+| `cover_coverage` | 0.0 unless the cover still covers it (covering it, located on it) |
+| `clipped_by` | dropped unless the clip is still clipped to it and located on it |
+| `closure` | a clip closure: None unless that clip is still on it (other closures as they are) |
+
+`manipulation.results.<goal>` (the layout goals) is not latched: the goals system recomputes every declared goal from
+the current state each substep.
+
+### Mess flows (6.5)
+
+A thing that is itself a mess parcel (`core.mess_parcel`: a waste item, a record with `mess_kind`) and is moved by a
+verb or system of this domain is logged as a `world.mess_flow` from where the flow log last left it (else where it was
+at the step's start, else `created:<verb>` for refuse the step made) to where it is now, with its origin -- the keys
+core's own pick_up / place flows use (`floor:<room>`, `outside:<room>`, `entity:<carrier>`, `entity:robot`), and never
+twice (a move core logged is not logged again). Refuse this domain makes: the wrap an `unwrap` takes off
+(`waste: true` unless `save_wrap`), a label or price sticker `remove_label` peels off (now `waste: true` too, a world
+fix: it is litter). Under schema 4 such refuse must end in a bin (`house.mess_relocated:waste_item` otherwise, once the
+kind is registered by its owner, cleaning). This domain registers no mess kind of its own: what it moves is refuse,
+debris and liquids, whose kinds and measures belong to cleaning, plumbing_liquids and textiles_laundry; liquids it
+spills go through the kernel's spill (`phys.liquids.spill`).
+
+### Hazardous creations (6.4)
+
+None of this domain's creations is of a `hazard_created` class: torn-off sheets and tape strips are materials, peeled
+labels and stickers are refuse (mess, above), breaks are the kernel's (`phys.impact.break_entity`; shards are the
+safety domain's), no verb cuts offcuts. Nothing is registered.
+
+### Settings skills (10.3)
+
+`verify.py` registers how a battery policy sets this domain's setting fields to another valid value, as a
+`manipulation.operate` plan step (`skills.py`: walk up, crouch for a low thing, work it): `wrapped` (unwrap),
+`zipper.closed_frac` (unzip / zip), `velcro.engaged` (unvelcro / velcro), `rolled` (unroll / roll up), `cap.on`
+(untwist). `on`, `open` and `settings.<name>` (the weight bench's incline) are the kernel's defaults.
+
+### Truth mappings (13.3)
+
+`house_sim/data/speech/truth_manipulation.json`: the states `wrapped` / `unwrapped`, `zipped` (closed fraction from 0.95)
+/ `unzipped` (up to 0.05: half closed is neither), `upside_down`, `on_side`, `coiled`, `rolled_up`, `flattened`,
+`inflated` / `deflated`, `stacked`, `packed`; the issues `tangled`, `knotted`, `peeling_label`, `blown_away`,
+`loose_cap`. A thing with no such record leaves a claim unknown, never false. No acts: a truth act needs the lexicon's
+verbs (WP4's file), so the commitments "I wrapped / stacked / packed / zipped / covered it" (wrap -> wrapped, stack ->
+stacked, pack -> packed, zip / unzip, cover / uncover, roll up -> rolled_up, flatten -> flattened) are requested from
+WP4.
+`covered` / `capped` / `upright` are truth.json's words; their reading of this domain's `cap.on` and `orientation` is
+requested from WP4.
+
+### Structured readings, meters, zones
+
+None: this domain has no measuring instrument (`support mode=heft` is a felt weight class in realistic mode, learned
+through realism's grant, never a scale reading), no resource meter, and owns no people or pets.
+
+### Phase-1 carry-over
+
+* `manipulation.items` is registered with `dialogue.route(..., takes_env=True)` and reads the record the household
+  knew through the kernel's `dialogue.known_record` (this domain's own copy of the rule, `world._known_record`, now
+  delegates to it): a thing destroyed out of view that carried hidden truth gets the plain topic, like one merely out
+  of view (it used to be a weak one, so a later route's plain topic could win for the gone thing alone).
+* `common.novel_unidentified` / `refuse_novel` delegate to the kernel's `Ctx.unfamiliar` / `Ctx.refuse_unfamiliar`
+  (behaviour identical).
+* Look-alikes over every verb of this domain and the core verbs it hooks (78 groups, 253 member types, on the table
+  and held): the only differences are physical -- the felt weight class of `support mode=heft`, a throw breaking the
+  more fragile member or spilling a raw egg, and `wrap` naming the roll once wrapping has resolved it (inspect tier);
+  details in `catalog/analysis/phase2/handoff_WP-D_manipulation.md`.
+
+Tests: `tests/test_manipulation_hardening.py`.

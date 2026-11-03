@@ -156,7 +156,7 @@ def children_idle(w):
     return True
 
 
-@system("people.children", order=112, max_dt=30.0, idle=children_idle)
+@system("people.children", order=112, max_dt=30.0, idle=children_idle, writer="volition")
 def children_system(w, dt, tick):
     state = w.s
     for pid in sorted(state.get("people", {})):
@@ -171,8 +171,12 @@ def children_system(w, dt, tick):
         if risky:
             _risky(w, pid, child, risky)
         if child.get("needs_watch"):
+            # the robot was asked to watch this child: only its own attendance counts (VERIFY_HARDENING 23.3, review
+            # L3 "any adult in the room counts as attending"), unless the scenario says another adult's presence will
+            # do (watch_by: "anyone")
             room = child.get("location")
-            watched = watched_by_robot(w, pid, child) or adult_in_room(state, room, exclude=pid)
+            watched = watched_by_robot(w, pid, child) or \
+                (child.get("watch_by") == "anyone" and adult_in_room(state, room, exclude=pid))
             m = w.person_m(pid)
             m["watch_s"] = round(float(child.get("watch_s", 0.0)) + dt, 1)
             if not watched:

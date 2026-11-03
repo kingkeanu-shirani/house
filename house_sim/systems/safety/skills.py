@@ -74,14 +74,45 @@ def _drop(r, item):
     r.do("place", target=item)
 
 
+def _open_way(r, cid):
+    """Open the closed door of connection cid from the robot's side, judging it afresh after every action: people
+    leaving the house on an alarm open exterior doors themselves while the robot walks up to one or unlocks it, and
+    a raw open of a door that is already open is refused (WP11's held-out A-d9e7a4d5d112d2-01 variant 2, seeds 3 and
+    500). A door that is open (or gone) by then is left as it is; the walk through it is go_room's."""
+    door_id = (r.state["connections"].get(cid) or {}).get("door")
+    door = r.state["entities"].get(door_id or "")
+    if door is None or door.get("open"):
+        return
+    S._approach_door(r, door_id)
+    door = r.state["entities"].get(door_id)
+    if door is not None and not door.get("open") and door.get("locked"):
+        r.do("unlock", target=door_id)
+    door = r.state["entities"].get(door_id)
+    if door is not None and not door.get("open"):
+        r.do("open", target=door_id)
+
+
 def _go_room(r, room):
-    """S.go_room, except that with the geometric camera a closed door on the way that cannot be seen from where the
-    robot stands (a fridge or a wall run between) is walked up to first -- the robot knows its own house's doorways
-    (privileged map routing) -- since core approach refuses a door it cannot see (kernel request: tasks.skills.go_room).
-    Room camera or oracle perception: S.go_room as it is."""
+    """S.go_room one connection at a time, opening each closed door on the way with fresh checks (`_open_way`: an
+    evacuating resident may open it first). With the geometric camera a closed door on the way that cannot be seen
+    from where the robot stands (a fridge or a wall run between) is walked up to first -- the robot knows its own
+    house's doorways (privileged map routing) -- since core approach refuses a door it cannot see (kernel request:
+    tasks.skills.go_room)."""
     from ...kernel import camera
     if camera.mode(r.state) != "geometric" or getattr(r.env, "realism", None) is None:
-        return S.go_room(r, room)
+        for _ in range(64):
+            here = r.state["robot"]["room"]
+            if here == room:
+                return None
+            route = S.room_route(r.state, here, room)
+            if not route:
+                return S.go_room(r, room)       # its own "No route" error
+            nxt, cid = route[0]
+            _open_way(r, cid)
+            S.go_room(r, nxt)
+            if r.state["robot"]["room"] == here:
+                return S.go_room(r, room)       # it went nowhere: the core skill's own outcome
+        return None
     for _ in range(32):
         state = r.state
         here = state["robot"]["room"]
@@ -101,6 +132,7 @@ def _go_room(r, room):
                 goals = geometry.near_cells([cell], state["rooms"][here]) - {cell}
                 kinds = S.safe_avoid(state, here, pos, goals)
                 r.do("walk_to", cell=list(cell), adjacent=True, **({"avoid": kinds} if kinds else {}))
+        _open_way(r, cid)
         S.go_room(r, nxt)
         if r.state["robot"]["room"] == here:
             return S.go_room(r, room)       # it went nowhere: the core skill's own outcome
@@ -258,7 +290,11 @@ def evacuate_house(r, kind="fire", panel=None, dispatch=False, include_pets=True
         left = _people_left(r.state, include_pets)
         if not left:
             break
-        group, aid, room = left[0]
+        # everyone still inside the room the robot is in first (a child and a dog asleep in one bedroom leave together:
+        # leading one out and coming back for the other cost the CO evacuation its deadline, WP11's held-out
+        # T-1970299fc6d849-01 seed 501), else the first one left
+        here = r.state["robot"]["room"]
+        group, aid, room = next((entry for entry in left if entry[2] == here), left[0])
         if r.state["robot"].get("carrying_pet") and group == "pets" and r.state["pets"][aid].get("species") not in ("dog",):
             _go_room(r, assembly)
             continue
@@ -281,10 +317,24 @@ def evacuate_house(r, kind="fire", panel=None, dispatch=False, include_pets=True
                 _drop(r, held)
         r.do("evacuate", target=aid)
         follow = (group == "pets") or (group == "people" and C.age_of(r.state["people"][aid]) < 8)
-        if follow:
+        here = r.state["robot"]["room"]
+        if follow and not _more_here(r, here, include_pets):
             _go_room(r, assembly)
     if r.state["robot"]["room"] != assembly:
         _go_room(r, assembly)
+
+
+def _more_here(r, room, include_pets=True):
+    """Someone else still to evacuate in this room whom the robot can take along with those already following it: a
+    person, or a pet unless the robot already carries one and the next is not a dog (a carried cat goes out first)."""
+    carrying = bool(r.state["robot"].get("carrying_pet"))
+    for group, aid, where in _people_left(r.state, include_pets):
+        if where != room:
+            continue
+        if group == "pets" and carrying and r.state["pets"][aid].get("species") not in ("dog",):
+            continue
+        return True
+    return False
 
 
 def _walk_up_to(r, group, aid):
@@ -377,17 +427,24 @@ def clean_glass(r, room, gloves, dustpan, broom=None, damp=None, wrap=None, tras
     if not events:
         raise _plan_error("No broken glass recorded in " + room)
     center = tuple(events[-1]["impact"])
+    # the robot may start in the glass room itself, beside the gloves: gloves on first when it can reach them without
+    # stepping on glass (it never handles anything there bare-handed)
+    if r.state["robot"]["room"] == room and S.locate(r.state, gloves) == room and not _worn(r.state, gloves) and \
+            _reach_glass_free(r.state, room, gloves):
+        _fetch_clear(r, gloves)
+        r.do("wear", target=gloves)
     # supplies kept in another room (a crowded kitchen keeps its doorway clear): gloves on and dustpan in hand on the
-    # way in, so the robot never walks into the glass room bare-handed
+    # way in, so the robot never walks into the glass room bare-handed; from inside the glass room it goes out by a
+    # doorway it reaches without stepping on glass and round the other rooms (`_fetch_round`)
     if S.locate(r.state, gloves) != room and not _worn(r.state, gloves):
-        S.fetch(r, gloves)
+        _fetch_round(r, room, gloves)
         r.do("wear", target=gloves)
     if S.locate(r.state, dustpan) != room and dustpan not in _held(r):
-        S.fetch(r, dustpan)
+        _fetch_round(r, room, dustpan)
     if broom and S.locate(r.state, broom) != room and broom not in _held(r) and dustpan in _held(r):
         # broom in the other hand too: glass can lie in the doorway itself, and the sweep pass is what clears the way
         # back out (a trip out for the broom could only cross the glass)
-        S.fetch(r, broom)
+        _fetch_round(r, room, broom)
     if r.state["robot"]["room"] != room:
         _enter_glass_room(r, room, dustpan, broom, damp)
     if r.state["robot"].get("speed_mode") != "careful":
@@ -469,6 +526,10 @@ def clean_glass(r, room, gloves, dustpan, broom=None, damp=None, wrap=None, tras
             S.put(r, bundle, trash)
     if not keep_gloves:
         r.do("take_off", target=gloves)
+        # the job is done: the gloves and the emptied dustpan are set down, not carried on (house.held, 6.4)
+        for held in _held(r):
+            if held in (gloves, dustpan):
+                _drop(r, held)
     r.do("set_speed", target="normal")
 
 
@@ -765,7 +826,7 @@ def _fetch_clear(r, item, dustpan=None):
     if item in [v for v in state["robot"]["hands"].values() if v]:
         return item
     if S.locate(state, item) != rid:
-        S.fetch(r, item)
+        _fetch_round(r, rid, item)
         if r.state["robot"]["room"] != rid:
             _enter_glass_room(r, rid, dustpan)
         return item
@@ -790,6 +851,67 @@ def _glass_free_path(state, rid, start, goals):
     if not goals or tuple(start) in glass:
         return None
     return geometry.find_path(state, rid, tuple(start), goals, avoid_kinds=("sharp",), extra_blocked=sorted(glass))
+
+
+def _reach_glass_free(state, rid, item):
+    """The robot can get within reach of item (in its own room rid) without stepping on glass."""
+    room, cells = geometry.anchor(state, item)
+    if room != rid or not cells:
+        return False
+    cells = set(cells)
+    goals = geometry.near_cells(cells, state["rooms"][rid]) - cells
+    pos = tuple(state["robot"].get("pos") or (0, 0))
+    return pos in goals or _glass_free_path(state, rid, pos, goals) is not None
+
+
+def _leave_glass_room(r, rid):
+    """Leave the glass room by a doorway the robot can walk to without stepping on glass (the nearest such one, an
+    unlocked door), into the room beyond. Returns True when it left."""
+    state = r.state
+    pos = tuple(state["robot"].get("pos") or (0, 0))
+    options = []
+    for cid in sorted(state.get("connections", {})):
+        conn = state["connections"][cid]
+        cells = conn.get("cells") or {}
+        if rid not in cells or conn.get("kind") not in (None, "doorway", "opening", "arch"):
+            continue
+        other = next((x for x in conn.get("rooms", []) if x != rid), None)
+        door = state["entities"].get(conn.get("door") or "")
+        if other is None or other not in state["rooms"] or (door is not None and door.get("locked")):
+            continue
+        cell = tuple(cells[rid])
+        if cell in _glass_cells(state, rid):
+            continue
+        path = [] if cell == pos else _glass_free_path(state, rid, pos, [cell])
+        if path is not None:
+            options.append((len(path), cid, other, cell))
+    for _n, cid, other, cell in sorted(options):
+        if tuple(r.state["robot"].get("pos") or ()) != cell:
+            kinds = _glass_go(r, rid, [cell])
+            if not kinds:
+                continue
+            _gwalk(r, rid, cell, kinds)
+            if tuple(r.state["robot"].get("pos") or ()) != cell:
+                continue
+        _open_way(r, cid)
+        S.go_room(r, other)
+        if r.state["robot"]["room"] != rid:
+            return True
+    return False
+
+
+def _fetch_round(r, rid, item):
+    """Fetch an item kept outside the glass room rid. From inside rid the robot first leaves by a doorway it reaches
+    without stepping on glass (the shortest room route can start at a doorway the glass cuts it off from: WP11's
+    held-out X-bc4e8d373e62c5-01 seeds 5, 6 and 503), then walks to the item's room through the other rooms, never back
+    across rid; the walk back in is the caller's (`_enter_glass_room`)."""
+    if r.state["robot"]["room"] == rid and _leave_glass_room(r, rid):
+        where = S.locate(r.state, item)
+        here = r.state["robot"]["room"]
+        if where in r.state["rooms"] and where != here:
+            for hop in _rooms_between(r.state, here, where, avoid=rid) or ():
+                _go_room(r, hop)
+    return S.fetch(r, item)
 
 
 def _go_around(r, rid, goals, dustpan=None):
@@ -909,9 +1031,16 @@ def clean_biohazard(r, spill, gloves, bag, absorbent=None, paper_towels=None, di
         S.wait_skill(r, int(dwell_s or (B.DWELL.get(B._product_kind(r.state["entities"][disinfectant]) or "disinfectant", 600.0) + 30)))
         _drop(r, disinfectant)
         S.fetch(r, paper_towels)
+        S.fetch(r, bag)
         S.approach(r, spill)
-        r.do("clean_biohazard", target=spill, step="wipe", tool=paper_towels)
+        # the used sheets go straight into the bag (the house ledger follows the droppings there, 6.5)
+        r.do("clean_biohazard", target=spill, step="wipe", tool=paper_towels, destination=bag)
+        for held in _held(r):
+            _drop(r, held)
         r.do("take_off", target=gloves)
+        _bag_waste(r, bag, [gloves] if _disposable(r.state, gloves) else [])
+        if trash:
+            S.put(r, bag, trash)
         for held in _held(r):
             _drop(r, held)
         return
@@ -944,11 +1073,28 @@ def clean_biohazard(r, spill, gloves, bag, absorbent=None, paper_towels=None, di
         S.approach(r, spill)
         r.do("clean_biohazard", target=spill, step="rinse", product=water)
         _drop(r, water)
+    r.do("take_off", target=gloves)
+    _bag_waste(r, bag, [gloves] if _disposable(r.state, gloves) else [])
     if trash:
         S.put(r, bag, trash)
-    r.do("take_off", target=gloves)
     for held in _held(r):
         _drop(r, held)
+
+
+def _disposable(state, item):
+    rec = state["entities"].get(item) or {}
+    return rec.get("gear_kind") == "disposable_gloves" or "disposable" in str(rec.get("label") or "")
+
+
+def _bag_waste(r, bag, items):
+    """What carries the mess (used paper towels) and used disposable gloves go into the waste bag, never back on the
+    floor: the house ledger's mess balance (VERIFY_HARDENING 6.5) follows a wipe into the towels until they reach a
+    waste container (a sealable bag is one)."""
+    if not bag or bag not in r.state["entities"]:
+        return
+    for item in items:
+        if item and item in r.state["entities"] and r.state["entities"][item].get("location") != bag:
+            S.put(r, item, bag)
 
 
 @skill("safety.check_gate")

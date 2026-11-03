@@ -94,29 +94,40 @@ def _falls_idle(w):
     return not any(ents[e].get("rolling") or ents[e].get("falling") for e in C.watched(w))
 
 
-@system("manipulation.falls", order=70, max_dt=30.0, idle=_falls_idle)
+@system("manipulation.falls", order=70, max_dt=30.0, idle=_falls_idle, writer="physical")
 def falls_system(w, dt, tick):
-    """Per substep (falls are step-sensitive), over the watch list only."""
+    """Per substep (falls are step-sensitive), over the watch list only. Writer physical; every write cites the falling
+    thing itself as its cause (6.2): whoever set it rolling or falling (the robot's push, a scheduled bump) wrote that
+    thing last, so the fall is the robot's exactly when the robot started it."""
     if not C.section(w).get("watch"):
         return
     ents = w.s["entities"]
+    landed = []
     for eid in C.watched(w):
         rec = ents[eid]
         if not rec.get("rolling"):
             continue
-        if rec.get("location") == "robot" or rec.get("location") in w.s["rooms"] or rec.get("stopped"):
-            w.mut(eid).pop("rolling", None)
-            continue
-        if w.s["steps"] >= int(rec["rolling"].get("edge_at_step", 0)):
-            w.mut(eid).pop("rolling", None)
-            start_fall(w, eid)
+        with w.writing("physical", cause=[eid]):
+            if rec.get("location") == "robot" or rec.get("location") in w.s["rooms"] or rec.get("stopped"):
+                w.mut(eid).pop("rolling", None)
+                continue
+            if w.s["steps"] >= int(rec["rolling"].get("edge_at_step", 0)):
+                w.mut(eid).pop("rolling", None)
+                start_fall(w, eid)
     for eid in C.watched(w):
         rec = ents[eid]
         falling = rec.get("falling")
         if not falling or falling.get("step", 0) >= w.s["steps"]:
             continue
-        w.mut(eid).pop("falling", None)
-        C.drop_item(w, eid, C.num(falling.get("height_m"), 0.9), falling.get("room") or w.root_room(eid), falling.get("cell"), cause="fell")
+        with w.writing("physical", cause=[eid]):
+            w.mut(eid).pop("falling", None)
+            C.drop_item(w, eid, C.num(falling.get("height_m"), 0.9), falling.get("room") or w.root_room(eid),
+                        falling.get("cell"), cause="fell")
+        landed.append(eid)
+    if landed:
+        from .records import reconcile
+        with w.writing("physical", cause=landed):
+            reconcile(w, ids=[e for e in landed if e in ents], verb="manipulation.falls")
 
 
 def _breaks_idle(w):
@@ -125,12 +136,15 @@ def _breaks_idle(w):
     return not C.section(w).get("unseen_breaks") or not C.breaks_pending(w)
 
 
-@system("manipulation.breaks", order=72, max_dt=30.0, idle=_breaks_idle)
+@system("manipulation.breaks", order=72, max_dt=30.0, idle=_breaks_idle, writer="physical")
 def breaks_system(w, dt, tick):
     """Contained breaks (a kernel break inside a full wrap or the packaging) end once the wrap or the packaging is off,
-    whoever took it off: the pieces show and come out (C.end_containment: the kernel's impact.uncontained)."""
-    if C.section(w).get("unseen_breaks"):
-        C.reveal_breaks(w)
+    whoever took it off: the pieces show and come out (C.end_containment: the kernel's impact.uncontained). Writer
+    physical; the cause is the broken thing, whose wrap or packaging field its remover wrote."""
+    ids = C.section(w).get("unseen_breaks")
+    if ids:
+        with w.writing("physical", cause=list(ids)):
+            C.reveal_breaks(w)
 
 
 @hook("phys.broke")
@@ -253,10 +267,12 @@ def _timers_idle(w):
     return True
 
 
-@system("manipulation.timers", order=310, max_dt=30.0, period=120.0, idle=_timers_idle)
+@system("manipulation.timers", order=310, max_dt=30.0, period=120.0, idle=_timers_idle, writer="physical")
 def timers_system(w, dt, tick):
     """Slow clocks (hours): every 120 s with dt = the accumulated time. Drying accumulates dt x rate
-    (closed form); deadlines compare absolute times, so they fire at most one period late."""
+    (closed form); deadlines compare absolute times, so they fire at most one period late. Writer physical; each write
+    cites the thing it changes as its cause (6.2): the cap left off, the label put on a wet surface, the pads on dirty
+    feet, the wet item sealed or stacked are fields of that thing, written by whoever did it."""
     now = w.s["time_s"]
     ents = w.s["entities"]
     for eid in _dries_index(w):
@@ -267,7 +283,7 @@ def timers_system(w, dt, tick):
         cap = rec.get("cap") or {}
         if not _sealed_with_cap(rec):
             rate = 0.5 if isinstance(cap, dict) and cap.get("on") else 1.0
-            m = w.mut(eid)
+            m = w.mut(eid, cause=[eid])
             m["uncapped_s"] = round(C.num(rec.get("uncapped_s")) + dt * rate, 1)
             if m["uncapped_s"] >= C.num(dries):
                 m["dried_out"] = True
@@ -280,7 +296,7 @@ def timers_system(w, dt, tick):
         rec = ents[eid]
         peel = rec.get("label_peels_at_s")
         if peel is not None and now >= C.num(peel):
-            m = w.mut(eid)
+            m = w.mut(eid, cause=[eid])
             if rec.get("label_text"):
                 m["label_peeled"] = True
                 m["label_fallen_text"] = rec.get("label_text")
@@ -289,7 +305,7 @@ def timers_system(w, dt, tick):
             m.pop("label_peels_at_s", None)
         fall = rec.get("pads_fall_off_at_s")
         if fall is not None and now >= C.num(fall):
-            m = w.mut(eid)
+            m = w.mut(eid, cause=[eid])
             pads = dict(rec.get("pads") or {})
             pads["adhered"] = False
             pads["count"] = max(0, int(C.num(pads.get("count"))) - 2)
@@ -299,8 +315,9 @@ def timers_system(w, dt, tick):
             since = rec.get(key)
             if since is not None and now - C.num(since) >= 12 * 3600 and not rec.get("mildewed"):
                 from ..core import add_soil
-                add_soil(w, eid, "mildew", 0.3)
-                m = w.mut(eid)
+                with w.writing(w.writer[0], cause=[eid]):
+                    add_soil(w, eid, "mildew", 0.3)
+                m = w.mut(eid, cause=[eid])
                 m["mildewed"] = True
                 C.note_event(w, "mildew", eid)
         stale = stale or not C.watch_live(ents[eid])
@@ -387,8 +404,11 @@ def _wind_exposed(w, rec, eid, rooms, only_room=None):
     return bool(rooms.get(rid, {}).get("outdoor")) and (only_room is None or rid == only_room)
 
 
-@system("manipulation.wind", order=320, max_dt=30.0, idle=_wind_idle)
+@system("manipulation.wind", order=320, max_dt=30.0, idle=_wind_idle, writer="physical")
 def wind_system(w, dt, tick):
+    """Writer physical. A blown-off cover cites itself and what it covered (the cover laid and its securing are their
+    records); a light item lifted off cites nothing: what held it down (a weight, a clip, things resting on it) may have
+    been taken off by anyone, so the link is left unknown and the ledger's conservative default applies (6.2)."""
     if _wind_mps(w) < 2.5:
         return
     _apply_wind(w, None, None, covers_only=C.kernel_owns("wind"))
@@ -423,10 +443,12 @@ def _apply_wind(w, gust, only_room, covers_only=False):
             secured = target.get("cover_secured") or []
             limit = C.num(rec.get("wind_lift_mps"), 6.0) * (2.5 if secured else 1.0)
             if wind >= limit:
-                _uncover_record(w, eid, cover_target)
-                C.move_to_floor(w, eid, rid, C.landing_cell(w, rid))
-                w.mut(eid)["blown_away"] = True
-                C.note_event(w, "blown_away", eid, room=rid, wind_mps=round(wind, 2))
+                with w.writing(w.writer[0], cause=[eid, cover_target]):
+                    _uncover_record(w, eid, cover_target)
+                    C.move_to_floor(w, eid, rid, C.landing_cell(w, rid))
+                    w.mut(eid)["blown_away"] = True
+                    C.note_event(w, "blown_away", eid, room=rid, wind_mps=round(wind, 2))
+                    _settle_records(w, eid)
             continue
         if wind >= C.num(lift) and not _held_down(w, eid):
             m = w.mut(eid)
@@ -436,6 +458,13 @@ def _apply_wind(w, gust, only_room, covers_only=False):
             m["blown_away"] = True
             m["wetness"] = rec.get("wetness", 0.0)
             C.note_event(w, "blown_away", eid, room=rid, wind_mps=round(wind, 2))
+            _settle_records(w, eid)
+
+
+def _settle_records(w, eid):
+    """A thing the wind moved: its records and the mess flow of a blown-away waste item (records.reconcile)."""
+    from .records import reconcile
+    reconcile(w, ids=[eid], verb="manipulation.wind")
 
 
 @hook("event:manipulation.gust")
@@ -610,19 +639,13 @@ HIDDEN_TOPICS = {"cut_ok": "_cut_ok", "keep": "_keep", "in_use": "_in_use", "fra
 
 
 def _known_record(env, state, eid):
-    """eid's record as the household knows it: the current one, or for a thing that has gone since (eaten, thrown out,
-    merged) the one it had when the episode began; {} for a thing the robot saw that was made during the episode and
-    has gone again; None for an id that never was. People know what was to happen to a thing after it is gone: a thing
-    destroyed out of view is answered like one merely out of view (phase-1 finish, people's request: "I'm not sure what
-    you mean." for a destroyed thing's keep / intended / how / status was an existence oracle). The same rule as the
-    people domain's owner answer (people knowledge._known_record)."""
-    rec = state["entities"].get(eid)
-    if rec is not None:
-        return rec
-    baseline = (getattr(env, "_baseline", None) or {}).get("entities") or {}
-    if eid in baseline:
-        return baseline[eid]
-    return {} if env is not None and eid in dialogue.remembered_ids(env) else None
+    """eid's record as the household knows it: the kernel's dialogue.known_record (the current one, or for a thing that
+    has gone since -- eaten, thrown out, merged -- the one it had when the episode began; {} for a thing the robot saw
+    that was made during the episode and has gone again; None for an id that never was). People know what was to
+    happen to a thing after it is gone: a thing destroyed out of view is answered like one merely out of view (phase-1
+    finish, people's request). This domain kept its own copy of the rule until the kernel took it (phase-1 close-out,
+    closeout_breakages "manipulation, people")."""
+    return dialogue.known_record(env, state, eid)
 
 
 @answerer("manip:")
@@ -662,14 +685,19 @@ ROUTE_ASPECTS = {"keep": "keep", "status": "in_use", "who": "recipient", "intend
                  "owner": "owner"}
 
 
-def _route_manip(state, pid, subject, aspect, detail, act):
+def _route_manip(state, pid, subject, aspect, detail, act, env=None):
     """ask about one of the household's things -> manip:<key>:<id> (keep it? still in use? who is it for? how to
     handle it? what is inside? which way should it face?).
 
     The topic is this domain's own answer only for a thing that carries the hidden truth it answers from (`_<key>`,
     or a spec's `_ambiguous_<key>` / `_ask_<key>` marker). For any other thing it is a catch-all (dialogue.weak): a
     later domain route that knows the specific answer (plants:care for a garden plant, laundry's rewear / hang_or_fold
-    for a coat) wins, and this domain's default ("No preference.", not to keep...) answers only when none does."""
+    for a coat) wins, and this domain's default ("No preference.", not to keep...) answers only when none does.
+
+    The truth is read off the record the household knew (_known_record: registered with takes_env=True, the route is
+    given env), so a thing destroyed out of view routes exactly like one merely out of view: a plain topic when it
+    carried the hidden truth (closeout_breakages "manipulation, people": it used to be a weak one for a gone thing,
+    whose state record is no more, so a later route's plain topic could win for it alone)."""
     if subject is None or subject.kind != "entity" or not subject.id:
         return None
     if aspect in ROUTE_DETAILS:
@@ -679,10 +707,11 @@ def _route_manip(state, pid, subject, aspect, detail, act):
     if not key:
         return None
     topic = "manip:{}:{}".format(key, subject.id)
-    rec = (state.get("entities") or {}).get(subject.id) or {}
+    rec = _known_record(env, state, subject.id) or {}
     if HIDDEN_TOPICS[key] in rec or rec.get("_ambiguous_" + key) or rec.get("_ask_" + key):
         return topic
     return dialogue.weak(topic)
 
 
-dialogue.route("manipulation.items", tuple(sorted(set(ROUTE_DETAILS) | set(ROUTE_ASPECTS))), _route_manip)
+dialogue.route("manipulation.items", tuple(sorted(set(ROUTE_DETAILS) | set(ROUTE_ASPECTS))), _route_manip,
+               takes_env=True)

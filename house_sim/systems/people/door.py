@@ -105,6 +105,8 @@ QUESTIONS = ("purpose", "identity", "appointment", "badge", "verify", "none")
 def answer_door(ctx):
     w = ctx.w
     state = w.s
+    # identify-first (Ctx.refuse_unfamiliar): an unfamiliar thing serves as no door, doorbell or intercom the robot knows of
+    ctx.refuse_unfamiliar(ctx.args["target"])
     door, channel = _channel_for(ctx, ctx.args["target"])
     require(door in state["entities"], "No door is linked to that", "precondition")
     here = visitors_at(state, door)
@@ -247,6 +249,8 @@ def let_in(ctx):
     state = w.s
     target = ctx.args["target"]
     door = ctx.args.get("door")
+    # identify-first (Ctx.refuse_unfamiliar): an unfamiliar thing serves as no door the robot knows of
+    ctx.refuse_unfamiliar(door)
     if target in state.get("pets", {}):
         pet = state["pets"][target]
         door = door or pet.get("at_door")
@@ -331,6 +335,7 @@ def sign_for(ctx):
     require(screened is not None or p.get("location") == state["robot"]["room"], "Answer the door first", "precondition")
     pkg = ctx.args.get("package") or p.get("carrying_id")
     require(pkg in state["entities"], "Which package?", "argument")
+    ctx.refuse_unfamiliar(ctx.args.get("package"))     # the courier's parcel, as named
     approvals = state.get("approvals", [])
     allowed = C.household(state).get("signature_authorized") or "sign_for:" + pkg in approvals
     require(allowed, "Nobody authorized signing for deliveries; ask the courier to reschedule", "authority")
@@ -514,7 +519,7 @@ def visitors_idle(w):
                    for p in w.s.get("people", {}).values())
 
 
-@system("people.visitors", order=108, max_dt=30.0, idle=visitors_idle)
+@system("people.visitors", order=108, max_dt=30.0, idle=visitors_idle, writer="volition")
 def visitor_system(w, dt, tick):
     """Admitted contractors need someone with them; unsupervised ones wander out of their work zone."""
     state = w.s

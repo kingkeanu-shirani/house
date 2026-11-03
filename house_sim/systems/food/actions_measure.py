@@ -15,6 +15,7 @@ from ...kernel.errors import ActionError, require
 from ..core import release_from_hands
 from . import common as C
 from . import data as D
+from . import hardening as H
 from . import mixing as X
 from . import model as M
 from . import percept as P
@@ -130,7 +131,13 @@ def weigh(ctx):
     C.seconds(ctx, 2.0 if ctx.args["tare"] else 3.0)
     if ctx.realistic:
         _grant_reading(ctx, scale)
-    return {"scale": scale, "display": display}
+    out = {"scale": scale, "display": display}
+    # the display as a structured instrument reading (VERIFY_HARDENING 15.2: tasks/perceive.py's reading index): the
+    # mass of the one thing it weighs when that is clear, else of the scale's load
+    found = H.scale_reading(w.s, scale, display, known=ctx.visible)
+    if found is not None:
+        out["reading"] = found
+    return out
 
 
 def _grant_reading(ctx, scale):
@@ -686,6 +693,9 @@ def thaw(ctx):
                 (w.s["entities"].get(rec.get("location"), {}).get("category") in ("bag", "food_bag") and not w.s["entities"][rec["location"]].get("open"))
             require(float(drec.get("liquid_l", 0.0) or 0.0) >= 1.0 or drec.get("water_bath"), "Fill the bowl with cold water first", "precondition")
             m = w.mut(dest)
+            if ctx.args["refresh_water"] and m.get("water_bath"):
+                # a fresh bath: the bowl is emptied and filled again from the cold tap (the house water meter, 6.8)
+                H.count_water(w, float(m.get("liquid_l", 0.0) or 0.0))
             if ctx.args["refresh_water"] or not m.get("water_bath"):
                 m["water_bath"] = True
                 m["internal_temp_c"] = 12.0

@@ -834,8 +834,10 @@ def _goals_idle(w):
     return not C.section(w).get("goals")
 
 
-@system("manipulation.goals", order=900, max_dt=30.0, idle=_goals_idle)
+@system("manipulation.goals", order=900, max_dt=30.0, idle=_goals_idle, writer="physical")
 def goals_system(w, dt, tick):
+    """Recomputes every declared goal from the current state each substep (never latched: VERIFY_HARDENING 8.2). Writes
+    only the state.manipulation.results bookkeeping section (writer physical, never charged)."""
     sec = C.section(w)
     if not sec.get("goals"):
         return

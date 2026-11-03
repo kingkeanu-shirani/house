@@ -8,6 +8,10 @@
   manipulation.give(obj, person)                                          handle-first, recipient-aware hand-over
   manipulation.restore_poses(items)                                       back to recorded home poses (robot memory)
   manipulation.retrieve_from_stack(target, staging_cells, deliver=None)   unstack above, take, restack in order
+  manipulation.operate(target, verb, hold=False, **args)                  walk to a thing (crouch when it is low; fetch it
+                                                                          when hold) and work it with one of this
+                                                                          domain's verbs: the plan step of the settings
+                                                                          skills (verify.py, VERIFY_HARDENING 10.3)
 """
 import json
 
@@ -217,3 +221,21 @@ def hold_for(r, item, job, max_rounds=12, seconds=20):
         else:
             r.do("hold_steady", target=item, duration_s=float(seconds), brace=True)
     return ((r.state.get("manipulation") or {}).get("jobs", {}).get(job, {})).get("state")
+
+
+@skill("manipulation.operate")
+def operate(r, target, verb, hold=False, **args):
+    """Work a thing with one of this domain's verbs where it is (or held, hold=True): walk up to it, crouch for a low
+    one, do `verb` with target and the given arguments (destination "here": the room the robot stands in), stand up
+    again. The plan step settings skills give a battery policy (verify.py)."""
+    core = _core()
+    if hold:
+        core.fetch(r, target)
+    elif r.state["entities"].get(target, {}).get("location") != "robot":
+        core.approach(r, target)
+        _low(r, target)
+    if args.get("destination") == "here":
+        args["destination"] = r.state["robot"]["room"]       # the floor of the room the robot stands in
+    out = r.do(verb, target=target, **args)
+    _up(r)
+    return out

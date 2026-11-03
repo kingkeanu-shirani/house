@@ -25,6 +25,9 @@ from . import systems  # noqa: F401
 from . import furnish  # noqa: F401
 from . import scenarios  # noqa: F401
 from . import skills  # noqa: F401
+from . import hardening  # noqa: F401
+
+hardening.install_causes()      # the kernel appliance-cycle hooks of this domain cite their appliance (6.2)
 
 VERBS = ("ignite", "preheat", "set_timer", "defrost", "steam_milk", "brew", "grind_coffee", "light_grill", "check_doneness",
          "load", "unload", "blend")

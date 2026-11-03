@@ -424,7 +424,7 @@ def plug_drain(ctx):
     require(plug_state(rec) != "closed", "The drain is already plugged")
     kind = rec.get("plug_kind")
     if kind == "basket":
-        tool = ctx.args.get("tool") or next((h for h in w.held_items() if w.ent(h).get("stopper_for")), None)
+        tool = ctx.args.get("tool") or next((h for h in w.held_items() if w.ent(h).get("stopper_for") and not ctx.unfamiliar(h)), None)
         require(tool and ctx.holding(tool), "Hold a sink stopper to seat in the drain", "capability")
         srec = w.ent(tool)
         require(srec.get("stopper_for") in ("basket", "any"), "That stopper does not fit this drain", "precondition")

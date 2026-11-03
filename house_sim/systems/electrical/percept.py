@@ -62,6 +62,9 @@ def unfamiliar(ctx, eid):
     ports told a phone, a hair dryer and a remote apart). False in oracle mode and for unknown ids."""
     if ctx is None or not active(ctx) or not isinstance(eid, str):
         return False
+    kernel = getattr(ctx, "unfamiliar", None)
+    if callable(kernel):
+        return bool(kernel(eid))        # the kernel's helper (Ctx.unfamiliar, phase-1 close-out; INT3 row 9)
     rec = ctx.w.s["entities"].get(eid) or {}
     if not rec.get("novel"):
         return False

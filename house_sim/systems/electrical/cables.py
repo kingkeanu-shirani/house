@@ -28,6 +28,7 @@ from ...kernel import geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from . import common as C
+from . import hardening as H
 from . import percept
 from . import power as P
 
@@ -132,7 +133,7 @@ def connect_cable(ctx):
     cid, dev, port = ctx.args["target"], ctx.args["destination"], ctx.args["port"]
     crec = ctx.obj(cid)
     drec = ctx.obj(dev, touch=True)
-    percept.refuse_unfamiliar(ctx, cid, dev)
+    H.identify_first(ctx, cid, dev)        # a brick's captive connector decides the fit (WP-D electrical)
     dangling = is_cable(crec) and crec.get("relation") == "attached"
     if not (ctx.holding(cid) or dangling or not crec.get("portable")):
         if not (crec.get("usb_device") or crec.get("captive_connector")):

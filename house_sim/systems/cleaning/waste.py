@@ -550,14 +550,18 @@ def scatter(w, container, cause):
     rid = w.root_room(container)
     items = [c for c in w.descendants(container) if w.ent(c).get("portable") and not w.ent(c).get("liner")]
     for item in sorted(items)[: max(1, len(items) // 2)]:
-        m = w.mut(item)
+        # a physical consequence of how the container was left (open, unlatched, a bag on the floor): its cause is the
+        # container, so the ledger links it to whoever left it so (VERIFY_HARDENING 6.2)
+        before = S.entity_loc(w.s, item)
+        m = w.mut(item, cause=container)
         m["location"], m["relation"] = rid, "on"
         m["pos"] = geometry.free_floor_cell(w.s, rid, ignore=(item,)) or [0, 0]
         m.pop("in_stream", None)
         m.pop("stream_ok", None)
         m.pop("_cl_judged_in", None)
+        S.flow_item(w, item, before)
     for liner in [c for c in w.descendants(container) if w.ent(c).get("liner")]:
-        w.mut(liner)["torn"] = True
+        w.mut(liner, cause=container)["torn"] = True
     S.glog(w, "trash_scattered", container=container, cause=cause)
     from ...kernel import camera, timeline
     camera.visual_event(w, "trash_scattered", source=container, room=rid, size_m=1.0, container=container, cause=cause)
@@ -611,16 +615,19 @@ def empty_into(ctx):
                 rid = w.robot["room"]
                 floors.settle_room_dust(w, rid, "dust", sum(fine.values()))
                 floors.drop_to_floor(w, rid, {k: v * 0.5 for k, v in fine.items()})
+                S.flow(w, "debris", S.load_grams(fine) * 0.5, ("entity", target), S.mess_loc(w.s, rid))
                 load = {k: v - fine.get(k, 0.0) for k, v in load.items()}
                 outcome.append("a dust cloud billowed out")
         if drec.get("water_source") and drec.get("drain") or drec.get("toilet"):
             dm = w.mut(dest)
             dm["clog"] = S.rnd(M.clamp(float(drec.get("clog", 0.0)) + sum(load.values()) / 300.0))
             S.glog(w, "debris_down_drain", drain=dest)
+            S.flow(w, "debris", S.load_grams(load), ("entity", target), ("drain", dest))
             outcome.append("debris went down the drain")
         else:
             from .surfaces import deposit_waste
             deposit_waste(w, destination, load, source=target)
+            S.flow(w, "debris", S.load_grams(load), ("entity", target), S.deposit_loc(w, destination))
         m = w.mut(target)
         m["cl_load"] = {}
         m["cl_load_g"] = 0.0
@@ -633,6 +640,7 @@ def empty_into(ctx):
                 dm["contaminated"] = True
             m["hazardous_waste"] = False
     items = [c for c in w.children(target) if w.ent(c).get("relation") == "in"]
+    before = {item: S.entity_loc(w.s, item) for item in items}
     for item in items:
         m = w.mut(item)
         m["location"], m["relation"] = destination, "in"
@@ -648,9 +656,15 @@ def empty_into(ctx):
         for item in moved:
             judge(w, item, container)
         update_fill(w, container)
-    elif moved and (drec.get("water_source") or drec.get("toilet")):
+    elif moved and S.has_drain(drec):
+        # what fits through the drain goes down it (relation drain: gone for good); bigger things stay in the basin
         for item in moved:
-            S.glog(w, "item_down_drain", item=item)
+            if S.drains_away(w.ent(item), drec):
+                S.send_down_drain(w, item, dest, source=target)
+            else:
+                S.glog(w, "item_in_basin", item=item, basin=dest)
+    for item in moved:
+        S.flow_item(w, item, before[item])
     if S.is_waste_container(trec):
         update_fill(w, target)
     ctx.data["seconds"] = 6.0 + 1.0 * len(moved)
@@ -687,6 +701,7 @@ def scrape_into(ctx, plate, dest, grams):
             S.gsec(w)["stream_errors"] += 1
         from .surfaces import deposit_waste
         deposit_waste(w, container, {"food": sum(grams.values())}, source=plate)
+        S.flow(w, "debris", sum(grams.values()), ("entity", plate), ("entity", container))
         m = w.mut(container)
         if any(k in ANIMAL_FOOD for k in kinds):
             m["has_meat_waste"] = True
@@ -696,10 +711,14 @@ def scrape_into(ctx, plate, dest, grams):
         if not drec.get("disposal") or "oily" in kinds or "fibrous" in kinds:
             dm["clog"] = S.rnd(M.clamp(float(drec.get("clog", 0.0)) + sum(grams.values()) / 250.0))
             S.glog(w, "scraps_down_drain", drain=dest)
+            # scraps that clog a drain went to a wrong sink (a garbage disposal grinding food is no mess)
+            S.flow(w, "debris", sum(grams.values()), ("entity", plate), ("drain", dest))
     else:
         from .surfaces import deposit_waste
         deposit_waste(w, dest, {"food": sum(grams.values())}, source=plate)
+        S.flow(w, "debris", sum(grams.values()), ("entity", plate), S.deposit_loc(w, dest))
     for item in riders:
+        before = S.entity_loc(w.s, item)
         m = w.mut(item)
         m["location"], m["relation"] = dest, "in"
         m.pop("spos", None)
@@ -707,3 +726,6 @@ def scrape_into(ctx, plate, dest, grams):
         S.glog(w, "scraped_item_into_bin", item=item, dest=dest)
         if S.is_waste_container(drec):
             judge(w, item, dest)
+        elif S.has_drain(drec) and S.drains_away(w.ent(item), drec):
+            S.send_down_drain(w, item, dest, source=plate)
+        S.flow_item(w, item, before)

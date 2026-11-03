@@ -261,6 +261,7 @@
  "field_tiers": {
   "hidden": [
    "soil_faces",
+   "waste",
    "stain_area_m2",
    "internal_dust",
    "drain_debris_g",

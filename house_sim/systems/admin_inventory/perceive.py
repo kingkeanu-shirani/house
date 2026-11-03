@@ -84,15 +84,28 @@ def unresolved(env, eid):
     return "candidates" in realism.identity(eid, record, realism.knowledge.entity_level(eid, record))
 
 
-def novel(env, eid, record=None):
-    """True in realistic mode while the robot takes eid for an unfamiliar thing (a novel object or a portion of one:
-    the kernel's Realism.novel_unidentified), whatever it really is. Always False in oracle mode."""
-    realism = realism_of(env)
-    if realism is None:
-        return False
-    if record is None:
-        record = realism.env.world.s["entities"].get(eid)
-    return record is not None and bool(realism.novel_unidentified(eid, record))
+
+
+def group_answer(ctx, eid, predicate):
+    """What predicate(record) answers for eid as the robot can know it: for an unresolved look-alike, the answer every
+    member type of the group it sees eid as gives (True / False), or None when the members disagree -- an answer then
+    would tell them apart before the group is resolved (the identify-first rule, phase 2 twin sweep: refill took a
+    held plain spray bottle for a pourable bottle and a product spray for none). Resolved things, unfamiliar things
+    (the kernel's identify-first hook refuses those first) and oracle mode: predicate of the true record."""
+    record = ctx.w.s["entities"].get(eid) or {}
+    realism = realism_of(ctx.env)
+    if realism is None or not ctx.unresolved(eid) or record.get("novel"):
+        return bool(predicate(record))
+    name, group = realism.group_of(record)
+    if not name:
+        return bool(predicate(record))
+    reg = ctx.w.reg
+    found = reg.lookalike_types().get(name) if hasattr(reg, "lookalike_types") else None
+    types = found or [m for m in (group or {}).get("members", []) if reg.known(m)]
+    answers = {bool(predicate(reg.resolve(t))) for t in types if reg.known(t)}
+    if len(answers) == 1:
+        return answers.pop()
+    return None if answers else bool(predicate(record))
 
 
 ENTITY_PARAMS = ("entity", "target")
@@ -107,14 +120,10 @@ def unfamiliar_first(ctx):
     by envelope, affix_postage, open_package and remove_packing by parcel, take_unit "Open it first" for a napkin pack
     alone, tag_luggage and weigh_luggage by bag or scale, count listed the chili in a pot. Rooms (a count's scope) are
     never unfamiliar. No-op in oracle mode."""
-    if realism_of(ctx.env) is None:
-        return
-    from ...kernel.actions import NOVEL_OPERATE_MESSAGE
-    from ...kernel.errors import ActionError
-    for pname, p in sorted(ctx.spec.params.items()):
-        value = ctx.args.get(pname)
-        if p.get("type") in ENTITY_PARAMS and isinstance(value, str) and novel(ctx.env, value):
-            raise ActionError(NOVEL_OPERATE_MESSAGE, "precondition")
+    # the kernel's helpers (Ctx.unfamiliar / Ctx.refuse_unfamiliar, closeout_breakages "domain copies of the
+    # unfamiliar-tool rule"): one rule and one message for every domain; a no-op in oracle mode
+    ids = [ctx.args.get(pname) for pname, p in sorted(ctx.spec.params.items()) if p.get("type") in ENTITY_PARAMS]
+    ctx.refuse_unfamiliar(*[eid for eid in ids if isinstance(eid, str)])
 
 
 def count_seen(env, eid, n, level="inspect"):

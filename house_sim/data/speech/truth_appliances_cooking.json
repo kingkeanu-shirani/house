@@ -1,0 +1,22 @@
+{
+ "about": "The appliances_cooking domain's truth mappings for claims about its state (kernel/speech.py truth(); VERIFY_HARDENING 13.1-13.3, 13.6; WP-D appliances_cooking; the format of truth.json, whose keys this file never repeats). The words are this domain's vocabulary (house_sim/data/vocab/appliances_cooking.json). states (the FIRST condition whose field the record has decides): preheated reads an oven's preheated flag (set by the oven when the cavity reaches its set point, cleared when it is switched off or its set point is raised); preheating a running oven's panel, which reads PREHEATING until then (an oven that is off shows its clock: not preheating); boiling a vessel's or kettle's boil_state at a simmer or a rolling boil (people say a simmering pot is boiling), simmering only a simmer; keeping_warm a rice cooker's keep_warm, a slow cooker's warm level or an oven's keep-warm mode; self_cleaning an oven's self-clean mode. issues (any present condition that holds makes it true, all present and false make it false): frost_buildup at 6 mm of frost (a quarter inch: time to defrost), door_not_sealing a fridge or freezer door held ajar, too_warm a fridge's or freezer's temperature alarm, boil_over a pot that boiled over at least once (_vessel.boil_overs), burnt_food food burnt (_cook.burnt) or charred, door_alarm and flare_up their own flags. The kernel's on / off read on, lit or power_state, which a burner, a range and an oven do not carry: their power_state is a registered derived field (hardening.derived_power_state) that the kernel does not read for claims yet (request to WP4), so 'the stove is off' stays unscored (never wrong) until then; a liquid's or a food's temperature claim likewise waits for the kernel's temperature quantity to read liquid_temp_c / temperature_c (request).",
+ "states": {
+  "preheated": [{"field": "preheated", "op": "is_true"}],
+  "preheating": [{"field": "display", "op": "startswith", "value": "PREHEATING"}],
+  "boiling": [{"field": "boil_state", "op": "in", "value": ["simmering", "rolling_boil"]}],
+  "simmering": [{"field": "boil_state", "op": "eq", "value": "simmering"}],
+  "keeping_warm": [{"field": "keep_warm", "op": "is_true"},
+                   {"field": "settings.level", "op": "eq", "value": "warm"},
+                   {"field": "settings.mode", "op": "eq", "value": "keep_warm"}],
+  "self_cleaning": [{"field": "settings.mode", "op": "eq", "value": "self_clean"}]
+ },
+ "issues": {
+  "frost_buildup": [{"field": "frost_mm", "op": "gte", "value": 6.0}],
+  "door_not_sealing": [{"field": "ajar", "op": "is_true"}],
+  "too_warm": [{"field": "temp_alarm", "op": "is_true"}],
+  "boil_over": [{"field": "_vessel.boil_overs", "op": "gte", "value": 1}],
+  "burnt_food": [{"field": "_cook.burnt", "op": "is_true"}, {"field": "charred", "op": "is_true"}],
+  "door_alarm": [{"field": "door_alarm", "op": "is_true"}],
+  "flare_up": [{"field": "flare_up", "op": "is_true"}]
+ }
+}

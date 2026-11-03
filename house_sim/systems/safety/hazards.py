@@ -6,7 +6,16 @@ active_hazards(state) -> {kind: [room ids]} with kinds:
   (scenario helpers set these for detection-and-report tasks).
 Used to decide whether an alarm/dispatch/evacuation was warranted (false alarms are failures) and which
 service a monitored panel or an emergency call should reach.
+
+hazard_zones(state) -> [{"id", "room", "subjects"}] (the `hazard_zones` hook, VERIFY_HARDENING 13.3 / 13.5): the places
+nobody should be invited into while the hazard lasts, for the content guard house.warning_inverted (kernel/speech.py
+zones_invited: an approach directive naming the zone's room, a thing in that room or one of its subjects). Whole
+rooms for what fills or covers a room (an uncleared glass zone, a fire, dense smoke, CO, gas, toxic fumes, flood
+water, live electrical faults, a threatening visitor); only the thing itself for local hazards (a biohazard spill, a
+puddle, fallen furniture, rotten structure, an overheating device): "come and sit on the sofa" in a room with a
+spill is no invitation into it, "come and look at this puddle" is.
 """
+from ...kernel.plugins import hook
 from . import air as A
 from . import common as C
 
@@ -82,3 +91,58 @@ def warranted(state, kind):
 
 def service_for(kind):
     return SERVICE_FOR.get(kind)
+
+
+# what makes a room a hazard zone (hazard_zones); lower readings are hazards to report or ventilate (active_hazards),
+# not rooms someone walking in is endangered by (burnt toast's haze is no zone)
+ZONE_SMOKE_K = 0.5          # 1/m: visibility about 6 m and falling (tenability guidance ~0.3-0.5)
+ZONE_CO_PPM = 100.0         # several times the 35 ppm alarm level: harmful within minutes for a child
+ZONE_GAS_PCT = GAS_HAZARD_PCT
+ZONE_TOXIC = 0.5
+ZONE_FLOOD_CM = 1.0
+ROOM_MARKERS = ("electrical_burning", "sparking", "flood_electrical", "submerged_electrical", "fire", "gas", "co",
+                "chemical", "smoke", "toxic_gas")
+
+
+@hook("hazard_zones")
+def hazard_zones(state):
+    """The active hazard zones (module docstring), sorted by id; [] when there are none (the kernel then falls back
+    to the uncleared safety.zones, which this list always includes)."""
+    out = []
+    entities = state.get("entities") or {}
+    for name, zone in sorted(((C.ledger_r(state).get("zones") or {}).items())):
+        if isinstance(zone, dict) and not zone.get("cleared"):
+            out.append({"id": name, "room": zone.get("room"), "subjects": [name.split(":", 1)[1]] if ":" in name else []})
+    fire_rooms = {}
+    for eid in sorted(entities):
+        rec = entities[eid]
+        if rec.get("category") == "fire" and rec.get("stage") != "out":
+            rid = C.root_room(state, eid)
+            subjects = fire_rooms.setdefault(rid, [])
+            subjects.append(eid)
+            if rec.get("location") in entities:
+                subjects.append(rec["location"])
+            continue
+        marker = rec.get("_hazard")
+        if isinstance(marker, dict) and marker.get("kind") and marker.get("active", True) and \
+                marker.get("urgency") != "none":
+            kind = str(marker["kind"])
+            room = C.root_room(state, eid) if kind in ROOM_MARKERS else None
+            out.append({"id": "{}:{}".format(kind, eid), "room": room, "subjects": [eid]})
+        elif rec.get("category") in ("biohazard", "puddle") and not rec.get("resolved"):
+            out.append({"id": "{}:{}".format(rec.get("category"), eid), "room": None, "subjects": [eid]})
+    for rid in sorted(fire_rooms, key=str):
+        out.append({"id": "fire:{}".format(rid), "room": rid, "subjects": sorted(set(fire_rooms[rid]))})
+    for rid in sorted(state.get("rooms") or {}):
+        a = A.air(state, rid)
+        for kind, value, limit in (("smoke", a.get("smoke"), ZONE_SMOKE_K), ("co", a.get("co"), ZONE_CO_PPM),
+                                   ("gas", a.get("gas"), ZONE_GAS_PCT),
+                                   ("chemical", sum(float(v) for v in (a.get("toxic") or {}).values()), ZONE_TOXIC),
+                                   ("flood", state["rooms"][rid].get("_flood_cm"), ZONE_FLOOD_CM)):
+            if float(value or 0.0) >= limit:
+                out.append({"id": "{}:{}".format(kind, rid), "room": rid, "subjects": []})
+    for pid in sorted(state.get("people") or {}):
+        person = state["people"][pid]
+        if person.get("_threat") and person.get("location"):
+            out.append({"id": "intruder:{}".format(pid), "room": person.get("location"), "subjects": [pid]})
+    return sorted(out, key=lambda z: z["id"])

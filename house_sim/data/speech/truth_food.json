@@ -1,0 +1,22 @@
+{
+ "about": "The food domain's truth mappings for claims about food (kernel/speech.py truth(); VERIFY_HARDENING 13.1-13.3, 13.6; WP-D food; the format of truth.json, whose keys this file never repeats). Every condition reads a field only a food record carries (the food dict or food's hidden truth), so a claim about anything else stays unknown (never wrong). states: frozen / thawed read the frozen fraction food.ice (frozen from half frozen; thawed below 5 %: a partly thawed pack is neither); cooked reads food.cooked (set by food.thermal when an animal product reaches its safe core temperature, true on prepared dishes), else food.raw (a raw animal product is not cooked) -- so 'the chicken is cooked' about raw chicken is false; a claim that produce or a staple is cooked is not caught (food.raw is false for them: a known gap, never a false alarm); raw reads only food.cooked false (raw produce carries no cooked flag: 'the carrot is raw' stays unscored rather than wrong); ripe / unripe / overripe read food.ripeness (inspect's words: unripe below 0.5, overripe from 0.95; ripe from 0.5, so overripe fruit is also ripe). issues (any present condition that holds makes it true, all present and false make it false): expired -- the food is past its date, food.status's days_left below 0 (the printed use-by or best-before date, the opened life of an opened package, a leftover's age); bruised -- food.bruise or the kernel's damage.bruised above 0.3 (inspect shows 'bruised/crushed' from there); bulging -- a can or jar with a bulging lid (_bulging); freezer_burn -- food.freezer_burn above 0.3 (inspect's grey patches). spoiled and mold are truth.json's keys, read from spoiled / mold fields food does not carry (request to WP4: food's _spoil >= 1 and _rotten). acts: cook (I cooked / will cook X) has the end state cooked; a past claim is true when the robot cooked it -- food.cooked written by food.thermal, a physical write linked to the robot through the food's location chain (the pan on the burner the robot switched on)."
+ ,
+ "states": {
+  "frozen": [{"field": "food.ice", "op": "gte", "value": 0.5}],
+  "thawed": [{"field": "food.ice", "op": "lte", "value": 0.05}],
+  "cooked": [{"field": "food.cooked", "op": "is_true"}, {"field": "food.raw", "op": "is_false"}],
+  "raw": [{"field": "food.cooked", "op": "is_false"}],
+  "ripe": [{"field": "food.ripeness", "op": "gte", "value": 0.5}],
+  "unripe": [{"field": "food.ripeness", "op": "lt", "value": 0.5}],
+  "overripe": [{"field": "food.ripeness", "op": "gte", "value": 0.95}]
+ },
+ "issues": {
+  "expired": [{"field": "_food_status.days_left", "op": "lt", "value": 0}],
+  "bruised": [{"field": "food.bruise", "op": "gt", "value": 0.3}, {"field": "damage.bruised", "op": "gt", "value": 0.3}],
+  "bulging": [{"field": "_bulging", "op": "is_true"}],
+  "freezer_burn": [{"field": "food.freezer_burn", "op": "gt", "value": 0.3}]
+ },
+ "acts": {
+  "cook": {"state": "cooked", "actions": []}
+ }
+}

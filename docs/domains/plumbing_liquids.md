@@ -231,6 +231,109 @@ Generation-1 digests: the type-data changes alter record fields of generated hou
 `cup_plunger` and `flange_plunger`, and the new `watertight` of `garbage_disposal` (requests in
 `catalog/analysis/phase1/finish_plumbing_liquids.json`).
 
+## 0e. Verification hardening (phase 2, WP-D plumbing_liquids)
+
+What the house ledger of `docs/design/VERIFY_HARDENING.md` (sections 6.2-6.11, 8.2, 10.3, 13, 15.2; package "WP-D
+<domain>", 23.3) needs from this domain, in `hardening.py` unless named otherwise. Tests:
+`tests/test_plumbing_liquids_hardening.py`. Handoff: `catalog/analysis/phase2/handoff_WP-D_plumbing_liquids.md`.
+
+### 0e.1 Liquid mess (6.5)
+
+Five kinds, unit litres, registered with `@mess_kind` (kernel `mess_classes.json` tolerances; `liquid:mop_water` and
+`liquid:dirty_water` with rho 0). Every liquid parcel belongs to exactly one kind by the class of what it is
+(`liquid_class`, which follows the kernel's liquids.json columns where it has a row):
+
+| Kind | What | Parcels | Accepting sinks |
+|---|---|---|---|
+| `liquid:chemical` | a chemical product itself: bleach, drain cleaner, ammonia; the kernel's toxic or corrosive liquids (motor oil, gasoline, antifreeze, lighter fluid) | spilled; decanted into a vessel that is not its product container; leaked onto what held it (safety's `_chem_spill`, its largest class) | hazardous-waste container |
+| `liquid:grease` | cooking oil and grease | spilled; used grease (`grease`, `bacon_grease`, `frying_oil`) in a vessel (fresh oil in a pan or a bottle is food) | grease container, solid waste |
+| `liquid:mop_water` | used cleaning water: dirty, muddy and mop water, water with more than 2 g/l of dirt (cleaning's turbidity rule); a fresh cleaning solution (water and a cleaner at use dilution, nothing dirty in it yet: a bucket made up for mopping) is content until used, and mop water once spilled | anywhere, inside vessels included | toilet, utility sink, floor drain |
+| `liquid:dirty_water` | sewage, toilet water, urine, vomit (kernel residue urine / biohazard) | anywhere (an overflowing toilet, a sewer backup; safety's biohazard spills are its own kind, category `biohazard`) | toilet, utility sink, floor drain |
+| `liquid:spill` | water, drinks and food liquids, soapy water, condensate, hose and rain water | outside a vessel only: spill and puddle entities (this domain's, cleaning's `spill` type, the kernel's puddles, safety's `floor_puddle`) and ice dropped out of a tray (the water it melts into) on a floor (`floor:<room>`, outdoors `outside:<room>`) or a surface (`entity:<surface>`) | any drain, basin, toilet, the outdoors; a plant or a pet bowl for clean water |
+
+Never parcels: a basin's, toilet's or hose's own water (the fixture's), a product's own container (goods: the content
+guard judges using it up), clean liquid in any vessel (content), water absorbed in towels (handoff: known gaps), a
+floor's mop film (`house.wet_room` judges wet floors). A spill keeps the strictest kind of what reached it in the
+hidden `_mess_kind` when its name says less (bleach water named "water", turbid water). Origins are not reported (one
+group per kind): flows from cleaning, navigation_robot and safety with their own origin ids join the same balance.
+
+**Flows** (`delivery_flow`, called by `transfer.deliver` for pour, empty, wring, fill overflow and drain spigots) are
+logged only where the measures cannot see the destination: a toilet or basin (`entity:<id>`), a floor or storm drain
+(`drain:<id>`), a bin, a plant, soaking ground (`outside:<room>`). Dirty, chemical or grease liquid from a measured
+vessel (`entity:<vessel>`) is logged into every such destination; liquid that was content where it came from
+(`created:<source>`) only where it is out of place (a bin; for anything but clean liquid a plant, soaking ground or a
+storm drain): a product poured where it is used (drain cleaner into a drain, bleach into a toilet) is consumption, not
+mess. Floors, surfaces and vessels are measured, so no flow goes there (a flow into a floor would outlive a mop-up
+another domain does without logging one). The time systems log no flows: an exogenous leak's water is the idle
+house's too, and what the robot's doing puts on a floor is an end-state increase the counterfactual rule charges.
+
+**The water meter** (6.8): `plumbing.meter.l` (the path `resources.json` names) counts every litre drawn from the
+supply in the house: this domain's taps, fills, flushes, leaks and hoses (`common.use_water` -> `meter_add`) and what
+other domains count onto it (cleaning's `state.count_water`). `plumbing.meter_l` stays this domain's own total. The
+meter's display and its idle probe read the house total (`common.house_meter_l`).
+
+### 0e.2 Writers and causes (6.2)
+
+Every system of this domain is `physical` (none carries out a person's or pet's decision). Its writes cite the thing
+whose water it is (`common.caused`, WP2's `World.writing(..., cause=)`): a tap, basin, toilet or spigot step its own
+fixture, a leak its host, a drip what drips, a holder's freezing or foam the holder, a water ring the wet thing standing
+on the wood, a frost burst the spigot, the hose left on it and its interior valve, the fallback drying of a spill the
+spill's `plumb_source`. The ledger therefore charges water damage, wetness or a spill to the robot only when the cause
+chain reaches something the robot wrote (a tap it left running, a stem it snapped, a hose it left attached), never an
+exogenous leak or a scenario's running tap.
+
+### 0e.3 Field classes (6.3)
+
+`house_sim/data/verify/watch/plumbing_liquids.json` classifies every property of `data/types/plumbing_liquids.json`
+and the fields this domain writes onto its own types: identity (a basin's rim volume, a faucet's kind, a valve's
+turns), setting (handles, valves, plugs, a hose's coupling and coil, the spigot's `drained`), condition with its worse
+direction (a crushed or lost washer, a cross-threaded coupling, kinks, a frost burst or split, a spraying joint, an
+overheated disposal, a strained supply hose), content (`guard: mess` for a bucket's water and dirt, a strainer's
+scraps, water pooled on a catcher), process (flows, temperatures, a toilet's bowl and tank levels, `water_running`,
+`dripping` and `potable`, which follow the handles, the hidden leaks and what a vessel holds) and bookkeeping
+(`overflowed_l`, `drained_l`, clocks, notes). No type of this domain is water sensitive. `tools/field_census.py
+--unclassified --domain plumbing_liquids` reports none.
+
+### 0e.4 Latched fields
+
+Goal fields an action hook used to latch, now recomputed from the state in a schema-4 evaluation (`@derived_field`,
+VERIFY_HARDENING 8.2; lint L-LATCH reads this table):
+
+| Field | Types | Latched by | Derived rule |
+|---|---|---|---|
+| `coiled` | `garden_hose` | `outdoor.hose_stored` (`after("place")`: true when hung on a hose hanger or reel, false when placed elsewhere; carrying it off, the wind or a person moving it left it true) | true while it rests on a hose hanger or reel, or still lies where it was coiled (hidden `_coiled_at`, recorded at episode start for a hose put away coiled and by the place hook); a manipulation coil record (its coil verb) counts as coiled |
+| `drained` | `outdoor_spigot` | `outdoor.spigot_drain_open` / `spigot_drained` (`after` the robot's valve verbs only) | true while its interior valve stays closed after the stub was drained (opened by a resident or another domain, the pipe refills) |
+
+### 0e.5 Settings skills (10.3)
+
+`@settings_skill` steps for B14's `changed:<e>.<f>` probes and the inverses of setting changes, through this domain's
+verbs (core `set` refuses physical controls): a faucet's `settings.flow` / `left` / `right` and a spigot's
+`settings.valve` (`turn_on_water` at 0.6 / `turn_off_water`), a valve's `settings.position` (`shut_off` / `open_valve`),
+a toilet's `settings.supply_valve`, a basin's `plug` (`plug_drain` for pop-up and toe-touch stoppers / `drain`), a
+hose nozzle's `settings.trigger`.
+
+### 0e.6 Truth mappings (13) and readings (15.2)
+
+`house_sim/data/speech/truth_plumbing_liquids.json` maps this domain's vocabulary issues: a running toilet (a worn
+flapper, chain or float, tools_vehicles' `running` / `_leak_lpm`, or a stuck fill valve `_tank.fill_valve_ok` false;
+a sound tank is false, not unknown), no hot water (a water heater below 35 C) and a frozen pipe (`frozen_burst`,
+`frozen_split`). `burst_pipe` is the kernel's mapping (it reads this domain's fields); leak, clogged, flooding, running,
+on / off and empty are kernel words (the handoff requests the fields this domain's records hold). A held thermometer's
+or moisture meter's reading in a close look (`inspect where=closely`) is also a structured reading in the message
+(`readings`: `{"subject", "quantity": "temperature", "value", "unit": "C", "field"}`, a moisture meter's in percent),
+which the evidence index of `tasks/perceive.py` reads.
+
+### 0e.7 World-behaviour fixes (P10: every schema)
+
+| Fix | Before | Now |
+|---|---|---|
+| Electrical gear is water sensitive to this domain's water (phase-1 close-out breakage row 7) | a plugged wireless charging pad, a lamp or a clock (registry `water_safe` true, not `electronic`) under a dripping pot was a waterproof drip catcher: water pooled on it and no `phys.wetted` hook ran; a spill on a counter reached only `water_safe: false`, book, paper and electronics things | `common.water_sensitive`: the kernel's `ledger.water_sensitive` (water_safe false, electronic, a domain's water-sensitive types) or electrical gear by its features (plug_required, rechargeable, battery_powered, outlet_kind, hardwired, captive_connector, power_state, gear categories) unless rated for water; such a thing is never a drip catcher, takes the water through the kernel's wetting (electrical's ingress) and is water damaged from 20 ml on (drips, spills on a surface, a pour over it) |
+| Unfamiliar things in every verb (review I4; the twin sweep of every verb x every entity parameter) | an unfamiliar hose, nozzle or plunger was answered by its true type by `disconnect_hose`, `drain`, `flush`, `plunge`, `spray`, `turn_on_water`, `turn_off_water` | an order-1 before hook on all 15 verbs (`unfamiliar_first`) gives the kernel's one identify-first refusal for an unfamiliar thing in any entity parameter; the implicit plunger, hose, basket stopper, reacher and instrument pickers pass an unfamiliar held thing over |
+| The water meter | the meter showed only this domain's draws; cleaning's rinses counted into a path no meter showed | one house meter, `plumbing.meter.l` (0e.1) |
+
+Look-alike groups: the same sweep over every registry look-alike group with two or more registered members shows no
+plumbing verb telling unresolved members apart (numbers in the handoff).
+
 ---------------------------------------------------------------------------------------------------------------
 
 ## 1. Object types (43) and realistic magnitudes

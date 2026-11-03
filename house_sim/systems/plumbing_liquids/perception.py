@@ -270,8 +270,19 @@ def inspect_details(w, eid, rec, details, ctx):
                                  "program": copy.deepcopy(rec.get("program"))}
 
 
-def _measure(details, field, value):
+def _measure(details, field, value, eid=None):
+    """A held instrument's reading: under "measured" (granted as a measurement) and, for the evidence index of
+    VERIFY_HARDENING 15.2 (tasks/perceive.py reads {"subject", "quantity", "value", "unit"} from an action's message),
+    as a structured reading: a temperature in C naming the field it measured, a moisture meter's in percent of
+    saturation (no field: the record keeps a fraction)."""
     details.setdefault("measured", {})[field] = value
+    if eid is None or not isinstance(value, (int, float)) or isinstance(value, bool):
+        return
+    if "temp" in field:
+        reading = {"subject": eid, "quantity": "temperature", "value": value, "unit": "C", "field": field}
+    else:
+        reading = {"subject": eid, "quantity": "percent", "value": round(100.0 * value, 1), "unit": "pct", "of": field}
+    details.setdefault("readings", []).append(reading)
 
 
 def _seen_details(w, eid, rec, details, ctx):
@@ -309,7 +320,7 @@ def _seen_details_body(w, eid, rec, details, ctx):
         outlet = rec.get("outlet_temp_c")
         if running and outlet is not None:
             if probe:
-                _measure(details, "outlet_temp_c", V.reading(ctx, probe, eid, "outlet_temp_c", outlet))
+                _measure(details, "outlet_temp_c", V.reading(ctx, probe, eid, "outlet_temp_c", outlet), eid=eid)
                 ctx.grant(eid, "measure", ["outlet_temp_c"])
             elif closely and V.can_touch(ctx, eid):
                 details["stream_feel"] = V.temp_word(outlet)          # a hand held in the stream
@@ -329,7 +340,7 @@ def _seen_details_body(w, eid, rec, details, ctx):
             water = {"suds": rec.get("liquid") == "soapy_water", "murky": bool(rec.get("opaque_cover"))}
             temp = C.num(rec.get("temperature_c"), 21.0)
             if probe:
-                _measure(details, "temperature_c", V.reading(ctx, probe, eid, "temperature_c", temp))
+                _measure(details, "temperature_c", V.reading(ctx, probe, eid, "temperature_c", temp), eid=eid)
                 ctx.grant(eid, "measure", ["temperature_c"])
             elif closely and V.can_touch(ctx, eid):
                 water["feel"] = V.temp_word(temp)
@@ -405,13 +416,13 @@ def _seen_details_body(w, eid, rec, details, ctx):
         details["stain_look"] = "fresh, active stain: dark damp-looking centre, soft paint" if rec.get("wet") else             "old, dry stain: brown tide-line edges, firm paint"
         details["dripping"] = bool(rec.get("dripping"))
         if meter:
-            _measure(details, "moisture", V.stain_moisture(rec))
+            _measure(details, "moisture", V.stain_moisture(rec), eid=eid)
             ctx.grant(eid, "measure", ["moisture", "wet"])
     elif rec.get("moisture") is not None:
         moisture = rec.get("moisture")
         if isinstance(moisture, (int, float)) and not isinstance(moisture, bool):
             if meter:
-                _measure(details, "moisture", V.reading(ctx, meter, eid, "moisture", moisture, 2))
+                _measure(details, "moisture", V.reading(ctx, meter, eid, "moisture", moisture, 2), eid=eid)
                 ctx.grant(eid, "measure", ["moisture"])
             elif closely and V.can_touch(ctx, eid):
                 details["moisture_feel"] = V.wet_word(moisture)
@@ -421,7 +432,7 @@ def _seen_details_body(w, eid, rec, details, ctx):
     if closely and rec.get("moisture_inner") is not None:
         inner = C.num(rec.get("moisture_inner"))
         if meter:
-            _measure(details, "moisture_inner", V.reading(ctx, meter, eid, "moisture_inner", inner, 2))
+            _measure(details, "moisture_inner", V.reading(ctx, meter, eid, "moisture_inner", inner, 2), eid=eid)
             ctx.grant(eid, "measure", ["moisture_inner"])
         elif V.can_touch(ctx, eid):
             details["inner_feel"] = V.wet_word(inner)            # pressed: damp inside or not
@@ -443,7 +454,7 @@ def _seen_details_body(w, eid, rec, details, ctx):
         if (L.liters(rec) > 0 or _product_amount(rec)) and not V.secret(rec, "temperature_c"):
             temp = C.num(rec.get("temperature_c"), 21.0)
             if probe and not hidden_inside and (rec.get("open") or not rec.get("openable")):
-                _measure(details, "temperature_c", V.reading(ctx, probe, eid, "temperature_c", temp))
+                _measure(details, "temperature_c", V.reading(ctx, probe, eid, "temperature_c", temp), eid=eid)
                 ctx.grant(eid, "measure", ["temperature_c"])
             elif closely and V.can_touch(ctx, eid):
                 details["vessel_feel"] = V.temp_word(temp)          # a hand on the outside of the vessel

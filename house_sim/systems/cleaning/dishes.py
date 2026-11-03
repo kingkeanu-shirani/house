@@ -84,7 +84,8 @@ def wash(ctx):
         ctx.obj(target, touch=True)
     tool = S.held_tool(ctx, kinds=("sponge", "brush", "cloth", "pad", "towel"), required=False)
     if tool == target:
-        tool = next((h for h in w.held_items() if h != target and S.tool_spec(w.ent(h)).get("kind") in ("sponge", "brush", "cloth", "pad")), None)
+        tool = next((h for h in w.held_items() if h != target and not S.unfamiliar(ctx, h) and
+                     S.tool_spec(w.ent(h)).get("kind") in ("sponge", "brush", "cloth", "pad")), None)
     require(tool is not None, "Hold a sponge, brush or cloth in your other hand", "capability")
     srec = w.ent(sink)
     basin = sink if float(srec.get("liquid_l", 0.0) or 0.0) > 0.5 else None

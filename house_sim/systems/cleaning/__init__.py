@@ -5,7 +5,8 @@ and trash/recycling/compost streams with liners and local rules.
 
 Importing this package registers its actions, hooks (the kernel's phys.spill_sink, phys.props, phys.settle_extra and
 perceivable_value among them), systems with their idle probes, observers, inspectors, invariants, answerers and their
-dialogue routes, scenario helpers, skills, furnisher and the gripper_cut robot fault (see docs/domains/cleaning.md).
+dialogue routes, scenario helpers, skills, furnisher and the gripper_cut robot fault (see docs/domains/cleaning.md),
+and what the house ledger needs (hardening: mess kinds, refuse marking, derived fields, settings skills).
 
 Other domains may import:
   from house_sim.systems.cleaning import make_spill     # create a spill entity with residue
@@ -26,6 +27,7 @@ from . import helpers  # noqa: F401
 from . import skills  # noqa: F401
 from . import furnish  # noqa: F401
 from . import history  # noqa: F401
+from . import hardening  # noqa: F401
 from .floors import make_spill  # noqa: F401
 from .state import add_cell_soil  # noqa: F401
 from .history import settle_dust  # noqa: F401

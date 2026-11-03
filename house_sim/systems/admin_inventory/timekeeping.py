@@ -9,6 +9,12 @@
   damp floors, trapped moisture and mildew, pens/paint drying uncapped, labels peeling,
   residents' consumption, spent rolls becoming recyclable cores. Every update is linear in dt
   or a threshold on an accumulated quantity, so the totals match 30 s substeps.
+
+Writer classes (VERIFY_HARDENING 6.2): both systems are ``physical``, and each part passes its cause -- a printer's
+engine its printer, a cooling shredder itself, the collection truck the cart or bag it takes, wind litter its open
+cart, an exposure effect (rain, theft, heat, a dried-out pen, trapped moisture) the thing it acts on, a peeling label
+its entity. The two parts that carry out people's own decisions write as ``volition``: the mail carrier's round
+(mail.carrier_visit) and residents' consumption (restock.consumption_tick).
 """
 import datetime
 
@@ -51,7 +57,8 @@ def time_idle(w):
         rec = entities.get(pid)
         if rec is None:
             continue
-        if rec.get("queue") or compute_status(w, pid) != rec.get("status"):
+        if rec.get("queue") or compute_status(w, pid) != rec.get("status") or \
+                rec.get("power_state", "standby") != "standby":
             return False
         tray = parts(w, pid).get("paper_tray")
         if tray:
@@ -81,7 +88,7 @@ def time_idle(w):
     return True
 
 
-@system("admin_inventory.time", order=85, max_dt=30.0, idle=time_idle)
+@system("admin_inventory.time", order=85, max_dt=30.0, idle=time_idle, writer="physical")
 def admin_time(w, dt, tick):
     printers_tick(w, dt)
     shredder_tick(w, dt)
@@ -89,7 +96,7 @@ def admin_time(w, dt, tick):
     curb_tick(w, dt, tick)
 
 
-@system("admin_inventory.exposure", order=86, max_dt=EXPOSURE_PERIOD_S, period=EXPOSURE_PERIOD_S)
+@system("admin_inventory.exposure", order=86, max_dt=EXPOSURE_PERIOD_S, period=EXPOSURE_PERIOD_S, writer="physical")
 def admin_exposure(w, dt, tick):
     exposure_tick(w, dt, tick)
     label_tick(w)

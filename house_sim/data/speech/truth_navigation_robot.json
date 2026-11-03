@@ -1,0 +1,29 @@
+{
+ "about": "navigation_robot's truth mappings for claims about its state (kernel/speech.py truth(); VERIFY_HARDENING 13.1-13.3, 13.6; WP-D navigation_robot). Words from house_sim/data/vocab/navigation_robot.json. states: a household robot (robot vacuum, vacuum-mop, mower) is docked when it is seated on its dock (its record's docked, else its state machine's rv.docked; the first present field decides). issues: a full bin is a robot's bin at 95 % or more (rv.bin_fill: the level at which it stops with 'Please empty the bin') or an auto-empty dock's bag at 95 % or more; water on the floor is a puddle (the kernel's spill record) or a thing that is itself a wet or slippery floor hazard (the patrol's own anomaly rule, paths.anomalies; a room is judged over the things in it: false where its floor hazards are all of other kinds, unknown where it has none -- a room's wet cells alone are not read); an unexpected person is a person whose role is intruder, stranger or unknown (the same rule; every person has a role, so the claim is false, not unknown, for a resident).",
+ "states": {
+  "docked": [
+   {"field": "docked", "op": "is_true"},
+   {"field": "rv.docked", "op": "is_true"}
+  ],
+  "undocked": [
+   {"field": "docked", "op": "is_false"},
+   {"field": "rv.docked", "op": "is_false"}
+  ]
+ },
+ "issues": {
+  "bin_full": [
+   {"field": "rv.bin_fill", "op": "gte", "value": 0.95},
+   {"field": "bag_fill", "op": "gte", "value": 0.95}
+  ],
+  "water_on_floor": [
+   {"field": "_phys_spill", "op": "is_true"},
+   {"field": "floor_hazard", "op": "eq", "value": "wet"},
+   {"field": "floor_hazard", "op": "eq", "value": "slip"}
+  ],
+  "unexpected_person": [
+   {"field": "role", "op": "eq", "value": "intruder"},
+   {"field": "role", "op": "eq", "value": "stranger"},
+   {"field": "role", "op": "eq", "value": "unknown"}
+  ]
+ }
+}

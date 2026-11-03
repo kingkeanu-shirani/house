@@ -37,44 +37,73 @@ def layer_of(rec):
     return None
 
 
-def bed_layers(w, bed):
+def _state_children(state):
+    """children(eid) over a bare state (sorted ids whose location is eid): bed_summary away from a World."""
+    def children(eid):
+        return sorted(c for c, r in state["entities"].items() if isinstance(r, dict) and r.get("location") == eid)
+    return children
+
+
+def _layers(ents, children, bed):
     layers = []
-    for child in w.children(bed):
-        rec = w.ent(child)
+    for child in children(bed):
+        rec = ents[child]
         layer = layer_of(rec)
         if layer and rec.get("relation") == "on" and rec.get("spread_on") == bed:
             layers.append((int(rec.get("stack_pos", 0) or 0), child, layer))
     return sorted(layers)
 
 
+def bed_layers(w, bed):
+    return _layers(w.s["entities"], w.children, bed)
+
+
 def pillows_on(w, bed):
     return [c for c in w.children(bed) if w.ent(c).get("bed_role") in ("pillow", "decor_pillow", "euro_pillow")]
 
 
-def refresh_bed(w, bed):
-    if bed not in w.s["entities"]:
-        return
-    layers = bed_layers(w, bed)
+def bed_summary(state, bed, children=None):
+    """The bed_state summary of a bed in `state` (layers in order, fitted corners, the most wrinkled layer, duvet and
+    flat offsets, pillows and cases, things left in the bedding): refresh_bed writes it; schema-4 evaluation reads it
+    live through the derived field (hardening.derived_bed_state). children: a World's children (default: a scan of
+    the state)."""
+    ents = state["entities"]
+    children = children or _state_children(state)
+    layers = _layers(ents, children, bed)
     names = [layer for _, _, layer in layers]
     order_ok = all(LAYER_ORDER[a] <= LAYER_ORDER[b] for a, b in zip(names, names[1:]))
     fitted = next((e for _, e, l in layers if l == "fitted"), None)
     duvet = next((e for _, e, l in layers if l == "duvet"), None)
     flat = next((e for _, e, l in layers if l == "flat"), None)
-    wrinkle = max([float(w.ent(e).get("wrinkled", 0.0)) for _, e, _ in layers] or [0.0])
+    wrinkle = max([float(ents[e].get("wrinkled", 0.0)) for _, e, _ in layers] or [0.0])
     hidden = []
     for _, e, _ in layers:
-        for child in w.children(e):
-            c = w.ent(child)
+        for child in children(e):
+            c = ents[child]
             if c.get("relation") in ("under", "in") and not c.get("part_of_set") and not M.is_textile(c) or c.get("buried_in_bed") == bed:
                 hidden.append(child)
-    pillows = pillows_on(w, bed)
-    state = {"layers": names, "order_ok": order_ok,
-             "fitted_corners": int(w.ent(fitted).get("corners_seated", 0)) if fitted else 0,
-             "wrinkle": round(wrinkle, 3),
-             "duvet_offset_cm": round(abs(float(w.ent(duvet).get("offset_cm", 0.0))), 1) if duvet else None,
-             "flat_offset_cm": round(abs(float(w.ent(flat).get("offset_cm", 0.0))), 1) if flat else None,
-             "pillows": len(pillows), "pillows_cased": sum(1 for p in pillows if w.ent(p).get("case")),
-             "items_in_bedding": sorted(set(hidden))}
+    pillows = [c for c in children(bed) if ents[c].get("bed_role") in ("pillow", "decor_pillow", "euro_pillow")]
+    return {"layers": names, "order_ok": order_ok,
+            "fitted_corners": int(ents[fitted].get("corners_seated", 0)) if fitted else 0,
+            "wrinkle": round(wrinkle, 3),
+            "duvet_offset_cm": round(abs(float(ents[duvet].get("offset_cm", 0.0))), 1) if duvet else None,
+            "flat_offset_cm": round(abs(float(ents[flat].get("offset_cm", 0.0))), 1) if flat else None,
+            "pillows": len(pillows), "pillows_cased": sum(1 for p in pillows if ents[p].get("case")),
+            "items_in_bedding": sorted(set(hidden))}
+
+
+def max_wrinkle(state, bed, children=None):
+    """The most wrinkled bedding layer's wrinkles (unrounded: the made rule compares it with 0.3)."""
+    ents = state["entities"]
+    layers = _layers(ents, children or _state_children(state), bed)
+    return max([float(ents[e].get("wrinkled", 0.0)) for _, e, _ in layers] or [0.0])
+
+
+def refresh_bed(w, bed):
+    if bed not in w.s["entities"]:
+        return
+    state = bed_summary(w.s, bed, w.children)
+    names, wrinkle = state["layers"], max_wrinkle(w.s, bed, w.children)
     rec = w.ent(bed)
     if rec.get("bed_state") != state:
         m = w.mut(bed)

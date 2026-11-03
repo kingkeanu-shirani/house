@@ -185,7 +185,10 @@ def detach(ctx):
     hands = C.free_hands(w)
     require(hands, "No free hand", "capability")
     m = w.mut(eid)
-    m["connector"] = dict(conn, engaged=False, attached_to=None)
+    if conn:
+        # (only a thing with a connector has one to release: a detached cover, clip or wrap sheet gets none; what it
+        # served forgets it in records.reconcile, this verb's after-hook)
+        m["connector"] = dict(conn, engaged=False, attached_to=None)
     C.take_into_hand(ctx, eid, ctx.args.get("hand"))
     if base in w.s["entities"]:
         bm = w.mut(base)

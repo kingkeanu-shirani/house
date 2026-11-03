@@ -753,14 +753,31 @@ def refresh(w):
 _MISSING = object()
 
 
-def set_if(w, eid, key, value):
-    """Journaled assignment only when the value actually changes."""
+def set_if(w, eid, key, value, cause=None):
+    """Journaled assignment only when the value actually changes. A physical system's write records its causes in the
+    writer log (VERIFY_HARDENING 6.2): `cause` (ids, or a callable giving them) when the caller knows it, else the
+    inputs the field is derived from (hardening.inputs: supply path, breakers, switches, installed parts)."""
     rec = w.s["entities"].get(eid)
     if rec is None:
         return False
     if rec.get(key, _MISSING) != value:
         if value is None and key not in rec:
             return False
-        w.mut(eid)[key] = value
+        w.mut(eid, cause=writer_cause(w, eid, cause, key))[key] = value
         return True
     return False
+
+
+def inputs_of(state, eid):
+    """The ids a derived field of eid is computed from (hardening.inputs)."""
+    from .hardening import inputs
+    return inputs(state, eid)
+
+
+def writer_cause(w, eid, cause=None, field=None):
+    """The cause ids a write to eid records (None unless a physical system writes in a tracked World, and for a field the
+    ledger never compares)."""
+    if not getattr(w, "tracking", False) or (getattr(w, "writer", None) or ("",))[0] != "physical":
+        return None
+    from .hardening import physical_cause
+    return physical_cause(w, eid, cause, field)

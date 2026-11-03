@@ -450,7 +450,7 @@ def _advance_person(w, pid, now):
     return True
 
 
-@system("safety.evac", order=330, max_dt=30.0)
+@system("safety.evac", order=330, max_dt=30.0, writer="volition")
 def evac_system(w, dt, tick):
     state = C.bind_world(w).s
     now = C.now(state)

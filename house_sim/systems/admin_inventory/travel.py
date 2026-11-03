@@ -14,6 +14,7 @@ from ...kernel.phys import impact as phys_impact
 from ...kernel.plugins import after, hook
 from ..core import release_from_hands, subtree_mass
 from .common import admin_facts, household, need_tool, units_metric
+from .hardening import reading as hardening_reading
 from .perceive import dumps
 
 WATER_SENSITIVE = ("paper", "cardboard", "fabric", "electronics", "leather")
@@ -55,6 +56,11 @@ def weigh_luggage(ctx):
     result = {"target": target, "reading": shown, "kg": reading if units == "kg" else None,
               "lb": round(reading * 2.20462, 1) if units == "lb" else None, "lifted": ctx.args["lift"]}
     admin_facts(w)["last_weigh"] = result
+    # the structured instrument reading (VERIFY_HARDENING 15.2) of what the display shows: the bag with its contents
+    # (no entity field: the bag's own mass_kg is only the reading of an empty bag)
+    shown_value = reading if units == "kg" else round(reading * 2.20462, 1)
+    own = ctx.args["lift"] and units == "kg" and not w.children(target)
+    result = dict(result, measured=hardening_reading(target, "mass", shown_value, units, field="mass_kg" if own else None))
     if not w.children(target):
         ctx.grant(target, "measure", ["mass_kg"])     # an empty bag: the reading is the bag's own mass (to 50 g)
     return dumps(ctx.env, result)

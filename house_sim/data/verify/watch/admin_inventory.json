@@ -1,0 +1,744 @@
+{
+ "about": "Field classes of the admin_inventory domain (VERIFY_HARDENING 6.3, lint L-WATCH; WP-D admin_inventory). 'fields' classifies, for this domain's types (house_sim/data/types/admin_inventory.json), every property of the type data and every field this domain's verbs and systems write on them, explicitly -- names the kernel's watch_fields.json already classifies are restated with the kernel's class, and a few it misfits for these types are overridden: identity = what a thing is, its printed text and ratings (a document's text, title, date and sensitivity; an envelope's to_text / from_text; a tag's text; a printer's power_w and duty cycle, a pen's dry-out time, a scale's resolution and a dispenser's fill line are ratings, not process or content); setting = a configuration the robot sets (fold, staple position, tape seal, outgoing flag, roll orientation, a cartridge's protective tape and clip, zipped); condition = damage in its worse direction (true is worse unless 'worse' says false, up or change: pages out of order, a bent staple, an unscannable label, punched holes, creases, mildew); content = what it holds (tissues, a counted pack's units, a paper stack's sheets, a napkin stack's napkins, a pen's ink, a printer's files; the chad in a punch's tray and the strips in a shredder bin are mess loads the mess balance judges, guard mess); process = transient state (the print queue, a shredder's thermal cutout, a pencil's sharpness); bookkeeping = records, counters and mirrors of other things' placements (a bag's load_kg / fill_l / tagged, a paper tray's sheets_loaded / sizes_loaded, a napkin holder's napkins / dispensable / fill, slots, a parcel's label verdicts, the refuse flag waste and hazard tags: the things themselves, their placements and the mess balance are judged). 'types': names that mean something else on a type. 'water_sensitive': paper and cardboard goods, paper documents and mail, and the domain's electronics (house.wet).",
+ "fields": {
+  "+affordances": "identity",
+  "accepts_cards": "identity",
+  "accepts_items": "identity",
+  "accepts_on": "identity",
+  "accepts_staples": "identity",
+  "action_required": "identity",
+  "address": "identity",
+  "address_out": "setting",
+  "addressed": "bookkeeping",
+  "adhesive_residue": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "affordances": "identity",
+  "allergen_contaminated": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "bag_size": "identity",
+  "barcode": "identity",
+  "barcode_scannable": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "battery_level": "process",
+  "battery_powered": "identity",
+  "bin_capacity_sheets": "identity",
+  "blade_depth_mm": "identity",
+  "blank_pages": "bookkeeping",
+  "blocks_path": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "bookmark_page": "setting",
+  "broken": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "burning": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "burnt": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "capabilities": "identity",
+  "capacity_kg": "identity",
+  "capacity_l": "identity",
+  "capacity_sheets": "identity",
+  "carrier": "identity",
+  "carrier_note": "bookkeeping",
+  "category": "identity",
+  "chad_capacity_sheets": "identity",
+  "chad_sheets": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "chem_class": "content",
+  "choking_hazard": "identity",
+  "clip_capacity_sheets": "identity",
+  "clip_kind": "identity",
+  "clip_on": "setting",
+  "clogged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "cold_pack_s": "process",
+  "collapsed_shelves": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "color": "identity",
+  "color_capable": "identity",
+  "container": "identity",
+  "contaminated": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "content_clearance_mm": "identity",
+  "copy_number": "bookkeeping",
+  "corner_torn": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "count": "content",
+  "cover_open": "setting",
+  "creased": {
+   "class": "condition",
+   "worse": "up"
+  },
+  "crumpled": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "crush_kg": "identity",
+  "custom_insert": "identity",
+  "cut": "identity",
+  "cut_damage": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "damage": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "damage_found": "bookkeeping",
+  "damage_notes": "bookkeeping",
+  "damaged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "damp_damaged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "date": "identity",
+  "depth_rank": "placement",
+  "derived_from": "bookkeeping",
+  "designated_for": "identity",
+  "discarded_t": "bookkeeping",
+  "dispensable": "bookkeeping",
+  "dispenser": "identity",
+  "display": "process",
+  "do_not_punch": "identity",
+  "doc_key": "identity",
+  "doc_kind": "identity",
+  "document_box": "identity",
+  "document_feeder": "identity",
+  "donation": "identity",
+  "drains": "identity",
+  "dried_out": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "dry_out_s": "identity",
+  "duplex": "identity",
+  "duplex_capable": "identity",
+  "duty_cycle_s": "identity",
+  "edge_margin_m": "placement",
+  "emptied_at_s": "bookkeeping",
+  "empty": "bookkeeping",
+  "energized": "process",
+  "envelope": "identity",
+  "envelope_size": "identity",
+  "face": "placement",
+  "faded": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "fanned": "setting",
+  "fastener": "setting",
+  "fastener_ok": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "feed_order": "bookkeeping",
+  "feeder_jammed": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "feeds_since_load": "bookkeeping",
+  "fell": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "files": "content",
+  "filing_cabinet": "identity",
+  "fill": "bookkeeping",
+  "fill_kind": "identity",
+  "fill_l": "bookkeeping",
+  "fill_line_l": "identity",
+  "finish_damaged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "fire_damaged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "fire_resistant": "identity",
+  "flammable": "identity",
+  "flaps_torn": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "flat_size_m": "identity",
+  "flattened": "setting",
+  "floor_hazard": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "foaming": "identity",
+  "fold_marks": {
+   "class": "condition",
+   "worse": "up"
+  },
+  "fold_style": "setting",
+  "folded": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "folder": "identity",
+  "food_label": "identity",
+  "fragile": "identity",
+  "from_text": "identity",
+  "funnel": "identity",
+  "gift_note": "identity",
+  "grip_zone": "identity",
+  "handle_kind": "identity",
+  "handle_rating_kg": "identity",
+  "handles_torn": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "hang_ok": "identity",
+  "hazards": "process",
+  "heat_damaged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "held_grip": "bookkeeping",
+  "held_hand": "bookkeeping",
+  "holder_kind": "identity",
+  "holes": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "holes_ragged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "holes_through_text": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "home": "identity",
+  "home_cell": "identity",
+  "household_box": "identity",
+  "in_order": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "in_stream": "bookkeeping",
+  "ingestion_hazard": "identity",
+  "ink": "content",
+  "ink_color": "identity",
+  "ink_stain_risk": "identity",
+  "inner_size_m": "identity",
+  "inspect_from_afar": "identity",
+  "insulated": "identity",
+  "internal_temp_c": "process",
+  "is_copy": "identity",
+  "issue_date": "identity",
+  "jam_item": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "jammed": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "job_id": "bookkeeping",
+  "jobs_created": "bookkeeping",
+  "jobs_done": "bookkeeping",
+  "keep_with_item": "identity",
+  "key": "identity",
+  "label": "identity",
+  "label_adhered": "identity",
+  "label_conflict": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "label_face": "placement",
+  "label_faces": "placement",
+  "label_facing": "placement",
+  "label_falls_off_s": "process",
+  "label_key": "identity",
+  "label_smudged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "label_text": "identity",
+  "labeled_by_robot": "bookkeeping",
+  "labels": "identity",
+  "last_error": "bookkeeping",
+  "leading_edge_ready": "setting",
+  "leaked": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "leaks_point_down": "identity",
+  "length_m": "identity",
+  "liner_size": "identity",
+  "lines": "identity",
+  "liquid": "content",
+  "liquid_container": "identity",
+  "liquid_l": {
+   "class": "content",
+   "tol": 0.001
+  },
+  "liquid_mix": "content",
+  "load_kg": "bookkeeping",
+  "location": "placement",
+  "lock_kind": "identity",
+  "lockable": "identity",
+  "locked": "setting",
+  "luggage_class": "identity",
+  "machinable": "identity",
+  "mail_piece": "identity",
+  "mailbox": "identity",
+  "markings": "identity",
+  "mass_g": "content",
+  "mass_kg": {
+   "class": "content",
+   "tol": 0.001
+  },
+  "material": "identity",
+  "max_load_kg": "identity",
+  "max_safe_temp_c": "identity",
+  "max_sheets": "identity",
+  "mildew": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.05
+  },
+  "mildewed": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "mishandled": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "mixed": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "mixed_products": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "model_number": "identity",
+  "moisture": "process",
+  "mount_height_m": "identity",
+  "multipack": "identity",
+  "napkin_capacity": "identity",
+  "napkins": "content",
+  "neck_mm": "identity",
+  "no_fold": "identity",
+  "noise_db": "identity",
+  "not_collected_reason": "bookkeeping",
+  "numbered": "identity",
+  "old_barcode_visible": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "on": "setting",
+  "open": "setting",
+  "openable": "identity",
+  "opened_before": "bookkeeping",
+  "order": "setting",
+  "order_id": "identity",
+  "orientation": "placement",
+  "orientation_on_holder": "placement",
+  "original": "identity",
+  "outgoing": "setting",
+  "outgoing_slot": "identity",
+  "output_tray": "identity",
+  "overflowed": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "overheated": "process",
+  "overstuffed": "bookkeeping",
+  "owner": "identity",
+  "pack_count": "bookkeeping",
+  "pack_on": "placement",
+  "pack_seq": "placement",
+  "pack_z_m": "placement",
+  "package": "identity",
+  "packaged": "setting",
+  "packing_fill": "identity",
+  "padded_sleeve": "identity",
+  "page_count": "bookkeeping",
+  "page_list": "bookkeeping",
+  "page_order": "bookkeeping",
+  "page_yield": "identity",
+  "paper_size": "identity",
+  "paper_stack": "identity",
+  "paper_tray": "identity",
+  "part_type": "identity",
+  "partially_shredded": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "parts": "bookkeeping",
+  "perishable": "identity",
+  "permanent": "identity",
+  "piece_kind": "identity",
+  "plug_required": "identity",
+  "plugged_in": "setting",
+  "poly_wrapped": "setting",
+  "pooled_water": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "portable": "identity",
+  "pos": "placement",
+  "postage_cents": "setting",
+  "postage_class": "identity",
+  "powder": "identity",
+  "power_state": "process",
+  "power_w": "identity",
+  "ppm_black": "identity",
+  "ppm_color": "identity",
+  "printer": "identity",
+  "printer_kind": "identity",
+  "private_contents": "identity",
+  "product_mismatch": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "product_tag": "identity",
+  "punch_holes": {
+   "class": "condition",
+   "worse": "change"
+  },
+  "punch_pattern": "identity",
+  "quality": "identity",
+  "queue": "process",
+  "readable": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "recipient": "identity",
+  "refill_threshold": "identity",
+  "relation": "placement",
+  "remaining": "content",
+  "reported": "bookkeeping",
+  "resolution_g": "identity",
+  "resolution_kg": "identity",
+  "return_address": "identity",
+  "return_label_ok": "bookkeeping",
+  "reusable_box": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "ribs_bent": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "ribs_rusting": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "ring_binder": "identity",
+  "ring_pattern": "identity",
+  "rma": "identity",
+  "roll_ft2": "identity",
+  "roll_orientation": "setting",
+  "ruined": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "run_s": "bookkeeping",
+  "safe_grips": "identity",
+  "sagging": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "scale": "identity",
+  "scan_destinations": "identity",
+  "scanner_glass": "identity",
+  "scatter": "identity",
+  "scattered": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "sealed": "setting",
+  "sealed_at_s": "bookkeeping",
+  "sender": "identity",
+  "sensitive": "identity",
+  "serrated_edge": "identity",
+  "setting_options": "identity",
+  "settings": "setting",
+  "sharpness": "process",
+  "sheet_capacity": "identity",
+  "sheet_count": "bookkeeping",
+  "sheet_size": "identity",
+  "sheets": "content",
+  "sheets_count": "content",
+  "sheets_loaded": "bookkeeping",
+  "shelf": "placement",
+  "shelf_heights": "identity",
+  "shipping_label_doc": "bookkeeping",
+  "shipping_label_ok": "bookkeeping",
+  "shorted": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "shred_pile": "identity",
+  "shredded": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "shredded_sheets": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "shredder": "identity",
+  "signed": "identity",
+  "size_m": "identity",
+  "sizes_loaded": "bookkeeping",
+  "sku": "identity",
+  "slats_lifted": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "slit": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "slot": "placement",
+  "slots": "bookkeeping",
+  "soaked": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "soap_kind": "identity",
+  "soft_sided": "identity",
+  "soggy": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "soil": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001,
+   "guard": "soiled"
+  },
+  "soil_faces": "process",
+  "source_file": "bookkeeping",
+  "spos": "placement",
+  "stack_count": "bookkeeping",
+  "stack_height_m": "placement",
+  "stack_marginal": "process",
+  "stackable": "identity",
+  "stamp_position": "setting",
+  "stamp_value_cents": "identity",
+  "stamps": "setting",
+  "standby_w": "identity",
+  "staple_bent": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "staple_pos": "setting",
+  "status": "process",
+  "stock_item": "identity",
+  "strapped": "setting",
+  "stream_ok": "bookkeeping",
+  "surface": "identity",
+  "surface_height_m": "identity",
+  "surface_size_m": "identity",
+  "switchable": "identity",
+  "tag_text": "identity",
+  "tagged": "bookkeeping",
+  "tags": "bookkeeping",
+  "tape_on": "setting",
+  "tape_sealed": "setting",
+  "temperature_c": "process",
+  "text": "identity",
+  "text_pierced": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "thermal": "identity",
+  "this_side_up": "identity",
+  "tied": "setting",
+  "tissue_up": "setting",
+  "tissues": "content",
+  "title": "identity",
+  "to_text": "identity",
+  "tool_kind": "identity",
+  "torn": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "towed": "bookkeeping",
+  "transparent": "identity",
+  "tray_kind": "identity",
+  "two_handed": "identity",
+  "uncapped_s": "bookkeeping",
+  "unit_name": "identity",
+  "unit_props": "identity",
+  "unit_type": "identity",
+  "units_count": "content",
+  "uses": "content",
+  "value": "identity",
+  "version": "bookkeeping",
+  "view": "bookkeeping",
+  "volume_l": "identity",
+  "waste": "bookkeeping",
+  "waste_stream": "identity",
+  "water_damaged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "watertight": "identity",
+  "wetness": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.05,
+   "guard": "wet"
+  },
+  "window": "identity",
+  "window_address_ok": "bookkeeping",
+  "wrapped": "setting",
+  "xy_m": "placement",
+  "zipped": "setting"
+ },
+ "types": {
+  "napkin_holder": {
+   "napkins": "bookkeeping"
+  },
+  "paper_chad": {
+   "sheets_count": {
+    "class": "content",
+    "guard": "mess"
+   }
+  },
+  "shred_pile": {
+   "sheets_count": {
+    "class": "content",
+    "guard": "mess"
+   }
+  },
+  "generic_item": {
+   "allergen_contaminated": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "cut_damage": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "finish_damaged": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "leaked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "shorted": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "packaged": "setting",
+   "empty": "bookkeeping"
+  },
+  "closet_shelving": {
+   "collapsed_shelves": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "sagging": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "bed": {
+   "slats_lifted": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "book": {
+   "water_damaged": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "car": {
+   "sun_exposed": "process"
+  }
+ },
+ "water_sensitive": [
+  "accordion_file",
+  "certificate",
+  "check",
+  "consumable_roll",
+  "counted_stock",
+  "document",
+  "donation_box",
+  "envelope",
+  "file_folder",
+  "flat_envelope",
+  "foil_box",
+  "hanging_folder",
+  "jammed_paper",
+  "kitchen_paper_roll",
+  "label_maker",
+  "laser_printer",
+  "luggage_scale",
+  "mail_piece",
+  "manual_booklet",
+  "multifunction_printer",
+  "napkin_stack",
+  "notebook",
+  "office_device",
+  "package_box",
+  "packing_fill",
+  "packing_slip",
+  "paper_chad",
+  "paper_ream",
+  "paper_ream_a4",
+  "paper_shredder",
+  "paper_stack",
+  "passport",
+  "periodical",
+  "plastic_wrap_box",
+  "postal_scale",
+  "printer_base",
+  "printout",
+  "receipt",
+  "return_label",
+  "shred_pile",
+  "square_envelope",
+  "stamp_sheet",
+  "sticky_note",
+  "storage_bag_box",
+  "tissue_box",
+  "toilet_paper_roll",
+  "trash_bag_box",
+  "warranty_card",
+  "window_envelope"
+ ]
+}

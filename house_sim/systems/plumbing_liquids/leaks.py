@@ -267,38 +267,46 @@ def leak_step(w, dt, cache):
         rec = entities.get(eid)
         if rec is None or not isinstance(rec.get("_leak"), dict):
             continue
-        leak = leak_of(rec)
-        if not leak:
-            if rec.get("_leak_active") or rec.get("leaking"):
-                m = w.mut(eid)               # repaired: it no longer leaks
-                m["_leak_active"] = False
-                m.pop("leaking", None)
-            continue
-        factor = leak_active(w, eid, leak, cache)
-        active = factor > 0
-        spraying = active and C.num(leak.get("rate_lpm"), 0.05) >= SPRAY_LPM
-        if bool(rec.get("_leak_active")) != active or bool(rec.get("leaking")) != spraying:
-            started = active and not rec.get("_leak_active")
-            m = w.mut(eid)
-            m["_leak_active"] = active
-            if spraying:
-                m["leaking"] = True          # a spray shows at a glance (kernel tier); a slow drip only to a close look
-            else:
-                m.pop("leaking", None)
-            if started:
-                leak_started(w, eid, leak)
-        if not active:
-            continue
-        lpm = C.num(leak.get("rate_lpm"), 0.05) * factor
-        liters_ = lpm * dt / 60.0
-        if leak.get("when") in ("pressurized", "pressurized_hose"):
-            meter += lpm
-            C.use_water(w, liters_)
-        where = deliver_leak_water(w, eid, leak, liters_)
+        with C.caused(w, eid):           # the leak's water and damage are consequences of its host
+            meter += _leak_one(w, eid, rec, dt, cache)
+    return meter
+
+
+def _leak_one(w, eid, rec, dt, cache):
+    """One leak host's substep; returns its pressurized flow (L/min) for the meter."""
+    leak = leak_of(rec)
+    if not leak:
+        if rec.get("_leak_active") or rec.get("leaking"):
+            m = w.mut(eid)               # repaired: it no longer leaks
+            m["_leak_active"] = False
+            m.pop("leaking", None)
+        return 0.0
+    factor = leak_active(w, eid, leak, cache)
+    active = factor > 0
+    spraying = active and C.num(leak.get("rate_lpm"), 0.05) >= SPRAY_LPM
+    if bool(rec.get("_leak_active")) != active or bool(rec.get("leaking")) != spraying:
+        started = active and not rec.get("_leak_active")
         m = w.mut(eid)
-        m["_leaked_l"] = C.rnd(C.num(rec.get("_leaked_l")) + liters_, 4)
-        if where and leak.get("_where") != where:
-            m["_leak"]["_where"] = where
+        m["_leak_active"] = active
+        if spraying:
+            m["leaking"] = True          # a spray shows at a glance (kernel tier); a slow drip only to a close look
+        else:
+            m.pop("leaking", None)
+        if started:
+            leak_started(w, eid, leak)
+    if not active:
+        return 0.0
+    meter = 0.0
+    lpm = C.num(leak.get("rate_lpm"), 0.05) * factor
+    liters_ = lpm * dt / 60.0
+    if leak.get("when") in ("pressurized", "pressurized_hose"):
+        meter = lpm
+        C.use_water(w, liters_)
+    where = deliver_leak_water(w, eid, leak, liters_)
+    m = w.mut(eid)
+    m["_leaked_l"] = C.rnd(C.num(rec.get("_leaked_l")) + liters_, 4)
+    if where and leak.get("_where") != where:
+        m["_leak"]["_where"] = where
     return meter
 
 
@@ -339,8 +347,8 @@ def _waterproof(rec):
 
 def _water_sensitive(rec):
     """Gear and water-sensitive things are no drip catchers whatever their case is made of: water standing on a plastic
-    television or radio gets in through its vents."""
-    return bool(rec.get("electronic")) or rec.get("water_safe") is False
+    television, radio or wireless charging pad gets in through its vents (common.water_sensitive)."""
+    return C.water_sensitive(rec)
 
 
 def _footprint_area(rec):
@@ -370,7 +378,8 @@ def drip_step(w, dt):
                 m["drip_lpm"] = 0.0
         if liters_ <= 0:
             continue
-        drip_onto(w, eid, liters_, rec.get("drip_liquid") or "water")
+        with C.caused(w, eid):           # what the drips wet and damage is a consequence of the thing that drips
+            drip_onto(w, eid, liters_, rec.get("drip_liquid") or "water")
 
 
 def drip_onto(w, eid, liters_, liquid, depth=0, cause=None):
@@ -444,7 +453,7 @@ def drip_onto(w, eid, liters_, liquid, depth=0, cause=None):
         accrue_damage(w, support, liters_, material=srec.get("material"), cause=cause)
         m = w.mut(support)
         m["_water_ring"] = C.rnd(C.num(m.get("_water_ring")) + liters_ * 10.0, 3)
-    if srec.get("electronic") or srec.get("water_safe") is False:
+    if _water_sensitive(srec):
         if not srec.get("water_damaged") and C.num(srec.get("pooled_l")) + liters_ >= C.WATER_DAMAGE_L:
             w.mut(support)["water_damaged"] = True
             C.harm(w, "damage", cause)
@@ -479,32 +488,36 @@ def _ring_or_mildew_candidates(w):
 
 
 def ring_and_mildew_step(w, dt):
-    now = C.now(w)
     for eid in _ring_or_mildew_candidates(w):
-        rec = w.s["entities"][eid]
-        loc = rec.get("location")
-        parent = w.s["entities"].get(loc) if isinstance(loc, str) else None
-        if parent is None:
-            continue
-        cold_drink = L.liters(rec) > 0.02 and C.num(rec.get("temperature_c"), 21.0) < 15.0 and rec.get("relation") == "on"
-        wet_item = C.num(rec.get("wetness")) > 0.5 and rec.get("relation") == "on"
-        if (cold_drink or wet_item) and parent.get("material") in RING_SURFACES and not parent.get("sealed") \
-                and not parent.get("coaster") and parent.get("surface", True):
-            m = w.mut(loc)
-            ring = C.num(parent.get("_water_ring")) + dt / 1800.0
-            m["_water_ring"] = C.rnd(ring, 4)
-            if ring >= 1.0 and not parent.get("water_ring"):
-                m["water_ring"] = True
-                C.damage(w, loc, "water ring on the wood", kind="water_ring", severity=0.3, cause=eid)
-        if C.num(rec.get("wetness")) >= 0.3 and rec.get("relation") == "in" and parent.get("openable") and not parent.get("open") \
-                and parent.get("category") not in ("appliance", "washer", "dryer", "dishwasher") and not parent.get("appliance"):
-            m = w.mut(eid)
-            m["_closed_wet_s"] = C.rnd(C.num(rec.get("_closed_wet_s")) + dt, 1)
-            if C.num(m["_closed_wet_s"]) >= 3600.0 and not rec.get("_mildewed"):
-                m["_mildewed"] = True
-                C.add_soil(w, eid, "mildew", 0.25)
-                C.add_soil(w, loc, "mildew", 0.1)
-                C.plog(w, "mildew", item=eid, storage=loc)
+        with C.caused(w, eid):           # a ring or mildew is a consequence of the wet thing standing there
+            _ring_or_mildew_one(w, eid, dt)
+
+
+def _ring_or_mildew_one(w, eid, dt):
+    rec = w.s["entities"][eid]
+    loc = rec.get("location")
+    parent = w.s["entities"].get(loc) if isinstance(loc, str) else None
+    if parent is None:
+        return
+    cold_drink = L.liters(rec) > 0.02 and C.num(rec.get("temperature_c"), 21.0) < 15.0 and rec.get("relation") == "on"
+    wet_item = C.num(rec.get("wetness")) > 0.5 and rec.get("relation") == "on"
+    if (cold_drink or wet_item) and parent.get("material") in RING_SURFACES and not parent.get("sealed") \
+            and not parent.get("coaster") and parent.get("surface", True):
+        m = w.mut(loc)
+        ring = C.num(parent.get("_water_ring")) + dt / 1800.0
+        m["_water_ring"] = C.rnd(ring, 4)
+        if ring >= 1.0 and not parent.get("water_ring"):
+            m["water_ring"] = True
+            C.damage(w, loc, "water ring on the wood", kind="water_ring", severity=0.3, cause=eid)
+    if C.num(rec.get("wetness")) >= 0.3 and rec.get("relation") == "in" and parent.get("openable") and not parent.get("open") \
+            and parent.get("category") not in ("appliance", "washer", "dryer", "dishwasher") and not parent.get("appliance"):
+        m = w.mut(eid)
+        m["_closed_wet_s"] = C.rnd(C.num(rec.get("_closed_wet_s")) + dt, 1)
+        if C.num(m["_closed_wet_s"]) >= 3600.0 and not rec.get("_mildewed"):
+            m["_mildewed"] = True
+            C.add_soil(w, eid, "mildew", 0.25)
+            C.add_soil(w, loc, "mildew", 0.1)
+            C.plog(w, "mildew", item=eid, storage=loc)
 
 
 def _enclosed(w, eid):
@@ -540,13 +553,14 @@ def fallback_drying(w, dt):
             mm_h = evaporation_mm_h(room, w.s.get("weather") if room.get("outdoor") else None)
             lost = mm_h * C.num(rec.get("area_m2"), 0.1) * dt / 3600.0
             left = C.num(rec.get("liquid_l")) - lost
-            if left <= 0.002:
-                if rec.get("pos") and rid in w.s["rooms"]:
-                    rm = w.room_m(rid)
-                    rm["wet_cells"] = [c for c in rm.get("wet_cells", []) if list(c) != list(rec["pos"])]
-                w.destroy(eid)
-            else:
-                w.mut(eid)["liquid_l"] = C.rnd(left, 5)
+            with C.caused(w, rec.get("plumb_source")):      # it dries on the account of what made it (6.2)
+                if left <= 0.002:
+                    if rec.get("pos") and rid in w.s["rooms"]:
+                        rm = w.room_m(rid)
+                        rm["wet_cells"] = [c for c in rm.get("wet_cells", []) if list(c) != list(rec["pos"])]
+                    w.destroy(eid)
+                else:
+                    w.mut(eid)["liquid_l"] = C.rnd(left, 5)
     if not C.system_present("cleaning.drying"):
         for eid in sorted(e for e, r in w.s["entities"].items() if C.num(r.get("wetness")) > 0.0005 and r.get("category") not in ("spill", "floor")):
             rec = w.ent(eid)

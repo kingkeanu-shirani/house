@@ -444,6 +444,9 @@ def waste_helper(ctx, items=None, preset=None, on=None, into=None, floor=None, u
             names = ctx.rng.sample(names, min(int(count), len(names)))
         specs = names + specs
     specs += list(lookalikes or [])
+    # schema 4: a seeded placement order (look-alike members last in the list would otherwise always land last on the
+    # surface: a positional tell, VERIFY_HARDENING 9.2); the given order for every older spec (no draw)
+    specs = ctx.placer.order(specs)
     placements = []
     if spread:
         for target in spread:
@@ -1034,7 +1037,7 @@ def tools_helper(ctx, tools, on=None, room=None, near=None, near_entity=None, pr
             reach = reachable_cells(ctx, rid)
             ring = sorted((geometry.near_cells(cells, room) - set(cells)) & reach, key=lambda c: (c[1], c[0]))
             near = list(ring[0]) if ring else list(cells[0])
-    for item in tools:
+    for item in ctx.placer.order(tools):        # schema 4: seeded order (look-alike tools), else as given
         name = item if isinstance(item, str) else item["type"]
         extra = copy.deepcopy((props or {}).get(name, {}))
         if not isinstance(item, str):

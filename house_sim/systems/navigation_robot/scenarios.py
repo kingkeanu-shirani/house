@@ -507,6 +507,34 @@ def sleeper(ctx, room=None, room_type=None, kind="person", role="adult", id=None
     return dict(_sleeper(ctx, rid, kind, role, pid=id, cell=cell), room=rid)
 
 
+def _dock_fronts_free(ctx, dock):
+    """The robot's dock can be backed onto: one of its front cells (robot.front_cells) is free floor the robot can walk
+    to in its room."""
+    from .robot import front_cells
+    rec = ctx.config["entities"][dock]
+    rid = rec.get("location")
+    state = _state(ctx)
+    blocked = set(geometry.blocked_cells(state, rid))
+    reach = _reachable(ctx, rid)
+    return any(f not in blocked and f in reach for f in front_cells(state, dock))
+
+
+def _reseat_dock(ctx, dock, rooms):
+    """Move the robot's dock (same id and record, a new wall spot) to the first of `rooms` where every front cell is
+    reachable floor; True when moved, else the dock stays where it was."""
+    from .robot import front_cells
+    config = ctx.config
+    saved = config["entities"].pop(dock)
+    for rid in rooms:
+        if ctx.placer.furniture(rid, "robot_dock", eid=dock, wall=True):
+            fronts = front_cells(_state(ctx), dock)
+            if fronts and all(f in _reachable(ctx, rid) for f in fronts):
+                return True
+            del config["entities"][dock]
+    config["entities"][dock] = saved
+    return False
+
+
 @scenario_helper("navigation_robot.dock_setup")
 def dock_setup(ctx, battery=None, robot_room=None, block=None, unplug=False, move_to=None, reserve=None, idle_drain=None):
     config = ctx.config
@@ -525,6 +553,17 @@ def dock_setup(ctx, battery=None, robot_room=None, block=None, unplug=False, mov
     if not dock:
         raise SpecError("dock_setup: no robot dock")
     drec = config["entities"][dock]
+    if not move_to and not _dock_fronts_free(ctx, dock):
+        # the generated house left the robot's own dock unusable (seed 502: a coffee table across its front, WP11's
+        # held-out finding): seat it where it can be backed onto -- its own room first -- so a blocker the task asks for
+        # has a front cell to stand on and the robot can dock at all. A house whose dock fronts are free is untouched.
+        rid = drec["location"]
+        kinds = ("living_room", "hallway", "office", "dining_room", "entryway", "bedroom", "master_bedroom", "kitchen")
+        others = [r for k in kinds for r in ctx.placer.rooms(k) if r != rid
+                  and not any(config["rooms"][r].get(f) for f in ("shared", "private", "off_limits"))]
+        if not _reseat_dock(ctx, dock, [rid] + others):
+            raise SpecError("dock_setup: the robot's dock cannot be backed onto and no wall spot frees it")
+        drec = config["entities"][dock]
     out = {"dock": dock, "dock_room": drec["location"]}
     if move_to:
         old = (drec["location"], list(drec["pos"]))
@@ -584,8 +623,10 @@ def dock_setup(ctx, battery=None, robot_room=None, block=None, unplug=False, mov
                 break
             else:
                 made.append(_spawn_at(ctx, rid, c, "box", label="delivery box", mass_kg=6.0))
+        if not made:
+            raise SpecError("dock_setup: no free front cell of the dock for the {} blocker".format(block))
         out["blockers"] = made
-        out["blocker"] = made[0] if made else None
+        out["blocker"] = made[0]
         free = _free_cells(ctx, rid)
         far = [c for c in free if min(geometry.chebyshev(c, f) for f in fronts or [c]) >= 3]
         if far:

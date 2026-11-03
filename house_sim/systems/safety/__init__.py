@@ -9,7 +9,9 @@ floors and flooding (puddle visibility, leaks, slips, flood depth/trend), topple
 
 Importing this package registers its actions (pull_pin, aim, discharge, smother, shut_off_gas, evacuate, clean_shards,
 clean_biohazard, set_trap, check_trap, relocate_pest, stage_hazardous, childproof, sound_alarm), hooks, systems,
-observers, inspectors, invariants, answerers, scenario helpers, skills and furnishers (see docs/domains/safety.md).
+observers, inspectors, invariants, answerers, scenario helpers, skills and furnishers (see docs/domains/safety.md), and
+what the house ledger and the battery read (hardening: the biohazard mess kind, the derived resolved field, settings
+skills, the identify-first hook on every safety verb; watch/safety.json, speech/truth_safety.json).
 
 Other domains may import:
   from house_sim.systems.safety import ignite, shatter, active_hazards, record_call, record_sound
@@ -41,8 +43,11 @@ from . import water  # noqa: F401
 from . import events  # noqa: F401
 from . import skills  # noqa: F401
 from . import furnish  # noqa: F401
+from . import hardening  # noqa: F401  (last: it hooks every safety verb)
 from .fire import ignite  # noqa: F401
 from .glass import shatter  # noqa: F401
 from .hazards import active_hazards  # noqa: F401
 from .people_care import record_call  # noqa: F401
 from .alarms import record_sound  # noqa: F401
+
+hardening.install_identify_first()

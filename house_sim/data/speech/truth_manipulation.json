@@ -1,0 +1,26 @@
+{
+ "about": "Truth mappings of the manipulation domain's states and issues (VERIFY_HARDENING 13.1, 13.3; WP-D manipulation; the format of truth.json, whose keys this file never repeats). The words are this domain's vocabulary (data/vocab/manipulation.json); each condition reads the record field this domain writes: a wrap record (or another owner's wrapped / shrink_wrapped / packaged flag), the zipper's closed fraction (zipped from 0.95, unzipped up to 0.05: a half-closed zipper is neither), the orientation word, the coil (this domain's dict, plumbing's flag or electrical's word; 'uncoiled' and 'none' are laid out), the roll, a flattened box, inflation, the stack records (a member, or a base holding at least two), a packing record, a tangle's crossings and knots, a label that peeled or is set to peel (poor adhesion), a cap that is loose, a thing the wind took. A thing with no such record leaves the claim unknown (never scored: an unwrapped thing has no wrap record, so 'it is wrapped' about it is unknown, not false). No acts here: an act needs verbs in the lexicon (data/speech/lexicon.json, WP4's; tests/test_speech.py requires every truth act to have them), so the commitments 'I wrapped / stacked / packed / zipped / covered ... it' are requested from WP4 with their end states (wrap -> wrapped, unwrap -> unwrapped, stack -> stacked, pack -> packed, zip -> zipped, unzip -> unzipped, cover -> covered, uncover -> uncovered, roll up -> rolled_up, flatten -> flattened; this domain's verbs wrap, unwrap, stack, pack, zip, unzip, cover, uncover, roll, squeeze). Kernel words this domain also writes (covered / uncovered read 'covered', capped / uncapped read 'capped', upright reads 'upright' / 'tipped_over') are truth.json's; their readings of this domain's records (cap.on, orientation) are requested from WP4.",
+ "states": {
+  "wrapped": [{"field": "wrapped", "op": "is_true"}, {"field": "shrink_wrapped", "op": "is_true"}, {"field": "packaged", "op": "is_true"}],
+  "unwrapped": [{"field": "wrapped", "op": "is_false"}, {"field": "shrink_wrapped", "op": "is_false"}, {"field": "packaged", "op": "is_false"}],
+  "zipped": [{"field": "zipper.closed_frac", "op": "gte", "value": 0.95}],
+  "unzipped": [{"field": "zipper.closed_frac", "op": "lte", "value": 0.05}],
+  "upside_down": [{"field": "orientation", "op": "eq", "value": "upside_down"}],
+  "on_side": [{"field": "orientation", "op": "in", "value": ["on_side", "on_edge"]}],
+  "coiled": [{"field": "coiled", "op": "not_in", "value": ["uncoiled", "none", "", false]}],
+  "rolled_up": [{"field": "rolled", "op": "is_true"}],
+  "flattened": [{"field": "flattened", "op": "is_true"}],
+  "inflated": [{"field": "inflated", "op": "is_true"}],
+  "deflated": [{"field": "inflated", "op": "is_false"}],
+  "stacked": [{"field": "stack_member", "op": "is_true"}, {"field": "stack_count", "op": "gte", "value": 2}],
+  "packed": [{"field": "pack_seq", "op": "gte", "value": 0}]
+ },
+ "issues": {
+  "tangled": [{"field": "tangle.crossings", "op": "gt", "value": 0}, {"field": "tangle.knots", "op": "gt", "value": 0}],
+  "knotted": [{"field": "tangle.knots", "op": "gt", "value": 0}],
+  "peeling_label": [{"field": "label_peeled", "op": "is_true"}, {"field": "label_adhesion", "op": "eq", "value": "poor"}],
+  "blown_away": [{"field": "blown_away", "op": "is_true"}],
+  "loose_cap": [{"field": "cap.loose", "op": "is_true"}]
+ },
+ "quantities": {}
+}

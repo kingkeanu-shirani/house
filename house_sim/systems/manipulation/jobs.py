@@ -157,10 +157,13 @@ def support(ctx):
         if min(C.footprint_wd(rec)) > C.num(conn.get("width_m"), 0.85) + 0.05:
             C.mark_damage(w, eid, "scraped_frame", "jammed in the doorway", broken=False)
             w.stat("collisions")
-        pm = w.person_m(job["person"])
-        pm["location"] = nxt
-        cell = C.landing_cell(w, nxt, entry)
-        pm["pos"] = list(cell)
+        # the partner walks their own end through (their own steps: a volition write, VERIFY_HARDENING 6.2 -- the
+        # robot does not carry them, so their room change is not house.agent_moved; the load is the robot's)
+        with w.writing("volition", "manipulation.partner"):
+            pm = w.person_m(job["person"])
+            pm["location"] = nxt
+            cell = C.landing_cell(w, nxt, entry)
+            pm["pos"] = list(cell)
         j["leg"] = leg + 1
         ctx.data["manip_s"] = 6.0 + (4.0 if conn.get("kind") == "stairs" else 0.0)
         if speed == "fast":
@@ -315,8 +318,10 @@ def _jobs_idle(w):
     return not any(job.get("state") not in PASSIVE_STATES for job in (C.section(w).get("jobs") or {}).values())
 
 
-@system("manipulation.jobs", order=400, max_dt=30.0, idle=_jobs_idle)
+@system("manipulation.jobs", order=400, max_dt=30.0, idle=_jobs_idle, writer="physical")
 def jobs_system(w, dt, tick):
+    """Writer physical: the held item's sag and the mount at the end are consequences of the robot's hold (a mount
+    cites the item, which the robot holds); the partner's corrections are messages, not records."""
     sec = C.section(w)
     all_jobs = sec.get("jobs") or {}
     if not all_jobs:
@@ -399,7 +404,7 @@ def _mount(w, item, result, j):
     for hand in ("left", "right"):
         if robot["hands"].get(hand) == item:
             robot["hands"][hand] = None
-    m = w.mut(item)
+    m = w.mut(item, cause=[item])
     target = result["mount_to"]
     m["location"] = target
     m["relation"] = "hung" if target in w.s["entities"] else "on"

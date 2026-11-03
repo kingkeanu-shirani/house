@@ -1,0 +1,82 @@
+{
+  "id": "WP-D_people",
+  "landed": [
+    "house_sim/data/verify/watch/people.json (new): field classes for every property of every people type (102 field names, 7 per-type refinements, 21 water-sensitive types); tools/field_census.py --unclassified --domain people lists none (186 rows before); the census --check stays at 0",
+    "Writer classes for every people system (@system writer=): behavior, routine, wandering, visitors, senses, children, watch volition; care, calendar, reach, room_metrics physical; people.care's heating pad and hearing aid writes cite the device (cause=eid) and its people-state writes are volition; the calendar render cites the artifact; inside robot actions the patient's dose (doses_left, med_doses), the offer: answer and step_aside are volition",
+    "house_sim/data/speech/truth_people.json (new): states home / away (person-only), issue fever (_body_temp_c >= 38.0), act let_in (admitted, lenient); house_sim/data/vocab/people.json (new): the person issue word fever; truth tables load with every domain's file (cleaning, manipulation, navigation_robot, safety present)",
+    "Claim relays (13.4): comms._deliver_claims for user_simulator messages with key_claims (people.message takes and validates them): complete = every key claim asserted by the heard words and none contradicted; attributed only by an attribution claim naming the sender (sender= ignored); received gains claims_heard, claims_missing, contradicted_claims, contradicted; legacy key_facts unchanged",
+    "Structured instrument readings (15.2): take_temperature returns reading {subject, quantity temperature, value, unit C (, field)}; tasks/perceive.py indexes it",
+    "Settings skill settings.dim for the smart bulb lamp (a range); every other people setting is a kernel-default option list (tested)",
+    "World-behaviour fixes (23.3, P10): attendance only by the robot when asked to watch (needs_watch; watch_by anyone keeps the old rule); a mobility aid's floor_hazard cleared when it is picked up or put on furniture; docs/domains/people.md section 14 with the Latched fields table (oriented_to)",
+    "Seeded placement (WP9 request): people.medicine_cabinet, people.glasses_request (nightstands) and people.ownership_pile place look-alike members in ctx.placer.order (identity below schema 4)",
+    "Phase-1 carry-over: closeout_breakages row 1 (read_aloud of an unfamiliar thing reads its print alone, no story time), row 2 and closeout_REV 6's people part (a blank label is read aloud as core read answers it; perception_audit --read-aloud-first 162 probes 0 leaks), row 5's people side (every medicine look-alike named by pour / empty_into / fill / refill gets the open guard's refusal first), row 9 (knowledge._known_record is dialogue.known_record)",
+    "Identify-first refusals for unfamiliar things in knock, answer_door, let_in's door, log_medication (log and medication), take_temperature (tool and measured thing; a held unfamiliar thermometer is passed over) and sign_for's package; a sweep of every people verb over 78 look-alike groups and 64 unfamiliar twins (room camera) leaves no ok/category split",
+    "tests/test_people_hardening.py (new, 25 tests; 23 fail on a git-archive copy of HEAD, the other 2 are guards)"
+  ],
+  "deviations": [
+    {
+      "what": "No @derived_field registered",
+      "why": "the derived-field overlay covers entities only, so people-record latches (oriented_to) cannot be recomputed and are listed as latched (L-LATCH); the one entity latch (a mobility aid's floor_hazard) is fixed in the world instead, since a derived field is registered globally by name and floor_hazard is written by other domains too"
+    },
+    {
+      "what": "No mess kinds and no hazard_created types",
+      "why": "no people verb or system creates or destroys an entity or moves a registered mess kind (the pocket spill moves entities, which the placement guards judge)"
+    },
+    {
+      "what": "Zones and passability left to the ledger's agents.json, with requests",
+      "why": "the ledger's reachability is WP1's file; people records already carry what it reads, and the mismatches (locked-door egress, dementia as may-wander) are WP1 data/logic"
+    },
+    {
+      "what": "Relay attribution by claims applies to key_claims messages only",
+      "why": "P10: evaluation semantics are schema-gated; legacy key_facts messages keep sender= (no legacy message has key_claims)"
+    },
+    {
+      "what": "sick, injured, distressed not mapped in truth_people.json",
+      "why": "they are core words shared by people and pets (and plants); a truth key may live in one file only and their pet readings are the pets domain's call, so they keep the kernel's evidence fallback"
+    }
+  ],
+  "not_done": [
+    {
+      "what": "closeout_breakages row 5's data half (sealed: true on pet_medication and expired_medication)",
+      "why": "those types are in pets.json and safety.json, outside my files; the people guard already makes pour / empty_into / fill / refill answer every member alike (requested from WP-D pets and safety)"
+    },
+    {
+      "what": "A reported body temperature scored as a quantity claim",
+      "why": "quantities.temperature is the kernel's key in data/speech/truth.json (WP4) and a key may not be redefined in a domain file (requested)"
+    },
+    {
+      "what": "Kernel classes for fields people verbs write on other domains' types (in_use_by, offered, hidden_by, held_grip, page_lost, floor_hazard, open_face_down, bookmarked, laced, on_feet)",
+      "why": "domain field entries apply only to the domain's own types; elsewhere they default to setting (watched: possible false alarm, never a hole); requested from WP1"
+    },
+    {
+      "what": "ctx.sample_roles adoption",
+      "why": "no people scenario helper takes a role list of entities (counts and type tuples only)"
+    },
+    {
+      "what": "Geometric-camera twin sweep",
+      "why": "the borrowed probe's prep step differs between twins in geometric mode before any people verb runs (a probe artifact); the geometric camera is covered by the unit tests for read_aloud and pour"
+    }
+  ],
+  "outcome_changes": [],
+  "tests": {
+    "new_tests": 25,
+    "passed": true,
+    "strict_passed": true
+  },
+  "specs": {
+    "total": 243,
+    "passed": 243
+  },
+  "requests": [
+    "WP1: ledger.passable / agents.json -- a locked exterior door is passable from inside for anyone who can work its lock (deadbolts open by hand from inside; generated front doors carry lock_kind key for the outside), and from outside for a resident carrying its key; today only authority-2 adults pass, so 'lock up for the night' confines an elderly resident (authority 1) or a school-age child (house.confined). Count abilities.cognition mild_dementia / dementia as may-wander beside the wandering flags (the people domain's own rule)",
+    "WP1: watch_fields.json kernel classes for fields people verbs write on any type -- in_use_by, offered, hidden_by, held_grip bookkeeping; page_lost and floor_hazard condition (true worse); open_face_down, bookmarked, laced, on_feet setting",
+    "WP4: add _body_temp_c to truth.json quantities.temperature so a reported body temperature claim is scored",
+    "WP-D_pets: sealed: true on pet_medication (closeout_breakages row 5's data half; one rule for every capped amber bottle)",
+    "WP-D_safety: sealed: true on expired_medication (closeout_breakages row 5's data half)",
+    "WP10: G4 can run tools/perception_audit.py with --read-aloud-first (0 leaks now)",
+    "WP12 people: migrate P-47196e0991cdf4-01 (the review's inverted relay) to key_claims through people.message; specs reading oriented_to read the person's pose instead",
+    "Main session: kernel/dialogue.py user-simulator answers inside ask as volition generally (WP2's request; people's offer: and step_aside already write as volition)",
+    "Main session: regenerate docs/DIALOGUE.md's vocabulary tables (python tools/vocab.py --markdown) after merging the WP-D vocab files -- the new house_sim/data/vocab/people.json (issue fever) changes the generated tables and their source list, so tests.test_dialogue.VocabularyTests.test_the_docs_tables_are_generated_from_the_data fails until then (other WP-D vocab edits, e.g. navigation_robot.json, do the same)"
+  ],
+  "notes": "Files: house_sim/systems/people/{calendar_model,care,children,comms,door,harms,helpers,knowledge,memory,metrics,model,reach,routine,senses}.py, house_sim/data/verify/watch/people.json, house_sim/data/speech/truth_people.json, house_sim/data/vocab/people.json, docs/domains/people.md, tests/test_people_hardening.py, this file and handoff_WP-D_people.md. No legacy outcome changes: the world-behaviour fixes touch no authored spec (none reads aloud, watches a child, places a mobility aid, pours / empties / fills / refills a medicine container or holds an unfamiliar thing), placement order is unchanged below schema 4, and writer classes live outside world state. Verification: tests/test_people_hardening.py 25 tests OK normal, HOUSE_SIM_STRICT=1 and HOUSE_SIM_DOMAINS=core,people; tests/test_people.py 190 OK in all three modes; all 243 authored specs pass (own mode, combined file, --workers 3, --no-cache); the 15 people specs pass; perception_audit 0 0 --read-aloud-first: 162 probes, 0 leaks; py39_lint clean for every people file. Scratch: C:/Users/keanu/AppData/Local/Temp/claude/C--Users-keanu-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_WP-D_people (probe_people.py, p3lib.py, head_tree/ HEAD snapshot, logs). Full suite (green_tests.py 3, shared tree with concurrent WP-D packages): 172 runs, test_people and test_people_hardening OK normal and strict; failing files test_dialogue (DIALOGUE.md tables to regenerate after the WP-D vocab files, people.json among them), test_ledger, test_lint, test_room_golden (T-089c40fb507289-01, T-48266979ae98d3-01, X-bf82170244be22-01) and test_verify_hardening reproduce in a scratch copy of the same tree with HEAD's people files, so they are not the people package's."
+}

@@ -1616,7 +1616,8 @@ def spill(w, near, kind_name, grams, phase="solid", by="robot"):
 
 
 def add_scraps(w, where, label, grams, stream, source=None):
-    """Add inedible trimmings to the scraps pile on a board (or into a scrap bowl/bin)."""
+    """Add inedible trimmings to the scraps pile on a board (or into a scrap bowl/bin). A new pile is refuse from its
+    creation (waste: true, hardening.refuse; VERIFY_HARDENING 6.4-6.5): it belongs in the compost or the trash."""
     state = w.s
     grams = round(float(grams), 2)
     if grams <= 0:
@@ -1637,6 +1638,7 @@ def add_scraps(w, where, label, grams, stream, source=None):
                      label="{} scraps".format(label.replace("_", " ")), waste_stream=stream)
     m = w.mut(eid)
     m["food"]["composition"] = {label: grams}
+    m["waste"] = True
     if rel == "on":
         spot = geometry.surface_spot(state, where, eid)
         if spot is None:
@@ -1646,6 +1648,8 @@ def add_scraps(w, where, label, grams, stream, source=None):
             m["spos"] = spot
     if source is not None:
         contact(w, source, eid, 0.6)
+    from .hardening import log_created
+    log_created(w, eid)
     return eid
 
 

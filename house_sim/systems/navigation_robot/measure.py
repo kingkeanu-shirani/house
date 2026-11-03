@@ -288,7 +288,30 @@ def measure(ctx):
     nav.setdefault("measurements", []).append(dict(result, time_s=C.now(state)))
     del nav["measurements"][:-30]
     nav.setdefault("measured", {})[target] = C.now(state)
-    return result
+    return dict(result, readings=length_readings(state, target, result))
+
+
+DIMS_AXES = ("width", "depth", "height")
+
+
+def length_readings(state, target, result):
+    """The reading as structured instrument results (VERIFY_HARDENING 15.2: {"subject", "quantity", "value", "unit"},
+    the index tasks/perceive.py builds from action results): one per value, the subject the measured thing or doorway,
+    the field when the reading is of a length field the thing carries (drape_cm, cord_length_m ...), the dimension
+    named. Only the returned result carries them (the stored facts and nav records are unchanged)."""
+    values = result["value"] if isinstance(result["value"], list) else [result["value"]]
+    dims = result.get("dimension")
+    rec = state["entities"].get(target) or {}
+    out = []
+    for i, value in enumerate(values):
+        dim = DIMS_AXES[i] if isinstance(result["value"], list) and i < len(DIMS_AXES) else dims
+        reading = {"subject": target, "quantity": "length", "value": value, "unit": result["units"], "dimension": dim}
+        if result.get("destination"):
+            reading["to"] = result["destination"]
+        elif isinstance(dim, str) and dim in rec and length_field_mm(rec, dim) is not None:
+            reading["field"] = dim
+        out.append(reading)
+    return out
 
 
 def compute_level(rec):
@@ -366,7 +389,9 @@ def check_level(ctx):
     w.sec("facts")["nav_last_measure"] = copy.deepcopy(result)
     nav = C.nav(w)
     nav.setdefault("level_checks", {})[target] = {"time_s": C.now(state), "method": method}
-    return result
+    # structured instrument results (15.2) on the returned result only: the tilt along each axis in degrees
+    return dict(result, readings=[{"subject": target, "quantity": "angle", "value": shown[i], "unit": "deg",
+                                   "dimension": "tilt_" + axis} for i, axis in enumerate(("x", "y"))])
 
 
 @action("mark", params={"target": "entity", "height_m": {"type": "number", "min": 0.0, "max": 4.0}, "x_m": {"type": "number", "default": 0.0, "min": 0.0, "max": 10.0},
@@ -378,6 +403,10 @@ def mark(ctx):
     state = w.s
     target = ctx.args["target"]
     ctx.obj(target, touch=True)
+    # realistic perception: an unfamiliar thing is refused identify-first, before any check whose wording could name it
+    # (closeout_REV 7 / VER2 6: "Hold a pencil" was rewritten to "Hold a unfamiliar medium object" for an unfamiliar
+    # pencil alone, telling it from every other unfamiliar twin)
+    C.refuse_unfamiliar(ctx, target)
     tool = None
     for eid in C.tool_candidates(ctx, ctx.args.get("tool")):
         if eid and ctx.holding(eid) and ("mark" in (w.ent(eid).get("affordances") or []) or w.ent(eid).get("tool_kind") in ("pencil", "marker")):
@@ -418,10 +447,19 @@ def _walks(rec):
     return not (max(abs(tilt[0]), abs(tilt[1])) <= 1.0 and wobble <= 1.0 and not loose)
 
 
+def _stale(rec):
+    """The stored tilt and wobble of a thing on leveling feet no longer follow its feet (a write of its foot settings
+    that did not go through the setting_changed hook): _tilt_deg / _wobble_mm are derived fields (VERIFY_HARDENING
+    8.2), kept true here rather than latched by the hook alone."""
+    tilt, wobble = compute_level(rec)
+    return rec.get("_tilt_deg") != tilt or rec.get("_wobble_mm") != wobble
+
+
 def leveling_idle(w):
-    """Exact idle probe of navigation_robot.leveling (kernel v3.1): no running appliance on leveling feet walks."""
+    """Exact idle probe of navigation_robot.leveling (kernel v3.1): no running appliance on leveling feet walks and
+    every leveled thing's stored tilt and wobble follow its feet."""
     entities = w.s["entities"]
-    return not any(_walks(entities[eid]) for eid in C.ids_with(w, "leveled", _is_leveled))
+    return not any(_walks(entities[eid]) or _stale(entities[eid]) for eid in C.ids_with(w, "leveled", _is_leveled))
 
 
 @system("navigation_robot.leveling", order=118, max_dt=30.0, idle=leveling_idle)
@@ -429,13 +467,19 @@ def leveling_system(w, dt, tick):
     state = w.s
     for eid in C.ids_with(w, "leveled", _is_leveled):
         rec = state["entities"][eid]
+        if _stale(rec):
+            apply_level(w, eid)
+            rec = state["entities"][eid]
         if not _walks(rec):
             continue
         _, wobble = compute_level(rec)
-        m = w.mut(eid)
-        before_mm = C.num(m.get("_walked_mm"))
-        m["_walked_mm"] = round(before_mm + 2.0 * dt / 30.0 * (1.0 + wobble / 3.0), 2)
-        if before_mm < 30.0 <= m["_walked_mm"]:
-            w.stat("damage")
-            C.damage_entity(w, eid, "walked", 0.3)
-            C.incident(w, "appliance_walked", target=eid, walked_mm=m["_walked_mm"])
+        # the running machine walks on its own feet: a physical consequence of whoever started it or set its feet
+        # (VERIFY_HARDENING 6.2 causal link)
+        with w.writing("physical", cause=eid):
+            m = w.mut(eid)
+            before_mm = C.num(m.get("_walked_mm"))
+            m["_walked_mm"] = round(before_mm + 2.0 * dt / 30.0 * (1.0 + wobble / 3.0), 2)
+            if before_mm < 30.0 <= m["_walked_mm"]:
+                w.stat("damage")
+                C.damage_entity(w, eid, "walked", 0.3)
+                C.incident(w, "appliance_walked", target=eid, walked_mm=m["_walked_mm"])

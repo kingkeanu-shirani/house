@@ -308,6 +308,7 @@ def washer_start(w, eid):
     water = float(((machine.get("programs") or {}).get(machine.get("program")) or {}).get("water_l", 50.0))
     utilities = w.sec("utilities")
     utilities["water_l"] = round(max(0.0, float(utilities.get("water_l", 1e5)) - water), 3)
+    M.count_water(w, water)                  # the house water meter (VERIFY_HARDENING 6.8)
     m = w.mut(eid)
     m["_cycle"] = cycle
     m["door_locked"] = True
@@ -391,7 +392,8 @@ def _leak(w, eid, litres, why):
 def washer_complete(w, eid):
     rec = w.ent(eid)
     cycle = rec.get("_cycle") or {}
-    finish_wash(w, eid, cycle, completed=True)
+    with M.caused(w, eid):                   # the cycle's outcomes are the machine's doing (VERIFY_HARDENING 6.2)
+        finish_wash(w, eid, cycle, completed=True)
 
 
 def finish_wash(w, eid, cycle, completed=True, drained=True):
@@ -475,6 +477,10 @@ def finish_wash(w, eid, cycle, completed=True, drained=True):
             elif hazard == "ink":
                 w.mut(item)["spent"] = True
     for item in textiles:
+        if w.ent(item).get("_spill") and drained and elapsed_frac > 0:
+            # spill liquid a towel soaked up goes down the washer's drain with the wash water (VERIFY_HARDENING 6.5)
+            from .hardening import release_spill
+            release_spill(w, item, "drain:" + eid, cause=eid)
         _wash_item(w, eid, item, cycle, spec, t, base, chem, sanitize, completed, bleed, shed_level, hair_level,
                    zipper_open, heavy, pocket_effects)
         if germs and not sanitize and spec["agitation"] > 0:

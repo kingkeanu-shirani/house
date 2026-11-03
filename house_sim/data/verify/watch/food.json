@@ -1,0 +1,604 @@
+{
+ "about": "Field classes of the food domain's types for the house ledger (VERIFY_HARDENING 6.3, lint L-WATCH; WP-D food). 'fields' classifies, for this domain's types (house_sim/data/types/food.json), every property of the type data the kernel's name table (watch_fields.json) does not, the food record's sub-keys (food.<key>: a domain entry for the head would hide the kernel's food.* rows, so every sub-key is listed, and food.* is the watched catch-all) and every field this domain's verbs, hooks and systems write on its types. identity = what a thing is (static props) and what the robot's processing made of a food (cut, peeled, parts removed, mixed, shaped, coated, seasoned); setting = a configuration the robot sets (a lid, a cereal liner, a sleeve still on, air pressed out); content = what it holds (food.qty_g, count, composition, volume_l: a portion taken out is a removal unless envelope.consume / deliver / consume_by names it); process = what heat and time drive (temperatures, ice, cook level, doneness, toast, ripeness, sogginess, proofing: food safety flags, invariants and the look-ahead cover them); condition = handling damage in its worse direction (bruised fruit, a cracked egg, torn dough, scorched or burnt food, split cream, shell bits or yolk fat in whites, a melted utensil); bookkeeping = records and mirrors (served_to, reported, made_on, derived_from, a vessel's food_contents) and a bulk portion's size_m, which follows its amount and its vessel. 'water_sensitive': paper packaging, the recipe card and the kitchen scale (house.wet). 'writes': names food writes on things of other domains' types (contamination, damage and soil keep the kernel's classes).",
+ "fields": {
+  "+affordances": "identity",
+  "+tags": "identity",
+  "air_heat_capacity_j_k": "identity",
+  "air_removed": "setting",
+  "board_use": "identity",
+  "bowl_ml": "identity",
+  "capabilities": "identity",
+  "capacity_g": "identity",
+  "clumped": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "coating": "identity",
+  "coating_damage": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "conducts_heat": "identity",
+  "contamination": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.*": "process",
+  "contamination.allergen_celery": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.allergen_corn": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.allergen_egg": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.allergen_fish": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.allergen_gluten": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.allergen_lupin": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.allergen_milk": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.allergen_mollusc": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.allergen_mustard": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.allergen_peanut": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.allergen_sesame": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.allergen_shellfish": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.allergen_soy": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.allergen_sulfite": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.allergen_sulphite": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.allergen_tree_nut": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.allergen_wheat": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.bacteria": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.chemical": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.fat": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.glass_shards": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contamination.raw_meat": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "contents_from": "bookkeeping",
+  "date_type": "identity",
+  "derived_from": "bookkeeping",
+  "designated_for": "identity",
+  "dishwasher_safe": "identity",
+  "display": "process",
+  "dissolved_salt_g": "process",
+  "divided": "identity",
+  "drip_catch": "identity",
+  "edge": {
+   "class": "condition",
+   "worse": "change"
+  },
+  "fill_l": "bookkeeping",
+  "fill_level": "bookkeeping",
+  "fixed_temperature": "bookkeeping",
+  "food": "identity",
+  "food.*": "identity",
+  "food.absorbs_water": "identity",
+  "food.acid": "identity",
+  "food.acid_treated": "identity",
+  "food.blended": "identity",
+  "food.boil_s": "process",
+  "food.boneless": "identity",
+  "food.broken_open": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "food.browning": "process",
+  "food.browns": "identity",
+  "food.bruise": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.05
+  },
+  "food.bruises_easily": "identity",
+  "food.burnt": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.05
+  },
+  "food.burnt_flavor": "process",
+  "food.burst": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "food.cake": "identity",
+  "food.capsaicin": "identity",
+  "food.carbonated": "identity",
+  "food.cat": "identity",
+  "food.chill_injury": "process",
+  "food.chill_sensitive": "identity",
+  "food.choking": "identity",
+  "food.clingstone": "identity",
+  "food.closed": "identity",
+  "food.cloudy": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "food.cloves": "identity",
+  "food.clumped_paste": "identity",
+  "food.composition": {
+   "class": "content",
+   "tol": 0.5
+  },
+  "food.cooked": "process",
+  "food.cork_bits": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.5
+  },
+  "food.cork_pushed_in": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "food.count": {
+   "class": "content"
+  },
+  "food.cracked": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "food.crushed": "identity",
+  "food.cut": "identity",
+  "food.cut_axis": "identity",
+  "food.density": "identity",
+  "food.discrete": "identity",
+  "food.drained": "identity",
+  "food.dressed": "identity",
+  "food.egg_doneness": "process",
+  "food.ends_folded": "identity",
+  "food.ethylene": "identity",
+  "food.fat_layer_g": {
+   "class": "content",
+   "tol": 0.5
+  },
+  "food.fill_ml": {
+   "class": "content",
+   "tol": 1.0
+  },
+  "food.firmness": "identity",
+  "food.flat_side": "identity",
+  "food.foam_g": "process",
+  "food.form": "identity",
+  "food.freezer_burn": "process",
+  "food.frozen_chunks": "identity",
+  "food.gap_mm": "identity",
+  "food.glue": "identity",
+  "food.grain": "identity",
+  "food.grain_angle_deg": "identity",
+  "food.grain_cooked": "process",
+  "food.grain_texture": "process",
+  "food.grate_side": "identity",
+  "food.hand_peel": "identity",
+  "food.hand_removable": "identity",
+  "food.hard": "identity",
+  "food.hard_core": "identity",
+  "food.hard_shell": "identity",
+  "food.has_raw_animal": "identity",
+  "food.hidden_parts": "identity",
+  "food.history": "bookkeeping",
+  "food.humidity": "identity",
+  "food.hydration": "identity",
+  "food.ice": "process",
+  "food.inedible_remaining": "identity",
+  "food.insects": "process",
+  "food.intended_raw": "identity",
+  "food.joints": "identity",
+  "food.juiced": "identity",
+  "food.juiciness": "identity",
+  "food.juicy": "identity",
+  "food.kind": "identity",
+  "food.kneaded_min": "identity",
+  "food.last_stirred_s": "process",
+  "food.layerable": "identity",
+  "food.layered": "identity",
+  "food.layers": "identity",
+  "food.look": "identity",
+  "food.look_alike": "identity",
+  "food.lump_frac": "identity",
+  "food.lumps": "identity",
+  "food.made_on": "bookkeeping",
+  "food.marinade": "identity",
+  "food.mash_work": "identity",
+  "food.mashable": "identity",
+  "food.mashed": "identity",
+  "food.melted": "process",
+  "food.mix": "identity",
+  "food.moist": "identity",
+  "food.moisture_release": "process",
+  "food.mushy": "process",
+  "food.needs_cooking": "identity",
+  "food.needs_cooking_to_mash": "identity",
+  "food.part_info": "identity",
+  "food.part_loss_frac": "identity",
+  "food.particle_mm": "identity",
+  "food.parts": "identity",
+  "food.paste": "identity",
+  "food.peel_coverage": "identity",
+  "food.peel_loss_frac": "identity",
+  "food.peeled": "identity",
+  "food.phase": "identity",
+  "food.piece_cv": "identity",
+  "food.piece_ml": "identity",
+  "food.piece_ml_target": "identity",
+  "food.piece_mm": "identity",
+  "food.pieces": "identity",
+  "food.pith_after_hand_peel": "identity",
+  "food.proof": "process",
+  "food.pulp": "identity",
+  "food.qty_g": {
+   "class": "content",
+   "tol": 0.5
+  },
+  "food.raw": "process",
+  "food.raw_marinade": "identity",
+  "food.rested_before_carving": "identity",
+  "food.ripen_per_day": "identity",
+  "food.ripeness": "process",
+  "food.ripens": "identity",
+  "food.round": "identity",
+  "food.round_pieces": "identity",
+  "food.rte": "identity",
+  "food.scorch": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.05
+  },
+  "food.seam": "identity",
+  "food.seasoned": "identity",
+  "food.seeds": "identity",
+  "food.served_g": "bookkeeping",
+  "food.shaped": "identity",
+  "food.sheet": "identity",
+  "food.shell_fragments": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.5
+  },
+  "food.shucked": "identity",
+  "food.sifted": "identity",
+  "food.silk_strands": "identity",
+  "food.skimmed": "identity",
+  "food.skin": "process",
+  "food.skin_in_product": "identity",
+  "food.skin_loose": "identity",
+  "food.slice_form": "identity",
+  "food.slice_thickness_mm": "identity",
+  "food.slippery": "identity",
+  "food.slivers": "identity",
+  "food.smeared": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "food.snaps": "identity",
+  "food.soak_s": "process",
+  "food.soap_residue": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "food.softened": "process",
+  "food.soggy": "process",
+  "food.soggy_prone": "identity",
+  "food.split": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "food.starchy": "identity",
+  "food.stock_bones": "identity",
+  "food.store_apart": "identity",
+  "food.sweet_treat": "identity",
+  "food.taint": {
+   "class": "condition",
+   "worse": "change"
+  },
+  "food.target_hydration": "identity",
+  "food.tearable": "identity",
+  "food.texture": "identity",
+  "food.thaw_method": "identity",
+  "food.thaw_started_s": "bookkeeping",
+  "food.thick": "identity",
+  "food.toast": "process",
+  "food.toast_level": "process",
+  "food.topping_spread": "identity",
+  "food.toppings": "identity",
+  "food.torn": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "food.trim_loss_frac": "identity",
+  "food.unit_g": "identity",
+  "food.unit_size_m": "identity",
+  "food.washed": "identity",
+  "food.waterlogged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "food.wax_removed": "identity",
+  "food.waxed": "identity",
+  "food.wedge_topping_kinds": "identity",
+  "food.wedge_toppings": "identity",
+  "food.wedges": "identity",
+  "food.wet": "process",
+  "food.white_set": "process",
+  "food.whole_fish": "identity",
+  "food.wilt": "process",
+  "food.windowpane": "identity",
+  "food.woody_stem_in_product": "identity",
+  "food.wrap_capacity_ml": "identity",
+  "food.wrapper": "identity",
+  "food.yolk_fat_g": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "food.yolk_set": "process",
+  "food.yolks_intact": {
+   "class": "condition",
+   "worse": "down",
+   "tol": 0.5
+  },
+  "food.zested": "identity",
+  "food_air_model": "identity",
+  "food_contents": "bookkeeping",
+  "food_label": "identity",
+  "food_safe": "identity",
+  "food_thermal": "identity",
+  "food_type": "identity",
+  "freezer_safe": "identity",
+  "fridge_ok": "identity",
+  "full_g": "identity",
+  "gear_kind": "identity",
+  "graduated": "identity",
+  "grate_sides": "identity",
+  "grease_g": {
+   "class": "content",
+   "tol": 0.5
+  },
+  "greased": "setting",
+  "grit": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.5
+  },
+  "handle_rating_kg": "identity",
+  "handled_with": "bookkeeping",
+  "hazards": "identity",
+  "heat_load_w": "process",
+  "heat_resistant": "identity",
+  "holes_mm": "identity",
+  "ice_bath": "process",
+  "ice_frac": "process",
+  "ice_kg": "process",
+  "inner_info": "identity",
+  "insulated": "identity",
+  "latent_pack": "identity",
+  "leaks": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "lid": "identity",
+  "life_days": "identity",
+  "lined": "setting",
+  "liner": "identity",
+  "liner_closed": "setting",
+  "load_kg": "bookkeeping",
+  "long_reach": "identity",
+  "max_touch_temp_c": "identity",
+  "measure_kind": "identity",
+  "measure_ml": "identity",
+  "melt_c": "identity",
+  "melted": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "microwave_safe": "identity",
+  "mill": "identity",
+  "mix_factor": "identity",
+  "motor_strain": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.05
+  },
+  "needs_crisper": "identity",
+  "no_door": "identity",
+  "non_slip": "identity",
+  "opened_life_days": "identity",
+  "opened_on": "bookkeeping",
+  "opener_required": "identity",
+  "outer_packaging": "setting",
+  "outer_packaging.*": "setting",
+  "oven_safe": "identity",
+  "pack_mass_g": "identity",
+  "pack_orientation": "identity",
+  "package": "identity",
+  "packaged": "identity",
+  "perforated": "identity",
+  "plug_required": "identity",
+  "probe_temp_c": "process",
+  "protective_packaging": "identity",
+  "rack": "identity",
+  "recyclable": "identity",
+  "reported": "bookkeeping",
+  "reported.*": "bookkeeping",
+  "reseal_needed": "identity",
+  "rests_on_rim": "identity",
+  "rigid": "identity",
+  "rim_smears": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "served_to": "bookkeeping",
+  "serving": "identity",
+  "serving_condiment": "identity",
+  "shaker": "identity",
+  "sharpness": {
+   "class": "condition",
+   "worse": "down",
+   "tol": 0.01
+  },
+  "size_m": "bookkeeping",
+  "slip_risk": "identity",
+  "soft_sided": "identity",
+  "specific_heat": "identity",
+  "stackable": "identity",
+  "stacked_loose": "bookkeeping",
+  "storage_opened": "identity",
+  "switchable": "identity",
+  "tare_kg": "identity",
+  "tare_volume_l": "identity",
+  "thermometer_c": "process",
+  "tool_kind": "identity",
+  "two_handed": "identity",
+  "ua_w_k": "identity",
+  "used": "bookkeeping",
+  "volume_l": {
+   "class": "content",
+   "tol": 0.001
+  },
+  "waste": "identity",
+  "waste_kind": "identity",
+  "waste_stream": "identity",
+  "water_bath": "process",
+  "watertight": "identity",
+  "wear_slot": "identity",
+  "wearable": "identity"
+ },
+ "types": {
+  "kitchen_scale": {
+   "tare_g": {
+    "class": "setting",
+    "tol": 0.5
+   },
+   "display": "process"
+  },
+  "recipe_card": {
+   "text": "identity"
+  },
+  "food_outer_packaging": {
+   "waste": "identity"
+  }
+ },
+ "water_sensitive": [
+  "cereal_box",
+  "food_outer_packaging",
+  "frozen_pizza_box",
+  "grocery_bag",
+  "kitchen_scale",
+  "parchment_sheet",
+  "recipe_card",
+  "spice_grinder"
+ ],
+ "writes": [
+  "air_heat_capacity_j_k",
+  "clumped",
+  "coating_damage",
+  "contamination",
+  "contamination.*",
+  "contents_from",
+  "damage",
+  "damage.*",
+  "dissolved_salt_g",
+  "fill_level",
+  "food_air_model",
+  "grease_g",
+  "greased",
+  "grit",
+  "handled_with",
+  "heat_coupling",
+  "ice_bath",
+  "ice_kg",
+  "leaks",
+  "lined",
+  "melted",
+  "motor_strain",
+  "rim_smears",
+  "served_to",
+  "sharpness",
+  "soil",
+  "soil.*",
+  "stacked_loose",
+  "ua_w_k",
+  "water_bath"
+ ]
+}

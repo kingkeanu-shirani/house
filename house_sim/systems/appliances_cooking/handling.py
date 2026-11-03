@@ -274,7 +274,7 @@ def _pods_invariant(state, baseline, world):
         if before is not None and before.get("location") == rec.get("location") and before.get("open") == rec.get("open") \
                 and baseline_hazard(baseline, eid):
             continue
-        return "detergent_within_child_reach"
+        return "appliances_cooking.detergent_within_child_reach:" + eid     # registered name first (WP8-fix)
     return None
 
 

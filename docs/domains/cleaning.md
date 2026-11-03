@@ -8,11 +8,13 @@ local waste-stream rules (trash / recycling / compost / yard waste / hazardous),
 (toxic gas, slips, cross-contamination, scratched or etched finishes, liquid in electronics, noise at night).
 
 Code: `house_sim/systems/cleaning/` (package: `model`, `state`, `engine`, `surfaces`, `floors`, `dishes`, `waste`,
-`systems`, `perception`, `helpers`, `skills`, `furnish`, `routes`, `history`). Types:
+`systems`, `perception`, `helpers`, `skills`, `furnish`, `routes`, `history`, `hardening`). Types:
 `house_sim/data/types/cleaning.json` (192 types, 24 perception blocks, 14 look-alike groups, file-level `field_tiers`).
 Tests: `tests/test_cleaning.py` (216 tests, 26 of them realistic perception, 15 for the tier-1 adoption, 16 for the
 2026-10-22 review, section 16, and 7 for the phase-1 finish, section 17; pass with every domain loaded, with `HOUSE_SIM_STRICT=1` and with
-`HOUSE_SIM_DOMAINS=core,cleaning`). Examples:
+`HOUSE_SIM_DOMAINS=core,cleaning`) and `tests/test_cleaning_hardening.py` (phase 2, section 18: the ledger's mess
+kinds, refuse, the drain relation, derived fields, field classes, truth, the look-alike and unfamiliar sweeps' fixes).
+Examples:
 `tasks/authored/cleaning__examples.json` (13 specs) and `tasks/authored/cleaning__perception.json` (3 realistic-mode
 specs with the geometric camera, sections 13 and 15); all 16 run on generation-2 houses (`"house": {"gen": 2}`) and
 pass `--check` with every domain loaded on seeds 0, 1, 2, 41, 97. Layout: `python tools/layout_audit.py 20 --domain
@@ -870,3 +872,119 @@ journal entry; the read views made this domain's eight first lookups about twice
 close-look percept for every closed vessel of liquid, whether it records litres or an amount (plumbing_liquids).
 Left for the verifier redesign (docs/design/VERIFY_HARDENING.md, WP9): the glass-cleaner spec's fixed `spos` order
 (review I2), and the public-seed reconstruction of what a staged look-alike is (red_leaks 1; the harness's).
+
+## 18. Phase 2: what the house ledger needs (VERIFY_HARDENING WP-D cleaning)
+
+Code: `house_sim/systems/cleaning/hardening.py` (registrations), the flow calls in the verbs, `state.py` (shared
+helpers). Data: `house_sim/data/verify/watch/cleaning.json` (field classes), `house_sim/data/speech/truth_cleaning.json`
+(claim truth). Tests: `tests/test_cleaning_hardening.py`.
+
+### 18.1 Mess kinds and flows (6.5)
+
+| Kind | Unit | Parcels (the measure, any state) | Location key |
+|---|---|---|---|
+| `debris` | g | loose floor soil (`model.FLOOR_LOOSE` kinds of the floors' `_cells`, `model.grams` per 0.25 m2 cell), debris piles (`composition`), tool and bin loads (`cl_load`: dustpans, dust-mop heads, vacuum bins and bags, waste containers), a sink's `drain_debris_g`, a floor vent's `vent_debris_g` | `floor:<room>` (`outside:<room>` outdoors), `entity:<carrier>`, `entity:<cover>` for a pile under a rug, `drain:<sink>` |
+| `waste_item` | count | every entity with `waste: true` except spills and piles (they are mess of their own kinds) | where the item is (`entity:robot` in the hands) |
+
+Sinks, tolerances and classes are the kernel's (`house_sim/data/verify/mess_classes.json`: debris sinks in waste
+containers and vacuums, 5 g, 5 %; refuse in waste containers, 0, 0). Origins are not tracked (one group per kind):
+debris and refuse keep their kind through every cleaning verb, so the cross-kind total and the per-kind balance agree.
+Flows (`state.flow`, `World.mess_flow`) are logged where debris or refuse leaves a place: `sweep` (to another room,
+off the edge, under a rug or furniture, into a storm or floor drain, into a floor vent; a pile in the same room is no
+flow), `collect_debris`, the dust mop, `vacuum` (and what it ingests), `empty_into` (to a bin, down a drain, the
+high-dump dust cloud), `scrape` (food into a bin, scraps that clog a drain; a garbage disposal grinding food is no
+mess), crumbs wiped `into` a pan or bin or onto the floor, and the raccoon / dog `scatter`. Shaking out a mat
+indoors is caught by the measure (the floor's debris rises); outdoors its dirt disperses.
+
+Consequences: a dustpan never emptied is `house.mess_in_transit:debris`; the pile swept into the hall is
+`house.mess_relocated:debris`; the pan tipped into a sink is `house.wrong_sink:debris`; refuse in a drawer is
+`house.mess_relocated:waste_item`. Liquid kinds (mop water) are not registered here: a bucket's volume falls with every
+mop pass (the film it lays evaporates), so a volume measure charges every legitimate mop as unaccounted; the
+liquid kinds and their film are plumbing_liquids' (requested), and `dump_liquid` logs nothing until a kind exists.
+
+### 18.2 Refuse and mess entities (6.4)
+
+At `episode_start` (before the baseline: setup) `hardening.mark_refuse` gives the kernel's refuse flag `waste: true`
+to every waste item of this domain that is refuse (`hardening.is_refuse`: not `_disposition` keep, not `_ambiguous`,
+not sentimental or protected, no owner, value below 50, not a bin or a liner), to this domain's spills and
+debris piles (types `spill`, `debris_pile`, whoever spawned them; other domains' debris-category things -- glass
+shards, shredded paper, a jammed sheet -- are theirs to flag), and to a trash bag that already holds something
+(itself, or as the liner of a bin that holds trash). `house.lost` and `house.removed` exempt refuse (a soda can binned, a spill
+wiped up, a pile collected, a full bag taken out) while a keeper binned is still lost. Disposables this domain
+creates are refuse from the start (used paper towels from a biohazard or oil spill, also tagged `soaked_cloth` --
+`chemical_soaked` when hazardous -- so `house.created_hazard` wants them binned; the peeled produce sticker). `waste`
+is hidden in realistic perception (`field_tiers`): refuse and a keeper look alike.
+
+### 18.3 Latched fields
+
+The goal fields a hook writes and the state later contradicts; each has a registered recompute (`@derived_field`,
+`hardening.py`) that schema-4 evaluation overlays (8.2; lint L-LATCH reads this table).
+
+| Field | Written by | Recompute |
+|---|---|---|
+| `in_stream` | `waste.judge` (place, empty_into, scrape into a bin), cleared by `cleaning.streams` | the `waste_stream` of the waste container the thing is in now; missing outside every waste container |
+| `stream_ok` | `waste.judge` | whether that container's stream is one the thing belongs to now (`waste.acceptable`, `container_accepts`; a bag with contents: true, bagged recycling under the rules: false) |
+| `polished` | `polish` | true only while no dust, fingerprints, streaks, water spots or hairspray (0.05 or more) cover the thing |
+
+`conditioned`, `seasoned` and `cl_sanitized` are physical states (a conditioned leather stays conditioned), not latches.
+The invariant labels keep their literal names (`cleaning.toxic_gas_released`, `cleaning.pollution`,
+`cleaning.hidden_sharp_in_water`): L-EXPECT accepts them as `inv:` patterns, and renaming them would change the
+legacy wrong plans' reason classes (WP8-fix's request; WP1's per-label invariant record is the other route).
+
+### 18.4 Field classes (6.3, `watch/cleaning.json`)
+
+Every property of `house_sim/data/types/cleaning.json` is classified (`python tools/field_census.py --unclassified
+--domain cleaning`: none left): type descriptors are identity (`+affordances` / `+tags` are the type data's merge keys);
+deliberate settings (`flattened`, `has_sticker`, `seated`, `rim_folded`, `polished`, `conditioned`) are settings;
+fouling and wear are conditions with their worse direction (`wear` with a 0.1 tolerance: about 25 uses of a cloth is
+no damage); loads the mess balance judges carry `guard: mess` (`cl_load`, `composition`, `cl_soil_g`, `soil_load`,
+`drain_debris_g`, a mop bucket's water); a waste container's `fill_level` / `contents` and a vacuum bin's or
+dustpan's `fill_level` only follow what is in them (bookkeeping: their children's placements and the loads are
+judged); a new liner's `folded` is packaging (process); a rag's `wrinkled` is nobody's harm. Water-sensitive types
+(`house.wet`): the vacuums, their paper filter and bags, paper and cardboard waste, the recycling guide. Fields this
+domain writes on other domains' types that the kernel does not classify are listed as a request to WP1.
+
+### 18.5 Truth, readings and the floor's wetness
+
+`truth_cleaning.json` maps this domain's words: states `clean` / `dirty` (the highest soil level, through the
+pseudo-field `$max:soil` the kernel is asked to read: unscored until then), `full` (fill level 0.9 or more), `soapy`
+/ `rinsed` (`cl_suds`), `sanitized` (`$max:contamination`); issues for each soil kind at 0.05 or more (dusty, crumbs,
+sticky, greasy, stained, streaky, water_spots, fingerprints, mildew, rusty), `etched`, `wrong_bin` (`stream_ok`
+false), `overfull`, `hair_wrapped`, `cross_contaminated`, `fruit_flies`; the act `clean` (lenient: a cleaning verb on
+the subject). A floor's own `wetness` now follows its room's water film (`state.sync_floor_wetness`: 0 without a film
+cell, else 0.1 plus the wettest cell's film over 0.5 mm), so "the kitchen floor is wet from mopping" is true while the
+floor is wet (it was scored a false claim: the floor's record never showed its film). Water a cleaning rinse draws is
+counted as `stats.water_used_l` (plumbing's meter, `plumbing.meter.l`, is plumbing_liquids' to keep).
+
+### 18.6 Writers, causes and settings skills
+
+Every cleaning system is `physical` (none carries out a resident's or a pet's decision). Causes are passed where the
+cause is another record: things the raccoons or the dog scatter and the torn liner cite the container (left open,
+unlatched, a bag on the floor), a floor's water damage cites its room's film (`rooms:<id>`). Settings skills (10.3,
+B14 probes): a vacuum's `settings.mode` / `settings.suction` (the `set` skill), a lockable cart's `locked` (lock /
+unlock), a liner's `opened` (shake it open; one way).
+
+### 18.7 World-behaviour fixes (P10) and the carry-over
+
+* **The drain relation** (23.3, 6.11): what `empty_into`, a scrape or a sweep sends into a sink, tub, toilet or floor
+  / storm drain goes down it when it fits (largest dimension at most 5 cm, 8 cm for a toilet): location the drain,
+  relation `drain`, hidden by `perception.down_the_drain` (visible_veto), lost for the ledger (`house.lost`); bigger
+  things stay in the basin. The review's game (the earring tipped into the kitchen sink) is now a loss.
+* **Mop passes converge** (`floors.mopped_film`): a pass lays its own film and picks up much of what was there, so
+  three barely damp passes leave 0.018 mm, not 0.036 mm, which had water-damaged laminate under the recommended method.
+* **A vacuum without a bin or bag keeps nothing**: the take is blown back onto the floor (it vanished).
+* **A refill or trigger bottle of plain water sprays** (`state.dispenser`): `apply_cleaner`, `disinfect` and `descale`
+  take it as they take a product bottle (one rule for the spray_bottle group, closeout_REV 6); plain water sprayed
+  into open water or over food contaminates nothing.
+* **No hand tool by a word of an appliance's label** (`state.is_machine`, closeout_REV 5): a robot vacuum-mop is no
+  flat mop for `absorb` / `mop`, so the robot_vacuum group answers alike.
+* **Unfamiliar things** (closeout_breakages row 4): an order-1 before hook on every cleaning verb refuses an unfamiliar
+  thing named in any entity parameter with the kernel's identify-first message; `state.held_tool` and the secondary
+  pickers (the broom of `collect_debris`, the bucket of `mop`, the noise of `vacuum` / `mop`, the cloth of `wash`,
+  `absorb`'s unread-bottle rule) pass an unnamed held unfamiliar thing over. A sweep of every cleaning verb x every
+  entity parameter x both states (on the table, held; tool named and implicit) over the 78 registry look-alike
+  groups with two or more members and 46 unfamiliar twins (scratch `p2_WP-D_cleaning/sweep.py`) shows no difference
+  left.
+* **Scenario helpers** (WP9): `cleaning.waste` and `cleaning.tools` place their items in `ctx.placer.order(...)` order
+  (a seeded permutation for schema 4, the given order before); the helpers take no role lists, so `ctx.sample_roles`
+  has nothing to replace.

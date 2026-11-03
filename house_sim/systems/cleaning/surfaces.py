@@ -59,6 +59,7 @@ def drop_loose(ctx, eid, loose, into=None, capture=0.0, tool=None, area=1.0):
             continue
         if into:
             deposit_waste(w, into, {kind: grams}, source=eid)
+            S.flow(w, "debris", grams, ("entity", eid), S.deposit_loc(w, into))
             continue
         taken = capture if kind in fine else (0.5 if kind == "glitter" else 0.25 * capture)
         if tool:
@@ -74,6 +75,7 @@ def drop_loose(ctx, eid, loose, into=None, capture=0.0, tool=None, area=1.0):
                 for key in keys:
                     S.add_cell_soil(w, floor, key, kind, M.level_from_grams(kind, grams / len(keys), cell_area))
             S.glog(w, "debris_to_floor", source=eid, floor=floor, cells=keys, grams=round(sum(to_floor.values()), 2))
+            S.flow(w, "debris", S.load_grams(to_floor), ("entity", eid), S.mess_loc(w.s, w.ent(floor).get("location")))
     return to_floor
 
 
@@ -261,7 +263,7 @@ def _surface_pass(ctx, verb, kinds_allowed, contact=E.CONTACT_S):
 def apply_cleaner(ctx):
     w = ctx.w
     target = ctx.args["target"]
-    bottle = S.held_tool(ctx, predicate=lambda r: bool(r.get("product") or r.get("cl_chem")),
+    bottle = S.held_tool(ctx, predicate=S.dispenser,
                          message="Hold the cleaner bottle or spray bottle")
     brec = w.ent(bottle)
     require(target != bottle, "Choose what to apply it to", "argument")
@@ -407,7 +409,8 @@ def apply_to_face(ctx, target, product, amount, strength, classes, method, bottl
     rid = w.root_room(target) or w.robot["room"]
     t = S.now(w)
     S.log_product(w, product, target)
-    if S.is_liquid_container(rec) and (rec.get("open") or rec.get("open_top")) and float(rec.get("liquid_l", 0.0) or 0.0) > 0 and method == "spray":
+    if S.is_liquid_container(rec) and (rec.get("open") or rec.get("open_top")) and float(rec.get("liquid_l", 0.0) or 0.0) > 0 and method == "spray"             and classes:
+        # a product sprayed into open water contaminates it (plain water from a refill bottle has no chemistry)
         S.add_contamination(w, target, "chemical", 0.3)
         m = w.mut(target)
         m.setdefault("cl_chem", {})[product] = S.rnd(float(m["cl_chem"].get(product, 0.0)) + amount * 0.2, 2)
@@ -462,7 +465,8 @@ def overspray(ctx, target, product, amount, classes):
     w = ctx.w
     for item in S.items_on(w, target):
         irec = w.ent(item)
-        if irec.get("food") or irec.get("category") in ("food", "dish", "produce") or irec.get("food_contact") and not irec.get("covered"):
+        if classes and (irec.get("food") or irec.get("category") in ("food", "dish", "produce") or
+                        irec.get("food_contact") and not irec.get("covered")):
             S.add_contamination(w, item, "chemical", 0.3)
             S.glog(w, "overspray", item=item, product=product)
         if irec.get("liquid_sensitive") or irec.get("electronic"):
@@ -927,6 +931,7 @@ def water_use(w, liters):
     if "water_l" in util:
         w.sec("utilities")["water_l"] = S.rnd(max(0.0, float(util["water_l"]) - liters), 2)
     w.stat("water_used_l", liters)
+    S.count_water(w, liters)            # and on the house water meter the resource ledger reads (6.8)
 
 
 def _rinse_time(ctx, default_s):
@@ -1222,7 +1227,7 @@ def dry(ctx):
 def disinfect(ctx):
     w = ctx.w
     target = ctx.args["target"]
-    tool = S.held_tool(ctx, predicate=lambda r: bool(r.get("product") or r.get("cl_chem")),
+    tool = S.held_tool(ctx, predicate=S.dispenser,
                        message="Hold a disinfectant (spray, bottle, wipes or a cloth loaded with disinfectant)")
     trec = w.ent(tool)
     product, strength = bottle_product(w, tool) if (trec.get("product") or S.is_liquid_container(trec)) else (None, 0.0)
@@ -1353,7 +1358,7 @@ def _disinfect_with_other(ctx, target, tool, trec, product, strength):
 def descale(ctx):
     w = ctx.w
     target = ctx.args["target"]
-    tool = S.held_tool(ctx, predicate=lambda r: bool(r.get("product") or r.get("cl_chem")), message="Hold the descaler")
+    tool = S.held_tool(ctx, predicate=S.dispenser, message="Hold the descaler")
     product, strength = bottle_product(w, tool)
     require(product is not None, "The bottle is empty", "resource")
     classes = M.product_classes(product)
@@ -1480,7 +1485,8 @@ def scrape(ctx):
         require(rec.get("has_sticker"), "There is no sticker on it", "argument")
         m = w.mut(target)
         m["has_sticker"] = False
-        sticker = w.spawn("waste_item", w.robot["room"], label="produce sticker", waste_kind="plastic", form="film", size_m=[0.02, 0.015, 0.001], volume_l=0.001)
+        sticker = w.spawn("waste_item", w.robot["room"], label="produce sticker", waste_kind="plastic", form="film", size_m=[0.02, 0.015, 0.001], volume_l=0.001,
+                          waste=True)
         sm = w.mut(sticker)
         sm["pos"] = list(w.robot.get("pos") or [0, 0])
         dest = ctx.args.get("destination")

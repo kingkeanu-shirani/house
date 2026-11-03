@@ -10,6 +10,7 @@ from ...kernel.plugins import after, before, hook
 from ..core import subtree_mass
 from .common import (address_matches, admin_facts, authority, household, mass_text, need_tool, requester,
                      require_readable, resolve_name, slug, units_metric, visual_event)
+from .hardening import writing
 from .perceive import count_seen, dumps, order_ids, privacy_violation, was_read
 
 # USPS retail rates effective July 2025 (cents). Households in other regions override household.postage.
@@ -372,6 +373,14 @@ def _spawn_piece(w, box, spec):
 
 
 def carrier_visit(w, now_dt):
+    """The mail carrier's round. The carrier acts by their own decision (VERIFY_HARDENING 6.2 volition): taking the
+    flagged outgoing mail and filling the box is never charged to the robot, and a letter the carrier takes during the
+    settle window is consumed, not a regression."""
+    with writing(w, "volition", "admin_inventory.carrier"):
+        return _carrier_visit(w, now_dt)
+
+
+def _carrier_visit(w, now_dt):
     state = w.s
     hh = state.get("household", {})
     sent, visited = [], set()

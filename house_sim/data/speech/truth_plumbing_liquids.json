@@ -1,0 +1,17 @@
+{
+ "about": "plumbing_liquids' truth mappings for claims about its state (kernel/speech.py truth(); VERIFY_HARDENING 13.1-13.3, 13.6; WP-D plumbing_liquids). Words from house_sim/data/vocab/plumbing_liquids.json (burst_pipe's mapping is the kernel's truth.json, which already reads this domain's fields; leak, clogged, flooding, overflowing, running, on / off, open / closed and empty are kernel words: see the handoff's requests for the fields this domain's records hold). issues: a running toilet is one whose tank keeps losing water through a worn flapper, a short or long chain or a high float (tools_vehicles' running and _leak_lpm, fixes.tank_leak_lpm) or a stuck-open fill valve spilling into the overflow tube (_tank.fill_valve_ok false); a toilet with a sound tank is not running (false, not unknown), whatever a flush's refill is doing. No hot water is a water heater whose tank is below 35 C (cold or only lukewarm at the taps; the heater's setpoint is 49 C); a fixture's own record says nothing about it (unknown). A frozen pipe is a spigot whose supply burst in a frost or a hose split by the ice in it (frozen_burst, frozen_split, set when it happens; a sound spigot or hose has neither field: unknown). low_water_pressure has no mapping (a thin stream's cause is a valve part-closed somewhere upstream: not a field of the fixture): claims of it are unscored.",
+ "issues": {
+  "running_toilet": [
+   {"field": "running", "op": "is_true"},
+   {"field": "_leak_lpm", "op": "gt", "value": 0},
+   {"field": "_tank.fill_valve_ok", "op": "is_false"}
+  ],
+  "no_hot_water": [
+   {"field": "tank_temp_c", "op": "lt", "value": 35.0}
+  ],
+  "frozen_pipe": [
+   {"field": "frozen_burst", "op": "is_true"},
+   {"field": "frozen_split", "op": "is_true"}
+  ]
+ }
+}

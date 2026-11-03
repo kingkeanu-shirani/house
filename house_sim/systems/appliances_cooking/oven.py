@@ -22,6 +22,7 @@ from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, hook
 from . import common as C
+from . import hardening as H
 from . import percept as P
 
 OVEN_KINDS = ("oven", "toaster_oven", "air_fryer")
@@ -119,6 +120,9 @@ def step_oven(w, oid, dt):
             watts = C.num(params.get("bake_w"), 3000.0)
     if on and ho.get("broken"):
         watts *= 0.3
+    if watts > 0:                   # the meters the ledger reads (6.8): electric elements or a gas oven's burner
+        gas = params.get("fuel") == "gas"
+        H.book_energy(w, oid, 0.0 if gas else watts, watts if gas else 0.0, dt)
     cap = C.num(params.get("cavity_c_j_k"), 16000.0)
     ua = C.num(params.get("ua_w_k"), 7.0)
     door_open = bool(rec.get("open")) and rec.get("openable")

@@ -161,7 +161,8 @@
    "food_air_model",
    "latent_pack",
    "pack_mass_g",
-   "ice_frac"
+   "ice_frac",
+   "waste"
   ]
  },
  "types": {

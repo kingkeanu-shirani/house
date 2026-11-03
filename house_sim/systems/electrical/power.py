@@ -444,11 +444,14 @@ def _powered_hook(w, eid):
 # ----------------------------------------------------------------------------------------
 # mutations
 
-def trip_breaker(w, bid, reason):
+def trip_breaker(w, bid, reason, cause=None):
+    """cause: what tripped it (the writer log's causal link, VERIFY_HARDENING 6.2): ids or a callable giving them;
+    default everything on its circuit that can trip it (_breaker_loads)."""
     rec = w.ent(bid)
     if rec.get("tripped") or not rec.get("on"):
         return False
-    m = w.mut(bid)
+    m = w.mut(bid, cause=C.writer_cause(w, bid, cause if cause is not None else
+                                           (lambda: [bid] + _breaker_loads(w.s, bid, {}))))
     m["tripped"] = True
     m["handle"] = "tripped"
     m["trip_count"] = int(C.num(m.get("trip_count"), 0)) + 1
@@ -463,7 +466,7 @@ def trip_provider(w, oid, reason):
     rec = w.ent(oid)
     if rec.get("tripped"):
         return False
-    m = w.mut(oid)
+    m = w.mut(oid, cause=C.writer_cause(w, oid, lambda: [oid] + downstream(w.s, oid)))
     m["tripped"] = True
     m["_heat"] = round(C.num(m.get("_heat"), 0.0) * 0.6, 3)
     C.event(w, "strip_tripped", oid, reason=reason)
@@ -471,11 +474,13 @@ def trip_provider(w, oid, reason):
     return True
 
 
-def trip_gfci(w, oid, reason):
+def trip_gfci(w, oid, reason, cause=None):
+    """cause: the device or receptacle whose ground fault tripped it (default: the receptacles it protects and what is
+    plugged into them)."""
     rec = w.ent(oid)
     if not rec.get("gfci") or rec.get("gfci_tripped"):
         return False
-    w.mut(oid)["gfci_tripped"] = True
+    w.mut(oid, cause=C.writer_cause(w, oid, cause if cause is not None else (lambda: sorted(cut_ids(w.s, oid)))))["gfci_tripped"] = True
     C.event(w, "gfci_tripped", oid, reason=reason)
     C.log(w, "gfci_tripped", outlet=oid, reason=reason)
     return True
@@ -532,9 +537,9 @@ def shock_check(w, eid, cause):
     if protector:
         prec = state["entities"][protector]
         if is_breaker(prec):
-            trip_breaker(w, protector, "ground_fault")
+            trip_breaker(w, protector, "ground_fault", cause=lambda: sorted(causal_ids(state, eid)))
         else:
-            trip_gfci(w, protector, "ground_fault")
+            trip_gfci(w, protector, "ground_fault", cause=lambda: sorted(causal_ids(state, eid)))
         return "gfci"
     C.consequence(w, "electrical.shock_risk:" + eid, causal_ids(state, eid), stat="electrical_hazard", cause=cause)
     return "hazard"
@@ -669,6 +674,10 @@ def power_lost(w, eid, cause):
     visible = C.shows_light(w.s, eid)        # a lit lamp going dark, a screen going black (before the handlers run)
     m = None
     by = loss_by(cause)
+    if w.tracking and w.writer[0] == "physical":
+        # what the handlers below write on eid (a computer's lost work, a clock's lost alarms, a device switched off)
+        # follows from what cut the power: eid's supply path, breakers and the load on a tripped one (6.2)
+        w.mut(eid, cause=sorted(cut_ids(w.s, eid)))
     if critical(rec):
         m = w.mut(eid)
         m["power_interruptions"] = int(C.num(m.get("power_interruptions"), 0)) + 1
@@ -906,7 +915,7 @@ def _power_step(w, dt, tick):
         if rec.get("_fault") == "arcing":
             load = sum(C.num(draw_w(state, d), 0.0) for _, d in plugs_in(state, oid, plugged))
             if load > 0:
-                m = w.mut(oid)
+                m = w.mut(oid, cause=C.writer_cause(w, oid, lambda: sorted(causal_ids(state, oid, plugged))))
                 m["_arc_s"] = round(C.num(m.get("_arc_s"), 0.0) + dt, 1)
                 if m["_arc_s"] > 600 and not m.get("scorched"):
                     m["scorched"] = True
@@ -956,7 +965,10 @@ def _thermal_breaker(w, bid, rec, load_w, volts, dt, shorted=None):
     if abs(C.num(m.get("load_a"), -1) - round(current, 2)) > 0.005:
         w.mut(bid)["load_a"] = round(current, 2)
     if heat >= TRIP_HEAT:
-        return trip_breaker(w, bid, "short_circuit" if shorted or ratio >= 5 else "overload")
+        state = w.s
+        return trip_breaker(w, bid, "short_circuit" if shorted or ratio >= 5 else "overload",
+                            cause=lambda: [bid] + _breaker_loads(state, bid, {}) +
+                            [d for d in _shorted_devices(state) if circuit_of(state, d) == bid])
     return False
 
 
@@ -994,12 +1006,12 @@ def _cord_temperature(w, oid, rec, ratio, dt):
     if abs(new - cur) >= 0.05:
         w.mut(oid)["temperature_c"] = round(new, 2)
     if new >= 75.0 and not rec.get("scorched"):
-        w.mut(oid)["scorched"] = True
+        w.mut(oid, cause=C.writer_cause(w, oid, lambda: sorted(causal_ids(w.s, oid))))["scorched"] = True
         C.consequence(w, "electrical.cord_overheat:" + oid, causal_ids(w.s, oid), stat="electrical_hazard",
                       temperature_c=round(new, 1))
         C.event(w, "cord_overheating", oid)
     if new >= 110.0 and not rec.get("ignited"):
-        w.mut(oid)["ignited"] = True
+        w.mut(oid, cause=C.writer_cause(w, oid, lambda: sorted(causal_ids(w.s, oid))))["ignited"] = True
         C.consequence(w, "electrical.cord_fire:" + oid, causal_ids(w.s, oid), stat="fire")
         C.event(w, "cord_fire", oid)
 

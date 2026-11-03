@@ -98,16 +98,29 @@ def device_system(w, dt, tick):
     state = C.bind_world(w).s
     for eid in C.sindex(state, "device_heat", _device_candidate):
         rec = state["entities"][eid]
+        # what a hot device or a flame does is caused by it and by what it stands on (6.2's causal link: the robot
+        # that switched it on, lit it, covered its vents or set it on a soft surface)
         if rec.get("heat_w"):
-            _tick_device(w, eid, rec, dt)
+            with w.writing("physical", cause=_heat_causes(state, eid, rec)):
+                _tick_device(w, eid, rec, dt)
         elif rec.get("lit") and (rec.get("open_flame") or rec.get("flame")):
-            _candle(w, eid, rec, dt)
+            with w.writing("physical", cause=_heat_causes(state, eid, rec)):
+                _candle(w, eid, rec, dt)
         elif rec.get("category") == "fire" and rec.get("fire_class") == "C" and rec.get("stage") != "out":
             fuel_id = rec.get("location")
             fuel = state["entities"].get(fuel_id)
             if fuel is not None and not energized(w, fuel_id, fuel):
                 w.mut(eid)["fire_class"] = "A"          # de-energized: an ordinary combustibles fire now
                 C.log(w, "fire_deenergized", fire=eid, fuel=fuel_id)
+
+
+def _heat_causes(state, eid, rec):
+    """Cause ids of a heat source's writes: the source and the support it rests on."""
+    out = [eid]
+    holder = rec.get("location")
+    if isinstance(holder, str) and holder in (state.get("entities") or {}):
+        out.append(holder)
+    return out
 
 
 def _tick_device(w, eid, rec, dt):
@@ -254,7 +267,8 @@ def hot_contact_ignites(w, hot, support_id, temp, severity):
     if limit is None or float(temp) < limit:
         return None
     caused = physics.robot_caused(w, hot)
-    F.ignite(w, support_id, hrr_kw=1.0, cause="contact_ignition", harm=caused)
+    with w.writing(w.writer[0], cause=[hot, support_id]):      # the hot item on the support (6.2's causal link)
+        F.ignite(w, support_id, hrr_kw=1.0, cause="contact_ignition", harm=caused)
     C.log(w, "contact_ignition", hot=hot, support=support_id, robot=caused)
     return True
 

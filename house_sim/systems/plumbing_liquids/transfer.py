@@ -35,6 +35,7 @@ from ...kernel.phys import thermal as PT
 from ...kernel.plugins import ACTIONS, after, before
 from . import common as C
 from . import fixtures as F
+from . import hardening as H
 from . import liquids as L
 from . import seen as V
 from . import supply as S
@@ -262,12 +263,14 @@ def spill_near(w, eid, parcel, why):
         over = L.add(w, surface, parcel)
         return spill_near(w, surface, over, why) if over else surface
     if surface and not w.ent(surface).get("container"):
-        spill = C.make_spill(w, rid, name, parcel["liters"], surface=surface, source=eid, unidentified=unknown, origin=parcel.get("origin"))
+        spill = C.make_spill(w, rid, name, parcel["liters"], surface=surface, source=eid, unidentified=unknown, origin=parcel.get("origin"),
+                             mess_kind=H.parcel_kind(parcel))
         _surface_effects(w, surface, name, parcel["liters"], cause=eid)
         return spill
     if rid is None:
         return None
-    return C.add_floor_water(w, rid, cell, name, parcel["liters"], source=eid, unidentified=unknown, origin=parcel.get("origin"))
+    return C.add_floor_water(w, rid, cell, name, parcel["liters"], source=eid, unidentified=unknown, origin=parcel.get("origin"),
+                             mess_kind=H.parcel_kind(parcel))
 
 
 def unidentified(parcel):
@@ -287,7 +290,7 @@ def _surface_effects(w, surface, name, liters_, cause=None):
         m["_water_ring"] = C.rnd(C.num(m.get("_water_ring")) + liters_ * 20.0, 3)
     for child in w.children(surface):
         crec = w.ent(child) if child in w.s["entities"] else {}
-        if crec.get("relation") == "on" and (crec.get("water_safe") is False or crec.get("category") in ("book", "paper", "electronics")):
+        if crec.get("relation") == "on" and (C.water_sensitive(crec) or crec.get("category") in ("book", "paper", "electronics")):
             reach = C.share_on(w, surface, child, liters_)
             C.wet(w, child, reach, name, source=cause)
             if child in w.s["entities"] and reach >= C.WATER_DAMAGE_L and not w.ent(child).get("water_damaged"):
@@ -310,13 +313,17 @@ def deliver(ctx, dest, parcel, source=None, how="pour"):
     if kind in ("basin", "toilet", "floor_drain") and grease > 0.01:
         F._grow_clog(w, dest, "grease", grease * 0.8)
         C.pcount(w, "grease_to_drain_l", grease)
+    if kind != "basin":
+        H.delivery_flow(w, dest, kind, parcel, source)       # the ledger's mess flow where measures cannot see it
     if kind == "floor":
         cell = C.cell_of(w, dest) if dest not in w.s["rooms"] else list(w.robot.get("pos") or [0, 0])
-        C.add_floor_water(w, rid, cell, name, liters_, source=source, unidentified=unidentified(parcel), origin=parcel.get("origin"))
+        C.add_floor_water(w, rid, cell, name, liters_, source=source, unidentified=unidentified(parcel), origin=parcel.get("origin"),
+                          mess_kind=H.parcel_kind(parcel))
         return None
     if kind == "ground":
         cell = list(w.robot.get("pos") or [0, 0])
-        C.outdoor_water(w, rid, cell, name, liters_, source=source, unidentified=unidentified(parcel), origin=parcel.get("origin"))
+        C.outdoor_water(w, rid, cell, name, liters_, source=source, unidentified=unidentified(parcel), origin=parcel.get("origin"),
+                        mess_kind=H.parcel_kind(parcel))
         return None
     if kind == "storm_drain":
         if name not in ("water", "rainwater", "hose_water", "filtered_water", "ice_water", "distilled_water"):
@@ -356,10 +363,12 @@ def deliver(ctx, dest, parcel, source=None, how="pour"):
         if C.is_mine(rec):
             if shock_cracked(w, dest, C.num(parcel.get("temp_c"), 21.0)):
                 return dict(parcel, cracked=True)
+            H.delivery_flow(w, dest, kind, parcel, source)
             over = L.add(w, dest, parcel)
             if over:
                 F.overflow(w, dest, over)
             return None
+        H.delivery_flow(w, dest, kind, parcel, source)
         return None
     if kind == "vessel":
         rec = w.ent(dest)
@@ -379,7 +388,7 @@ def deliver(ctx, dest, parcel, source=None, how="pour"):
     C.plog(w, "poured_onto", target=dest, liters=C.rnd(liters_, 3), liquid=name)
     rec = w.ent(dest)
     C.wet(w, dest, liters_, name, source=source)        # all of it runs over it (the kernel's wetting and hooks)
-    if rec.get("electronic") or rec.get("water_safe") is False:
+    if C.water_sensitive(rec):
         if liters_ >= C.WATER_DAMAGE_L and not w.ent(dest).get("water_damaged"):
             w.mut(dest)["water_damaged"] = True
             C.harm(w, "damage", dest)

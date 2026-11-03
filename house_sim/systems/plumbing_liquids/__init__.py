@@ -3,7 +3,8 @@ showers and tubs, leaks and water damage, the water heater and meter, hoses/spig
 containers (fill, pour, empty, transfer), spills, evaporation and ice.
 
 Importing this package registers every action, hook, system, observer, inspector, invariant, answerer, scenario
-helper, skill and furnisher of the domain. See docs/domains/plumbing_liquids.md.
+helper, skill and furnisher of the domain, and what the house ledger needs from it (hardening: the liquid mess kinds,
+derived fields and settings skills). See docs/domains/plumbing_liquids.md.
 """
 from . import common  # noqa: F401
 from . import liquids  # noqa: F401
@@ -20,6 +21,8 @@ from . import systems  # noqa: F401
 from . import furnish  # noqa: F401
 from . import scenarios  # noqa: F401
 from . import skills  # noqa: F401
+from . import hardening  # noqa: F401
 
 VERBS = ("turn_on_water", "turn_off_water", "fill", "pour", "empty", "flush", "plunge", "drain", "plug_drain", "shut_off",
          "open_valve", "spray", "connect_hose", "disconnect_hose", "wring")
+hardening.guard_verbs(VERBS)        # one identify-first refusal for an unfamiliar thing in any entity parameter

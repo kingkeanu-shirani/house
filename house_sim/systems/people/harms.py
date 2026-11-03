@@ -7,7 +7,7 @@ invariants that turn these logs into task failures.
 """
 from ...kernel import body, camera, geometry
 from ...kernel.errors import ActionError
-from ...kernel.plugins import after, before, hook, invariant, system
+from ...kernel.plugins import after, before, hook, invariant, settings_skill, system
 from ...kernel.predicates import root_room
 from . import common as C
 from . import model as M
@@ -265,7 +265,7 @@ def watch_idle(w):
     return not (C.plog_read(w.s).get("in_use") or {})
 
 
-@system("people.watch", order=120, max_dt=30.0, idle=watch_idle)
+@system("people.watch", order=120, max_dt=30.0, idle=watch_idle, writer="volition")
 def watch_system(w, dt, tick):
     """In-use items moved by any means (push, slide, sweep...) count as interference."""
     state = w.s
@@ -635,6 +635,19 @@ def _setting_changed(ctx, eid, name, old, new):
                          for i in log.get("instructions") or [])
         if not instructed and new != rule.get("value", new):
             C.log_event(w, "rule_violations", rule=rule.get("id", "device_owner"), device=eid, value=new)
+
+
+@settings_skill("settings.dim", types=("smart_bulb_lamp",))
+def _dim_steps(state, eid):
+    """Another valid dim level of a smart bulb lamp (its setting_options give a range, which the kernel's default
+    settings steps cannot list): the battery's changed:<e>.settings.dim probe and the inverse of a dim change
+    (VERIFY_HARDENING 10.3)."""
+    rec = (state.get("entities") or {}).get(eid) or {}
+    span = ((rec.get("setting_options") or {}).get("dim")) or {}
+    lo, hi = float(span.get("min", 0.0)), float(span.get("max", 1.0))
+    current = float((rec.get("settings") or {}).get("dim", hi))
+    value = round(lo + 0.25 * (hi - lo), 2) if current > lo + 0.5 * (hi - lo) else hi
+    return [(value, {"skill": "set", "target": eid, "setting": "dim", "value": value})]
 
 
 # ----------------------------------------------------------------------

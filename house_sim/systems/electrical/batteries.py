@@ -156,6 +156,7 @@ def cells_system(w, dt, tick):
                 m = w.mut(item)
                 m["_reverse_s"] = round(C.num(m.get("_reverse_s"), 0.0) + dt, 1)
                 if m["_reverse_s"] >= 3600:
+                    w.mut(item, cause=C.writer_cause(w, item, [eid] + [i for _, i, _ in cells if i]))
                     m["leaking"] = True
                     m["condition"] = "leaking"
                     from ...systems.core import add_soil
@@ -209,7 +210,11 @@ def _inspect_cells(w, eid, rec, details, ctx):
         if tester:
             volts = cell_voltage(rec)
             # a digital tester reads to 10 mV (realistic); the verdict is the tester's own good/weak/replace scale
-            details["tester"] = {"voltage": percept.tester_volts(volts) if real else volts, "verdict": verdict(rec)}
+            shown = percept.tester_volts(volts) if real else volts
+            # a structured instrument reading (VERIFY_HARDENING 15.2; WP7's perceive index reads {"quantity", "value",
+            # "unit", "subject"} anywhere in a message): the tester's own display, the cell it is held to
+            details["tester"] = {"voltage": shown, "verdict": verdict(rec),
+                                 "reading": {"subject": eid, "quantity": "voltage", "value": shown, "unit": "V"}}
             s = C.sec(w)
             s.setdefault("tested", {})[eid] = {"time_s": w.s["time_s"], "verdict": details["tester"]["verdict"]}
             if ctx is not None:

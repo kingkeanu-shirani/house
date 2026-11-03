@@ -77,7 +77,7 @@ def _needle(ctx, needle=None):
     if needle:
         require(ctx.holding(needle) and w.ent(needle).get("needle"), "Hold the needle", "capability")
         return needle
-    found = next((h for h in w.held_items() if w.ent(h).get("needle")), None)
+    found = next((h for h in M.held_known(ctx) if w.ent(h).get("needle")), None)
     require(found is not None, "Hold a threaded needle", "capability")
     return found
 
@@ -263,7 +263,7 @@ def trim_thread(ctx):
     method = ctx.args["method"]
     tool = ctx.args.get("tool")
     if method == "snip":
-        tool = tool or next((h for h in w.held_items() if "cut_thread" in (w.ent(h).get("affordances") or [])), None)
+        tool = tool or next((h for h in M.held_known(ctx) if "cut_thread" in (w.ent(h).get("affordances") or [])), None)
         require(tool and ctx.holding(tool), "Hold thread snips or small scissors", "capability")
     if rec.get("thread_spool"):
         require(method == "snip", "Snip the end to get a fresh one")

@@ -558,7 +558,8 @@ def spare_packs_system(w, dt, tick):
         if station is None or station.get("category") != "charging_station" or not station.get("plugged_in", True):
             continue
         if C.num(rec.get("charge_pct")) < 100.0 and physics.is_powered(w, station_id):
-            w.mut(eid)["charge_pct"] = round(min(100.0, C.num(rec.get("charge_pct")) + C.num(station.get("charge_rate_pct_per_min"), 1.0) * dt / 60.0), 3)
+            # charged by its station (6.2 cause: the station, and the pack the robot may have put there)
+            w.mut(eid, cause=(station_id, eid))["charge_pct"] = round(min(100.0, C.num(rec.get("charge_pct")) + C.num(station.get("charge_rate_pct_per_min"), 1.0) * dt / 60.0), 3)
 
 
 def battery_needed(state, meters, steps_up=0, steps_down=0, speed=None, load_kg=0.0):

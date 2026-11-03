@@ -15,9 +15,10 @@ tears stapled or clipped originals, face-up originals on the glass scan blank.
 from ...kernel import physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
-from ...kernel.plugins import after, inspector, observer
+from ...kernel.plugins import after, hook, inspector, observer
 from .common import (admin_facts, entity_room, household, indexed, kids, notice, reads, require_readable, requester, set_face,
                      sheet_count, sheets_of, slug)
+from .hardening import created, refuse, writing
 from .paper import is_document
 from .perceive import dumps, has_read
 
@@ -375,6 +376,8 @@ def _jam(w, pid, reason):
     jm = w.mut(jam)
     jm["relation"] = "part"
     jm["slot"] = "paper_path"
+    refuse(w, jam)                      # a crumpled, torn sheet: refuse from the moment it jams (6.4, 6.5)
+    created(w, jam, "printer_jam", cause=pid)
     m = w.mut(pid)
     m["slots"]["paper_path"]["item"] = jam
     if m.get("status") not in BEEPS:
@@ -450,11 +453,44 @@ def _use_ink(w, pid, color):
         cart["remaining"] = round(max(0.0, float(cart.get("remaining", 1.0)) - use), 5)
 
 
+STANDBY_W = {"laser": 8.0, "inkjet": 3.0}     # ready / idle draw (ENERGY STAR typical): a laser fuser idles warm
+SHREDDER_STANDBY_W = 0.5
+
+
+@hook("episode_start")
+def _standby_power(w, env):
+    """Printers and shredders draw their rated power_w only while they work (VERIFY_HARDENING 6.8: the climate
+    domain's meter books power_w for an 'on' device whose power_state is not standby -- a laser printer was a 450 W
+    load around the clock, a switched-on shredder 200 W): power_state standby and a standby_w from the episode start
+    (written before the baseline, so generated houses are unchanged)."""
+    for eid in sorted(w.s["entities"]):
+        rec = w.s["entities"][eid]
+        if rec.get("power_w") is None or not (rec.get("printer") or rec.get("shredder")):
+            continue
+        changes = {}
+        if "power_state" not in rec:
+            changes["power_state"] = "standby"
+        if "standby_w" not in rec:
+            kind_w = STANDBY_W.get(rec.get("printer_kind"), STANDBY_W["inkjet"])
+            changes["standby_w"] = SHREDDER_STANDBY_W if rec.get("shredder") else kind_w
+        if changes:
+            w.mut(eid).update(changes)
+
+
+def _power_state(w, pid, printing):
+    """A printer draws its rated power_w only while it prints and its standby_w otherwise (the climate domain's energy
+    meter reads power_state: VERIFY_HARDENING 6.8, a laser printer is not a 450 W load around the clock)."""
+    want = "printing" if printing else "standby"
+    if w.ent(pid).get("power_state", "standby") != want:
+        w.mut(pid)["power_state"] = want
+
+
 def advance_printer(w, pid, dt):
     rec = w.ent(pid)
     status = refresh_status(w, pid)
     queue = rec.get("queue") or []
     if not queue or status not in PAPER_OK:
+        _power_state(w, pid, False)
         return
     job = dict(queue[0])
     color = bool(job.get("color"))
@@ -526,11 +562,15 @@ def advance_printer(w, pid, dt):
     m["queue"] = queue
     if produced:
         refresh_status(w, pid)
+    _power_state(w, pid, bool(queue) and w.ent(pid).get("status") in PAPER_OK)
 
 
 def printers_tick(w, dt):
     for eid in indexed(w, "printers", is_printer):
-        advance_printer(w, eid, dt)
+        # the engine works through what was queued: its writes (paper fed, ink used, pages out, jams) cite the printer
+        # (VERIFY_HARDENING 6.2 causes: linked to the robot when the robot queued the job or loaded the tray)
+        with writing(w, "physical", None, cause=eid):
+            advance_printer(w, eid, dt)
 
 
 @after("place", order=60)

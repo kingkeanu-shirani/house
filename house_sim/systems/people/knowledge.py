@@ -86,17 +86,10 @@ def _distinguishing_cue(state, eid, rec=None):
 def _known_record(env, state, eid):
     """eid's record as the household knows it: the current one, or for a thing that has gone since (eaten, thrown out,
     merged) the one it had when the episode began -- people know whose a thing was after it is gone (phase-1 red team
-    red_leaks 6: "Which one?" for a thing destroyed out of view, where one merely out of view got its owner, told the
-    robot that it no longer existed). {} for a thing made during the episode that has gone again (whose it was is
-    then answered like a thing nobody owns); None for an id that never was."""
-    rec = state["entities"].get(eid)
-    if rec is not None:
-        return rec
-    baseline = (getattr(env, "_baseline", None) or {}).get("entities") or {}
-    if eid in baseline:
-        return baseline[eid]
-    from ...kernel.dialogue import remembered_ids
-    return {} if env is not None and eid in remembered_ids(env) else None
+    red_leaks 6). The kernel's rule (dialogue.known_record, phase-1 close-out: people and manipulation kept two copies
+    of it; closeout_breakages row 9)."""
+    from ...kernel.dialogue import known_record
+    return known_record(env, state, eid)
 
 
 @answerer("owner:")
@@ -369,8 +362,10 @@ def offer(env, w, pid, topic, ctx):
     _count(w, not _asked_before(state, pid, topic))
     accept = (p.get("accepts_offers") or {}).get(eid, p.get("accepts_offer", True))
     if accept:
-        w.mut(eid)["offered"] = True
-        w.person_m(pid)["offering"] = eid
+        # the person holds it out: their own act (volition, VERIFY_HARDENING 6.2), not a robot write of the thing
+        with w.writing("volition", "user_simulator"):
+            w.mut(eid)["offered"] = True
+            w.person_m(pid)["offering"] = eid
         value = "Yes please, thank you."
     else:
         value = "No thanks, I'll keep it."
@@ -537,7 +532,10 @@ def step_aside(env, w, pid, topic, ctx):
         C.person_says(w, pid, "There's nowhere for me to go.")
         return {"topic": topic, "value": "There's nowhere for me to go.", "by": pid, "moved": False}
     cell = [options[0][2], options[0][1]]
-    w.person_m(pid)["pos"] = cell
+    # asked, the person moves themselves (volition, VERIFY_HARDENING 6.4: a move a person chooses after being asked
+    # is scored by the people domain's invariants, not by house.agent_moved)
+    with w.writing("volition", "user_simulator"):
+        w.person_m(pid)["pos"] = cell
     C.log_event(w, "stepped_aside", person=pid, frm=list(here), to=cell)
     C.person_says(w, pid, "Sure.")
     return {"topic": topic, "value": "Sure.", "by": pid, "moved": True}

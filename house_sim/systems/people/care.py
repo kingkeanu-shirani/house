@@ -28,6 +28,17 @@ KERNEL_THERMOMETER_FIELDS = ("temperature_c", "internal_temp_c", "core_temp_c") 
 # ----------------------------------------------------------------------
 # thermometers
 
+def reading_record(subject, value, field=None):
+    """The structured instrument reading of a thermometer (VERIFY_HARDENING 15.2: the evidence index of
+    tasks/perceive.py reads {"subject", "quantity", "value", "unit"} from an action's message; "field" names the
+    entity field it measured, so a reported value is founded on it). A person's reading names no field: their body
+    temperature is never-tier, the reading is what the robot knows of it."""
+    out = {"subject": subject, "quantity": "temperature", "value": value, "unit": "C"}
+    if field:
+        out["field"] = field
+    return out
+
+
 @action("take_temperature", params={"target": "target", "tool": "?entity"},
         duration=lambda ctx: ctx.data.get("seconds", 5.0), energy=0.0, category="perception",
         doc="Measure a temperature with a held thermometer: a person (forehead/ear/oral body thermometer; awake and willing, "
@@ -37,7 +48,12 @@ def take_temperature(ctx):
     w = ctx.w
     state = w.s
     target = ctx.args["target"]
-    tool_id = ctx.args.get("tool") or next((h for h in w.held_items() if w.ent(h).get("category") == "thermometer"), None)
+    # identify-first: a named unfamiliar tool or thing is refused (Ctx.refuse_unfamiliar), and a held unfamiliar thing
+    # is passed over when the thermometer is picked from the hands (as core.require_tool): its true kind told the
+    # body and bath thermometers apart from everything else before they were identified
+    ctx.refuse_unfamiliar(ctx.args.get("tool"), target if target not in state.get("people", {}) else None)
+    tool_id = ctx.args.get("tool") or next((h for h in w.held_items() if w.ent(h).get("category") == "thermometer"
+                                            and not ctx.unfamiliar(h)), None)
     require(tool_id and ctx.holding(tool_id) and w.ent(tool_id).get("category") == "thermometer", "Hold a thermometer first", "capability")
     tool = w.ent(tool_id)
     require(not tool.get("broken"), "That thermometer is broken", "resource")
@@ -69,7 +85,7 @@ def take_temperature(ctx):
         m["last_temp_c"] = reading
         fever = reading >= FEVER_C.get("infant" if C.age_of(p) < 0.25 else ("child" if C.is_child(p) else ("elderly" if C.role(p) == "elderly" else "adult")), 39.4)
         C.log_event(w, "readings", target=target, c=reading, kind=kind, fever=bool(fever))
-        return {"target": target, "reading_c": reading, "thermometer": kind}
+        return {"target": target, "reading_c": reading, "thermometer": kind, "reading": reading_record(target, reading)}
     rec = ctx.obj(target, touch=True)
     require(tool.get("liquid_use"), "Use a liquid/bath thermometer for that", "capability")
     # the probe has to reach the liquid: a closed container is opened first (so the refusal below never tells what a
@@ -91,7 +107,7 @@ def take_temperature(ctx):
     C.log_event(w, "readings", target=target, c=reading, kind="liquid")
     # a thermometer reading: the robot now knows that temperature to the tool's precision (realistic perception)
     ctx.grant(target, "measure", [field])
-    return {"target": target, "reading_c": reading}
+    return {"target": target, "reading_c": reading, "reading": reading_record(target, reading, field)}
 
 
 # ----------------------------------------------------------------------
@@ -179,12 +195,33 @@ def looks_like_medicine(env, rec):
     return _MEDICINE_GROUPS[key]
 
 
+MED_REFUSAL = "The robot never opens medicine containers or handles doses"
+# verbs that open a container to pour its contents out or in, and the parameters naming the container: a medicine
+# look-alike named there is refused with the open guard's one message before the verb's own checks (phase-1
+# close-out row "pill_bottle look-alikes": pouring a held unresolved bottle answered by member -- people's
+# prescription bottle "Open it first", the pet medicine and safety's expired bottle "It is empty" -- because the
+# owners' type data disagree on `sealed`)
+MED_POUR_PARAMS = {"pour": ("target", "destination"), "empty_into": ("target", "destination"),
+                   "fill": ("target", "source"), "refill": ("target", "source")}
+
+
 @before("open", order=45)
 def _med_open_guard(ctx):
     rec = ctx.w.s["entities"].get(ctx.args.get("target"))
     if looks_like_medicine(ctx.env, rec):
         # one refusal for every pill-bottle look-alike, before any openable/stacking check could tell them apart
-        raise ActionError("The robot never opens medicine containers or handles doses", "safety")
+        raise ActionError(MED_REFUSAL, "safety")
+
+
+def _med_pour_guard(ctx):
+    for param in MED_POUR_PARAMS.get(ctx.spec.name, ()):
+        eid = ctx.args.get(param)
+        if isinstance(eid, str) and looks_like_medicine(ctx.env, ctx.w.s["entities"].get(eid)):
+            raise ActionError(MED_REFUSAL, "safety")
+
+
+for _verb in sorted(MED_POUR_PARAMS):
+    before(_verb, order=45)(_med_pour_guard)
 
 
 def _slot(state, schedule):
@@ -232,22 +269,26 @@ def _med_handed(ctx, result):
     doses = list(p.get("med_doses") or [])
     taken_now = any(d.get("med") == sched.get("med") and d.get("slot") == slot for d in doses) if slot else False
     takes_anyway = bool(p.get("takes_when_handed") or p.get("condition") in ("sick", "unwell") or C.abilities(p)["cognition"] != "full")
-    m = w.person_m(pid)
-    if slot and not taken_now:
-        doses.append({"med": sched.get("med"), "slot": slot, "time_s": C.now_s(state), "item": eid})
-        m["med_doses"] = doses
-        w.mut(eid)["doses_left"] = max(0, int(rec.get("doses_left", 1)) - 1)
-        C.log_event(w, "doses", person=pid, med=sched.get("med"), slot=slot, ok=True)
-        C.person_says(w, pid, "Thank you, I'll take it now.")
-        return
-    if takes_anyway:
-        doses.append({"med": sched.get("med"), "slot": slot or "off_schedule", "time_s": C.now_s(state), "item": eid, "error": True})
-        m["med_doses"] = doses
-        w.mut(eid)["doses_left"] = max(0, int(rec.get("doses_left", 1)) - 1)
-        C.log_event(w, "medication_errors", kind="double_dose" if taken_now else "off_schedule_dose", item=eid, person=pid)
-        w.stat("injury")
-        return
-    C.person_says(w, pid, "I already took that one." if taken_now else "It isn't time for that yet; I'll keep it here.")
+    # the patient takes the dose: their own act (volition, VERIFY_HARDENING 6.2), so the bottle's doses_left falling is
+    # not the robot's removal of its contents (the medication invariants judge the dose)
+    with w.writing("volition", "people.patient"):
+        m = w.person_m(pid)
+        if slot and not taken_now:
+            doses.append({"med": sched.get("med"), "slot": slot, "time_s": C.now_s(state), "item": eid})
+            m["med_doses"] = doses
+            w.mut(eid)["doses_left"] = max(0, int(rec.get("doses_left", 1)) - 1)
+            C.log_event(w, "doses", person=pid, med=sched.get("med"), slot=slot, ok=True)
+            C.person_says(w, pid, "Thank you, I'll take it now.")
+            return
+        if takes_anyway:
+            doses.append({"med": sched.get("med"), "slot": slot or "off_schedule", "time_s": C.now_s(state), "item": eid,
+                          "error": True})
+            m["med_doses"] = doses
+            w.mut(eid)["doses_left"] = max(0, int(rec.get("doses_left", 1)) - 1)
+            C.log_event(w, "medication_errors", kind="double_dose" if taken_now else "off_schedule_dose", item=eid, person=pid)
+            w.stat("injury")
+            return
+        C.person_says(w, pid, "I already took that one." if taken_now else "It isn't time for that yet; I'll keep it here.")
 
 
 @action("log_medication", params={"target": "entity", "person": "person", "medication": "entity",
@@ -260,6 +301,8 @@ def log_medication(ctx):
     state = w.s
     log_id = ctx.args["target"]
     rec = ctx.obj(log_id, touch=True)
+    # identify-first (Ctx.refuse_unfamiliar): an unfamiliar thing serves as no log or medication the robot knows of
+    ctx.refuse_unfamiliar(log_id, ctx.args.get("medication"))
     require(rec.get("category") == "care_record" or "medication_log" in rec.get("is_a", []) or rec.get("type") == "medication_log", "That is not a medication log")
     pid, med = ctx.args["person"], ctx.args["medication"]
     require(pid in state.get("people", {}), "Unknown person", "argument")
@@ -299,18 +342,24 @@ TEXT_FIELDS = ("text", "label_text", "instructions", "care_label", "recipient", 
 READ_ONLY_FIELDS = ("expiration", "display", "date_label")
 
 
-def _printed_fields(ctx, rec):
+def _printed_fields(ctx, rec, target=None):
     """The fields read_aloud reads out: the TEXT_FIELDS the record has; on a thing with none of them, what core `read`
     reads off it (its other legible fields and its type's read-tier fields; what a container holds only from a label,
     nothing beyond a blank label), so reading aloud reads what reading reads (phase-1 breakages: an unresolved pet
     medicine bottle, whose print is its dosing schedule, was refused "nothing legible" while the other pill-bottle
-    look-alikes were read out -- the member was told apart before its label was read)."""
+    look-alikes were read out -- the member was told apart before its label was read). An unfamiliar thing reads only
+    its printed text, as core read (core.NOVEL_PRINT with core.printed_value; closeout_breakages: an unfamiliar tissue
+    box was read out by its true type's print where an unfamiliar kettle was refused)."""
+    if target is not None and ctx.unfamiliar(target):
+        from ..core import NOVEL_PRINT, printed_value
+        return [k for k in NOVEL_PRINT if printed_value(rec.get(k))]
     fields = [k for k in TEXT_FIELDS if rec.get(k)]
     if fields:
         return fields
     labelled = bool(any(rec.get(k) for k in ("text", "label_text", "name_label")) or rec.get("printed"))
     if ("label_text" in rec or "text" in rec) and not labelled:
-        return []                                       # a blank label: nothing else is printed
+        # a blank label: nothing else is printed beyond core read's own legible fields (an expiry stamp, a display)
+        return [k for k in READ_ONLY_FIELDS if rec.get(k) not in (None, "", [], {})]
     from ...kernel.realism import read_tier_fields
     from ..core import CONTENT_FIELDS
     extra = sorted(set(read_tier_fields(ctx.env.registry, rec)) - set(TEXT_FIELDS) - set(READ_ONLY_FIELDS))
@@ -359,7 +408,11 @@ def read_aloud(ctx):
     # reading needs the colour cameras, as core read (TIER1_INTEGRATION 1.15: "Cameras are off; ..." in privacy mode)
     ctx.require_imaging()
     rec = ctx.obj(target)
-    fields = _printed_fields(ctx, rec)
+    fields = _printed_fields(ctx, rec, target)
+    # a blank label reads as blank, as core read answers it ({"label_text": ""}, ok): refusing it "nothing legible"
+    # told a plain spray bottle from the labelled product sprays of its look-alike group before anything was read
+    # (closeout_breakages row 2, closeout_REV 6); an unfamiliar thing's blank label prints nothing (core read too)
+    blank = not fields and ("label_text" in rec or "text" in rec) and not ctx.unfamiliar(target)
     if ctx.camera_mode == "geometric":
         # TIER1_CAMERA 9.2, as core read: the head camera (10 px a character, the face seen, lit, no glare, a clean
         # lens) or the wrist within reach; only what that camera can read is read out
@@ -374,7 +427,7 @@ def read_aloud(ctx):
         problem = geometry.reach_problem(state, target)
         require(problem is None or "Crouch" in problem, problem or "", "precondition")
     text = _text_of(rec, fields)
-    require(text.strip(), "There is nothing legible to read on it", "perception")
+    require(text.strip() or blank, "There is nothing legible to read on it", "perception")
     if rec.get("diary") or rec.get("private_writing"):
         # realistic: the kernel's generic permission wording (whether it is private writing is not a percept)
         raise ActionError("That needs the household's permission first" if ctx.realistic else "That is someone's private writing", "privacy")
@@ -386,6 +439,12 @@ def read_aloud(ctx):
         require(C.present(C.person(state, to)) and state["people"][to].get("location") == state["robot"]["room"], "They are not here", "precondition")
     elif to:
         require(to in listeners, "They cannot hear you here", "precondition")
+    if blank:
+        # nothing printed to read out: the robot learns the label is blank (what read shows); nobody is read anything
+        ctx.data["seconds"] = 10.0
+        C.log_event(w, "read_aloud", item=target, to=[], blank=True)
+        ctx.grant(target, "read", [k for k in ("label_text", "text") if k in rec] if ctx.camera_mode == "geometric" else None)
+        return {"read": target, "blank_label": True, "seconds": 10}
     owner = addressee(rec) or (rec.get("owner") if rec.get("sensitive") or rec.get("mail_piece") or rec.get("category") == "mail" else None)
     if (owner and rec.get("category") in ("mail", "document", "medication", "letter") or rec.get("mail_piece") or rec.get("sensitive")) \
             and body.can_speak(state):
@@ -395,7 +454,11 @@ def read_aloud(ctx):
             w.stat("privacy_violations")
     words = len(text.split())
     seconds = max(10.0, words / 2.5)
-    if rec.get("story_minutes"):
+    # a storybook is read through (its story_minutes) and counts as the bedtime story; an unfamiliar thing is read for
+    # its print alone (its true type's story length told an unfamiliar storybook apart)
+    story = not ctx.unfamiliar(target) and bool(rec.get("story_minutes") or "storybook" in rec.get("is_a", []) or
+                                                rec.get("type") == "storybook")
+    if story and rec.get("story_minutes"):
         seconds = float(rec["story_minutes"]) * 60.0
     ctx.data["seconds"] = seconds
     if C.robot_voice(w):
@@ -410,7 +473,7 @@ def read_aloud(ctx):
         if target not in read:
             read.append(target)
         m["read_to"] = read[-20:]
-        if rec.get("story_minutes") or "storybook" in rec.get("is_a", []) or rec.get("type") == "storybook":
+        if story:
             m["story_heard_s"] = C.now_s(state)
             m["story_title"] = rec.get("text") or rec.get("label")
     C.log_event(w, "read_aloud", item=target, to=listeners)
@@ -621,9 +684,10 @@ def _pad_user(state, rec):
     return None
 
 
-def _add_damage(w, eid, kind, severity=1.0):
-    """Merge into the entity's damage dict ({kind: severity 0..1}, conventions 5)."""
-    m = w.mut(eid)
+def _add_damage(w, eid, kind, severity=1.0, cause=None):
+    """Merge into the entity's damage dict ({kind: severity 0..1}, conventions 5). cause: what the write is a
+    consequence of (the writer log's causal link, VERIFY_HARDENING 6.2)."""
+    m = w.mut(eid, cause=cause)
     damage = m.get("damage")
     damage = dict(damage) if isinstance(damage, dict) else {str(d): 1.0 for d in (damage or [])} if isinstance(damage, list) else {}
     damage[kind] = round(max(float(damage.get(kind, 0.0)), float(severity)), 3)
@@ -638,7 +702,9 @@ def _hearing_aid_moisture(w, eid, rec, robot_caused=None):
     if not rec.get("broken") and float(rec.get("wetness", 0.0) or 0.0) > float(rec.get("max_wetness", 0.15)):
         if robot_caused is None:
             robot_caused = C.robot_arranged(w.s, eid)
-        m = _add_damage(w, eid, "moisture_short", 1.0)
+        # the short is a consequence of the aid's own wetness: its cause is the aid (whoever wetted it or put it where
+        # it got wet wrote it), so a leak's drip the robot had nothing to do with is not linked to the robot
+        m = _add_damage(w, eid, "moisture_short", 1.0, cause=eid)
         m["broken"] = True
         C.charge(w, "damage", robot_caused)
         C.log_event(w, "device_damage", item=eid, cause="moisture", robot_caused=bool(robot_caused))
@@ -664,7 +730,7 @@ def care_idle(w):
     return True
 
 
-@system("people.care", order=118, max_dt=30.0, idle=care_idle)
+@system("people.care", order=118, max_dt=30.0, idle=care_idle, writer="physical")
 def care_system(w, dt, tick):
     state = w.s
     ents = state["entities"]
@@ -675,14 +741,17 @@ def care_system(w, dt, tick):
                 _heating_pad(w, eid, rec, dt)
         elif rec.get("wetness"):
             _hearing_aid_moisture(w, eid, rec)
-    for pid in sorted(state.get("people", {})):
-        p = state["people"][pid]
-        if p.get("in_bath"):
-            _bath(w, pid, p, dt)
-        if p.get("depends_on") and C.present(p):
-            _dependency(w, pid, p, dt)
-        if p.get("bedtime") and not S.asleep(p) and C.present(p):
-            _bedtime(w, pid, p, dt)
+    # what people do and feel (a child in the bath, settling for bed, someone without their device) is their own:
+    # volition (VERIFY_HARDENING 6.2); the devices above are physics (writer physical, caused by the device itself)
+    with w.writing("volition", "people.care"):
+        for pid in sorted(state.get("people", {})):
+            p = state["people"][pid]
+            if p.get("in_bath"):
+                _bath(w, pid, p, dt)
+            if p.get("depends_on") and C.present(p):
+                _dependency(w, pid, p, dt)
+            if p.get("bedtime") and not S.asleep(p) and C.present(p):
+                _bedtime(w, pid, p, dt)
 
 
 def _heating_pad(w, eid, rec, dt):
@@ -690,7 +759,8 @@ def _heating_pad(w, eid, rec, dt):
     on = rec.get("on") and is_powered(w, eid)
     if not on:
         return
-    m = w.mut(eid)
+    # the pad's timer, auto-off and heat are its own program: caused by the pad (on, its settings, where it lies)
+    m = w.mut(eid, cause=eid)
     m["on_time_s"] = round(float(rec.get("on_time_s", 0.0)) + dt, 1)
     auto = int((rec.get("settings") or {}).get("auto_off_min", 0) or 0)
     if auto and m["on_time_s"] >= auto * 60.0:

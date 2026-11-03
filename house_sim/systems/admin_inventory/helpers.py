@@ -173,7 +173,10 @@ def mail_batch(ctx, location, pieces, var="mail", sealed=True):
     """Spawn mail pieces at location: pieces = [{"to": pid|"household"|"neighbor"|"former", "kind": <MAIL_KINDS>, "eid": ..., "props": {...}}]."""
     hh = _household(ctx)
     created, by_recipient, important, junk = [], {}, [], []
-    for i, spec in enumerate(pieces):
+    placed = {}
+    # pieces are placed in the placer's order (VERIFY_HARDENING 9.2, WP9: seeded in schema 4, so where a piece lies
+    # says nothing about which it is; the given order otherwise); the bindings keep the order of `pieces`
+    for i, spec in ctx.placer.order(list(enumerate(pieces))):
         kind = spec.get("kind", "bill")
         if kind not in MAIL_KINDS:
             raise SpecError("Unknown mail kind " + kind)
@@ -240,9 +243,12 @@ def mail_batch(ctx, location, pieces, var="mail", sealed=True):
                 drec = ctx.config["entities"][doc]
                 drec["relation"] = "in"
                 refresh_paper(drec)
+        placed[i] = (new, addressee, bool(base.get("_doc_important")))
+    for i in sorted(placed):
+        new, addressee, is_important = placed[i]
         created.append(new)
         by_recipient.setdefault(addressee, []).append(new)
-        (important if base.get("_doc_important") else junk).append(new)
+        (important if is_important else junk).append(new)
     return {var: created, var + "_important": important, var + "_junk": junk,
             **{"{}_to_{}".format(var, k): v for k, v in by_recipient.items()}}
 
@@ -251,19 +257,20 @@ def mail_batch(ctx, location, pieces, var="mail", sealed=True):
 def trays(ctx, surface, owners=None, extra=None, var="tray", type="inbox_tray"):
     """One labeled tray per owner (and extra purposes like 'junk', 'household', 'action') on a surface."""
     out = {}
-    for pid in owners or []:
-        name = _person_name(ctx, pid)
-        eid = ctx.placer.on(surface, type, eid="{}_{}".format(var, pid), owner=pid, label="{}'s mail tray".format(name),
-                            label_text=name, label_key=slug(name), designated_for="mail")
+    wanted = [("owner", pid) for pid in owners or []] + [("purpose", purpose) for purpose in extra or []]
+    # the trays look alike: placed in the placer's order (WP9: seeded in schema 4, given order otherwise)
+    for kind, value in ctx.placer.order(wanted):
+        if kind == "owner":
+            name = _person_name(ctx, value)
+            eid = ctx.placer.on(surface, type, eid="{}_{}".format(var, value), owner=value,
+                                label="{}'s mail tray".format(name), label_text=name, label_key=slug(name),
+                                designated_for="mail")
+        else:
+            eid = ctx.placer.on(surface, type, eid="{}_{}".format(var, value), label="{} tray".format(value),
+                                label_text=value.title(), label_key=slug(value), designated_for=value)
         if eid is None:
             raise SpecError("No room for a tray on " + surface)
-        out["{}_{}".format(var, pid)] = eid
-    for purpose in extra or []:
-        eid = ctx.placer.on(surface, type, eid="{}_{}".format(var, purpose), label="{} tray".format(purpose),
-                            label_text=purpose.title(), label_key=slug(purpose), designated_for=purpose)
-        if eid is None:
-            raise SpecError("No room for a tray on " + surface)
-        out["{}_{}".format(var, purpose)] = eid
+        out["{}_{}".format(var, value)] = eid
     return out
 
 
@@ -437,8 +444,10 @@ def carts(ctx, room="garage", streams=None, var="cart", schedule=None, fills=Non
             _remove_subtree(ctx, eid)
 
     def props_for(stream):
+        # waste_bin: a stand-in cart (no cleaning domain) is a waste receptacle to the kernel's rule and the ledger's
+        # waste location class, as the cleaning domain's cart types are
         return dict(label="{} cart".format(stream), category="waste_cart", wheeled_cart=True, waste_stream=stream,
-                    accepts_items=True, container=True, openable=True, open=False, portable=True,
+                    waste_bin=True, accepts_items=True, container=True, openable=True, open=False, portable=True,
                     mass_kg=12.5, size_m=[0.6, 0.73, 1.07], volume_l=240.0, capacity_l=240.0,
                     inner_size_m=[0.55, 0.65, 0.95], material="hdpe", blocks_path=True, fill=0.0, two_handed=True)
 

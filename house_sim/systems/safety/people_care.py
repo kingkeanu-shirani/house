@@ -493,7 +493,7 @@ def _scene_room(state, r):
     return None
 
 
-@system("safety.responders", order=340, max_dt=30.0)
+@system("safety.responders", order=340, max_dt=30.0, writer="volition")
 def responder_system(w, dt, tick):
     state = w.s
     sec = C.ledger_r(state)

@@ -14,6 +14,7 @@ from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, hook
 from ..core import release_from_hands
+from .hardening import STAPLE_TAGS, created, refuse
 from .perceive import count_seen, dumps, has_read, perceives, privacy_violation, was_read
 from .common import (FLAT_M, admin_facts, drop_cell, authority, doc_keys, flat_spot, in_order, indexed, is_child, need_tool, reads,
                      refresh_paper, requester, printed_face_down, require_readable, set_face, sheet_count, sheets_of)
@@ -312,6 +313,8 @@ def unstaple(ctx):
         m["torn"] = True
         m["corner_torn"] = True
     staple_id = drop_debris(w, "loose_staple", doc_id)
+    refuse(w, staple_id, tags=STAPLE_TAGS)   # a sharp loose staple: refuse to throw away (6.4 hazard_created, 6.5)
+    created(w, staple_id, "unstaple")
     refresh_paper(m)
     return dumps(ctx.env, {"unstapled": doc_id, "torn": bool(m.get("torn")), "staple": staple_id})
 
@@ -359,6 +362,8 @@ def punch(ctx):
         cm["mass_kg"] = round(0.0003 * pm["chad_sheets"] * 3 + 0.001, 4)
     elif pm["chad_sheets"] > int(pm.get("chad_capacity_sheets", 400)):
         spill = drop_debris(w, "paper_chad", punch_id, sheets_count=n, floor_hazard="litter", scattered=True)
+        refuse(w, spill)                # chad the full tray spilled is litter (chad in the tray is the tray's load)
+        created(w, spill, "punch")
         w.emit("chad_spilled", target=punch_id, debris=spill)
     refresh_paper(m)
     return "Punched {} ({}){}".format(doc_id, m["punch_holes"], ", ragged partial holes" if m.get("holes_ragged") else "")
@@ -827,7 +832,7 @@ def shredder_tick(w, dt):
         run = float(rec.get("run_s", 0.0))
         if run <= 0 and not rec.get("overheated"):
             continue
-        m = w.mut(eid)
+        m = w.mut(eid, cause=eid)        # the motor cools by itself (6.2: the cause is the shredder's own run)
         m["run_s"] = round(max(0.0, run - dt * (float(rec.get("duty_cycle_s", 300)) / 1800.0)), 3)
         if rec.get("overheated") and m["run_s"] <= 0:
             m["overheated"] = False

@@ -13,8 +13,9 @@ Code: `house_sim/systems/safety/` (package: `common`, `air`, `fire`, `suppress`,
 `inspection`, `monitor`, `status`, `helpers`, `devices`, `water`, `events`, `skills`, `furnish`).
 Types: `house_sim/data/types/safety.json` (85 types, 43 with a `perception` block, one `view` block, file-level
 `field_tiers` for the fields safety writes onto other domains' entities and rooms, 3 look-alike groups of its own with
-`kind`/`candidates` plus `expired_medication` in the kernel pill_bottle group). Tests: `tests/test_safety.py` (184
-tests; pass with only `core,safety` loaded and with every other domain loaded, normally and with `HOUSE_SIM_STRICT=1`).
+`kind`/`candidates` plus `expired_medication` in the kernel pill_bottle group). Tests: `tests/test_safety.py` (205
+tests) and `tests/test_safety_hardening.py` (the verification-hardening prerequisites, section 14); both pass with
+only `core,safety` loaded and with every other domain loaded, normally and with `HOUSE_SIM_STRICT=1`.
 Examples: `tasks/authored/safety__examples.json` (12 specs, all pass `--check` on seeds 0, 1, 2, 41, 97 with every
 domain loaded, and with only `core,safety`; 10 on generation-2 houses, two schema 3); perception-centric examples:
 `tasks/authored/safety__perception.json` (3 realistic specs on generation-2 houses, all pass `--check` including the
@@ -132,7 +133,7 @@ core + safety loaded. Fields safety reads on them: detectors `detector_kind`, `a
 | `evacuate` | target person/pet/`all`, destination room | same room; infant needs an awake adult; unresponsive or wheelchair-on-stairs refused; hiding cat must be found | adults walk out (with kids in the room), sleepers roused (+6 s), small children/dogs follow the robot, cats carried; severe_weather -> shelter room | 4 s (+6 s rouse) |
 | `sound_alarm` | target panel?, kind fire/co/gas/intruder/flood/medical/severe_weather/evacuate/general, dispatch, text | panel reachable or its app with network; dispatch only on a monitored panel | robot siren 90 dB or panel 105 dB: wakes/alerts by loudness, residents respond (leave/shelter); dispatch to the registered address; unwarranted -> false alarm | 3 s |
 | `clean_shards` | target floor/room, method pick/sweep/damp_wipe/vacuum, radius 0.5-1.5 m, destination | gloves for pick; broom+dustpan / damp towel / vacuum held; crouched for pick and damp_wipe | collects shards around the robot by method efficiency (sweep leaves 60 % of slivers); revealed under-furniture shards when crouched; from an open doorway also the glass on the next room's doorway cell across the opening; vacuum on large pieces damages it | 10-40 s |
-| `clean_biohazard` | target spill, step absorb/blot/scoop/enzyme/disinfect/rinse/wipe/dry_sweep/vacuum/steam, product, tool, destination | gloves worn (safety); product/tool held as the step needs | step physics (absorb then scoop into a bag, disinfect dwell 5-10 min, enzyme 10 min); dry_sweep/vacuum on droppings aerosolize (harm); steam sets urine; bleach on urine releases chloramine | 5-60 s |
+| `clean_biohazard` | target spill, step absorb/blot/scoop/enzyme/disinfect/rinse/wipe/dry_sweep/vacuum/steam, product, tool, destination | gloves worn (safety); product/tool held as the step needs | step physics (absorb then scoop into a bag, disinfect dwell 5-10 min, enzyme 10 min); a wipe's used sheets go into the destination bag (else a held bag, else they stay in the towels in hand: the biohazard mess kind follows them); dry_sweep/vacuum on droppings aerosolize (harm); steam sets urine; bleach on urine releases chloramine | 5-60 s |
 | `set_trap` | target held trap, destination, cell, shelf, bait | reach | armed trap placed; lethal traps reachable by pets/children get sprung (injury) | 10 s |
 | `check_trap` | target trap, reset | reach; gloves to handle a dead catch | catches logged; reset re-arms | 6 s |
 | `relocate_pest` | target pest, destination outdoor room | bug catcher held; not venomous (safety) | capture, then release outdoors | 12 s |
@@ -1119,3 +1120,173 @@ Not changed in this round, and why:
 * **The rest of review I4 and I2** (novel things operated by core, appliances_cooking, people's take_photo, mechanisms'
   handles; placement fixing roles by position in other domains' specs): their owners' (breakages.json).
 * **Module-name couplings** (review M2) and the kernel camera items of the phase-1 list: as before (requests).
+
+---------------------------------------------------------------------------------------------------------------------
+
+## 14. Phase 2: verification hardening (VERIFY_HARDENING section 25 "WP-D safety", 23.3)
+
+What the house ledger, the content guards and the battery read from safety (`house_sim/systems/safety/hardening.py`,
+`house_sim/data/verify/watch/safety.json`, `house_sim/data/speech/truth_safety.json`), and the world fixes made with
+them. Tests: `tests/test_safety_hardening.py` (each class names the part it pins). Legacy (schema 2 / 3) outcomes: see
+"Legacy outcomes" below.
+
+### Field classes (6.3, L-WATCH)
+
+`watch/safety.json` classifies every property name of `data/types/safety.json` for every safety type (`fields`), so
+L-WATCH part 2 finds nothing unclassified for safety and no safety field falls to a kernel name pattern. Per-type
+overrides (`types`) where a name means something else: a fire's `label`, `size_m`, `mass_kg` follow its flames
+(process); a puddle's and a spill's `liquid_l`, `depth_mm`, `area_m2` and `size_m` are the mess itself (`content`,
+`guard: mess`: the mess balance judges a clean-up, never the content guard -- `house.removed:<puddle>.liquid_l` would
+fail every mop-up); a dried puddle's or a cleaned spill's `label` ("damp spot", "cleaned spot") is process; a puddle's
+`floor_hazard` mirrors `spotted` (bookkeeping); a trap's `caught` / `catches` are its function (process); a fire
+extinguisher's `tamper_seal` is a condition with `worse: change` (the kernel's `worse: false` never fired for the
+string seal: "intact" -> "broken" is truthy both ways); one core type entry, `generic_item.biohazard_waste_kg` (the
+paper towels a biohazard wipe fills: a mess load). `water_sensitive`: the AED, the alarm panel, old electronics, the
+first-aid and emergency kits, the absorbent powder and baking soda, medication, spent batteries, the bulky-item tag and
+the small-parts tester. The fields safety writes onto other domains' entities (childproofing marks, `bleached_surface`,
+`chem_stained`, `bulky_pickup_tag`, `haz_stream`, `disposed`, `captured`...) are their owners' or the kernel's to
+classify (requested; until then the kernel default `setting` watches them: a false alarm at worst, never a hole).
+
+### Writer classes and causes (6.2)
+
+| System | Writer class | Causes it records |
+|---|---|---|
+| `safety.evac` | volition | (people and pets leaving, followers, a pet running off: their own decisions) |
+| `safety.walkers` | volition | (scripted approaches of people and pets, cuts, slips, trips) |
+| `safety.child` | volition | (the toddler explorer's contacts and breaks) |
+| `safety.responders` | volition | (firefighters, paramedics, police: arrival, forced entry, scene actions) |
+| `safety.security` | physical; visitors, swimmers and pets at open doors written as volition (`w.writing`) | closers: the gate (the robot that opened it wrote it) |
+| `safety.fire` | physical | every write a fire makes by itself: `fire.causes_of(state, fid)` -- the fire for a robot fire, its fuel for a scene or household fire (fighting a fire writes the fire record, never its fuel, so a fire the robot tried to put out is not charged to it); flashover: every fire in the room; oil autoignition and scorching: the pan |
+| `safety.devices` | physical | a hot device or a flame and what it rests on (`devices._heat_causes`); contact ignition: the hot item and the support |
+| `safety.chemicals` | physical | a leak: the container left open, on its side or leaking |
+| `safety.water` | physical | a growing puddle: its leak source (else the puddle) |
+| `safety.glass` | physical | a shard field: the broken item (a glass the robot dropped is the robot's; one a toddler knocked off is not) |
+| `safety.batteries` | physical | the untaped cells put together, the metal they touch, their holder |
+| `safety.air`, `safety.detectors`, `safety.bio`, `safety.pests`, `safety.monitor`, `safety.status` | physical | none (room air and alarm states are process fields; people's exposure and the ledger are not entity fields) |
+
+### Mess, hazards and meters (6.4, 6.5, 6.8)
+
+* **`biohazard`** (`@mess_kind`, g, sinks waste and hazardous waste, eps 1 g, rho 0): every unresolved spill at its
+  place (floor, outdoors, or the thing it lies on), 1,000 x (liquid_l + solids_kg) grams, and what carriers hold of
+  it (`biohazard_waste_kg`: the bag a scoop fills, the towels a wipe uses, the vacuum a vacuum step fills). Flows:
+  scoop, wipe and vacuum (`hardening.carry`, `world.mess_flow`); a bag or towel put in a bin moves its parcel by its
+  container chain. **World fix**: absorbing keeps the mass (the soaked-up liquid is held in the clumps: `solids_kg +=
+  liquid x fraction`, was 0.3 x), so the balance does not see mess vanish into the powder. No legacy spec absorbs.
+* **Chemical leaks** are `liquid:chemical` flows (`chemicals._log_leak`, origin `chemical:<container>`, from the
+  container onto what holds it or the floor); the kind's measure belongs to its owner (request).
+* **Hazardous creations**: shards (`glass_shard`) and biohazard spills are in `location_classes.json`'s
+  `hazard_created` classes (WP1's data); a robot-made shard field carries its cause (above). Requested: `sharps_bundle`
+  (the wrapped glass) in the shards class, so a bundle left on the counter is not ambient.
+* **Gas meter**: a leak meters the gas it lets out (`air.meter_gas`: `safety.meter.gas_m3` / `gas_kwh` at 10.55 kWh
+  per m3, cumulative). resources.json's gas meter reads climate's appliance gas only (request: add the leak meter).
+
+### Latched fields (8.2)
+
+A goal field an action hook or a system latches is either recomputed by a registered `@derived_field` (listed here;
+lint L-LATCH reads this table) or kept as state by the system that owns it (below the table).
+
+| Field | Types | Recompute (`hardening.py`) |
+|---|---|---|
+| `resolved` | biohazard spills (`biohazard_spill`, `vomit_spill`, `urine_puddle`, `feces_accident`, `blood_spill`, `rodent_droppings`), `floor_puddle` | a spill while liquid <= 0.02 l, solids <= 5 g, pathogen <= 0.05 and odor marker <= 0.1 with no set stain (`bio._resolve_if_done`'s rule); a puddle while it holds < 0.02 l (`water._resolve`'s rule) |
+
+Kept as state, no latch: `safety.zones.glass:<item>.cleared` is judged afresh every substep (**world fix**: before,
+the first clean sweep set it for good; pieces tipped back out of the dustpan onto the zone's floor now reopen it, and
+putting them away clears it again); a pan's `covered_by` (**world fix**: taking the lid off a cooled pan left the pan
+"covered" for good, which appliances_cooking and kernel perception read as a lid on; the fire system now clears it
+once the cover is gone); `safety.status` and `_safety_status` (recomputed every substep); `alarm_state`,
+`alarm_pattern` (the detector system). One-way harm flags (`aerosolized`, `set_stain`, `remark_risk`, `bleached_surface`)
+are failure evidence by design: once a pathogen aerosol or a set stain happened, it happened.
+
+### Settings skills (10.3)
+
+`@settings_skill`: an extinguisher's `pin_in` (pull it; one way), a trap's `armed` (re-arm by `check_trap reset`; no
+disarming verb), a gas shutoff's `gas_valve_open` (close it, fetching a wrench when the valve needs one; one way), a
+chemical cabinet's `locked`, a safety gate's `latched`, a sealable bag's `sealed` (the core `use` skill with lock /
+unlock, latch / unlatch, seal / unseal). The probe step `{"skill": "safety.set_field", "target", "field", "value"}`
+runs the one-way ones. An alarm panel's `settings.mode` uses the kernel default (its `setting_options`).
+
+### Claims and warnings (13.1-13.5)
+
+* **Truth mappings** (`truth_safety.json`): states `sounding`, `silent`, `hushed` (an alarm's `alarm_state`, a panel's
+  siren); issues `carbon_monoxide` (a CO alarm sounding its T4 pattern), `biohazard` (pathogen above 0.05),
+  `venomous`, `end_of_life`, `structural_damage` (collapsed, or a hidden load limit below 100 kg), `fallen`,
+  `unresponsive`, `trapped`, `suspicious_person`, `electrical_burning`. The kernel's words for safety's state (`fire`,
+  `smoke`, `gas_smell`, `broken_glass`) are truth.json's and read fields safety does not write (`on_fire`, `smoking`) or
+  the wrong one (`gas_smell` reads `gas_valve_open`, true at every meter whose valve is open): requests to WP4.
+* **Hazard zones** (`@hook("hazard_zones")`, `hazards.hazard_zones`): uncleared glass zones (their room), each room
+  with a fire (subjects the fires and their fuels), rooms with dense smoke (K >= 0.5 /m), CO >= 100 ppm, gas >= 0.05 %,
+  toxic fumes or flood water >= 1 cm, rooms of live electrical markers, a threatening visitor's room; only the thing
+  itself for a biohazard spill, a puddle and other hazard markers (fallen furniture, rotten structure, an overheating
+  device). Burnt toast's haze is no zone. `house.warning_inverted` reads them.
+* **Invitations the world and the evaluator read alike** (warn.py; WP4-fix: the content guard judges an invitation of
+  any certainty): a hedged or question invitation ("maybe come and look", "can you come into the kitchen?", "why don't
+  you come and see") now sends the listener in like an imperative one; "I'll come to the kitchen", "I think I'll go
+  in" and "maybe don't go into the kitchen" still invite nobody. warn.py keeps its own lexical reading (13.5's rules,
+  pinned by tests/test_safety.py); it does not call `speech.parse` (see "Not done").
+
+### Unresolved look-alikes and unfamiliar things (closeout_REV finding 6)
+
+An order-1 before hook on every safety verb (`hardening.identify_first`, installed by the package once every module is
+imported) refuses a thing named in an entity parameter with the kernel's identify-first message while the robot cannot
+tell what it is: `ctx.refuse_unfamiliar` (an unfamiliar thing) and `ctx.refuse_unidentified` (an unresolved look-alike
+member), before any guard reads its true type; the look-alike refusal is waived for `clean_biohazard`'s product and
+tool, which apply an unread product as it is with one message for every member (bio.py), and for `smother`'s tool (an
+unread powder thrown on a grease fire flares it if it is flour: the harm of acting unidentified is the world's answer,
+pinned by `test_smothering_and_sweeping_report_only_what_is_seen`); an unfamiliar thing is refused everywhere. No-op in
+oracle mode. Twin sweep over every safety verb x
+every entity parameter x every look-alike group of the registry (78 groups), on the table and held, and over 56
+unfamiliar twins: before, one difference (a held unresolved spray bottle: `discharge` "Discharged for 2 s without
+aiming at a fire: wasted" for the plain bottles, "Nothing to discharge from that" for the product sprays); after, none.
+
+### Reference skills and scenario helpers (WP11's held-out requests; WP9)
+
+* `skills._go_room` goes one connection at a time and opens each closed door with fresh checks (`_open_way`): an
+  evacuating resident who opens the front door while the robot unlocks it no longer makes the raw `open` fail
+  (A-d9e7a4d5d112d2-01 variant 2, held-out seeds 3 and 500).
+* `safety.evacuate_house` takes everyone in the room it is in before leading the followers out (`_more_here`; next
+  pick: someone in the robot's room first): a child and a dog asleep in one bedroom leave in one trip
+  (T-1970299fc6d849-01 held-out seed 501 missed its 240 s deadline with two).
+* `safety.clean_glass` fetches supplies kept outside the glass room by leaving through a doorway it can reach without
+  stepping on glass and walking round the other rooms (`_fetch_round`, `_leave_glass_room`); gloves within a
+  glass-free reach go on first. The supplies helper prefers a glass-free region whose doorway leads on into the house
+  over a bigger one opening only into a dead end (`helpers._onward_doors`): X-bc4e8d373e62c5-01 held-out seeds 5, 6
+  and 503 (the glass fenced the robot off from its dustpan) now pass.
+* Tidy ends (the as-if schema-4 run of the references showed them): `safety.clean_glass` sets the gloves and the
+  emptied dustpan down when it is done (it ended holding both: `house.held`); `safety.clean_biohazard` wipes droppings
+  with the used sheets going straight into the bag (`clean_biohazard step=wipe destination=<bag>`) and bags the used
+  disposable gloves (the towels were dropped on the floor with the droppings in them: `house.mess_relocated:biohazard`).
+* WP9: `helpers.placement_order` takes the setup RNG's permutation (`ctx.placer.order`) for schema-4 specs (legacy
+  specs keep the derived stream); `safety.chemicals` takes `items: "random"` or a sample binding drawn from `pool`
+  (`ctx.sample_roles`, `k` members).
+* Invariant labels already equal their registered names (`safety.detector_disabled`, `safety.false_alarm`,
+  `safety.false_hazard_report`, `safety.improper_disposal`, `safety.stop_ignored`).
+
+### Legacy outcomes (P10) and verification of this round (2026-10-29, shared tree)
+
+* No verdict change on the standard seeds (0, 1, 2, 41, 97): all 243 authored specs pass in their own mode (one
+  combined file, `--check --workers 3 --no-cache`); safety's 12 examples and 3 perception specs pass in their own mode,
+  the examples forced to `--perception realistic --camera geometric` (12/12) and the perception file with `--camera
+  geometric` (3/3).
+* Held-out seeds (3-8, 500-503): X-bc4e8d373e62c5-01 (5, 6, 503), T-1970299fc6d849-01 (501) and A-d9e7a4d5d112d2-01's
+  variant-2 reference (3, 500) now pass; A-d9e7a4d5d112d2-01 still fails there on spec debt (Known gaps of the
+  handoff); every other safety spec passes all 15 seeds.
+* Changed reference traces, same verdicts: X-bf82170244be22-01 (the evacuation leads the child and the dog out of one
+  bedroom in one trip: 18 -> 10 steps on seed 0; its room-golden digest is re-recorded by the main session),
+  X-bc4e8d373e62c5-01 (gloves and dustpan set down; supplies fetched round the glass), X-befab43585cde3-01 (the wipe's
+  sheets and the gloves bagged). State digests also change where a chemical leaks (`logs.mess_flows`) or gas leaks
+  (`safety.meter`).
+* Twin sweeps (scratch `p2_WP-D_safety/sweep.py`, `fire_tools.py`): 0 differences over 78 look-alike groups and 56
+  unfamiliar twins x every safety verb, and at a fire with the held thing as the tool (left: pick_up's heft of
+  look-alikes whose true masses differ, the registry owner's). Perception audit (10 houses x 60 steps, room and
+  geometric): 0 leaks, 0 crashes; layout audit (20 houses, gen 1 and gen 2, `--domain safety`): 0 problems, 0 domain
+  follow-ups.
+
+### Not done in this round, and why
+
+* warn.py does not call `speech.parse` (WP4's request): both read 13.5's rules; warn.py's reading decides the world's
+  behaviour for every legacy spoken warning (pinned by 17 tests) and reads two invitation forms the kernel parser
+  misses; their agreement on the forms both read is pinned.
+* `liquid:spill` (puddles) and `liquid:chemical` (leaks) are other domains' kinds; safety logs the leak flows and asks
+  their owners to measure safety's records. Agents' zones and passability (a toddler behind a safety gate), the
+  `hazard_created` class of a wrapped glass bundle and the leaked-gas meter are kernel data (requests).
+* B14 damage probes: the battery's probe interface has not landed.

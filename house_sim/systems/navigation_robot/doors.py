@@ -151,7 +151,8 @@ def doors_system(w, dt, tick):
     for eid in C.ids_with(w, "passage_doors", _is_passage):
         rec = state["entities"][eid]
         if rec.get("moving") and now >= C.num(rec.get("_motion_end_s")):
-            m = w.mut(eid)
+            # the motor stops the leaf it was driving (a physical consequence of whoever pressed the opener)
+            m = w.mut(eid, cause=eid)
             m["open"] = rec["moving"] == "opening"
             m["moving"] = None
             C.log(w, "door_stopped", door=eid, open=m["open"])
@@ -159,32 +160,39 @@ def doors_system(w, dt, tick):
         if closer and rec.get("self_closing") and rec.get("open") and not held_open(rec) \
                 and now - C.num(rec.get("_opened_at_s"), now) >= C.num(rec.get("close_delay_s"), 15.0):
             if _doorway_clear(state, eid):
-                shut(w, eid, "self-closing")
+                with w.writing("physical", cause=eid):        # its closer: caused by whoever opened it
+                    shut(w, eid, "self-closing")
         if rec.get("latch_outside") and not rec.get("open") and state["robot"].get("room") == rec.get("inside_room") \
                 and state["robot"].get("nav_trapped") != eid:
             w.robot_m()["nav_trapped"] = eid
             C.incident(w, "shut_in", door=eid, room=rec.get("inside_room"))
-    for eid in C.ids_with(w, "vehicles", _is_vehicle):
-        rec = state["entities"][eid]
-        veh = rec.get("vehicle")
-        if isinstance(veh, dict) and veh.get("state") in MOVING_VEHICLE and now >= C.num(veh.get("_until_s"), 1e18):
-            m = w.mut(eid)
-            nxt = veh.get("then", "parked")
-            m["vehicle"]["state"] = nxt
-            if nxt == "gone":
-                m.pop("pos", None)
-                m["blocks_path"] = False
-                m["away"] = True
-            C.log(w, "vehicle_" + nxt, vehicle=eid)
-    for pid in sorted(state.get("people", {})):
-        p = state["people"][pid]
-        if p.get("moving") and p.get("_moving_until_s") is not None and now >= C.num(p["_moving_until_s"]):
-            m = w.person_m(pid)
-            m["moving"] = False
-            m.pop("_moving_until_s", None)
-    _pets_follow(w)
-    _pets_wander(w)
-    _people_traffic(w, dt)
+    # residents driving, walking their routes and pets deciding where to go are their own decisions (VERIFY_HARDENING
+    # 6.2: volition, never charged to the robot); doors, closers and motors above are physical
+    with w.writing("volition", "navigation_robot.vehicles"):
+        for eid in C.ids_with(w, "vehicles", _is_vehicle):
+            rec = state["entities"][eid]
+            veh = rec.get("vehicle")
+            if isinstance(veh, dict) and veh.get("state") in MOVING_VEHICLE and now >= C.num(veh.get("_until_s"), 1e18):
+                m = w.mut(eid)
+                nxt = veh.get("then", "parked")
+                m["vehicle"]["state"] = nxt
+                if nxt == "gone":
+                    m.pop("pos", None)
+                    m["blocks_path"] = False
+                    m["away"] = True
+                C.log(w, "vehicle_" + nxt, vehicle=eid)
+    with w.writing("volition", "navigation_robot.people"):
+        for pid in sorted(state.get("people", {})):
+            p = state["people"][pid]
+            if p.get("moving") and p.get("_moving_until_s") is not None and now >= C.num(p["_moving_until_s"]):
+                m = w.person_m(pid)
+                m["moving"] = False
+                m.pop("_moving_until_s", None)
+    with w.writing("volition", "navigation_robot.pets"):
+        _pets_follow(w)
+        _pets_wander(w)
+    with w.writing("volition", "navigation_robot.people"):
+        _people_traffic(w, dt)
 
 
 def _pets_wander(w):

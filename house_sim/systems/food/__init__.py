@@ -15,9 +15,11 @@ See docs/domains/food.md. Modules register on import:
     furnish     kitchen stocking
     scenarios   scenario helpers food.*
     skills      reference skills food.*
+    hardening   what the house ledger needs (VERIFY_HARDENING WP-D food): refuse flags, settings skills, the
+                water meter, structured readings
 """
 from . import data, model, mixing, common, physical, systems  # noqa: F401
 from . import actions_knife, actions_mix, actions_measure  # noqa: F401
-from . import hooks, perception, furnish, scenarios, skills  # noqa: F401
+from . import hooks, perception, furnish, scenarios, skills, hardening  # noqa: F401
 
 consume = hooks.consume

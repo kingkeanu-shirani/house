@@ -23,7 +23,7 @@ domain (which owns generic evaporation, conventions 5: drying_owner) is not load
 idle probe drying_idle (cleaning dries everything, or nothing washed is wet). The fallback smoke/gas/odour ventilation (only without the safety domain) runs at the end of the tick.
 """
 from ...kernel.plugins import system
-from . import coffee, cold, common as C, cook, countertop, dishwasher, grill, oven, stove, timers
+from . import coffee, cold, common as C, cook, countertop, dishwasher, grill, hardening as H, oven, stove, timers
 
 GROUP_OF = {"burner": "burner", "oven": "oven", "toaster_oven": "oven", "air_fryer": "oven", "fridge": "cold",
             "freezer": "cold", "microwave": "microwave", "toaster": "toaster", "kettle": "kettle", "waffle_maker": "plate",
@@ -378,10 +378,11 @@ def _step_active(w, ctx, g, dt):
                 if group in ("oven", "slow", "rice", "pressure"):
                     idle_heaters.add(eid)
                 continue
-            if group == "microwave":
-                _step_microwave(w, eid, dt)
-            else:
-                step(w, eid, dt)
+            with H.caused(w, eid):         # 6.2: what an appliance does cites the appliance
+                if group == "microwave":
+                    _step_microwave(w, eid, dt)
+                else:
+                    step(w, eid, dt)
             if group in ("oven", "toaster", "microwave", "plate", "slow", "rice", "pressure", "grill"):
                 holders.append(eid)
     for sid in idle_cookers:
@@ -395,7 +396,8 @@ def _step_active(w, ctx, g, dt):
                 release_vessel(w, vid)
     for fid in foods_to_step(ctx, holders, idle_cookers):
         if fid in ents:
-            cook.step_food(w, fid, dt)
+            with H.caused(w, *H.heat_causes(state, fid)):     # food cooks by its heater (6.2)
+                cook.step_food(w, fid, dt)
     C.decay_air(w, dt)
 
 
@@ -585,7 +587,8 @@ def cold_tick(w, dt, tk):
         contents = cold.contents_of_units(w, g["cold"])
         for eid in g["cold"]:
             if eid in ents:
-                cold.step_cold(w, eid, dt, contents.get(eid))
+                with H.caused(w, eid):     # 6.2: a fridge's or freezer's writes (its contents' cooling) cite it
+                    cold.step_cold(w, eid, dt, contents.get(eid))
     finally:
         C.tick_index_end()
 

@@ -349,7 +349,7 @@ def senses_idle(w):
     return not _sleepers_or_sensitive(state, quiet_rule(state))
 
 
-@system("people.senses", order=110, max_dt=30.0, idle=senses_idle)
+@system("people.senses", order=110, max_dt=30.0, idle=senses_idle, writer="volition")
 def senses_system(w, dt, tick):
     state = w.s
     log = state.get("people_log", {}) or {}

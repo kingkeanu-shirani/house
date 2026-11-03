@@ -463,7 +463,7 @@ def behavior_idle(w):
     return True
 
 
-@system("people.behavior", order=105, max_dt=30.0, idle=behavior_idle)
+@system("people.behavior", order=105, max_dt=30.0, idle=behavior_idle, writer="volition")
 def behavior_system(w, dt, tick):
     state = w.s
     now = C.now_s(state)

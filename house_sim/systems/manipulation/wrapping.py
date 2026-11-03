@@ -638,9 +638,11 @@ def remove_label(ctx):
             if method == "peel" and C.material(rec) in ("glass", "plastic", "metal", "ceramic", "cardboard"):
                 add_soil(w, eid, "sticky", 0.15)
             hands = C.free_hands(w)
+            # a peeled sticker or label is refuse the verb made (waste: a waste_item mess parcel, logged as a flow from
+            # created:remove_label by records.reconcile), so under schema 4 it must end in a bin (VERIFY_HARDENING 6.5)
             scrap = w.spawn("generic_item", "robot" if hands else w.robot["room"], label="price sticker", category="label_scrap",
                             text=tag.get("text") if isinstance(tag, dict) else str(tag), mass_kg=0.0005, size_m=[0.03, 0.02, 0.0005],
-                            volume_l=0.001, waste_stream="trash", relation="held" if hands else "on")
+                            volume_l=0.001, waste_stream="trash", waste=True, relation="held" if hands else "on")
             if hands:
                 w.mut(scrap)["held_hand"] = hands[0]
                 w.robot_m()["hands"][hands[0]] = scrap
@@ -679,7 +681,7 @@ def remove_label(ctx):
     C.set_label_face(w, eid, None)
     scrap = w.spawn("generic_item", "robot", label="peeled label", category="label_scrap", text=text, pii=pii,
                     mass_kg=0.002, size_m=[0.1, 0.06, 0.001], volume_l=0.01, waste_stream="trash" if not pii else "shred",
-                    held_hand=None, relation="held")
+                    waste=True, held_hand=None, relation="held")
     hands = C.free_hands(w)
     if hands:
         sm = w.mut(scrap)

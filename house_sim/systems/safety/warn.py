@@ -14,7 +14,10 @@ that exist, as a listener would against what they know of the house):
   imperative are about the whole house. An avoid directive with no subject ("Careful!") warns of nothing.
 * **approach directive**: an imperative "come", "come here/in/look/see", "over here", "look at this", "go into"...
   (at the start of a clause or after a comma, past fillers such as "please", "hey" or a name) toward a place or
-  hazard is an invitation (negated, "don't come in", or "come out of", it is an avoid directive). A zone the utterance
+  hazard is an invitation (negated, "don't come in", or "come out of", it is an avoid directive). So is the hedged or
+  question form of one ("maybe come and look", "can you come here?", "you might want to come and see", "why don't you
+  come and see"): a child told so goes, and the content guard house.warning_inverted judges an invitation of any
+  certainty (VERIFY_HARDENING 13.3, WP4-fix), so the world and the evaluator read it alike. A zone the utterance
   invites into is never warned of by it. "I'll come to the kitchen" or "I'll get out the extinguisher" are not
   imperatives and direct nobody.
 
@@ -50,6 +53,9 @@ AVOID = ("stay out", "keep out", "stay away", "keep away", "stay back", "keep ba
          "stay where you are", "stay there", "stay put", "do not go", "do not come", "do not enter", "do not walk",
          "do not step", "do not touch", "do not move", "do not run", "wear shoe", "put on shoe", "put shoe on",
          "shoe on", "danger", "dangerous", "unsafe", "not safe", "hazard", "off limit", "out of bound", "no entry")
+# words before an approach phrase that keep it an invitation: hedges and question forms (see the module docstring)
+INVITE_HEDGES = frozenset(("maybe", "perhaps", "can", "could", "would", "will", "might", "want", "like", "if", "why",
+                           "wanna", "fancy", "care", "it", "be", "nice", "good", "idea", "a", "think", "i"))
 APPROACH = ("come", "over here", "look at this", "look at that", "check this out", "check it out", "go to", "go into",
             "go in", "walk to", "walk into", "walk in", "head to", "head into", "join me", "in here", "run to",
             "run into")
@@ -194,6 +200,26 @@ def _imperative(seg, i, names):
     return all(t in FILLERS or t in names or t in NEGATORS for t in seg[:i])
 
 
+def _invitation(seg, i, names):
+    """The approach phrase at index i is said as an invitation: as an imperative, or in a hedged or question form
+    (only fillers, names, negators and INVITE_HEDGES precede it; "I'll come", "I think I'll go in" are statements)."""
+    head = seg[:i]
+    if _imperative(seg, i, names):
+        return True
+    if not all(t in FILLERS or t in names or t in NEGATORS or t in INVITE_HEDGES for t in head):
+        return False
+    # "I think you should come", "I'd like you to come": a first-person opener is an invitation only when the
+    # listener is told to come ("you" after it); "I'll come", "I can come in", "I might go into the kitchen" are not
+    if "i" in head:
+        return "you" in head[head.index("i") + 1:]
+    return True
+
+
+def _why_not(seg, i):
+    """ "why don't you come and see", "why not come in": the negator asks, it does not forbid."""
+    return "why" in seg[max(0, i - NEGATION_SPAN - 1):i]
+
+
 def _directive(clause, names):
     """(directive, target words) for one clause: directive "evacuate" | "avoid" | "approach" | None (an un-negated
     invitation wins over a warning in the same clause: "careful, come and look!" sends the listener in); target words:
@@ -204,10 +230,10 @@ def _directive(clause, names):
     for k, seg in enumerate(parts):
         for phrase in _APPROACH:
             for i in _find(seg, phrase):
-                if not _imperative(seg, i, names):
+                if not _invitation(seg, i, names):
                     continue
                 nxt = seg[i + len(phrase):i + len(phrase) + 1]
-                if _negated(seg, i) or nxt == ["out"]:
+                if (_negated(seg, i) and not _why_not(seg, i)) or nxt == ["out"]:
                     negated_approach = True         # "don't come in", "come out of the kitchen"
                 elif not approach:
                     approach = True

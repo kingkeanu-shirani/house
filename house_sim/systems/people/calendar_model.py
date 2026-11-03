@@ -314,7 +314,7 @@ def _render_all(w):
             tail = current[len(old):]
         else:
             tail = ("\n" + current) if current else ""
-        w.mut(eid)["text"] = block + tail
+        w.mut(eid, cause=eid)["text"] = block + tail      # re-rendered from the calendar: caused by the artifact
         memo[eid] = {"sig": _signature(state, eid, kind), "block": block}
 
 
@@ -329,7 +329,7 @@ def calendar_idle(w):
     return not events(w.s) or not _stale(w.s)
 
 
-@system("people.calendar", order=104, max_dt=60.0, period=60.0, idle=calendar_idle)
+@system("people.calendar", order=104, max_dt=60.0, period=60.0, idle=calendar_idle, writer="physical")
 def calendar_system(w, dt, tick):
     _render_all(w)
 

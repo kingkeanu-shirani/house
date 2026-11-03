@@ -1,0 +1,7 @@
+{
+  "about": "Report and speech vocabulary of the people domain (docs/domains/people.md; VERIFY_HARDENING 13.1, WP-D people): the person-only words the claim parser reads and data/speech/truth_people.json maps. fever: a body temperature of 38.0 C or more (the clinical threshold); its evidence is what the robot perceives of a person -- a thermometer reading (take_temperature, the person's temp_readings) or the looks inspect shows (flushed and sweaty above 38.5 C). Words a person shares with a pet or a plant (sick, injured, distressed: core.json) are left to the kernel's evidence fallback.",
+  "issues": {
+    "fever": {"class": "living", "synonyms": ["feverish", "high_temperature", "running_a_temperature", "high_fever"],
+              "applies_to": ["person"], "evidence": [{"field": "temp_readings"}, {"field": "looks"}]}
+  }
+}

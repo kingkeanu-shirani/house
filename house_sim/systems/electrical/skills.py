@@ -52,6 +52,27 @@ def _walk_to(r, cell):
     r.do("walk_to", **args)
 
 
+def _resolve(r, *eids):
+    """Identify first (realistic perception): a look-alike member or unfamiliar thing the verb's answer depends on is
+    inspected, and read when inspecting leaves it unresolved, before charging or connecting it (charge and
+    connect_cable refuse an unresolved one: hardening.identify_first). No-op in oracle mode, for things already known
+    and for members of a group only a test resolves (USB-C cables)."""
+    realism = getattr(r.env, "realism", None)
+    if realism is None:
+        return
+    for eid in eids:
+        if not isinstance(eid, str) or eid not in r.state["entities"] or not realism.unresolved(eid):
+            continue
+        rec = r.state["entities"][eid]
+        _, group = realism.group_of(rec)
+        if group is not None and group.get("resolve") == "never" and not rec.get("novel"):
+            continue
+        _approach(r, eid)
+        r.do("inspect", target=eid)
+        if realism.unresolved(eid) and any(k in rec for k in ("label_text", "rating_label", "output")):
+            r.do("read", target=eid)
+
+
 def _fetch(r, obj, **kw):
     # core fetch/approach already route around tasks.skills.SAFE_AVOID when a clear route exists (kernel v2.1)
     return base.fetch(r, obj, **kw)
@@ -400,6 +421,7 @@ def set_clock(r, clock, time, ampm=None, read_first=True):
 
 @skill("electrical.charge")
 def charge(r, device, charger, cable=None, port=None, spos=None, slot=None, seat=None, force=None):
+    _resolve(r, device, charger, cable)
     rec = _ent(r, device)
     srec = _ent(r, charger)
     if srec.get("wireless") or srec.get("dock_for") or srec.get("bud_slots") is not None or srec.get("slots"):
@@ -426,6 +448,7 @@ def charge(r, device, charger, cable=None, port=None, spos=None, slot=None, seat
 
 @skill("electrical.connect")
 def connect(r, cable, device, port, end=None, orientation=None, seat=None, force=None):
+    _resolve(r, cable, device)
     crec = _ent(r, cable)
     if crec.get("relation") != "attached" and crec.get("portable") and not crec.get("usb_device") and not crec.get("captive_connector"):
         _fetch(r, cable)

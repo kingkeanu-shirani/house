@@ -2,7 +2,9 @@
 
 Domain bookkeeping lives in the top-level state section ``plumbing`` (never observed directly):
   plumbing.log            recent domain events (spills, overflows, flushes, plunges, sprays, disposals)
-  plumbing.meter_l        cumulative liters through the house water meter
+  plumbing.meter_l        cumulative liters this domain drew from the supply
+  plumbing.meter.l        the house water meter (VERIFY_HARDENING 6.8): this domain's draws and other domains' counted
+                          ones (cleaning's state.count_water); the resource ledger's water meter and the meter's display
   plumbing.pollution      list of pollution events (chemicals/oil/fertilizer to storm drains or gardens)
   plumbing.drinking       non-potable or alcohol-to-minor events
   plumbing.irrigation     zone run records {zone: [{start_s, end_s, rain}]}
@@ -251,6 +253,31 @@ def in_system():
     return _CONTEXT["system"] > 0
 
 
+class _NoCause(object):
+    __slots__ = ()
+
+    def __enter__(self):
+        return None
+
+    def __exit__(self, *exc):
+        return False
+
+
+_NO_CAUSE = _NoCause()
+
+
+def caused(w, *ids):
+    """Context manager for a time system's writes that are consequences of ids (VERIFY_HARDENING 6.2's causal link,
+    WP2's World.writing with cause=): the water a leak lets out cites its host, an overflow its basin, a drip what
+    drips. The writer class stays the system's own (physical); a robot action, an untracked World or no ids change
+    nothing. The house ledger then charges a divergent physical consequence only when its cause chain reaches
+    something the robot wrote (a tap it left running, a stem it snapped), never an exogenous leak."""
+    ids = tuple(i for i in ids if isinstance(i, str) and i)
+    if not ids or not in_system() or not getattr(w, "tracking", False):
+        return _NO_CAUSE
+    return w.writing(w.writer[0], cause=ids)
+
+
 # ----------------------------------------------------------------------------------
 # harm attribution (TIER1_DECISIONS harm attribution, docs/PHYSICS.md "Attribution", VERIFY_HARDENING_DECISIONS 3:
 # the robot's harms fail a task, exogenous ones - a pre-existing leak, a scenario's running tap, a freeze, a resident
@@ -479,7 +506,8 @@ def household_rules(w):
 # water accounting
 
 def use_water(w, liters, meter=True):
-    """Draw liters from the municipal supply (utilities.water_l) and count them on the meter."""
+    """Draw liters from the municipal supply (utilities.water_l) and count them on the meter: this domain's own total
+    plumbing.meter_l and the house water meter plumbing.meter.l (meter_add)."""
     liters = max(0.0, float(liters))
     if liters <= 0:
         return 0.0
@@ -488,7 +516,42 @@ def use_water(w, liters, meter=True):
     if meter:
         sec = psec(w)
         sec["meter_l"] = rnd(num(sec.get("meter_l")) + liters, 3)
+        meter_add(w, liters)
     return liters
+
+
+METER_PATH = ("meter", "l")       # plumbing.meter.l: house_sim/data/verify/resources.json meters.water.path
+
+
+def house_meter_l(state):
+    """Litres through the house water meter (VERIFY_HARDENING 6.8, the resource ledger's water meter
+    plumbing.meter.l): everything drawn from the supply in the house -- this domain's taps, fills, flushes, leaks and
+    hoses, and the litres other domains count onto it (cleaning's rinses and washes, state.count_water). Before the
+    first draw of an episode it reads this domain's own total plumbing.meter_l."""
+    sec = (state.get(SECTION) or {})
+    node = sec.get(METER_PATH[0])
+    if isinstance(node, dict) and isinstance(node.get(METER_PATH[1]), (int, float)) and \
+            not isinstance(node.get(METER_PATH[1]), bool):
+        return float(node[METER_PATH[1]])
+    return num(sec.get("meter_l"))
+
+
+def meter_add(w, liters):
+    """Count litres drawn from the supply on the house water meter plumbing.meter.l (the path resources.json names;
+    cleaning's count_water adds to the same path). The first count starts from this domain's own total so the
+    meter's display does not jump."""
+    if liters <= 0:
+        return
+    sec = psec(w)
+    node = sec.get(METER_PATH[0])
+    if not isinstance(node, dict):
+        if node is not None:
+            return                      # another owner's value sits on the path: leave it alone
+        node = sec[METER_PATH[0]] = {}
+    current = node.get(METER_PATH[1])
+    if isinstance(current, bool) or not isinstance(current, (int, float)):
+        current = num(sec.get("meter_l")) - float(liters)
+    node[METER_PATH[1]] = rnd(max(0.0, float(current)) + float(liters), 3)
 
 
 def supply_ok(w):
@@ -566,13 +629,20 @@ def resize(w, spill):
     m["size_m"] = [side, side, 0.002]
 
 
-def make_spill(w, location, liquid, liters, cell=None, source=None, surface=None, count=True, unidentified=False, origin=None):
+MESS_KIND = "_mess_kind"       # hidden: the strictest mess kind of what a spill holds (hardening.liquid_kind), when the
+                               # liquid's name alone would say less (bleach water named "water", turbid water)
+
+
+def make_spill(w, location, liquid, liters, cell=None, source=None, surface=None, count=True, unidentified=False, origin=None,
+               mess_kind=None):
     """Liquid lands on a floor cell or a surface. Merges with an existing spill of the same liquid there.
 
     Uses cleaning's `spill` type when it is registered (cleaning evaporates/absorbs it), else a generic item with
     category "spill". Returns the spill id (or None for negligible amounts). unidentified: the robot poured it out
     of something it had not identified - the puddle is a plain "spill" whose liquid stays unknown to it. origin:
-    the container the liquid came out of (a parcel's origin): recorded as the spill's contents_from (kernel v2.9)."""
+    the container the liquid came out of (a parcel's origin): recorded as the spill's contents_from (kernel v2.9).
+    mess_kind: the parcel's mess kind (hardening.parcel_kind) when stricter than its name says; a spill keeps the
+    strictest kind of what reached it (hidden _mess_kind, read by the ledger's liquid measures)."""
     liters = float(liters)
     if liters < 0.002:
         return None
@@ -626,6 +696,11 @@ def make_spill(w, location, liquid, liters, cell=None, source=None, surface=None
             m["relation"] = "on" if not w.ent(target).get("container") else "in"
     if unidentified:
         mark_unidentified(w, spill, True)
+    if mess_kind:
+        from . import hardening
+        effective = hardening.stricter(w.ent(spill).get(MESS_KIND), hardening.liquid_kind(liquid))
+        if mess_kind != effective and hardening.stricter(mess_kind, effective) == mess_kind:
+            w.mut(spill)[MESS_KIND] = mess_kind
     if origin:
         from ..core import mark_contents_from
         mark_contents_from(w, spill, origin)
@@ -639,14 +714,16 @@ def make_spill(w, location, liquid, liters, cell=None, source=None, surface=None
     return spill
 
 
-def add_floor_water(w, rid, cell, liquid, liters, source=None, unidentified=False, origin=None, cause=None):
+def add_floor_water(w, rid, cell, liquid, liters, source=None, unidentified=False, origin=None, cause=None, mess_kind=None):
     """Water reaching a floor: a spill, a wet cell, and flood accounting per source (plumbing.floor_water). The flood
     flag counts the robot's water (harm_by of cause, default the source) from 4 L per source on."""
     if liters <= 0:
         return None
     if is_outdoor(w, rid):
-        return outdoor_water(w, rid, cell, liquid, liters, source, unidentified=unidentified, origin=origin)
-    spill = make_spill(w, rid, liquid, liters, cell=cell, source=source, unidentified=unidentified, origin=origin)
+        return outdoor_water(w, rid, cell, liquid, liters, source, unidentified=unidentified, origin=origin,
+                             mess_kind=mess_kind)
+    spill = make_spill(w, rid, liquid, liters, cell=cell, source=source, unidentified=unidentified, origin=origin,
+                       mess_kind=mess_kind)
     sec = psec(w)
     floods = sec.setdefault("floor_water", {})
     key = source or rid
@@ -668,7 +745,7 @@ def add_floor_water(w, rid, cell, liquid, liters, source=None, unidentified=Fals
     return spill
 
 
-def outdoor_water(w, rid, cell, liquid, liters, source=None, unidentified=False, origin=None):
+def outdoor_water(w, rid, cell, liquid, liters, source=None, unidentified=False, origin=None, mess_kind=None):
     """Water on outdoor ground: grass/soil absorbs it; hardscape gets a puddle (ice when freezing)."""
     ground = floor_material(w, rid)
     data = info(liquid)
@@ -679,7 +756,8 @@ def outdoor_water(w, rid, cell, liquid, liters, source=None, unidentified=False,
         soak = sec.setdefault("ground_soak_l", {})
         soak[rid] = rnd(num(soak.get(rid)) + liters, 3)
         return None
-    spill = make_spill(w, rid, liquid, liters, cell=cell, source=source, count=False, unidentified=unidentified, origin=origin)
+    spill = make_spill(w, rid, liquid, liters, cell=cell, source=source, count=False, unidentified=unidentified, origin=origin,
+                       mess_kind=mess_kind)
     temp = num(w.s.get("weather", {}).get("temperature_c"), 15.0)
     if temp <= 0.0 and spill:
         freeze_puddle(w, rid, cell, spill)
@@ -750,6 +828,39 @@ def contaminate(w, eid, kind_, amount):
 
 WATER_DAMAGE_L = 0.02          # liquid reaching a water-sensitive thing before it is water damaged (a mouthful gets in;
                                # drops do not): electrical's INGRESS_L, so both domains judge the same splash alike
+
+# electrical gear (electrical's physical.electrical_gear rule, read by feature so this domain needs no electrical
+# import): corded, battery and wired devices, receptacles, switches, fixtures, alarms -- whatever their case is made
+# of, unless rated for water (weather-rated, or IPx4 and up)
+GEAR_FEATURES = ("plug_required", "rechargeable", "battery_powered", "outlet_kind", "hardwired", "captive_connector")
+GEAR_CATEGORIES = ("outlet", "breaker", "breaker_panel", "switch", "light", "light_bulb", "detector", "charger", "tv",
+                   "monitor", "audio", "media_source", "computer", "network", "phone", "tablet", "watch", "smartwatch",
+                   "remote", "clock", "electronics")
+WATER_RATED = ("waterproof", "weatherproof", "outdoor_rated", "weather_rated")
+
+
+def water_rated(rec):
+    if any(rec.get(flag) for flag in WATER_RATED):
+        return True
+    rating = str(rec.get("ip_rating") or "")
+    return len(rating) >= 4 and rating[:2].upper() == "IP" and rating[3].isdigit() and int(rating[3]) >= 4
+
+
+def water_sensitive(rec):
+    """Water harms it (phase-1 close-out breakage row 7, electrical's request): the kernel's shared predicate
+    (ledger.water_sensitive: water_safe false, electronic, or a type a domain's watch file lists as water sensitive)
+    or electrical gear by its features -- a plugged wireless charging pad, a lamp, a clock or a receptacle keeps the
+    registry's water_safe true and is not 'electronic', yet water standing on it gets in -- unless it is rated for
+    water. Such a thing is never a drip catcher or a dry stand for this domain's water: what reaches it goes through
+    the kernel's wetting (phys.wetted: electrical's ingress) and water damages it from WATER_DAMAGE_L on."""
+    if not isinstance(rec, dict):
+        return False
+    from ...kernel import ledger
+    if ledger.water_sensitive(rec):
+        return True
+    if water_rated(rec):
+        return False
+    return any(rec.get(key) for key in GEAR_FEATURES) or "power_state" in rec or rec.get("category") in GEAR_CATEGORIES
 
 
 def wet(w, eid, liters, liquid="water", source=None):

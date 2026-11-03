@@ -265,7 +265,7 @@ def _trip_check(w, group, aid, rid, cell):
     return True
 
 
-@system("safety.walkers", order=335, max_dt=30.0)
+@system("safety.walkers", order=335, max_dt=30.0, writer="volition")
 def walker_system(w, dt, tick):
     state = w.s
     now = C.now(state)

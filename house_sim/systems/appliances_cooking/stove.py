@@ -23,6 +23,7 @@ from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, hook
 from . import common as C
+from . import hardening as H
 from . import percept as P
 
 H_CONV = 12.0              # W/m2K natural convection of a hot pot side wall
@@ -238,7 +239,8 @@ def step_burners(w, dt, burner_ids, heated_ids=()):
     for bid in burner_ids:
         if bid not in state["entities"]:
             continue
-        _step_burner(w, bid, dt)
+        with H.caused(w, bid):              # 6.2: the burner's writes (its pan, what it scorches) cite the burner
+            _step_burner(w, bid, dt)
     # vessels that left a burner give temperature control back to the kernel/food thermal models
     for vid in heated_ids:
         rec = state["entities"].get(vid)
@@ -278,6 +280,7 @@ def _step_burner(w, bid, dt):
             hb["last_unlit_t"] = C.now(w)
             C.counter(w, "unlit_gas_l", round(liters, 4))
             C.add_gas_l(w, rid, liters)
+            H.book_gas_litres(w, bid, liters)       # unburnt gas went through the meter all the same (6.8)
             if C.safety_loaded():
                 leak = rec.get("_gas_leak") or {}
                 if abs(C.num(leak.get("m3h")) - lph / 1000.0) > 1e-6:
@@ -359,6 +362,8 @@ def _step_burner(w, bid, dt):
                 _expose(w, vid, rid, dt, exposure, 1.0)
     _hot_surface_items(w, bid, dt, t_new, rid)
     _attendance(w, bid, vid, dt, rid, f)
+    electric_w, gas_w = H.burner_draw(state, bid)
+    H.book_energy(w, bid, electric_w, gas_w, dt)          # the energy and gas meters the ledger reads (6.8)
 
 
 def _step_vessel(w, vid, bid, watts, dt, room_c, rid, f, notes, ua_factor=1.0, scorch=True, boil_c=None, foams=True):
@@ -883,6 +888,7 @@ def _burner_knob(ctx, bid, old, new):
             m = w.mut(bid)
             m["burner"] = dict(b, lit=True, flame="steady blue flame")
             C.add_gas_l(w, C.room_of(state, bid), 0.1)
+            H.book_gas_litres(w, bid, 0.1)
 
 
 @before("place", order=70)
@@ -1063,6 +1069,7 @@ def _ignite_body(ctx):
     hb["unlit_l_recent"] = C.rnd(liters, 4)
     if can_light and hold >= delay:
         C.add_gas_l(w, rid, liters)
+        H.book_gas_litres(w, bid, liters)   # what flowed before the flame caught (6.8; an unlit knob: the system books it)
         C.counter(w, "unlit_gas_l", round(liters, 4))
         b.update(lit=True, flame="steady blue flame" if b.get("cap_seated", True) and not hb.get("ports_clogged") else "yellow, lazy, sooty flame")
         hb["unlit_s"] = 0.0

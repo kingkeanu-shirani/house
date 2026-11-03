@@ -13,7 +13,7 @@ from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.realism import INSPECT
 from .common import admin_facts, authority, household, need_tool, slug
-from .perceive import dumps, novel, opaque_amount, order_ids, ordered, render
+from .perceive import dumps, opaque_amount, order_ids, ordered, render
 
 LEVEL_FIELDS = ("remaining", "level", "fill_level")
 
@@ -177,7 +177,7 @@ def _realistic_matches(ctx, realism, scope, visible, what, by, close, geometric=
         known = realism.knowledge.entity_level(eid, rec)
         level = max(INSPECT, known) if eid in close else known
         ident = realism.identity(eid, rec, level)
-        if novel(ctx.env, eid, rec):
+        if ctx.unfamiliar(eid):
             # an unfamiliar thing (review I4): one thing seen in the scope, matched by how it looks (the label and kind
             # the robot perceives), never by its hidden type, sku, category or tags (count what=chef_knife counted an
             # unfamiliar knife); for any other `what` it may be one, so it is unidentified, alike whatever it is
@@ -261,7 +261,7 @@ def count(ctx):
     matched_set = set(matched)
     # unfamiliar things are one thing each, whatever they are: no pack, printed count, units, level, emptiness or
     # untested charge of their true type (review I4: an unfamiliar kettle alone got a "levels" entry)
-    strange = {e for e in matched if novel(ctx.env, e)}
+    strange = {e for e in matched if ctx.unfamiliar(e)}
     tested = state.get("facts", {}).get("admin", {}).get("tested", {})
     # geometric camera: a sealed pack is counted by its printed count when the cameras can read it (the rolls deep in
     # a clear 12-pack hide behind the outer ones); its units are not counted again. Room camera: as before (units

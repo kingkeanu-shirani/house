@@ -9,7 +9,7 @@ measuring and leveling, robot self-maintenance (battery, cameras, falls, faults,
 unobtrusive waiting, remote help), elevators, and other household robots (robot vacuum/mop/mower).
 
 Code: `house_sim/systems/navigation_robot/` (package). Types: `house_sim/data/types/navigation_robot.json`.
-Tests: `tests/test_navigation_robot.py` (232 tests: 24 realistic-perception tests, the 21 kernel v3.0 body tests of
+Tests: `tests/test_navigation_robot.py` and `tests/test_navigation_robot_hardening.py` (23 tests, section 4f) (232 tests: 24 realistic-perception tests, the 21 kernel v3.0 body tests of
 `TestBodyEnergy`, the 28 tier-1 adoption tests of `TestTier1Adoption` and the phase-1 classes `TestPhase1Stabilise`,
 `TestPhase1Finish` and `TestPhase1Closeout` (sections 4c-4e); isolated, strict and all-domain runs, and all
 of them again with the kernel's carry law forced active: tests whose mechanic another domain owns when loaded assert the
@@ -37,6 +37,7 @@ adoption (physics, camera, body and sweep).
 | `robots.py` | robot vacuum/mop/mower state machine; `empty_robot_vacuum`, `clean_robot_brushes`, `refill_robot_tank`, `free_stuck_robot`; docking another robot |
 | `world.py` | observer, inspector, invariants, answerer `nav:` and its dialogue routes (`nav.where`, `nav.detail`), the `phase_start` refresh |
 | `scenarios.py`, `skills.py`, `furnish.py` | scenario helpers, reference skills, furnishers (`navigation_robot.features`; generation 2's final `navigation_robot.dock_check`) |
+| `hardening.py` | verification hardening (section 4f): the derived `docked` field, settings skills for plugs and docking; field classes in `house_sim/data/verify/watch/navigation_robot.json`, truth mappings in `house_sim/data/speech/truth_navigation_robot.json` |
 
 Fidelity: G (0.5 m grid geometry: paths, clearances, reach heights, coverage, swing arcs) with P-approx
 traction (friction coefficients), stair balance (load limits) and instrument error. All iteration is over
@@ -492,6 +493,85 @@ Handoff: `catalog/analysis/phase1/closeout_navigation_robot.json`. Tests in `Tes
   an unnamed one is passed over, so every unfamiliar thing answers alike. Test
   `test_an_unfamiliar_held_thing_serves_as_no_tool`. Core `require_tool` itself still takes an unfamiliar tool by its
   true affordances for the other domains' verbs (kernel request).
+
+## 4f. Phase 2: verification hardening prerequisites (VERIFY_HARDENING 23.3, WP-D navigation_robot)
+
+Handoff: `catalog/analysis/phase2/handoff_WP-D_navigation_robot.md`. Tests: `tests/test_navigation_robot_hardening.py`
+(23 tests; 20 of them fail on the tree before this package; the others are a registration check, a look-alike guard
+that passed already and a door-closer case that skips while mechanisms or safety own closers).
+
+* **Field classes** (6.3, L-WATCH part 2): `house_sim/data/verify/watch/navigation_robot.json` classifies every property
+  of the 26 types and every sub-key of their dict fields. Specs and dimensions are `identity`; `open` (an unfolded
+  climbing aid), `on` (headlamp), `plugged_in`, `docked`, `settings.spreader_lock` and `rv.schedule` are `setting`; a
+  household robot's run state, charging, errors and timers are `process` (its own state machine); `rv.bin_fill` and an
+  auto-empty dock's `bag_fill` are debris loads (`content`, guard `mess`); `rv.mop_tank_l` / `rv.tank_liquid` content;
+  hair on the brushes, `rv.bumper_ok` (false is worse), `rv.damaged` and `rv.pad_damage` conditions; counters and the
+  derived `rv.dock_zone_clear` bookkeeping. A spare pack's `health` and `capacity_wh` are `process` on
+  `robot_battery_pack` (swap_battery writes the old pack's values onto the record: no damage), its `swollen` /
+  `damaged` conditions. `standing_height_m` is identity (the kernel's name rule says placement). Water-sensitive: the
+  robot vacuums and their docks, the headlamp, the laser meter, the digital level, the pack and its charger, the elevator
+  panels (the weather-rated mower and its dock inherit the type names: request to WP1).
+* **Writer classes and causes** (6.2): every system is `physical`; inside `navigation_robot.doors` the residents'
+  driving (`navigation_robot.vehicles`), walking (`navigation_robot.people`) and the pets' following and wandering
+  (`navigation_robot.pets`) are written as `volition`. Causes: a household robot's whole substep cites the robot (floor
+  it cleans, cords it chews, devices it unplugs, rugs it wets -- linked to the robot when the robot started or set it
+  up, not when its schedule did); a self-closing door and a motor-driven door cite the door; a walking appliance cites
+  itself (whoever started it or set its feet); a spare pack charging cites its station and itself; an elevator car's
+  arrival cites the call on its room record.
+* **Mess flows** (6.5; `world.mess_flow`): a robot vacuum's run moves `debris` (grams: the floor soil it lifts at
+  cleaning's g/m2) from `floor:<room>` into `entity:<rv>` (a vacuum: an accepting sink) and keeps a tally `rv._bin_g`;
+  an auto-empty dock takes the bin into `entity:<dock>` (`_bag_g`); `empty_robot_vacuum` tips the bin or the bag into
+  the trash (`entity:<trash>`), and the things a bin swallowed or a brush caught move as mess parcels when they are
+  ones (core.log_mess_move). The robot's feet: soil tracked in is created mess on the floor (`created:robot_feet`:
+  `debris`, pet waste stepped in `pet_waste`), a wet footprint `liquid:spill` (the film's volume). Liquid the robot's
+  motion slops or spills (`common.slop`, `common.spawn_spill`: stumbles, sloshing, an overfilled mop tank) is created
+  mess from `created:<container>` with the origin `<class>:<container>` (`common.liquid_mess`: chemical, grease, dirty
+  water, pet-waste class, food, water by the kernel's liquids table). The domain registers no mess kind (debris,
+  liquid:* and pet_waste are cleaning's, plumbing's and pets'); its flows name theirs.
+* **Truth mappings** (13.1-13.3; `house_sim/data/speech/truth_navigation_robot.json`, words in
+  `house_sim/data/vocab/navigation_robot.json`): `docked` / `undocked` (a household robot's docked, else rv.docked),
+  `bin_full` (rv.bin_fill or an auto-empty bag at 95 %), the patrol words `water_on_floor` (a puddle, or a wet or
+  slippery floor hazard) and `unexpected_person` (role intruder, stranger or unknown).
+* **Derived fields** (8.2): `docked` on household robots is a registered `@derived_field` (`hardening.docked_now`:
+  seated on its own dock -- same room, on the floor, footprint on or beside the dock's -- and its state machine
+  docked). The leveling feet's `_tilt_deg` / `_wobble_mm` are kept true by the leveling system whenever the feet
+  change by any path (the setting_changed hook no longer is their only writer; the idle probe sees a stale one); they
+  are not registered as derived fields because tools_vehicles' fasteners write the same two names (one registration
+  per name: request to tools_vehicles).
+* **Settings skills** (10.3, B14's changed probe): `plugged_in` of docks and the battery charging station (core
+  plug_in / unplug), `docked` of a household robot (the dock verb, or fetch to lift it off); the kernel defaults cover
+  a climbing aid's `open`, the headlamp's `on` and the ladder's spreader lock (setting_options). Damaging verbs for B14
+  (no registry yet, WP6): `free_stuck_robot method=drag` (the bumper switch), `refill_robot_tank` with bleach or
+  vinegar (the tank), an overfilled tank (a spill).
+* **Structured readings** (15.2): `measure` returns `readings` [{"subject", "quantity": "length", "value", "unit",
+  "dimension", "field" (a length field it read) or "to" (a distance's other end)}] and `check_level` its two tilts
+  (`quantity` "angle", unit "deg": the kernel vocabulary has no angle quantity yet, so those carry no SI value). Only
+  the returned result carries them; `facts.nav_last_measure` and `nav.measurements` are unchanged.
+* **Meters**: none added (the docks' and charger's draw is not booked in `climate.energy`; giving the types a
+  `standby_w` would book every generated house with a dock: known gap).
+* **hazard_created / zones**: the domain's verbs create no entity (spills are mess parcels; shards are the kernel's
+  impact model), and it owns no people or pets (their zones are the people and pets domains').
+* **Fixes**: `dock_setup` reseats the robot's own dock where a free front cell can be reached when the generated house
+  left none (seed 502: a coffee table across its front; WP11's held-out finding for T-5ad61b6881821b-01) and refuses
+  to bind no blocker; `navigation_robot.go` walks a route that descends unguided winders at the careful pace, as core
+  go_room does (23.3); `mark` refuses an unfamiliar target identify-first (closeout_REV 7: "Hold a pencil" was
+  rewritten for an unfamiliar pencil alone); `common.unfamiliar` / `refuse_unfamiliar` delegate to the kernel's
+  `Ctx.unfamiliar` / `Ctx.refuse_unfamiliar` (closeout_breakages' optional clean-up).
+
+### Latched fields
+
+Goal fields a hook or verb of this domain writes and their recompute (`tasks/lint.py` L-LATCH reads the first column):
+
+| Field | Written by | Recompute (8.2) |
+|---|---|---|
+| `docked` | `dock` (another robot), `try_dock`, the pick_up hook, the furnisher, `robot_vacuum` helper | `hardening.docked_now` (registered) |
+
+Not latched (documented so authors know what they are): `_tilt_deg` / `_wobble_mm` (kept true by the leveling system,
+shared with tools_vehicles); `nav.routes.*` / `nav.doors.*` / `nav.areas.*` / `nav.sightlines.*` (re-evaluated by the
+watch system); `robot.docked`, `robot.charging` (the body and dock state, maintained by every verb that moves the
+robot). History records (what happened, never undone by a later act): `nav.stairs.<cid>.rail_contact`,
+`nav.entries.<room>.*`, `nav.follow.*`, `nav.follow_gap_m`, the `nav.contacts.*`, `nav.social.*` and `nav.terrain.*`
+counters, `placed_on_wet`.
 
 ## 5. Observation and inspection
 

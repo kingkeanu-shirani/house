@@ -122,9 +122,11 @@ def water_system(w, dt, tick):
         src = state["entities"].get(rec.get("_source") or "")
         rate = float(rec.get("_leak_lph", 0.0) or 0.0)
         if rate > 0 and (src is None or src.get("leaking", True)) and not rec.get("_leak_stopped"):
-            m = w.mut(eid)
-            m["liquid_l"] = round(float(m.get("liquid_l", 0.0)) + rate * dt / 3600.0, 4)
-            _resize(m)
+            # the leak feeding it is the cause (6.2's causal link: a valve or hose the robot opened, a pipe it cracked)
+            with w.writing("physical", cause=[rec["_source"]] if src is not None else [eid]):
+                m = w.mut(eid)
+                m["liquid_l"] = round(float(m.get("liquid_l", 0.0)) + rate * dt / 3600.0, 4)
+                _resize(m)
         evap_l = EVAPORATION_MM_H * dt / 3600.0 / 1000.0 * float(rec.get("area_m2", 0.1)) * 1000.0
         if evap_l > 0:
             m = m or w.mut(eid)

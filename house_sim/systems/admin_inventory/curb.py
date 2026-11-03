@@ -11,12 +11,13 @@ import datetime
 import math
 
 from ...kernel import body, clock, geometry
-from ...kernel.phys import environment as phys_env
+from ...kernel.phys import environment as phys_env, impact as phys_impact
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, hook
 from ..core import subtree_mass
 from .common import drop_cell, household, indexed, notice, reads, slug, visual_event
+from .hardening import collected, moved, refuse, writing
 from .perceive import mass_feel
 
 
@@ -162,6 +163,14 @@ def _curb_problems(state, cart, room):
 
 
 def run_collection(w):
+    """The collection truck at the curb. Its writes are physical (VERIFY_HARDENING 6.2), whether the household's
+    schedule or a scripted event sends it: a consequence of what stands at the curb, each write citing the cart or
+    bag it took (the robot's doing only when the robot put it out there)."""
+    with writing(w, "physical", "admin_inventory.collection"):
+        return _run_collection(w)
+
+
+def _run_collection(w):
     state = w.s
     room = curb_room(state)
     log = household(w).setdefault("collections", [])
@@ -184,9 +193,13 @@ def run_collection(w):
                 entry["skipped"][cart] = "; ".join(problems)
                 w.mut(cart)["not_collected_reason"] = "; ".join(problems)
                 continue
+            # the crew empties the cart: what was in it leaves the house through the cart (6.5 flows), and every
+            # write cites the cart (6.2: the robot's when it wheeled the cart out or filled it)
             for item in w.descendants(cart):
-                w.destroy(item)
-            m = w.mut(cart)
+                _note_collected(w, item)
+                collected(w, item, cart=cart, cause=cart)
+                w.destroy(item, cause=cart)
+            m = w.mut(cart, cause=cart)
             m["fill"] = 0.0
             m["emptied_at_s"] = state["time_s"]
             m.pop("not_collected_reason", None)
@@ -194,9 +207,11 @@ def run_collection(w):
         elif rec.get("portable") and (rec.get("category") in ("bag", "debris") or rec.get("type") in ("donation_bag",)):
             if rec.get("donation") and "donation" in str(rec.get("label_key") or ""):
                 continue
+            _note_collected(w, cart)
             for item in w.descendants(cart):
-                w.destroy(item)
-            w.destroy(cart)
+                w.destroy(item, cause=cart)
+            collected(w, cart, cause=cart)
+            w.destroy(cart, cause=cart)
             entry["taken_bags"].append(cart)
     log.append(entry)
     w.emit("waste_collection", **{k: v for k, v in entry.items() if k != "date"})
@@ -204,6 +219,18 @@ def run_collection(w):
         visual_event(w, "waste_collection", room=room, size_m=2.5)      # the truck and its crew at the curb
     notice(w, "collection_truck", room=room)      # the truck is heard (kernel v3.1 notices: wait until it has come)
     return entry
+
+
+def _note_collected(w, eid):
+    """household.collected: what the truck took, whether it was a protected thing (harms.protected) and whether the
+    robot put it there (phys.impact.robot_caused: it or what it was in carries the robot's marker). The protected-items
+    invariant reads it once the thing is gone (a passport binned in a cart the robot wheeled out is not forgiven by
+    the truck taking it)."""
+    from .harms import protected
+    entities = w.s["entities"]
+    valuable = protected(entities[eid]) or any(protected(entities[d]) for d in w.descendants(eid))
+    household(w).setdefault("collected", {})[eid] = {"time_s": w.s["time_s"], "protected": bool(valuable),
+                                                     "robot": bool(phys_impact.robot_caused(w, eid))}
 
 
 def curb_tick(w, dt, tick):
@@ -248,7 +275,11 @@ def _wind(w, dt, tick):
             litter = w.spawn("generic_item", room, label="blown litter", category="debris", portable=True,
                              mass_kg=0.02, size_m=[0.1, 0.1, 0.01], volume_l=0.05, waste_stream=rec.get("waste_stream", "trash"),
                              soil={"litter": 0.5})
-            w.mut(litter)["pos"] = drop_cell(w, room, rec.get("pos"), litter)
+            # refuse lifted out of the open cart (6.5: from the cart onto the ground; 6.2: caused by the open cart --
+            # the robot's when it opened the cart or wheeled it out open)
+            w.mut(litter, cause=cart)["pos"] = drop_cell(w, room, rec.get("pos"), litter)
+            refuse(w, litter)
+            moved(w, litter, ["entity", cart], cause=cart)
             w.emit("litter_blown", source=cart, item=litter)
             visual_event(w, "litter_blown", source=litter, room=room, size_m=0.2)
 

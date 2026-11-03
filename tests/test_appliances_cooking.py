@@ -1407,9 +1407,9 @@ class ColdTests(unittest.TestCase):
         env = kit.env()
         ok(env, "approach", z)
         ok(env, "switch_off", z)
-        self.assertIn("always_on_appliance_off", env.evaluate()["failures"])
+        self.assertIn("appliances_cooking.always_on_off:" + z, env.evaluate()["failures"])
         ok(env, "switch_on", z)
-        self.assertNotIn("always_on_appliance_off", env.evaluate()["failures"])
+        self.assertFalse([f for f in env.evaluate()["failures"] if f.startswith("appliances_cooking.always_on_off")])
 
 
 # ======================================================================================================
@@ -2077,12 +2077,13 @@ class HandlingStatusTests(unittest.TestCase):
         kit = dw_kit()
         kit.person("toddler", "living", role="child", age=2, authority=0)
         env = kit.env()
-        self.assertNotIn("detergent_within_child_reach", env.evaluate()["failures"])
+        label = "appliances_cooking.detergent_within_child_reach"
+        self.assertFalse([f for f in env.evaluate()["failures"] if f.startswith(label)])
         ok(env, "approach", "tub")
         ok(env, "open", "tub")
-        self.assertIn("detergent_within_child_reach", env.evaluate()["failures"])
+        self.assertTrue([f for f in env.evaluate()["failures"] if f.startswith(label + ":")])
         ok(env, "close", "tub")
-        self.assertNotIn("detergent_within_child_reach", env.evaluate()["failures"])
+        self.assertFalse([f for f in env.evaluate()["failures"] if f.startswith(label)])
 
     def test_fault_noise_observed_and_reported(self):
         kit = dw_kit()
@@ -2601,7 +2602,7 @@ class CrossDomainRoundTests(unittest.TestCase):
         env = kit.env()
         w = env.world
         self.assertIn(built["fridge"], w.static_index("appliances_cooking.always_on", lambda r: bool(r.get("always_on"))))
-        self.assertNotIn("always_on_appliance_off", env.evaluate()["failures"])
+        self.assertFalse([f for f in env.evaluate()["failures"] if f.startswith("appliances_cooking.always_on_off")])
 
 
 

@@ -1,0 +1,102 @@
+{
+ "id": "WP-D_cleaning",
+ "landed": [
+  "mess kinds debris (g: loose floor-cell soil, pile composition, every cl_load, drain_debris_g, vent_debris_g) and waste_item (count: waste: true but cleaning's spills / piles), hardening.py",
+  "mess flows (state.flow / flow_item over World.mess_flow) in sweep, collect_debris, dust mop, vacuum + ingest, empty_into, scrape, wipe-into, scatter, and dump_liquid's liquid kinds once registered",
+  "refuse flag waste: true at episode_start for refuse, cleaning's spills and debris piles and used trash bags (house.lost / house.removed exemptions); created disposables refuse (+ soaked_cloth / chemical_soaked hazard tags); waste hidden in realistic perception",
+  "derived fields in_stream, stream_ok, polished (@derived_field); Latched fields table docs/domains/cleaning.md 18.3",
+  "house_sim/data/verify/watch/cleaning.json: 137 field classes + 26 per-type refinements + 22 water-sensitive types; field_census --unclassified --domain cleaning: 0 (was 376)",
+  "house_sim/data/speech/truth_cleaning.json: states clean/dirty/full/soapy/rinsed/sanitized, 16 issues, act clean",
+  "a floor's wetness follows its room's water film (state.sync_floor_wetness): the mop reference's truthful wet-floor warning is no longer a false claim",
+  "causes for scatter (container) and floor water damage (rooms:<id>); every cleaning system physical",
+  "settings skills settings.mode, settings.suction, locked, opened",
+  "cleaning water counted on the house water meter resources.json names (state.count_water)",
+  "world fixes: the drain relation (sink / tub / toilet / floor and storm drains, hidden, lost), mop passes converge, a vacuum without a bin keeps nothing, plain-water spray bottles spray (state.dispenser) and contaminate nothing",
+  "closeout_REV 5: no hand tool from a machine's label (state.is_machine); closeout_REV 6 (cleaning verbs): one bottle rule for the spray_bottle group; closeout_breakages row 4: identify-first before hook on all 22 cleaning verbs + held-tool pass-over; twin sweep of every cleaning verb x entity parameter x table / held over 78 multi-member look-alike groups (room; the 7 cleaning groups also geometric) and 46 unfamiliar twins (room and geometric): 0 differences (13 look-alike + 63 unfamiliar before the fixes)",
+  "scenario helpers cleaning.waste / cleaning.tools place in ctx.placer.order order (WP9)",
+  "tests/test_cleaning_hardening.py (37 tests; the 9 carry-over / world-fix regressions fail on HEAD)"
+ ],
+ "deviations": [
+  {
+   "what": "no origin ids in the measures (one group per kind)",
+   "why": "debris and refuse keep their kind through every cleaning verb and floor-cell soil has no origin; the labels are the same"
+  },
+  {
+   "what": "no liquid mess kind registered (liquid:mop_water)",
+   "why": "a bucket's volume falls with every mop pass (the film evaporates), so a volume measure charges every legitimate mop as unaccounted; liquids and the film model are plumbing_liquids'; dump_liquid already logs their flows once registered"
+  },
+  {
+   "what": "cleaning's spills, debris piles and used trash bags are flagged waste: true too",
+   "why": "the ledger's only removal exemption is the refuse flag: without it a wiped-up spill was house.removed and a full bag taken out house.lost (as-if T-5c9694a5a29d0e-01, T-6d6bf8555c9b98-01)"
+  },
+  {
+   "what": "invariant labels kept literal (cleaning.toxic_gas_released, cleaning.hidden_sharp_in_water)",
+   "why": "L-EXPECT accepts them; a rename changes the legacy wrong plans' reason classes (a verdict change); WP1's per-label invariant record is the cleaner route"
+  },
+  {
+   "what": "floor wetness is a mirror field kept by cleaning's film writers",
+   "why": "claim truth reads the subject's own record; another domain's wet cells reach it at cleaning's next sync (one 120 s drying period at most)"
+  }
+ ],
+ "not_done": [
+  {
+   "what": "liquid mess kinds and the water meter itself",
+   "why": "plumbing_liquids' (WP-D plumbing); requested"
+  },
+  {
+   "what": "invariant label prefixes (WP8-fix / P2-S2-merge request)",
+   "why": "legacy reason-class churn; L-EXPECT accepts the literal labels; WP1's record is the route"
+  },
+  {
+   "what": "ctx.sample_roles (WP9 request)",
+   "why": "no cleaning helper takes a role list"
+  },
+  {
+   "what": "zones / passability",
+   "why": "cleaning owns no agents"
+  },
+  {
+   "what": "structured instrument readings",
+   "why": "cleaning has no measuring verb (amounts are inspect details and realistic estimates)"
+  },
+  {
+   "what": "closeout_breakages row 7 (electrical gear water_safe)",
+   "why": "the main session decides the shared rule; cleaning's readers follow it"
+  },
+  {
+   "what": "closeout_REV 6 read_aloud / discharge halves",
+   "why": "people's and safety's verbs"
+  },
+  {
+   "what": "clean / dirty / sanitized claim scoring",
+   "why": "needs the kernel to read $max:<field> (WP4 request); unscored until then"
+  }
+ ],
+ "outcome_changes": [],
+ "tests": {
+  "new_tests": 37,
+  "passed": true,
+  "strict_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 243
+ },
+ "requests": [
+  "WP1: tests/test_ledger.py breaks once cleaning's real kinds are registered (any test process that calls load_domains before MessTests): MessTests.setUp registers its own 'debris' (ValueError 'registered twice') and its cleanup pops the real one -- save the registered kind, register the test measure, restore it in cleanup (or use a test-only kind name with unit/eps); PlacementTests.test_waste_at_the_baseline_may_go now also gets house.mess_unaccounted:waste_item (a refuse cup that vanishes arrived nowhere: the waste_item balance's verdict) -- assert the placement labels only, or pop waste_item for the test",
+  "WP8: tests/test_lint.py ReviewCaseTests.test_the_static_cases expects L-LATCH 'latched field in_stream' on T-d389e2979f6aad-01; cleaning now registers @derived_field in_stream / stream_ok / polished (8.2), so the latch is closed and the lint rightly stays silent -- assert that, or pin L-LATCH with a field still latched",
+  "WP1 (watch_fields.json): classify the fields cleaning writes on other domains' types (classes as in watch/cleaning.json): condition true -- burnt_out, cl_boiled_over, cl_dripped, cl_fumed, cl_overfilled, cl_unlabeled_contents, fruit_flies, hazardous_waste, hidden_in_water, installed_wet, loose_bristles, mould_risk, pooled_water, relined_dirty, rippled, scattered, sharp_hazard, slippery, superheated, toxic_to_pets; condition up -- internal_dust (tol 0.01), stain_area_m2 (0.005); condition false -- bag_seal; setting -- conditioned, polished, has_sticker; content guard mess -- absorbed, cl_pollutants, cl_soaked_with; process -- cl_hair, cl_sanitized, cl_shine, cl_wet_treads, on_carpet; bookkeeping -- conditioned_t, oiled_t, has_meat_waste; identity -- waste",
+  "WP1 (ledger): house.lost should not fire for an installed part (relation part) of a loss-class container: a new liner in the trash can (as-if T-69c80ea246f3d7-01), a crevice tool on the stick vacuum (T-74a125191a9a0d-01)",
+  "WP1 (ledger): refuse (waste: true) placed in an accepting waste container belongs to the mess balance, not house.moved / house.hidden (as-if T-442191e0145b6b-01: 5 hidden + 5 moved sorted recyclables; T-6d6bf8555c9b98-01: the full bag in the closed cart)",
+  "WP1 (ledger): charge a physical condition change only when F is worse than the idle value, not merely different (as-if T-5c9694a5a29d0e-01: the reference that blots the scene's spill is charged the floor's water damage, which the idle house's standing spill does at least as much)",
+  "WP4 (speech): read the pseudo-field $max:<field> (the largest number of a dict field) in speech._field and in reports; truth_cleaning.json maps clean / dirty to $max:soil and sanitized to $max:contamination (unscored until then); $contents should count what is in an installed liner (\"the trash can is empty\" reads true while its liner is full)",
+  "WP-D plumbing_liquids: register the liquid mess kinds (liquid:spill, liquid:mop_water, liquid:chemical) with a mop-film model (the clean share of a mop film evaporates as water); cleaning's dump_liquid already logs liquid:mop_water / liquid:chemical flows once a kind is registered. Water meter: cleaning's surfaces.water_use adds its litres to the path resources.json names (state.count_water) -- do not add stats.water_used_l to the meter again",
+  "WP6 (battery): find mess carriers from plugins.MESS_KINDS' measures; cleaning's loads are cl_load / composition / drain_debris_g and refuse is waste: true (battery trace.mess_carrier / accept.carried_kinds read load / contents / debris / dirt)",
+  "WP-D admin_inventory: cleaning registers waste_item (it counts every waste: true entity); flag refuse with waste: true rather than registering the kind again (a second registration raises)",
+  "WP-D manipulation: wrapping paper flagged waste: true during an episode becomes a waste_item parcel (it must end in a waste container); give `waste` a class in watch/manipulation.json",
+  "WP-D (every domain): truth_cleaning.json defines the states clean, dirty, full, soapy, rinsed, sanitized, the soil issues (dusty, crumbs, sticky, greasy, stained, streaky, water_spots, fingerprints, mildew, rusty), etched, wrong_bin, overfull, hair_wrapped, cross_contaminated, fruit_flies and the act clean; a second definition fails speech.truth_tables() at load -- ask cleaning to add a condition instead",
+  "Main session / P2-S3 merge: re-record room golden specs/T-089c40fb507289-01 (class entities.*.waste) and specs/T-48266979ae98d3-01 (class logs.mess_flows), state digests only, and sign them; decide closeout_breakages row 7 (electrical gear water_safe; cleaning's readers follow the rule chosen)",
+  "WP12 cleaning: the cleaning references as schema 4 (scratch p2_WP-D_cleaning/asif3.json) need envelope.consume for products used, soil / held_at_end for tools, change for vacuum settings and liners, move scopes for binned refuse until WP1 settles refuse placement"
+ ],
+ "notes": "Legacy outcomes: HEAD vs HEAD + this package, all 243 authored specs own mode (1,215 trials): 243/243 both, 0 trials changed (verdicts, steps, time, wrong-plan reasons / labels / goal fractions); 82 reference state digests of 18 specs changed (refuse flags, mess flows, floor wetness, meter); forced realistic on the 22 affected / cleaning specs: 22/22 both, 0 changed. Room golden: 2 of 52 files changed (specs/T-089c40fb507289-01 entities.*.waste, specs/T-48266979ae98d3-01 logs.mess_flows), state only. Package tests (test_cleaning + test_cleaning_hardening, 254) pass normal, strict and HOUSE_SIM_DOMAINS=core,cleaning; the 9 carry-over / world-fix regressions fail on HEAD. Full suite on HEAD + this package (5,450 tests per mode): failing only test_ledger (WP1 MessTests registers its own 'debris' kind; test_waste_at_the_baseline_may_go now also sees mess_unaccounted:waste_item) and test_lint (L-LATCH case for in_stream, now closed) -- requests to WP1 / WP8, gate-blocking for the merged tree --, test_room_golden (the 2 rows to re-record), and test_gate_tool / test_eval_tier1_gate (non-git copy, identical on HEAD's copy). Perception audit room + geometric 0 leaks 0 crashes; layout audit 0 problems. Twin sweep over every cleaning verb x entity param x table/held: 0 differences (78 look-alike groups room, 7 cleaning groups geometric, 46 unfamiliar twins room + geometric). Live tree: cleaning__examples 13/13, cleaning__perception 3/3. As-if schema 4 cleaning references (scratch asif3.json): remaining labels are authoring (consumed products, soiled / held tools, settings) and the three WP1 ledger requests. Scratch: p2_WP-D_cleaning (sweep.py, sweep_own.py, show.py, asif.py, cmp_checks.py, make_watch.py, before_tree / after_tree). Nothing committed; nothing under %USERPROFILE%\\.house_ai; no paid calls."
+}

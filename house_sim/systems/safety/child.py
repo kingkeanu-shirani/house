@@ -300,7 +300,7 @@ def knock_down(w, eid, pid):
         w.mut(eid)["broken"] = True
 
 
-@system("safety.child", order=345, max_dt=30.0)
+@system("safety.child", order=345, max_dt=30.0, writer="volition")
 def child_system(w, dt, tick):
     state = C.bind_world(w).s
     now = C.now(state)

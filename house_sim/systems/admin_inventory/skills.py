@@ -336,3 +336,22 @@ def curb_cell(r, cart, room=None):
             if fallback is None:
                 fallback = [x, y]
     return fallback
+
+
+@skill("admin_inventory.operate")
+def operate(r, target, verb, hold=False, tool=None, **args):
+    """Work a thing with one of this domain's verbs (the settings skills' and damaging verbs' plan step,
+    hardening.py; VERIFY_HARDENING 10.3): fetch the tool when one is named, then fetch the thing (hold=True: verbs
+    that work a held paper) or walk up to it, and do the verb."""
+    if tool:
+        _fetch(r, tool)
+        args["tool"] = tool
+    if hold:
+        _fetch(r, target)
+    else:
+        _approach(r, target)
+        _crouch_if_low(r, target)
+    result = r.do(verb, target=target, **args)
+    if not hold:
+        _stand(r)
+    return result

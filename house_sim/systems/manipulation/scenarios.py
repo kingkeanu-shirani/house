@@ -343,7 +343,10 @@ def displace(ctx, ids, min_cells=1, keep_room=True, yaw_deg=None):
     cfg = ctx.config
     ids = [ids] if isinstance(ids, str) else list(ids)
     moved = {}
-    for eid in ids:
+    # schema 4 (Placer shuffle mode): the items pick their new cells in a seeded random order, so a spec listing its
+    # target first gives it no first pick of the free spots (VERIFY_HARDENING 9.2, WP9's request); the given order
+    # otherwise (no draw: legacy builds unchanged)
+    for eid in ctx.placer.order(ids):
         rec = cfg["entities"][eid]
         rid = rec.get("location")
         if rid not in cfg["rooms"]:

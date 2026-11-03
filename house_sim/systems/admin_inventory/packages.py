@@ -11,6 +11,7 @@ from ...kernel.plugins import after, hook, observer
 from ..core import add_soil
 from .common import (address_matches, admin_facts, authority, doorbell_alert, drop_cell, is_waste_bin, requester,
                      require_readable, resolve_name, ring_doorbell, slug, visual_event)
+from .hardening import SCRAP_TAGS, created, refuse
 from .paper import drop_debris
 from .perceive import dumps, name_of, order_ids, perceives, privacy_violation, was_read
 
@@ -239,6 +240,10 @@ def remove_packing(ctx):
                 seconds += 10.0
         ctx.data["seconds"] = seconds
         moved = _place_waste(ctx, fills, destination)
+        for item in moved:
+            # fill taken out of its parcel is refuse from here on (6.4, 6.5: created:remove_packing, wherever it went)
+            if refuse(w, item):
+                created(w, item, "remove_packing")
         w.emit("packing_removed", target=target, fill=moved, found=found)
         return dumps(ctx.env, {"removed": order_ids(ctx.env, moved), "to": destination, "found_in_fill": order_ids(ctx.env, found)})
     flags = [(f, name, t, stream) for f, name, t, stream in UNWRAP_FIELDS if rec.get(f)]
@@ -255,6 +260,8 @@ def remove_packing(ctx):
             w.robot_m()["hands"][hand] = new
         else:
             new = drop_debris(w, type_name, target, label=name, waste_stream=stream)
+        refuse(w, new, tags=SCRAP_TAGS.get(name))     # peeled-off packaging is refuse (clips, ties: choking size)
+        created(w, new, "remove_packing")
         spawned.append(new)
     # a broken item's wrapper or blister pack held its pieces (the kernel's wrap containment): taking it off lets them
     # out -- shown, a sharp floor hazard on a floor, the phys.uncontained hooks (safety's shards) -- by the robot's hand,

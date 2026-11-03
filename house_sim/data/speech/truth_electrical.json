@@ -1,0 +1,31 @@
+{
+  "about": "The electrical domain's truth mappings for claims about power, lights, chargers, cells, clocks, screens, networks and cords (kernel/speech.py truth(); VERIFY_HARDENING 13.1-13.3, 13.6; WP-D electrical). Words from house_sim/data/vocab/electrical.json and the core vocabulary's battery and wiring words. Conditions read the subject's own record (hidden truth included: the evaluator's view, never an observation). states (the first condition whose field the record has decides): paired is a smart device whose pairing record says paired (a hub with paired devices too), unpaired the opposite; dark is a light that is not lit (a room by its light level, dark below 0.2 of daylight), else a switched-off thing; dimmed is a light running below full level (dim_level under 0.99: a lamp that is off sits at 1.0); charged is a battery at 95 % or more (a device's battery_level, a cell's hidden charge). issues (any condition present and holding makes it true, all present and failing make it false, none present leaves it unknown): no signal is a screen showing no picture from its input (display no_signal or intermittent); no internet is a router whose internet link is down, a modem offline, or a device without a network link; not charging is a rechargeable that is not charging; swollen battery the battery's swollen flag; reversed battery a device with reversed cells or a cell fitted upside down; wrong time a clock more than 2 minutes off, blinking after an outage or stopped; cracked screen the screen_cracked flag; liquid damage water inside (water_ingress) or kernel water damage; overloaded a breaker or strip carrying more than its rating (its thermal accumulator above 0); loose plug a plug sitting part way in its socket (seated between 1 % and 98 %: an unplugged device is not a loose plug); damaged cable a cable's damage or strain, or a cord damaged beyond a cosmetic scuff, or a cord whose strain relief tore; dim light a light dimmed below half; low battery the derived low_battery flag, a battery under 15 % or a cell's hidden charge under 15 %; dead battery a battery at 1 % or less or a cell under 5 %; exposed wire a cord frayed, bared, chewed, crushed or scorched (the hidden _cord_damage beyond a scuff). The kernel's own words for electrical state (on / off, lit / unlit, plugged_in / unplugged, charging, online / offline, no_power, tripped, burnt_out, flickering, battery_leak, arcing, cracked, frayed, working / not_working) are truth.json's; their requests are in catalog/analysis/phase2/handoff_WP-D_electrical.md.",
+  "states": {
+    "paired": [{"field": "pairing.state", "op": "eq", "value": "paired"}, {"field": "paired", "op": "len_gte", "value": 1}],
+    "unpaired": [{"field": "pairing.state", "op": "ne", "value": "paired"}, {"field": "paired", "op": "len_eq", "value": 0}],
+    "dark": [{"field": "lit", "op": "is_false"}, {"field": "light_level", "op": "lt", "value": 0.2}, {"field": "on", "op": "is_false"}],
+    "dimmed": [{"field": "dim_level", "op": "lt", "value": 0.99}],
+    "charged": [{"field": "battery_level", "op": "gte", "value": 0.95}, {"field": "charge", "op": "gte", "value": 0.95}]
+  },
+  "issues": {
+    "no_signal": [{"field": "display", "op": "in", "value": ["no_signal", "intermittent"]}],
+    "no_internet": [{"field": "wan_ok", "op": "is_false"}, {"field": "online", "op": "is_false"}, {"field": "network_link", "op": "is_false"}],
+    "not_charging": [{"field": "charging", "op": "is_false"}],
+    "swollen_battery": [{"field": "battery_swollen", "op": "is_true"}],
+    "reversed_battery": [{"field": "reversed_cells", "op": "is_true"}, {"field": "orientation", "op": "eq", "value": "upside_down"}],
+    "wrong_time": [{"field": "clock.offset_s", "op": "gt", "value": 120}, {"field": "clock.offset_s", "op": "lt", "value": -120},
+                   {"field": "clock.blinking", "op": "is_true"}, {"field": "clock.running", "op": "is_false"}],
+    "cracked_screen": [{"field": "screen_cracked", "op": "is_true"}],
+    "liquid_damage": [{"field": "water_ingress", "op": "is_true"}, {"field": "damage.water_damage", "op": "gt", "value": 0}],
+    "overloaded": [{"field": "_heat", "op": "gt", "value": 0}],
+    "loose_plug": [{"field": "plug_seated", "op": "between", "value": [0.01, 0.98]}],
+    "damaged_cable": [{"field": "damaged", "op": "is_true"}, {"field": "strain_damage", "op": "is_true"},
+                      {"field": "_cord_damage", "op": "in", "value": ["fray", "exposed", "crushed", "scorched", "chewed", "strain"]},
+                      {"field": "strain_relief_damaged", "op": "is_true"}],
+    "dim_light": [{"field": "dim_level", "op": "lt", "value": 0.5}],
+    "low_battery": [{"field": "low_battery", "op": "is_true"}, {"field": "battery_level", "op": "lt", "value": 0.15},
+                    {"field": "charge", "op": "lt", "value": 0.15}],
+    "dead_battery": [{"field": "battery_level", "op": "lte", "value": 0.01}, {"field": "charge", "op": "lt", "value": 0.05}],
+    "exposed_wire": [{"field": "_cord_damage", "op": "in", "value": ["fray", "exposed", "crushed", "scorched", "chewed"]}]
+  }
+}

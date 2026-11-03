@@ -129,7 +129,7 @@ def wandering_idle(w):
     return not any(p.get("wandering") and C.present(p) for p in w.s.get("people", {}).values())
 
 
-@system("people.wandering", order=107, max_dt=30.0, idle=wandering_idle)
+@system("people.wandering", order=107, max_dt=30.0, idle=wandering_idle, writer="volition")
 def wandering_system(w, dt, tick):
     state = w.s
     now = C.now_s(state)

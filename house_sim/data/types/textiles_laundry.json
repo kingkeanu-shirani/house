@@ -4317,9 +4317,28 @@
     ],
     "volume_l": 0.1,
     "mass_kg": 0.005,
-    "combustible": true
+    "combustible": true,
+    "waste": true
    },
-   "doc": "A wad of dryer lint (trash)."
+   "doc": "A wad of dryer lint (trash; refuse from the moment it is peeled off: waste true, the house ledger's waste_item)."
+  },
+  "lint_roller_sheet": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "used lint roller sheet",
+    "category": "lint",
+    "waste_stream": "trash",
+    "material": "paper",
+    "size_m": [
+     0.1,
+     0.1,
+     0.003
+    ],
+    "volume_l": 0.03,
+    "mass_kg": 0.003,
+    "waste": true
+   },
+   "doc": "A peeled adhesive lint roller sheet with the lint and hair it picked up (trash; refuse: waste true)."
   },
   "clothes_hanger": {
    "is_a": "portable_object",

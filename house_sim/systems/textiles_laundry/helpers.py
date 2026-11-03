@@ -515,7 +515,16 @@ def linens(ctx, at, size="queen", items=None, folded=True, relation=None, set_id
     wanted = items or ["fitted", "flat", "case", "case"]
     out = {}
     counters = {}
+    names = []
     for kind in wanted:
+        base = {"fitted": "fitted", "protector": "protector", "flat": "flat", "cover": "cover", "duvet_cover": "cover", "insert": "insert",
+                "duvet_insert": "insert", "case": "case", "pillowcase": "case", "pillow_protector": "pillow_protector"}.get(kind, kind)
+        counters[base] = counters.get(base, 0) + 1
+        names.append(base if counters[base] == 1 else "{}_{}".format(base, counters[base]))
+    # schema 4: placed in a seeded order, so which pile is the fitted sheet and which the flat one (look-alikes) is not
+    # told by where they land (VERIFY_HARDENING 9.2, WP9's placer.order); older specs keep the listed order
+    for index in p.order(range(len(wanted))):
+        kind = wanted[index]
         props = {"bed_size": size}
         if set_id:
             props["set_id"] = set_id
@@ -548,11 +557,8 @@ def linens(ctx, at, size="queen", items=None, folded=True, relation=None, set_id
         eid = _place_linen(config, p, at, type_name, relation, props)
         if eid is None:
             raise SpecError("linens: no space for {} at {} (or anywhere near it)".format(type_name, at))
-        base = {"fitted": "fitted", "protector": "protector", "flat": "flat", "cover": "cover", "duvet_cover": "cover", "insert": "insert",
-                "duvet_insert": "insert", "case": "case", "pillowcase": "case", "pillow_protector": "pillow_protector"}.get(kind, kind)
-        counters[base] = counters.get(base, 0) + 1
-        out[base if counters[base] == 1 else "{}_{}".format(base, counters[base])] = eid
-    return out
+        out[names[index]] = eid
+    return {name: out[name] for name in names}
 
 
 LOOKALIKES = [
@@ -577,30 +583,37 @@ def sock_pile(ctx, container, pairs=4, orphans=1, owners=None, scramble=True):
     designs = list(LOOKALIKES)
     rng.shuffle(designs)
     designs = designs[:pairs + orphans]
+    plan = []
     for i, design in enumerate(designs):
         owner = owners[0] if design["size"] != "S" else (owners[-1] if len(owners) > 1 else owners[0])
         pair_id = "sockpair_{}".format(i + 1)
-        members = []
         for side in (("a", "b") if i < pairs else ("a",)):
             props = dict(design, pair_id=pair_id, owner=owner, color_class="dark" if design["color"] in ("black", "navy") else ("white" if design["color"] == "white" else "light"))
             if scramble and rng.random() < 0.25:
                 props["inside_out"] = True
             if scramble and rng.random() < 0.15:
                 props["balled"] = True
-            if container in config["rooms"]:
-                eid = p.floor_item(container, "sock", **props)
-            elif config["entities"][container].get("container"):
-                eid = p.inside(container, "sock", **props)
-            else:
-                eid = _put_on(config, p, container, "sock", **props)
-            if eid is None and container not in config["rooms"]:
-                room = root_room(_state(config), container)
-                if room in config["rooms"]:
-                    eid = p.floor_item(room, "sock", near=config["entities"][container].get("pos"), **props)
-            if eid is None:
-                raise SpecError("sock_pile: no space in or near " + container)
-            members.append(eid)
-            socks.append(eid)
+            plan.append((i, side, props))
+    # schema 4: the look-alike socks are placed in a seeded order, so where a sock lands says nothing about whether it
+    # is half of a pair or the orphan (VERIFY_HARDENING 9.2, WP9's placer.order); older specs keep the design order
+    placed = {}
+    for i, side, props in p.order(plan):
+        if container in config["rooms"]:
+            eid = p.floor_item(container, "sock", **props)
+        elif config["entities"][container].get("container"):
+            eid = p.inside(container, "sock", **props)
+        else:
+            eid = _put_on(config, p, container, "sock", **props)
+        if eid is None and container not in config["rooms"]:
+            room = root_room(_state(config), container)
+            if room in config["rooms"]:
+                eid = p.floor_item(room, "sock", near=config["entities"][container].get("pos"), **props)
+        if eid is None:
+            raise SpecError("sock_pile: no space in or near " + container)
+        placed[(i, side)] = eid
+    for i, design in enumerate(designs):
+        members = [placed[(i, side)] for side in (("a", "b") if i < pairs else ("a",))]
+        socks.extend(members)
         if i < pairs:
             pair_list.append(members)
         else:

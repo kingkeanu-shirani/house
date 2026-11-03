@@ -10,6 +10,7 @@ import unittest
 from house_sim.generator import generate_house
 from house_sim.generator.place import Placer
 from house_sim.kernel import geometry
+from house_sim.kernel.actions import NOVEL_OPERATE_MESSAGE
 from house_sim.kernel.engine import HouseEnv
 from house_sim.kernel.plugins import load_domains
 from house_sim.kernel.predicates import check
@@ -2520,19 +2521,23 @@ class PerceptionHardeningTests(unittest.TestCase):
         messages += [r["message"] for r in covers]
         self.assertEqual(true_ids_in(messages, set(env.world.s["entities"])), set())
 
-    def test_socks_and_novel_textiles_are_not_held_up_by_the_look_alike_rule(self):
+    def test_socks_fold_unresolved_and_novel_textiles_get_one_identify_first_answer(self):
         config, p, s = build()
         sock = p.on(s["table"], "sock", color="black", brand="Hanes", size_label="L 10-13")
         odd = p.on(s["table"], "t_shirt", novel=True)
         odd_sheet = p.on(s["table"], "fitted_sheet", novel=True)
+        odd_roller = p.on(s["table"], "lint_roller", novel=True)
         env, H = self._env(config)
         self._do(env, "approach", H(s["table"]))
         self.assertIn("candidates", env.observe()["visible_entities"][H(sock)])     # an uninspected sock is unresolved
         self._do(env, "fold", H(sock), style="ball")                             # every sock folds alike: no wait
-        self._do(env, "fold", H(odd), style="half")                              # a novel thing never resolves
-        # a novel thing belongs to no look-alike group whatever its hidden type (kernel r5): an unfamiliar fitted
-        # sheet is not held up as a "bed sheet" look-alike (it would never resolve, so it could never be folded)
-        self._do(env, "fold", H(odd_sheet), style="fitted_nest")
+        # an unfamiliar thing never resolves, whatever it really is: every verb of the domain gives it the kernel's
+        # one identify-first refusal (WP-D textiles_laundry: before, a novel t-shirt folded and a novel lint roller
+        # was "Only textiles can be folded" -- the twins told apart)
+        answers = {(r["message"], r["category"]) for r in
+                   (self._no(env, "fold", H(odd), style="half"), self._no(env, "fold", H(odd_sheet), style="half"),
+                    self._no(env, "fold", H(odd_roller), style="half"))}
+        self.assertEqual(answers, {(NOVEL_OPERATE_MESSAGE, "precondition")})
 
     def test_an_unread_jug_is_applied_not_refused_and_a_set_stain_is_not_announced(self):
         config, p, s = build()

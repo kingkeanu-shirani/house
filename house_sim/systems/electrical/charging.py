@@ -23,6 +23,7 @@ from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import before, hook, system
 from . import common as C
+from . import hardening as H
 from . import percept
 from . import power as P
 from . import cables as K
@@ -257,6 +258,7 @@ def _nimh_bay(w, eid, rec, dt, loads):
         C.consequence(w, "electrical.charging_primary_cell:" + eid, _charge_ids(state, eid, rec["location"]),
                       charger=rec["location"])
         if m["_bad_charge_s"] >= 1800 and not m.get("leaking"):
+            w.mut(eid, cause=C.writer_cause(w, eid, lambda: sorted({eid} | set(C.inputs_of(w.s, eid)))))
             m["leaking"] = True
             m["condition"] = "leaking"
             m["temperature_c"] = 55.0
@@ -288,6 +290,7 @@ def _swollen_charging(w, eid, rec, dt, charger=None):
     ids = _charge_ids(w.s, eid, charger or rec.get("charger"))
     C.consequence(w, "electrical.charging_swollen_battery:" + eid, ids)
     if m["_runaway_s"] >= RUNAWAY_S and not m.get("thermal_runaway"):
+        w.mut(eid, cause=C.writer_cause(w, eid, sorted(ids)))
         m["thermal_runaway"] = True
         m["broken"] = True
         m["temperature_c"] = 400.0
@@ -323,7 +326,10 @@ def charge(ctx):
                             "station", "argument")
     drec = ctx.obj(dev)
     srec = ctx.obj(dest)
-    percept.refuse_unfamiliar(ctx, dev, dest, ctx.args.get("cable"))
+    # identify first: the device's port, the charger's connector and the cable's ends decide the answer below, so an
+    # unresolved look-alike (a power brick before its plate is read, a phone before it is inspected) or an unfamiliar
+    # thing gets the one generic refusal (WP-D electrical; USB-C cables, which only a test tells apart, charge alike)
+    H.identify_first(ctx, dev, dest, ctx.args.get("cable"))
     if is_robot_pack(drec):
         return _charge_robot_pack(ctx, dev, dest, srec)
     via_cable = not (srec.get("wireless") or srec.get("dock_for") or srec.get("bud_slots") is not None or srec.get("captive_connector")

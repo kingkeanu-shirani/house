@@ -133,6 +133,19 @@ def _co_active(rec):
     return True
 
 
+GAS_KWH_PER_M3 = 10.55          # natural gas, higher heating value
+
+
+def meter_gas(w, m3):
+    """Gas that left the supply through a leak: safety.meter gas_m3 / gas_kwh, cumulative (VERIFY_HARDENING 6.8's
+    resource ledger reads meters; the gas meter counts what flows through it, a leak included)."""
+    if m3 <= 0:
+        return
+    meter = C.ledger(w).setdefault("meter", {})
+    meter["gas_m3"] = round(float(meter.get("gas_m3", 0.0) or 0.0) + m3, 6)
+    meter["gas_kwh"] = round(float(meter.get("gas_kwh", 0.0) or 0.0) + m3 * GAS_KWH_PER_M3, 6)
+
+
 def apply_sources(w, dt, sources):
     state = w.s
     for eid in sources:
@@ -146,6 +159,7 @@ def apply_sources(w, dt, sources):
         leak = rec.get("_gas_leak") if isinstance(rec.get("_gas_leak"), dict) else None
         if leak and float(leak.get("m3h", 0.0)) > 0 and _gas_open(state, rec):
             add(w, rid, "gas", float(leak["m3h"]) / 3600.0 * dt / vol * 100.0)
+            meter_gas(w, float(leak["m3h"]) / 3600.0 * dt)
         src = rec.get("_co_source") if isinstance(rec.get("_co_source"), dict) else None
         if src and float(src.get("g_min", 0.0)) > 0 and _co_active(rec):
             add(w, rid, "co", float(src["g_min"]) / 60.0 * dt / vol * CO_PPM_PER_G_M3)

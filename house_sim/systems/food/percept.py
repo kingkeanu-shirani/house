@@ -263,17 +263,14 @@ def unfamiliar_first(ctx):
     object (see the verb). No-op in oracle mode."""
     if realism(ctx.env) is None:
         return
-    from ...kernel.actions import NOVEL_OPERATE_MESSAGE
-    from ...kernel.errors import ActionError
     for pname, p in sorted(ctx.spec.params.items()):
         if pname == "target" and not ctx.spec.operates:
             continue                    # weigh: a thing weighed on a scale is handled as an object
         value = ctx.args.get(pname)
         values = value if p.get("type") == "list" and isinstance(value, list) else \
             [value] if p.get("type") in ENTITY_PARAMS else ()
-        for eid in values:
-            if unfamiliar(ctx.env, eid):
-                raise ActionError(NOVEL_OPERATE_MESSAGE, "precondition")
+        # the kernel's one identify-first refusal (Ctx.refuse_unfamiliar, the phase-1 close-out's shared helper)
+        ctx.refuse_unfamiliar(*[eid for eid in values if isinstance(eid, str)])
 
 
 def layer_name(env, layer):

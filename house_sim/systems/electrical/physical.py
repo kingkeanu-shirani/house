@@ -92,10 +92,14 @@ def _gathers(w, eid, rec, liters):
     """Liquid reaching a device adds to what reached it since it was last dry: True once the sum is INGRESS_L or more
     (the gathering is spent: liquid gets in), else the sum is kept while the device stays wet, so drips add up as a
     single splash does. A device left without a film (wetness at most GATHER_DRY: what reached it ran off or seeped
-    into dry gear) keeps nothing: only this arrival counts."""
+    into dry gear) keeps nothing: only this arrival counts. A device that was dry when this arrival came (the kernel's
+    liquids.wetness_before, inside a phys.wetted hook) forgets what reached it before it dried, even when the system
+    that dried it ran before electrical.wet_gear in the same substep (phase-1 closeout_breakages row 7)."""
     film = C.num(rec.get("wetness"), 0.0) > GATHER_DRY
     gathering = C.section(w.s).get("gathering") or {}
-    total = round(C.num(liters) + (C.num(gathering.get(eid), 0.0) if film else 0.0), 4)
+    before = _wetness_before(w, eid)
+    dried = before is not None and before <= GATHER_DRY
+    total = round(C.num(liters) + (C.num(gathering.get(eid), 0.0) if film and not dried else 0.0), 4)
     keep = film and total < INGRESS_L
     if eid in gathering or keep:
         s = C.sec(w)
@@ -107,6 +111,14 @@ def _gathers(w, eid, rec, liters):
             if not mine:
                 s.pop("gathering", None)
     return total >= INGRESS_L
+
+
+def _wetness_before(w, eid):
+    """The device's wetness before the arrival a phys.wetted hook is seeing (kernel liquids.wetness_before), or None
+    outside such a call or with a kernel that does not report it."""
+    from ...kernel.phys import liquids
+    fn = getattr(liquids, "wetness_before", None)
+    return fn(w, eid) if callable(fn) else None
 
 
 def _dried_gatherings(w):
@@ -150,11 +162,12 @@ def _liquid_ingress(w, eid, liters, liquid, source):
     rec = state["entities"].get(eid)
     if rec is None or not electrical_gear(rec):
         return
+    causes = [eid] + ([source] if isinstance(source, str) and source in state["entities"] else [])
     if not rec.get(WET_BY_ROBOT) and (C.robot_acting(w) or C.robot_acted_on(w, [source])):
         # the robot wetted it (its action spilled, poured or wiped, or it arranged the source): a ground fault this
         # water causes later (power.shock_check in a time step, a GFCI breaker cutting the circuit) is the robot's
         # (common.robot_acted_on reads the marker; sync_dry_devices clears it once the gear is dry)
-        w.mut(eid)[WET_BY_ROBOT] = True
+        w.mut(eid, cause=C.writer_cause(w, eid, causes))[WET_BY_ROBOT] = True
     if splash_proof(rec) or rec.get("broken") or not _gathers(w, eid, rec, liters):
         return
     from ...kernel.phys import impact
@@ -163,7 +176,7 @@ def _liquid_ingress(w, eid, liters, liquid, source):
         rec.get("category") in ("outlet", "light", "switch") or P.is_provider(rec)
     if not live or mains:
         if not rec.get("water_ingress"):
-            w.mut(eid)["water_ingress"] = True
+            w.mut(eid, cause=C.writer_cause(w, eid, causes))["water_ingress"] = True
             impact.damage(w, eid, "water_damage", 0.5, detail="liquid got inside", by=None)
         C.log(w, "water_ingress", device=eid, liquid=liquid, powered=live)
         if not live:
@@ -173,10 +186,11 @@ def _liquid_ingress(w, eid, liters, liquid, source):
     if mains:
         protector = P.gfci_for(state, eid) if rec.get("plug_required") or rec.get("category") == "outlet" else None
         if protector and protector in state["entities"]:
+            fault = lambda: sorted(P.causal_ids(state, eid) | set(causes))  # noqa: E731
             if P.is_breaker(state["entities"][protector]):
-                P.trip_breaker(w, protector, "ground_fault")
+                P.trip_breaker(w, protector, "ground_fault", cause=fault)
             else:
-                P.trip_gfci(w, protector, "ground_fault")
+                P.trip_gfci(w, protector, "ground_fault", cause=fault)
         else:
             # the robot's when its action spilled it, or it arranged the source or acted on the device or its supply;
             # rain or a resident's spill on gear the robot never touched is exogenous (common.consequence)
@@ -192,7 +206,7 @@ def _device_broken(w, eid, info):
     rec = w.s["entities"].get(eid)
     if rec is None or not electrical_gear(rec):
         return
-    m = w.mut(eid)
+    m = w.mut(eid, cause=C.writer_cause(w, eid, [eid]))   # dead because it broke (the kernel's break: its cause)
     if "power_state" in rec and rec.get("power_state") != "off":
         m["power_state"] = "off"
         m.pop("boot_remaining_s", None)

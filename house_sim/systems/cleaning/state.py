@@ -212,6 +212,22 @@ class StateView(object):
         from ...kernel.predicates import root_room
         return root_room(self.s, eid)
 
+    def ancestors(self, eid):
+        """The location chain of eid (as World.ancestors)."""
+        chain, location, seen = [], self.s["entities"][eid].get("location"), {eid}
+        while location is not None and location not in seen:
+            chain.append(location)
+            seen.add(location)
+            found = None
+            for group in ("entities", "people", "pets"):
+                if location in (self.s.get(group) or {}):
+                    found = self.s[group][location].get("location")
+                    break
+            if found is None:
+                break
+            location = found
+        return chain
+
     @property
     def robot(self):
         return self.s["robot"]
@@ -676,7 +692,54 @@ def sync_wet(w, rid):
         film.pop(key, None)
         foreign.discard(key)
     _write_wet(m, film, foreign)
+    sync_floor_wetness(w, rid)
     return True
+
+
+FLOOR_WET_FULL_MM = 0.5     # a floor whose wettest cell holds this film reads fully wet (wetness 1.0)
+
+
+FLOOR_WET_MIN = 0.1         # any film cell (a wet, slippery cell: wet_cells) makes the floor read wet
+
+
+def floor_wetness(room):
+    """A floor's wetness 0..1 from its room's water film: 0 without a film cell; else FLOOR_WET_MIN plus the
+    wettest cell's film over FLOOR_WET_FULL_MM (capped at 1) -- a floor someone could slip on is wet (the kernel's wet
+    state is wetness above 0.05), a puddle reads fully wet."""
+    film = (room or {}).get("water_film") or {}
+    films = [float(v) for v in film.values() if isinstance(v, (int, float)) and v > 0]
+    if not films:
+        return 0.0
+    return rnd(clamp01(FLOOR_WET_MIN + max(films) / FLOOR_WET_FULL_MM), 3)
+
+
+def clamp01(x):
+    return 0.0 if x < 0.0 else (1.0 if x > 1.0 else x)
+
+
+def sync_floor_wetness(w, rid):
+    """Keep the floor entity's `wetness` equal to its room's film (floor_wetness): the floor's own record then says
+    whether it is wet, as every other wet thing's does (a claim "the kitchen floor is wet" reads it; data/speech/
+    truth.json's wet / dry states). Floors are never dried as entities (cleaning.drying dries the film)."""
+    room = w.s["rooms"].get(rid)
+    if room is None:
+        return
+    floor = None
+    eid = "floor_" + rid
+    if eid in w.s["entities"] and is_floor(w.s["entities"][eid]):
+        floor = eid
+    else:
+        for other, rec in sorted(w.s["entities"].items()):
+            if rec.get("location") == rid and is_floor(rec):
+                floor = other
+                break
+    if floor is None:
+        return
+    value = floor_wetness(room)
+    current = w.s["entities"][floor].get("wetness")
+    if (current is None and value <= 0.0) or (isinstance(current, (int, float)) and abs(float(current) - value) < 1e-9):
+        return
+    w.mut(floor)["wetness"] = value
 
 
 def robot_wet(room):
@@ -708,6 +771,7 @@ def set_film(w, rid, key, mm):
         room["_cl_robot_wet"] = sorted(mine, key=lambda s: pk(s)[::-1])
     else:
         room.pop("_cl_robot_wet", None)
+    sync_floor_wetness(w, rid)
 
 
 def film_of(w, rid, key):
@@ -1101,6 +1165,12 @@ def ventilated(w, rid):
 # ----------------------------------------------------------------------
 # tools
 
+def is_machine(rec):
+    """An appliance or a robot (an appliance program, a robot vacuum's rv block): never the hand tool a word of its
+    label names ('robot vacuum-mop' is no flat mop; phase-1 close-out review finding 5)."""
+    return isinstance(rec.get("appliance"), dict) or isinstance(rec.get("rv"), dict)
+
+
 def tool_kind(rec):
     kind = rec.get("tool_kind")
     if kind in M.TOOLS:
@@ -1108,6 +1178,8 @@ def tool_kind(rec):
     for name in type_names(rec):
         if name in M.TOOLS:
             return name
+    if is_machine(rec):
+        return None
     text = "{} {}".format(rec.get("label", ""), rec.get("type", "")).lower()
     if rec.get("mop_bucket") or any(word in text for word in ("bucket", "holder", "hook", "towel bar", "towel ring", "caddy")):
         return None     # a mop bucket, a broom holder or a towel bar is not the tool its label names
@@ -1117,6 +1189,140 @@ def tool_kind(rec):
         if word in text:
             return kind
     return None
+
+
+# ----------------------------------------------------------------------
+# mess flows (VERIFY_HARDENING 6.5; the measures are in hardening.py)
+
+def mess_loc(state, location, relation=None):
+    """The mess location key (class, id) of a place: a room's floor ("outside" outdoors), the robot's hands, a drain
+    (relation drain), else the entity itself -- the key the measures of hardening.py report (core.mess_location's
+    rule)."""
+    if location is None:
+        return None
+    rooms = state.get("rooms") or {}
+    if location in rooms:
+        return ("outside" if (rooms[location] or {}).get("outdoor") else "floor", location)
+    if relation == "drain":
+        return ("drain", location)
+    return ("entity", location)
+
+
+def entity_loc(state, eid):
+    """The mess location key of where entity eid is."""
+    rec = (state.get("entities") or {}).get(eid) or {}
+    return mess_loc(state, rec.get("location"), rec.get("relation"))
+
+
+def flow(w, kind, amount, src, dst, origin=None, cause=None):
+    """Log a mess flow (World.mess_flow, WP2) of `amount` of a registered kind from src to dst (location keys); a
+    no-op for a zero amount, the same place, a missing key or a kind no domain registered (the ledger reads the kinds
+    of plugins.MESS_KINDS only)."""
+    from ...kernel.plugins import MESS_KINDS
+    fn = getattr(w, "mess_flow", None)
+    if not callable(fn) or kind not in MESS_KINDS or src is None or dst is None or tuple(src) == tuple(dst):
+        return None
+    try:
+        amount = float(amount)
+    except (TypeError, ValueError):
+        return None
+    if not amount > 1e-9:
+        return None
+    return fn(kind, round(amount, 6), tuple(src), tuple(dst), origin=origin, cause=cause)
+
+
+def deposit_loc(w, container):
+    """Where loose waste deposited into container is (surfaces.deposit_waste): a sink's drain (its strainer and trap),
+    else the container."""
+    rec = w.s["entities"].get(container) or {}
+    if rec.get("drain") and rec.get("water_source"):
+        return ("drain", container)
+    return mess_loc(w.s, container)
+
+
+def flow_item(w, eid, before):
+    """A refuse entity (waste: true) moved from the mess location `before` to where it is now: one waste_item."""
+    rec = w.s["entities"].get(eid)
+    if rec is None or rec.get("waste") is not True:
+        return None
+    return flow(w, "waste_item", 1.0, before, entity_loc(w.s, eid), origin=None)
+
+
+def load_grams(load):
+    """Grams of a tool or bin load ({kind: g})."""
+    if not isinstance(load, dict):
+        return 0.0
+    return sum(float(v) for v in load.values() if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0)
+
+
+def count_water(w, liters):
+    """Count litres this domain draws from the supply on the house water meter the ledger reads (VERIFY_HARDENING
+    6.8: house_sim/data/verify/resources.json meters.water.path, plumbing's meter; "cleaning's water_used_l counts
+    into it"). Nothing when the path is not a dotted section path."""
+    if not liters or liters <= 0:
+        return
+    try:
+        from ...kernel import ledger
+        path = ((ledger.data("resources").get("meters") or {}).get("water") or {}).get("path")
+    except (OSError, ValueError, KeyError):
+        return
+    if not isinstance(path, str) or "." not in path:
+        return
+    parts = path.split(".")
+    node = w.sec(parts[0])
+    for key in parts[1:-1]:
+        child = node.get(key)
+        if not isinstance(child, dict):
+            if child is not None:
+                return                  # another owner's value sits on the path: leave it alone
+            child = node[key] = {}
+        node = child
+    current = node.get(parts[-1], 0.0)
+    if isinstance(current, bool) or not isinstance(current, (int, float)):
+        return
+    node[parts[-1]] = rnd(float(current) + float(liters), 3)
+
+
+DRAIN_PASS_M = 0.05         # a thing whose largest dimension is at most this goes down a drain opening / grate
+TOILET_PASS_M = 0.08        # a toilet's trapway takes a little more
+
+
+def drains_away(rec, drain_rec):
+    """Whether rec, tipped or pushed into drain_rec (a sink, tub, toilet, floor or storm drain), goes down the drain:
+    the drain takes what fits through it."""
+    size = rec.get("size_m") or (0.1, 0.1, 0.1)
+    try:
+        largest = max(float(v) for v in size)
+    except (TypeError, ValueError):
+        largest = 0.1
+    limit = TOILET_PASS_M if (drain_rec.get("toilet") or is_a(drain_rec, "toilet")) else DRAIN_PASS_M
+    return largest <= limit + 1e-9
+
+
+def has_drain(rec):
+    """A basin or drain things can go down: a sink or tub with a drain, a toilet, a floor or storm drain."""
+    return bool((rec.get("water_source") and rec.get("drain")) or rec.get("toilet") or rec.get("floor_drain") or
+                rec.get("storm_drain") or is_a(rec, "toilet"))
+
+
+def send_down_drain(w, eid, drain_id, source=None):
+    """eid went down drain_id's drain (VERIFY_HARDENING 6.11, the drain relation): location drain_id, relation
+    "drain" -- out of sight and out of reach (cleaning's visible_veto hides it), lost for the house ledger. Logged
+    as item_down_drain."""
+    m = w.mut(eid)
+    m["location"], m["relation"] = drain_id, "drain"
+    for key in ("pos", "spos", "shelf", "revealed"):
+        m.pop(key, None)
+    glog(w, "item_down_drain", item=eid, drain=drain_id, source=source)
+
+
+def dispenser(rec):
+    """A held bottle a product can be applied from: a cleaning product, a mixed solution (cl_chem) or a refill /
+    trigger bottle holding liquid (plain water sprays like any spray). One rule for every member of the spray_bottle
+    look-alike group, so apply_cleaner, disinfect and descale answer an unread plain bottle as they answer an unread
+    product spray (phase-1 close-out review finding 6)."""
+    return bool(rec.get("product") or rec.get("cl_chem") or
+                (isinstance(rec.get("trigger"), dict) and rec.get("liquid_l") is not None))
 
 
 def tool_spec(rec, side=None, angle=None):
@@ -1137,13 +1343,17 @@ def tool_spec(rec, side=None, angle=None):
 
 
 def held_tool(ctx, param="tool", kinds=None, predicate=None, required=True, message=None):
-    """Resolve the tool argument: an explicitly named held item, else a held item that fits."""
+    """Resolve the tool argument: an explicitly named held item, else a held item that fits. Realistic perception: a
+    held thing the robot takes for an unfamiliar (novel) one is no tool it knows of (core.require_tool's rule): named,
+    it gets the kernel's one identify-first refusal; unnamed, it is passed over -- so no answer depends on what it
+    really is (phase-1 close-out breakage row: a held unfamiliar slicker brush dusted, every other one was refused)."""
     w = ctx.w
     explicit = ctx.args.get(param)
     held = w.held_items()
     if explicit:
         require(explicit in held, "Hold the {} first".format(explicit if realistic(ctx) else w.s["entities"].get(explicit, {}).get("label", explicit)),
                 "precondition")
+        refuse_unfamiliar(ctx, explicit)
         rec = w.ent(explicit)
         if kinds is not None:
             spec = tool_spec(rec)
@@ -1151,6 +1361,8 @@ def held_tool(ctx, param="tool", kinds=None, predicate=None, required=True, mess
             require(ok, message or "That is not a suitable tool for this", "capability")
         return explicit
     for eid in held:
+        if unfamiliar(ctx, eid):
+            continue
         rec = w.ent(eid)
         spec = tool_spec(rec)
         if kinds is None and predicate is None:

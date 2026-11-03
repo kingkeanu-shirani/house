@@ -230,7 +230,11 @@ def apply_actions(w, actions, depth=0):
                 continue
             done.add(eid)
             if rec["settings"].get(setting) != value:
-                w.mut(eid)["settings"][setting] = copy.deepcopy(value)
+                # the hub or app ran it: its program (a scene or automation the household set up, or the away mode
+                # someone switched on) is the cause (VERIFY_HARDENING 6.2)
+                sec = section(state) or {}
+                host = [x for x in (sec.get("hub"), sec.get("app")) if isinstance(x, str) and x in state["entities"]]
+                w.mut(eid, cause=C.writer_cause(w, eid, host or [eid]))["settings"][setting] = copy.deepcopy(value)
         elif act.get("device"):
             failed.add(act["device"])
     if done:

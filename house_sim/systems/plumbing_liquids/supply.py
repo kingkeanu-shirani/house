@@ -270,7 +270,7 @@ def _meter_view(rec, total, spinning):
 
 def meter_idle(w):
     """True when meter_update with no flow would change nothing (every display current and still). Pure."""
-    total = C.num(C.pget(w, "meter_l"))
+    total = C.house_meter_l(w.s)
     for eid in C.live(w, C.kind_ids(w, "water_meter")):
         rec = w.s["entities"][eid]
         if rec.get("display") != _meter_view(rec, total, False)[1] or rec.get("flow_indicator") is not False:
@@ -279,8 +279,9 @@ def meter_idle(w):
 
 
 def meter_update(w, flow_lpm):
-    """Refresh every water meter's display (cumulative liters) and flow indicator."""
-    total = C.num(C.pget(w, "meter_l"))
+    """Refresh every water meter's display (cumulative liters through the house meter, other domains' counted draws
+    included: common.house_meter_l) and flow indicator."""
+    total = C.house_meter_l(w.s)
     for eid in C.live(w, C.kind_ids(w, "water_meter")):
         rec = w.s["entities"][eid]
         spinning = flow_lpm > 0.005

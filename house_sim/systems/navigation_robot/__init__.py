@@ -7,7 +7,8 @@ reachers), measuring and leveling, robot self-maintenance (battery, cameras, fal
 privacy/quiet modes, unobtrusive waiting, remote help), elevators, and other household robots.
 
 Importing this package registers every action, hook, system, observer, inspector, invariant,
-answerer, scenario helper, skill and furnisher of the domain. See docs/domains/navigation_robot.md.
+answerer, scenario helper, skill and furnisher of the domain, and its verification-hardening registrations (the
+derived docked field and settings skills, hardening.py). See docs/domains/navigation_robot.md.
 """
 from . import common  # noqa: F401
 from . import hazards  # noqa: F401
@@ -25,6 +26,7 @@ from . import world  # noqa: F401
 from . import scenarios  # noqa: F401
 from . import skills  # noqa: F401
 from . import furnish  # noqa: F401
+from . import hardening  # noqa: F401
 
 VERBS = ("step", "go_to", "follow", "lead", "patrol", "dock", "undock", "swap_battery", "clean_camera", "get_up", "climb_on",
          "step_down", "use_reacher", "measure", "check_level", "mark", "call_elevator", "ride_elevator", "set_privacy_mode",

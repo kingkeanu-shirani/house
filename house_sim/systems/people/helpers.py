@@ -411,10 +411,22 @@ def room_metrics(ctx, room):
 
 
 @scenario_helper("people.message")
-def message(ctx, key, sender, to, text, key_facts, urgent=False):
+def message(ctx, key, sender, to, text, key_facts=(), urgent=False, key_claims=None):
+    """A message the robot is to pass on (user_simulator.messages). key_facts: legacy keyword facts (schema 2 / 3);
+    key_claims: claim patterns (VERIFY_HARDENING 13.4, schema 4) -- a delivery is complete when the words the
+    recipient heard assert every one and contradict none, and attributed only when they name the sender."""
     sim = ctx.config.setdefault("user_simulator", {})
-    sim.setdefault("messages", {})[key] = {"from": sender, "to": list(to) if isinstance(to, list) else [to], "text": text,
-                                           "key_facts": list(key_facts), "urgent": bool(urgent)}
+    entry = {"from": sender, "to": list(to) if isinstance(to, list) else [to], "text": text,
+             "key_facts": list(key_facts or ()), "urgent": bool(urgent)}
+    if key_claims:
+        from ...kernel import speech
+        if not isinstance(key_claims, list) or not all(isinstance(c, dict) for c in key_claims):
+            raise SpecError("people.message: key_claims is a list of claim patterns")
+        problems = [p for c in key_claims for p in speech.validate_pattern(c)]
+        if problems:
+            raise SpecError("people.message: " + "; ".join(problems))
+        entry["key_claims"] = [dict(c) for c in key_claims]
+    sim.setdefault("messages", {})[key] = entry
     return {"message_key": key}
 
 
@@ -449,6 +461,9 @@ def glasses_request(ctx, ambiguous=False, requester="resident_1", spouse="reside
     for eid, rec in sorted(ctx.config["entities"].items()):
         if rec.get("type") in ("reading_glasses", "distance_glasses", "sunglasses"):
             rec["owner"] = rec.get("owner") or "household"
+    # which nightstand is the requester's: ctx.placer.order (seeded in schema 4, VERIFY_HARDENING 9.2; the first by id
+    # otherwise), so "the requester's pair is on the first nightstand" is no tell
+    stands = ctx.placer.order(stands[:2]) + stands[2:]
     mine = ctx.placer.on(stands[0], "reading_glasses", owner=requester, color="red", secret_fields=["owner"], home=stands[0])
     theirs = _place_on_first(ctx, [stands[1] if len(stands) > 1 else None, _first(ctx, "counter", room=_room(ctx, "kitchen"))],
                              "reading_glasses", owner=spouse, color="black", secret_fields=["owner"])
@@ -726,14 +741,21 @@ def medicine_cabinet(ctx, requester="patient", second_rx=False, grandparent=Fals
         del ctx.config["entities"][eid]
     for pid in (patient, spouse):
         people[pid].pop("med_schedule", None)
-    mine = ctx.placer.inside(cab, "prescription_bottle", shelf=0, owner=patient, patient=patient, drug="lisinopril_10mg",
-                             label_text="Rx Lisinopril 10 mg - Patient: Morgan Lee - take 1 tablet daily", patient_name="Morgan Lee",
-                             secret_fields=["patient", "drug", "owner"])
-    theirs = ctx.placer.inside(cab, "prescription_bottle", shelf=0, owner=spouse, patient=spouse, drug="lisinopril_20mg",
-                               label_text="Rx Lisinopril 20 mg - Patient: Taylor Lee - take 1 tablet daily", patient_name="Taylor Lee",
-                               secret_fields=["patient", "drug", "owner"])
-    vit = ctx.placer.inside(cab, "vitamin_bottle", shelf=1, owner=child, patient=child, drug="kids_multivitamin",
-                            label_text="Kids chewable multivitamin", secret_fields=["patient", "drug", "owner"], otc_household=False)
+    # the look-alike bottles are placed in ctx.placer.order (a seeded order in schema 4, VERIFY_HARDENING 9.2; the
+    # given order otherwise): inside a cabinet the rank follows the ids, so a fixed creation order was a positional tell
+    rx = [("mine", "prescription_bottle", dict(shelf=0, owner=patient, patient=patient, drug="lisinopril_10mg",
+                                                label_text="Rx Lisinopril 10 mg - Patient: Morgan Lee - take 1 tablet daily",
+                                                patient_name="Morgan Lee", secret_fields=["patient", "drug", "owner"])),
+          ("theirs", "prescription_bottle", dict(shelf=0, owner=spouse, patient=spouse, drug="lisinopril_20mg",
+                                                  label_text="Rx Lisinopril 20 mg - Patient: Taylor Lee - take 1 tablet daily",
+                                                  patient_name="Taylor Lee", secret_fields=["patient", "drug", "owner"])),
+          ("vit", "vitamin_bottle", dict(shelf=1, owner=child, patient=child, drug="kids_multivitamin",
+                                         label_text="Kids chewable multivitamin", secret_fields=["patient", "drug", "owner"],
+                                         otc_household=False))]
+    placed = {}
+    for role, type_name, props in ctx.placer.order(rx):
+        placed[role] = ctx.placer.inside(cab, type_name, **props)
+    mine, theirs, vit = placed["mine"], placed["theirs"], placed["vit"]
     if not (mine and theirs and vit):
         raise SpecError("Medicine cabinet too full")
     people[patient]["med_schedule"] = [{"med": "lisinopril_10mg", "times": ["08:00"], "window_min": 60}]
@@ -1202,17 +1224,23 @@ def ownership_pile(ctx, labelled=2, twins=True):
         raise SpecError("No floor space for the basket")
     a, b, parent = kids[0], kids[1], adults[0]
     garments = [("t-shirt", a, True), ("t-shirt", b, True), ("socks", a, False), ("socks", b, False), ("hoodie", parent, False)]
-    made, owners = [], {}
-    for i, (kind, owner, label) in enumerate(garments):
+    labelled_ids = set(range(min(labelled, len(garments))))
+    # look-alike garments go into the basket in ctx.placer.order (seeded in schema 4, VERIFY_HARDENING 9.2): inside a
+    # container the rank follows the ids, which follow the creation order (the given order otherwise)
+    order = ctx.placer.order(list(range(len(garments))))
+    made, owners, slot = [], {}, {}
+    for i in order:
+        kind, owner, label = garments[i]
         props = dict(label=kind, category="garment", color="grey" if kind != "hoodie" else "black", size="youth M" if owner in kids else "adult L",
                      owner=owner, secret_fields=["owner"], mass_kg=0.2, size_m=[0.25, 0.2, 0.03], volume_l=1.0)
-        if label and i < labelled:
+        if label and i in labelled_ids:
             props["label_text"] = _label(ctx, owner).upper()
         eid = ctx.placer.inside(basket, "generic_item", **props)
         if eid is None:
             raise SpecError("Basket is full")
-        made.append(eid)
+        slot[i] = eid
         owners[eid] = owner
+    made = [slot[i] for i in range(len(garments))]       # the bindings keep the garments' roles in their given order
     charger = ctx.placer.inside(basket, "generic_item", label="phone charger", category="charger", owner="household", shared=True,
                                 secret_fields=["owner"], mass_kg=0.1, size_m=[0.1, 0.06, 0.03], volume_l=0.2)
     made.append(charger)

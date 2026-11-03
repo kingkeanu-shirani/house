@@ -487,8 +487,31 @@ def _clear_region(state, rid):
     # clutter (items stood there could only be reached by wading through the clutter)
     at_door = [c for c in comps if c & doors or geometry.near_cells(doors, room, 1) & c]
     pool = [c for c in at_door if len(c) > 1] or comps
-    best = max(enumerate(pool), key=lambda t: (len(t[1]), -t[0]))[1]     # the first found wins a tie
+    # a region whose doorway leads on into the house beats a bigger one whose only doorway opens into a dead end (a
+    # pantry, a closet): supplies that do not fit there would land in a room reachable only across the mess, and the
+    # robot started beside them could not fetch them without stepping on it (WP11's held-out X-bc4e8d373e62c5-01
+    # seed 5: the glass walled the gloves' pocket off from everything but the pantry)
+    onward = _onward_doors(state, rid)
+    best = max(enumerate(pool), key=lambda t: (bool(t[1] & onward or geometry.near_cells(onward, room, 1) & t[1]),
+                                                len(t[1]), -t[0]))[1]     # the first found wins a tie
     return best if len(best) > 1 else reach
+
+
+def _onward_doors(state, rid):
+    """Doorway cells of rid whose room beyond has another way on (a room with a second connection, or outdoors)."""
+    out = set()
+    conns = state.get("connections", {})
+    for _, conn in sorted(conns.items()):
+        cells = conn.get("cells") or {}
+        if rid not in cells:
+            continue
+        other = next((x for x in conn.get("rooms", []) if x != rid), None)
+        if other is None or other not in state.get("rooms", {}):
+            continue
+        degree = sum(1 for c in conns.values() if other in (c.get("rooms") or ()))
+        if degree > 1 or state["rooms"][other].get("outdoor"):
+            out.add(tuple(cells[rid]))
+    return out
 
 
 def _keeps_open(walkable, cell, doors, cells=None):
@@ -1671,9 +1694,15 @@ def placement_order(ctx, names, salt):
     """The order a helper creates and places a list of things in: a seeded shuffle, independent of the order the spec
     lists them (review P2-c F3 / H4: the unlabeled bottle listed third of four landed between two blue labelled ones on
     26 of 40 seeds, so "the middle bottle" answered a read-the-labels task). Which slot, cell or handle order a member
-    gets then tells nothing about its role. A derived stream: the setup's own random draws are unchanged."""
+    gets then tells nothing about its role. Legacy specs: a derived stream (the setup's own random draws are
+    unchanged); schema 4: the setup RNG's permutation (ctx.placer.order, WP9), which the 200-build audits see."""
     names = [str(n) for n in names]
     order = list(range(len(names)))
+    placer = getattr(ctx, "placer", None)
+    if getattr(placer, "shuffle", False):
+        # schema 4 (WP9, VERIFY_HARDENING 9.2): the setup RNG's own seeded permutation (Placer.order), so the 200-build
+        # audits of 9.7 see the placement the setup draws; legacy specs keep the derived stream below
+        return list(placer.order(order))
     random.Random("{}|{}|{}".format(salt, ctx.seed, "|".join(names))).shuffle(order)
     return order
 
@@ -1681,7 +1710,13 @@ def placement_order(ctx, names, salt):
 @scenario_helper("safety.chemicals")
 def chemicals_helper(ctx, room="kitchen", items=("bleach", "glass_cleaner", "toilet_cleaner"), where="floor", cabinet=True,
                      cabinet_room=None, cabinet_latch="auto", states=None, audit=True, child_age=None, prefix="chem_", food_shelf=None,
-                     sink_cabinet=False):
+                     sink_cabinet=False, pool=None, k=None):
+    """items: the products (CHEM_PRESETS names), or "random" / a sample binding drawn from pool (default every preset)
+    by the setup (ctx.sample_roles, WP9; k members); the helper places them in a seeded order (placement_order)."""
+    if isinstance(items, str) or pool is not None:
+        items = ctx.sample_roles(items, list(pool) if pool is not None else sorted(CHEM_PRESETS), k=k,
+                                 name="safety.chemicals items")
+    items = list(items)
     rid = _room(ctx, room)
     out = {}
     if cabinet:

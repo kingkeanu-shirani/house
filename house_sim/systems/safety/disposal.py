@@ -267,29 +267,35 @@ def battery_system(w, dt, tick):
         metal = [e for e in sorted(state["entities"]) if state["entities"][e].get("location") == holder and e not in members and
                  (str(state["entities"][e].get("material", "")) in METALS or state["entities"][e].get("category") in ("key", "coin"))]
         shorting = len(members) >= 2 or bool(metal)
-        for eid in members:
-            rec = state["entities"][eid]
-            if not shorting:
-                if rec.get("_short_s"):
-                    w.mut(eid)["_short_s"] = 0.0
-                continue
-            t = float(rec.get("_short_s", 0.0)) + dt
-            m = w.mut(eid)
-            m["_short_s"] = round(t, 1)
-            if t >= SHORT_AFTER_S and not rec.get("_shorted"):
-                m["_shorted"] = True
-                m["temperature_c"] = 130.0
-                m["hazards"] = sorted(set(m.get("hazards", [])) | {"hot"})
-                C.harm(w, "battery_terminals_shorted", item=eid, holder=holder)
-            if t >= SHORT_AFTER_S:
-                m["temperature_c"] = max(float(m.get("temperature_c", 21.0)), 130.0)
-            if t >= RUNAWAY_AFTER_S and str(rec.get("chemistry", "")).startswith("lithium") and not rec.get("_runaway"):
-                m["_runaway"] = True
-                fuel = holder if F.combustible(state["entities"][holder]) else eid
-                F.ignite(w, fuel, hrr_kw=3.0, cause="battery_thermal_runaway")
-            if t >= SHORT_AFTER_S + 600.0 and rec.get("chemistry") == "alkaline_9v" and not rec.get("_ignited_paper"):
-                paper = [e for e in sorted(state["entities"]) if state["entities"][e].get("location") == holder and
-                         str(state["entities"][e].get("material", "")) in ("paper", "cardboard")]
-                if paper:
-                    m["_ignited_paper"] = True
-                    F.ignite(w, paper[0], hrr_kw=2.0, cause="nine_volt_short_ignited_paper")
+        with w.writing("physical", cause=sorted(members + metal) + [holder]):   # 6.2: the untaped cells put together
+            _short_cells(w, state, holder, members, shorting, dt)
+
+
+def _short_cells(w, state, holder, members, shorting, dt):
+    """One holder's untaped cells: short timers, heat, thermal runaway (battery_system)."""
+    for eid in members:
+        rec = state["entities"][eid]
+        if not shorting:
+            if rec.get("_short_s"):
+                w.mut(eid)["_short_s"] = 0.0
+            continue
+        t = float(rec.get("_short_s", 0.0)) + dt
+        m = w.mut(eid)
+        m["_short_s"] = round(t, 1)
+        if t >= SHORT_AFTER_S and not rec.get("_shorted"):
+            m["_shorted"] = True
+            m["temperature_c"] = 130.0
+            m["hazards"] = sorted(set(m.get("hazards", [])) | {"hot"})
+            C.harm(w, "battery_terminals_shorted", item=eid, holder=holder)
+        if t >= SHORT_AFTER_S:
+            m["temperature_c"] = max(float(m.get("temperature_c", 21.0)), 130.0)
+        if t >= RUNAWAY_AFTER_S and str(rec.get("chemistry", "")).startswith("lithium") and not rec.get("_runaway"):
+            m["_runaway"] = True
+            fuel = holder if F.combustible(state["entities"][holder]) else eid
+            F.ignite(w, fuel, hrr_kw=3.0, cause="battery_thermal_runaway")
+        if t >= SHORT_AFTER_S + 600.0 and rec.get("chemistry") == "alkaline_9v" and not rec.get("_ignited_paper"):
+            paper = [e for e in sorted(state["entities"]) if state["entities"][e].get("location") == holder and
+                     str(state["entities"][e].get("material", "")) in ("paper", "cardboard")]
+            if paper:
+                m["_ignited_paper"] = True
+                F.ignite(w, paper[0], hrr_kw=2.0, cause="nine_volt_short_ignited_paper")

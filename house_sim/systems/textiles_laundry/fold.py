@@ -507,6 +507,13 @@ def _mat_state(w, eid):
     w.mut(eid)["_obstructs"] = blocked
 
 
+def _roll_key(rec):
+    """What rolling a textile shows: whether it is small enough to roll, the roll's size, and the creases a structured
+    garment takes."""
+    fits = max(M.flat_size(rec)) <= 2.0
+    return (fits, tuple(fold_dims(rec, "roll")[0]) if fits else None, bool(rec.get("structured")))
+
+
 @action("roll_garment", params={"target": "entity", "tightness": {"type": "str", "default": "tight", "choices": ["tight", "loose"]}},
         duration=15.0, energy=0.01, category="physical",
         doc="Roll a garment or towel into a tight roll (packing, spa-roll towels). Structured items (blazers, dress shirts, "
@@ -516,6 +523,11 @@ def roll_garment(ctx):
     target = ctx.args["target"]
     rec = ctx.obj(target, touch=True)
     require(M.is_textile(rec), "Only textiles can be rolled", "argument")
+    if ctx.unresolved(target) and M.group_varies(ctx.env, target, _roll_key):
+        # look-alikes that roll differently (a crib sheet rolls, a fitted or flat sheet is too large): the refusal or
+        # the roll's size would tell them apart, so the robot first has to see which one it holds (as fold does)
+        raise ActionError("Spread it out and look it over first (inspect it) to see which kind it is and how it rolls",
+                          "precondition")
     require(not rec.get("on_hanger"), "Take it off the hanger first")
     fw, fl = M.flat_size(rec)
     require(max(fw, fl) <= 2.0, "Too large to roll; fold it")

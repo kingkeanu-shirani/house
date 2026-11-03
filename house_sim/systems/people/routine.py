@@ -98,7 +98,7 @@ def _routines_at_start(w, env):
                 w.person_m(pid)["_schedule_key"] = key
 
 
-@system("people.routine", order=106, max_dt=30.0)
+@system("people.routine", order=106, max_dt=30.0, writer="volition")
 def routine_system(w, dt, tick):
     state = w.s
     clock_now = None

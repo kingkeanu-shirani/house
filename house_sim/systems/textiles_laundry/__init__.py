@@ -11,6 +11,9 @@ Modules: model (fabrics, care labels, stains, damage), wash (washer cycles and o
 dry (dryer, air drying and the per-tick fabric system), fold (folding/pairing/hangers and
 placement physics), bedding (beds), care (iron, steam, stains, soak, lint, pilling), sewing,
 shoes, senses (observers, inspectors, answerers, invariants), furnish (house generation),
-helpers (scenario setup helpers) and skills (reference skills). See docs/domains/textiles_laundry.md.
+helpers (scenario setup helpers), skills (reference skills) and hardening (what the house ledger needs: refuse,
+absorbed-liquid parcels, derived fields, settings skills, hazard zones, the identify-first hook on every verb;
+imported last so it sees every verb). See docs/domains/textiles_laundry.md.
 """
 from . import model, physical, signals, views, wash, dry, fold, bedding, care, sewing, shoes, senses, routes, events, furnish, helpers, skills  # noqa: F401
+from . import hardening  # noqa: F401,E402

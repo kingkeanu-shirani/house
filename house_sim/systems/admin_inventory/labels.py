@@ -184,7 +184,7 @@ def label_tick(w):
         rec = w.s["entities"].get(eid)
         due = rec.get("label_falls_off_s") if rec is not None else None
         if due is not None and now >= due:
-            m = w.mut(eid)
+            m = w.mut(eid, cause=eid)       # 6.2: a label put on a wet or frozen surface comes off by itself
             m.pop("label_falls_off_s", None)
             labels = [dict(l) for l in m.get("labels") or []]
             for l in labels:

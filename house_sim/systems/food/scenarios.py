@@ -630,8 +630,10 @@ def kitchen(ctx, room=None, need=("fridge", "freezer", "sink", "trash", "compost
     compost_bin = None
     if "compost" in need:
         compost_bin = _find(ctx, room, lambda r: r.get("waste_stream") == "compost" and (r.get("container") or r.get("accepts_items")))
-    caddy = dict(label="compost caddy", waste_stream="compost", open=True, capacity_l=6.5, inner_size_m=[0.2, 0.15, 0.22],
-                 size_m=[0.22, 0.17, 0.25], tags=["food_standin"])
+    # the stand-in caddy is a waste bin (waste_bin: the kernel's and cleaning's waste-container rule, as the trash
+    # stand-in's accepts_any_waste): refuse composted in it is sunk mess for the house ledger (VERIFY_HARDENING 6.5)
+    caddy = dict(label="compost caddy", waste_stream="compost", waste_bin=True, open=True, capacity_l=6.5,
+                 inner_size_m=[0.2, 0.15, 0.22], size_m=[0.22, 0.17, 0.25], tags=["food_standin"])
     board_size = _probe(ctx, board_type) if board else None
     # one floor cell reaching both work areas (or one counter for both) beats two counters across the room, even when
     # food's own dressing has to be put away for it; split counters only when nothing else fits
@@ -796,7 +798,9 @@ def groceries(ctx, on, items, bags=2, frozen_temp_c=-12.0, chilled_temp_c=7.0):
     if not bag_ids:
         raise SpecError("food.groceries: no room for a grocery bag on {} or the floor beside it".format(on))
     out = {"bags": bag_ids, "frozen": [], "chilled": [], "pantry": [], "all_groceries": []}
-    for i, type_name in enumerate(items):
+    # placed in the Placer's order (VERIFY_HARDENING 9.2, WP9: a seeded permutation for schema 4, so which bag and
+    # which spot a look-alike member lands in says nothing about its role; the given order for older specs)
+    for i, type_name in enumerate(p.order(list(items))):
         props = ctx.reg.resolve(type_name)
         storage = props.get("storage", "pantry")
         temp = frozen_temp_c if storage == "freezer" else chilled_temp_c if storage == "fridge" or props.get("perishable") else 21.0

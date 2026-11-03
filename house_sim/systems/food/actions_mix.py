@@ -52,6 +52,7 @@ def _shell_to_hand(w, ctx, egg_id, grams):
     shell = M.spawn_food(w, "eggshell", grams, "robot", relation="held", type_name="prep_scraps",
                          label="eggshell halves", waste_stream="compost")
     m = w.mut(shell)
+    m["waste"] = True           # refuse from its creation (hardening.refuse): the halves go to the compost
     m["held_hand"] = hand
     m["food"]["composition"] = {"eggshell": grams}
     m["contamination"] = {"raw_meat": 0.3}
@@ -60,6 +61,8 @@ def _shell_to_hand(w, ctx, egg_id, grams):
     for h, held in list(r["hands"].items()):
         if held == egg_id:
             r["hands"][h] = shell
+    from .hardening import log_created
+    log_created(w, shell)
     return shell
 
 

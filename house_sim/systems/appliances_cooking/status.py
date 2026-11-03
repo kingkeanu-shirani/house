@@ -707,5 +707,5 @@ def _always_on(state, baseline, world):
         if eid not in baseline.get("entities", {}):
             continue
         if _is_off(state, eid) and not _is_off(baseline, eid):
-            return "always_on_appliance_off"
+            return "appliances_cooking.always_on_off:" + eid       # registered name first (WP8-fix)
     return None

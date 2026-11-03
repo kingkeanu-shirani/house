@@ -11,9 +11,15 @@
     textiles_laundry.dress_bare_bed(bed, fitted, cover, insert, pillows, cases, protector=None, flat=None)
     textiles_laundry.iron_garment(garment, iron, board, temp)
     textiles_laundry.feel_garment(garment, where="closely")        inspect it, lighting a dark room for the look
+                                                                     (never over a sleeper: the check waits)
+    textiles_laundry.wait_dry(garment, check_s=14400, max_checks=24) wait and feel until it feels dry
+    textiles_laundry.operate(target, verb, hold=False, **args)       one of this domain's verbs where it is (the
+                                                                     settings skills' plan step, hardening.py)
     textiles_laundry.sew_on_button(garment, slot, needle, spool, button=None, home=None, shank=False)
     textiles_laundry.pair_into(pairs, dest)
 """
+import json
+
 from ...kernel import geometry, perception
 from ...kernel.plugins import skill
 from ...kernel.predicates import root_room
@@ -253,6 +259,55 @@ def _light_dark_room(r, room):
     return sorted(_switches_on(r.state) - before)
 
 
+def _sleepers_in(state, room):
+    """People asleep in a room (sleeping posture or not awake)."""
+    return sorted(pid for pid, p in (state.get("people") or {}).items()
+                  if p.get("location") == room and (p.get("posture") == "sleeping" or p.get("awake") is False))
+
+
+@skill("textiles_laundry.operate")
+def operate(r, target, verb, hold=False, **args):
+    """Work a thing with one of this domain's verbs where it is (or held, hold=True): walk up to it (fetch it when it
+    must be held), then `verb` with target and the given arguments (destination "here": the room the robot stands
+    in). The plan step this domain's settings skills give a battery policy (hardening.py)."""
+    if hold:
+        base.fetch(r, target)
+    elif r.state["entities"].get(target, {}).get("location") != "robot":
+        base.approach(r, target)
+    if args.get("destination") == "here":
+        args["destination"] = r.state["robot"]["room"]
+    return r.do(verb, target=target, **args)
+
+
+@skill("textiles_laundry.wait_dry")
+def wait_dry(r, garment, check_s=14400, max_checks=24, where="closely"):
+    """Air-dry the way a person does: wait check_s, feel the garment (feel_garment: closely, so a thick item's seams
+    count), and stop once it feels dry -- surface and seams -- or after max_checks rounds. A fixed number of rounds
+    leaves a wool sweater damp in a cold laundry room (WP11's held-out run, seed 500: 12-15 C at night); this waits as
+    long as the house needs. The judgement uses only what the inspection told the robot."""
+    for _ in range(int(max_checks)):
+        if not r.do("wait", seconds=int(check_s))["ok"]:
+            break
+        felt = feel_garment(r, garment, where=where)
+        if felt is not None and _feels_dry(felt):
+            return felt
+    return None
+
+
+def _feels_dry(result):
+    """Whether an inspection says dry -- its feel and, for a thick item felt closely, its seams -- read from what the
+    robot was told (the agent's message: the inspection's JSON)."""
+    if not isinstance(result, dict) or not result.get("ok"):
+        return False
+    try:
+        details = json.loads(result.get("agent_message", result.get("message")) or "")
+    except (TypeError, ValueError):
+        return False
+    if not isinstance(details, dict):
+        return False
+    return details.get("feel") == "dry" and details.get("seams_feel", "dry") == "dry"
+
+
 @skill("textiles_laundry.feel_garment")
 def feel_garment(r, garment, where="closely"):
     """Check a drying garment by feel, as a person does on the way past: inspect it closely (`where`). In a room too
@@ -264,13 +319,18 @@ def feel_garment(r, garment, where="closely"):
     room = root_room(state, garment)
     switched = []
     if room in state.get("rooms", {}) and not r.env.perception.lit(state, room):
+        if _sleepers_in(state, room):
+            # nobody switches the light on over a sleeper to feel the laundry: the check waits for the next round
+            # (WP11's held-out run, seed 503: the rack stood in the master bedroom at night)
+            return None
         switched = _light_dark_room(r, room)
     _approach(r, garment)
-    r.do("inspect", target=garment, where=where)
+    out = r.do("inspect", target=garment, where=where)
     for switch in switched:
         if r.state["entities"][switch].get("on"):
             base.approach(r, switch)
             r.do("switch_off", target=switch)
+    return out
 
 
 @skill("textiles_laundry.sew_on_button")

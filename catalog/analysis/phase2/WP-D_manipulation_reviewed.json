@@ -1,0 +1,16 @@
+[
+ {
+  "kind": "golden",
+  "key": "specs/T-50c78da60ad2a8-01",
+  "code": "P2",
+  "package": "P2-WPD:manipulation",
+  "decision": "proposed (WP-D manipulation; this package does not own tests/data/room_golden.json, so the main session re-records and signs): VERIFY_HARDENING 8.2 / P10 world fix records.reconcile -- a thing that moves drops the placement records that predate the move and no longer hold. The reference (appliances_cooking) ends with bread_slice_1 and bread_slice_2 lying ON a plate (generic_item_1, relation on) still carrying the pack_seq / pack_z_m of the container they were packed into earlier; they are dropped now. A/B on frozen trees (pristine HEAD bc1dc72 vs HEAD plus only this package's files): tools/golden.py dump --all differs in 2 of 275 files; this entry only in entities.*.pack_seq and entities.*.pack_z_m (value -> null); steps, time and evaluation unchanged; the 8 script runs identical"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-f2bea29c36142c-01",
+  "code": "P2",
+  "package": "P2-WPD:manipulation",
+  "decision": "proposed (WP-D manipulation; the main session re-records and signs): VERIFY_HARDENING 6.5 -- remove_label's peeled label scrap is refuse (waste: true, a world fix: it is litter) and records.reconcile logs it as a waste_item mess flow from created:remove_label to the robot's hand. A/B as above: this entry differs only in entities.*.waste (null -> true, the scrap generic_item_3) and logs.mess_flows (null -> one flow); steps, time and evaluation unchanged"
+ }
+]

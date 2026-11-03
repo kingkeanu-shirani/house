@@ -14,7 +14,7 @@ access rules, medication errors, child safety, household rules).
 
 Code: `house_sim/systems/people/` (package, 22 modules). Types: `house_sim/data/types/people.json` (71 types, 5
 look-alike groups, per-type perception tiers, `view` blocks, file-level field tiers).
-Tests: `tests/test_people.py` (184 tests; pass with all domains loaded, with `HOUSE_SIM_STRICT=1` and in isolation
+Tests: `tests/test_people.py` (190 tests) and `tests/test_people_hardening.py` (section 14); pass with all domains loaded, with `HOUSE_SIM_STRICT=1` and in isolation
 with `HOUSE_SIM_DOMAINS=core,people`; also with every deferred physics law forced on).
 Examples: `tasks/authored/people__examples.json` (11 specs, all pass `--check` on seeds 0, 1, 2, 41, 97, also with
 forced realistic perception in room and geometric camera mode; 10 build a generation-2 house);
@@ -929,3 +929,97 @@ camera-mode difference (KNOWN_LIMITS 6, pinned by the kernel's CameraModeHarmTes
 doorway, and the root -- the microphone capture rule is the kernel's and runs with the geometric camera only -- went
 to a kernel request. The other entity aspects of a destroyed thing (keep, intended, how, status) are manipulation's
 `manip:` answerer (request filed).
+
+## 14. Verification hardening (VERIFY_HARDENING WP-D people, phase 2)
+
+The people part of the verification redesign (docs/design/VERIFY_HARDENING.md sections 6, 8.2, 13, 15.2, 23.3, 25).
+Tests: `tests/test_people_hardening.py` (normal, `HOUSE_SIM_STRICT=1` and `HOUSE_SIM_DOMAINS=core,people`); handoff
+catalog/analysis/phase2/handoff_WP-D_people.md.
+
+**Field classes** (`house_sim/data/verify/watch/people.json`, 6.3, L-WATCH part 2): every property of every type in
+`people.json` is classified (`tools/field_census.py --unclassified --domain people` lists none). Intrinsic properties
+(lens kind, diopter, age ratings, aid kind, sizes, ratings, battery kind, a thermometer's accuracy) are `identity`;
+`folded`, `height_setting_cm`, `child_resistant_closed`, `bookmarked`, `open_face_down` are `setting`; `scratched`,
+`page_lost`, `wax_blocked`, `burned`, `floor_hazard` (true is worse) and `smudge` (up is worse, tolerance 0.05) are
+`condition`; `doses_left` is `content`; a foldable aid's `size_m` and a wheelchair's `seat` follow `settings.folded`
+(`process`); `in_use_by`, `offered`, `hidden_by`, `held_grip`, `unfolded_size_m`, `doc_hint` are bookkeeping; a place
+card's, storybook's and library book's `text` is identity (a calendar artifact's re-rendered `text` stays
+bookkeeping). `water_sensitive`: the hearing aid, paper (books, photos, place cards, the wall calendar, the medication
+log, construction paper, board games, wrapped gifts), mains and battery electronics (heating pad, glue gun, night light,
+intercom, smart bulb, alert light, body and ear thermometers), the bassinet and the wheelchair cushion.
+
+**Writer classes and causes** (6.2): people deciding for themselves are volition, devices are physics.
+
+| System | Writer | Causes |
+|---|---|---|
+| `people.behavior`, `people.routine`, `people.wandering`, `people.visitors`, `people.senses`, `people.children`, `people.watch` | volition | -- (a resident's dusk light, a toddler roaming, a wake from noise, a visitor leaving are never the robot's; the people invariants still score them) |
+| `people.care` | physical for the heating pad and the hearing aid; volition for people's own state (the bath, bedtime settling, a person without their device) | the device itself (`w.mut(eid, cause=eid)`): a pad or aid the robot never touched is not linked to it |
+| `people.calendar` | physical | the artifact (its `text` is bookkeeping anyway) |
+| `people.reach`, `people.room_metrics` | physical | none (derived bookkeeping on people and rooms, which the ledger does not judge) |
+
+Inside a robot action, people's own acts are volition too: the patient taking a dose from a handed-over bottle
+(`doses_left`, `med_doses`: writer `people.patient`), the `offer:` answer (`offered`) and `step_aside` (the person's
+`pos`: writer `user_simulator`). Event hooks (`event:people.*`) are volition through the kernel.
+
+**Zones and passability** (6.4): the ledger derives people's zones from the people records (`home_room`, `age`,
+`authority`, `abilities.mobility`, the wandering flags) and `house_sim/data/verify/agents.json` (WP1's file). Requests
+filed with the handoff: a locked exterior door is passable from inside for anyone who can work its lock (a thumb-turn
+deadbolt; a resident's key from outside), not only for authority-2 adults (otherwise "lock up for the night" confines
+an elderly resident or a school-age child: `house.confined`); `abilities.cognition` dementia / mild_dementia counts as
+"may wander" (the people domain's own rule in `harms.py`).
+
+**Creations and mess**: no people verb or system creates or destroys an entity or moves a registered mess kind, so the
+domain registers no `hazard_created` type and no `@mess_kind`. Meters: the heating pad (50 W) and the night light are
+metered by climate's energy ledger like every device with `power_w`.
+
+**Settings skills** (10.3): the kernel defaults list the people types' option lists (walker, rollator, wheelchair and
+stroller folding and brakes; the heating pad's level and auto-off timer; `on` of switchable devices); `settings.dim`
+of a smart bulb lamp (a range) has its own skill (`harms._dim_steps`).
+
+### Latched fields
+
+| Field | Written by | Recompute |
+|---|---|---|
+| `oriented_to` | `guide` with `orient_to` (a person record): never cleared when the person turns or walks off | none (the derived-field overlay covers entities only): a schema-4 spec reads the person's pose (location, `facing_deg`, seat) |
+
+Not latches: `reach_items` / `aid_ready` / `comfort_state` (recomputed by `people.reach` for tracked people),
+`bedtime_status` (recomputed by `people.care`), `rooms.<r>.metrics` (`people.room_metrics`); a mobility aid's
+`floor_hazard` now follows where it is (below). People's communication records (`heard`, `told_count`, `alerts`,
+`received`, `inbox`, `read_to`, `story_heard_s`, `layout_described`, `mental_map`) are event-kind (8.3): schema 4
+scores what was said with `said` and claim relays (L-SPEECH).
+
+### Claims, relays, readings and world-behaviour fixes
+
+**Truth mappings** (`house_sim/data/speech/truth_people.json`, words in `data/vocab/core.json` and
+`data/vocab/people.json`; 13.3): `home` / `away` of a person (the `away` flag; person-only through `role`, so "the
+candle is out" is never scored as somebody's absence), the issue `fever` (`_body_temp_c` of 38.0 C or more; unknown
+without a body temperature, never false), and the act `let_in` ("I let the plumber in": the visitor's `admitted`
+written by the robot's `let_in`; lenient, so a subject the parser names by role alone is left unscored). Words a
+person shares with a pet or a plant (`sick`, `injured`, `distressed`) keep the kernel's evidence fallback.
+
+**Relays scored by claims** (13.4, `comms._deliver_claims`): a message with `key_claims` (`people.message` takes
+`key_claims`, validated with `speech.validate_pattern`) is `complete` when the words the recipient heard assert every
+key claim (`speech.pattern_matches`) and none contradicts one (`speech.contradicts`); `attributed` only by an
+attribution claim naming the sender ("Jordan says ...", "a message from Jordan"), never by `relay_message`'s `sender=`
+argument; `received.<key>` gains `claims_heard`, `claims_missing`, `contradicted_claims` and `contradicted`. Messages
+with legacy `key_facts` keep the keyword semantics (schema 2 and 3).
+
+**Structured readings** (15.2): `take_temperature` returns `reading` = `{"subject", "quantity": "temperature",
+"value", "unit": "C"}` (with `"field"` for a liquid), which `tasks/perceive.py` indexes as an instrument reading.
+
+**World-behaviour fixes** (P10, every schema):
+
+| Fix | Legacy outcomes |
+|---|---|
+| attendance only by the robot when asked to watch: a `needs_watch` child is unwatched while the robot is away, even with an adult in the room (`watch_by: "anyone"` keeps the old rule) | none (no authored spec reads `watch_s` / `unwatched_s` or uses `people.supervise_kids`) |
+| a mobility aid's `floor_hazard` follows where it is: cleared when it is picked up or put on furniture (it stayed from where it last lay) | none (no authored spec places a mobility aid) |
+| `read_aloud` reads a blank label as core read answers it (ok, `blank_label`), an unfamiliar thing by its print alone (`core.NOVEL_PRINT`) and without a storybook's story time | none (no authored spec reads aloud) |
+| every medicine look-alike named by `pour`, `empty_into`, `fill` or `refill` gets the open guard's refusal ("The robot never opens medicine containers or handles doses", safety) | none (no authored spec pours, empties, fills or refills a medicine container) |
+| identify-first refusals (`Ctx.refuse_unfamiliar`) for an unfamiliar door (`knock`, `answer_door`, `let_in`'s door), log or medication (`log_medication`), thermometer or measured thing (`take_temperature`; a held unfamiliar thermometer is passed over) and parcel (`sign_for`) | none (no authored spec holds an unfamiliar thing) |
+| look-alike members placed in `ctx.placer.order` (`people.medicine_cabinet`, `people.glasses_request`'s nightstands, `people.ownership_pile`) | none (the given order below schema 4) |
+
+Phase-1 carry-over closed here: closeout_breakages rows 1 (read_aloud of unfamiliar things), 2 (read_aloud of a blank
+label before read; the people part of closeout_REV 6), 5 (pouring a pill-bottle look-alike: one refusal for every
+member) and 9 (`knowledge._known_record` is the kernel's `dialogue.known_record`). A sweep of every people verb over
+every registry look-alike group and over 64 unfamiliar twins (room and geometric camera; the handoff's probe) finds no
+people verb telling members apart after these fixes.

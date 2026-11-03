@@ -486,10 +486,13 @@ def soiled_waste(w, spill, rec):
     """Used disposables that touched biohazard/oil become an item to bag and bin."""
     loc = rec.get("location")
     props = {"label": "used paper towels", "waste_kind": "soiled_disposable", "contamination": dict(rec.get("contamination") or {}),
-             "hazards": list(rec.get("hazards", [])), "handled_with": list(rec.get("handled_with", [])), "_disposition": "trash"}
+             "hazards": list(rec.get("hazards", [])), "handled_with": list(rec.get("handled_with", [])), "_disposition": "trash",
+             # refuse from the start, and a hazardous creation that must end in a waste container (house.created_hazard)
+             "waste": True, "tags": ["soaked_cloth"]}
     if rec.get("hazardous_waste"):
         props["_disposition"] = "hazardous"
         props["hazardous_waste"] = True
+        props["tags"] = ["soaked_cloth", "chemical_soaked"]
     if loc in w.s["rooms"]:
         eid = w.spawn("waste_item", loc, **props)
         cell = geometry.free_floor_cell(w.s, loc, near=tuple(rec.get("pos") or (0, 0)), ignore=(eid,))
@@ -983,8 +986,18 @@ def settle_room_dust(w, rid, kind, grams):
 
 
 def deliver_debris(ctx, rid, toward, out_to, moved, pushed):
+    """Where swept debris and the small things pushed with it end up; every move off this room's floor is logged as
+    a mess flow (debris grams, refuse items) for the house ledger (VERIFY_HARDENING 6.5)."""
     w = ctx.w
     room = w.s["rooms"][rid]
+    src = S.mess_loc(w.s, rid)
+    pushed_from = {item: S.entity_loc(w.s, item) for item in pushed}
+
+    def flowed(dst, grams=None):
+        S.flow(w, "debris", sum(moved.values()) if grams is None else grams, src, dst)
+        for item in pushed:
+            if item in w.s["entities"]:
+                S.flow_item(w, item, pushed_from[item])
     if out_to:
         if out_to == "edge":
             require(room.get("outdoor"), "Only outdoor areas have an edge to sweep off", "argument")
@@ -1000,6 +1013,7 @@ def deliver_debris(ctx, rid, toward, out_to, moved, pushed):
                     m["location"], m["pos"] = target_room, list(cell)
                 S.glog(w, "litter_into_landscaping", room=target_room)
             S.glog(w, "organic_to_landscaping", grams=round(sum(organic.values()), 1))
+            flowed(S.mess_loc(w.s, neighbour or rid))
             return "the landscaping off the edge"
         require(out_to in room.get("exits", []), "{} is not an adjacent room".format(out_to), "argument")
         cid = next((c for c, conn in sorted(w.s["connections"].items()) if set(conn["rooms"]) == {rid, out_to}), None)
@@ -1007,12 +1021,14 @@ def deliver_debris(ctx, rid, toward, out_to, moved, pushed):
         other = w.s["rooms"][out_to]
         if other.get("outdoor") and other.get("terrain") in ("grass", "soil") and all(k in M.ORGANIC_DEBRIS for k in moved) and not pushed:
             S.glog(w, "organic_to_landscaping", grams=round(sum(moved.values()), 1))
+            flowed(S.mess_loc(w.s, out_to))
             return "the {} (dispersed)".format(out_to)
         add_pile(w, out_to, cell, moved)
         for item in pushed:
             m = w.mut(item)
             m["location"], m["pos"] = out_to, list(cell)
         S.glog(w, "debris_swept_into_other_room", room=out_to)
+        flowed(S.mess_loc(w.s, out_to))
         return "the doorway of " + out_to
     key = S.ck(toward)
     special = special_destination(w, rid, toward)
@@ -1029,10 +1045,14 @@ def deliver_debris(ctx, rid, toward, out_to, moved, pushed):
             m = w.mut(special)
             m["clog"] = S.rnd(M.clamp(float(m.get("clog", 0.0)) + sum(moved.values()) / 500.0))
         for item in pushed:
+            if S.has_drain(srec) and S.drains_away(w.ent(item), srec):
+                S.send_down_drain(w, item, special, source="sweeping")      # through the grate: gone
+                continue
             m = w.mut(item)
             m["location"], m["relation"] = special, "in"
             m.pop("pos", None)
             S.glog(w, "item_lost_down_drain", item=item)
+        flowed(("drain", special) if S.has_drain(srec) else ("entity", special))
         return special
     cover = cover_at(w, rid, key)
     if cover:
@@ -1043,6 +1063,7 @@ def deliver_debris(ctx, rid, toward, out_to, moved, pushed):
             m.pop("pos", None)
             m.pop("revealed", None)
         S.glog(w, "debris_hidden_under", cover=cover)
+        flowed(("entity", cover))
         return "a pile under " + cover
     pile = add_pile(w, rid, toward, moved)
     for item in pushed:
@@ -1113,7 +1134,9 @@ def stairs_pass(ctx, stairs, verb, tool=None):
                         for kind, grams in moved.items():
                             landing_debris[kind] = landing_debris.get(kind, 0.0) + grams
             elif verb == "vacuum" and moved:
-                vacuum_collect(w, tool, moved)
+                if vacuum_collect(w, tool, moved, src=("entity", stairs)) == "no_bin":
+                    for kind, grams in moved.items():       # nothing to hold it: blown back onto the landing
+                        landing_debris[kind] = landing_debris.get(kind, 0.0) + grams
         else:
             E.clean_face(ctx, stairs, face, "mop" if verb == "mop" else verb, tool=tool, wetness=max(wetness, 0.4), mech=float(spec.get("mech", 0.4)))
             if verb == "mop":
@@ -1148,7 +1171,8 @@ def collect_debris(ctx):
     w = ctx.w
     target = ctx.args["target"]
     pan = S.held_tool(ctx, predicate=lambda r: S.is_a(r, "dustpan") or r.get("dustpan"), message="Hold a dustpan")
-    brush = next((h for h in w.held_items() if h != pan and S.tool_spec(w.ent(h)).get("kind") == "broom"), None)
+    brush = next((h for h in w.held_items() if h != pan and not S.unfamiliar(ctx, h) and
+                  S.tool_spec(w.ent(h)).get("kind") == "broom"), None)
     rec = w.s["entities"].get(target)
     require(rec is not None and ctx.visible(target), "That is not visible here", "perception")
     passes = ctx.args["passes"]
@@ -1175,6 +1199,7 @@ def collect_debris(ctx):
                 taken[kind] = taken.get(kind, 0.0) + grams
         from .surfaces import deposit_waste
         deposit_waste(w, pan, taken, source=target)
+        S.flow(w, "debris", sum(taken.values()), S.entity_loc(w.s, target), ("entity", pan))
         if rec.get("hazardous_waste"):
             w.mut(pan)["hazardous_waste"] = True
         items = []
@@ -1183,10 +1208,12 @@ def collect_debris(ctx):
         elif rec.get("relation") == "under":
             items = items_under(w, [rec["location"]], max_size=0.2)
         for item in items:
+            before = S.entity_loc(w.s, item)
             m = w.mut(item)
             m["location"], m["relation"] = pan, "in"
             m.pop("pos", None)
             w.log_move(item, rec.get("location"), pan)
+            S.flow_item(w, item, before)
         if target in w.s["entities"]:
             m = w.mut(target)
             m["composition"] = {k: S.rnd(v, 2) for k, v in comp.items() if v > 0.005}
@@ -1213,6 +1240,7 @@ def collect_debris(ctx):
         S.sync(w, target)
     from .surfaces import deposit_waste
     deposit_waste(w, pan, taken, source=target)
+    S.flow(w, "debris", sum(taken.values()), S.mess_loc(w.s, rec.get("location")), ("entity", pan))
     ctx.data["seconds"] = 5.0 + 4.0 * passes * len(chosen)
     return "Collected {} from {} cells".format(S.grams_text(ctx, sum(taken.values())), len(chosen))
 
@@ -1254,8 +1282,13 @@ def vacuum_suction(w, vac):
     return suction
 
 
-def vacuum_collect(w, vac, composition):
+def vacuum_collect(w, vac, composition, src=None):
+    """The vacuum's take into its bin or bag (a mess flow from src, the place it came from, for the house ledger).
+    Returns "no_bin" when the vacuum has neither (the caller blows the take back out), "exhaust" when fine dust
+    passed a wet foam filter, else None."""
     head, wand, container, filt = vacuum_state(w, vac)
+    if not container:
+        return "no_bin" if S.load_grams(composition) > 0 else None
     if container:
         crec = w.ent(container)
         m = w.mut(container)
@@ -1264,6 +1297,7 @@ def vacuum_collect(w, vac, composition):
             load[kind] = S.rnd(float(load.get(kind, 0.0)) + grams, 2)
         m["cl_load_g"] = S.rnd(sum(load.values()), 2)
         m["fill_level"] = S.rnd(M.clamp(m["cl_load_g"] / max(1.0, float(crec.get("capacity_g", 250.0)))), 3)
+        S.flow(w, "debris", S.load_grams(composition), src, ("entity", container))
     if filt:
         fine = sum(g for k, g in composition.items() if k in ("dust", "drywall_dust", "pollen", "ash"))
         rate = 0.004 if w.ent(vac).get("vacuum_kind") != "shop" else 0.001
@@ -1287,6 +1321,7 @@ def _ingest_text(ctx, outcome, item):
 
 def ingest(w, vac, item, brushroll_on):
     rec = w.ent(item)
+    before = S.entity_loc(w.s, item)
     label = "{} {} {}".format(rec.get("label", ""), rec.get("type", ""), rec.get("category", "")).lower()
     entangles = rec.get("entangles") or any(word in label for word in ("sock", "cable", "cord", "charger", "string", "ribbon", "shoelace", "hair tie"))
     head, wand, container, filt = vacuum_state(w, vac)
@@ -1298,6 +1333,7 @@ def ingest(w, vac, item, brushroll_on):
         im["location"], im["relation"] = vac, "in"
         im.pop("pos", None)
         S.glog(w, "vacuum_jammed", vacuum=vac, item=item)
+        S.flow_item(w, item, before)
         return "jammed"
     dest = container or vac
     im = w.mut(item)
@@ -1307,6 +1343,7 @@ def ingest(w, vac, item, brushroll_on):
     S.gsec(w)["ingested"] += 1
     S.glog(w, "ingested", vacuum=vac, item=item)
     w.log_move(item, rec.get("location"), dest)
+    S.flow_item(w, item, before)
     return "ingested"
 
 
@@ -1350,9 +1387,11 @@ SHOP_VAC_EXTRA_DB = 3.0
 STEAM_MOP_DB = 64.0        # pump and steam hiss of a steam mop at 1 m
 
 
-def held_vacuum(w):
-    """The vacuum the robot holds, or None."""
+def held_vacuum(w, ctx=None):
+    """The vacuum the robot holds, or None (with ctx: an unfamiliar held thing is passed over, as by held_tool)."""
     for eid in w.held_items():
+        if ctx is not None and S.unfamiliar(ctx, eid):
+            continue
         rec = w.ent(eid)
         if rec.get("vacuum_kind") or S.is_a(rec, "vacuum_cleaner"):
             return eid
@@ -1370,7 +1409,9 @@ def vacuum_noise_db(ctx):
     """ActionSpec.noise_db of `vacuum` (TIER1_INTEGRATION 6, body): the running vacuum's level. Quiet mode refuses it
     through the body (everything above quiet_limit_db, 55 dB, even at low suction: use a broom or a dust mop), and the
     kernel's robot_sound hook tells listeners."""
-    vac = ctx.args.get("tool") if ctx.args.get("tool") in ctx.w.held_items() else held_vacuum(ctx.w)
+    vac = ctx.args.get("tool") if ctx.args.get("tool") in ctx.w.held_items() else held_vacuum(ctx.w, ctx)
+    if vac and S.unfamiliar(ctx, vac):
+        return None     # an unfamiliar thing is refused by the verb itself (identify first), never by its noise
     return vacuum_db(ctx.w, vac) if vac else None
 
 
@@ -1380,6 +1421,8 @@ def mop_noise_db(ctx):
     held = ctx.w.held_items()
     tools = [tool] if tool in held else held
     for eid in tools:
+        if S.unfamiliar(ctx, eid):
+            continue
         if S.tool_spec(ctx.w.ent(eid)).get("steam"):
             return STEAM_MOP_DB
     return None
@@ -1502,8 +1545,10 @@ def vacuum(ctx):
             S.damage(w, vac, "motor_dust", 0.4, "fine construction dust in a household vacuum")
             settle_room_dust(w, rid, "drywall_dust", collected["drywall_dust"] * 0.3)
         ctx.data["seconds"] = 15.0 + area / 0.25 * passes
-        exhaust = vacuum_collect(w, vac, collected)
-        if exhaust:
+        exhaust = vacuum_collect(w, vac, collected, src=S.mess_loc(w.s, rec.get("location")))
+        if exhaust == "no_bin":
+            drop_to_floor(w, rec.get("location") if rec.get("location") in w.s["rooms"] else rid, collected)
+        elif exhaust:
             settle_room_dust(w, rid, "dust", sum(collected.values()) * 0.3)
             consequences.append("fine dust blew out of the exhaust")
         summary = "Vacuumed {} cells x{} ({} {})".format(len(chosen), passes, head, mode)
@@ -1577,7 +1622,9 @@ def vacuum_object(ctx, vac, target, head, mode, brushroll, suction, passes, cons
             size = w.ent(item).get("size_m") or [0.1, 0.1, 0.1]
             if crevice and max(float(v) for v in size[:3]) <= 0.06:
                 consequences.append(_ingest_text(ctx, ingest(w, vac, item, brushroll), item))
-    vacuum_collect(w, vac, collected)
+    if vacuum_collect(w, vac, collected, src=("entity", target)) == "no_bin":
+        room = w.root_room(target) or w.robot["room"]
+        drop_to_floor(w, room, collected)      # nothing to hold it: blown out onto the floor
     area = E.area_of(rec)
     ctx.data["seconds"] = 20.0 + len(faces) * area / 0.2 * passes
     return "Vacuumed {} ({}; {})".format(target, ", ".join(faces), head)
@@ -1585,6 +1632,18 @@ def vacuum_object(ctx, vac, target, head, mode, brushroll, suction, passes, cons
 
 # ----------------------------------------------------------------------
 # mop
+
+def mopped_film(old_mm, mop_mm):
+    """The water film a mop pass leaves on a cell that already holds old_mm: the mop lays its own film (mop_mm, by its
+    wetness) and picks up much of what was there, so passes converge instead of adding up -- three barely damp passes
+    leave about 0.018 mm, not 0.036 (which water-damaged laminate under the recommended method); a wetter mop over a
+    damp floor still leaves the wetter film."""
+    old_mm, mop_mm = max(0.0, float(old_mm or 0.0)), max(0.0, float(mop_mm or 0.0))
+    return max(old_mm, mop_mm) + MOP_FILM_CARRY * min(old_mm, mop_mm)
+
+
+MOP_FILM_CARRY = 0.25       # the share of the thinner of two films a pass leaves on top of the thicker one
+
 
 def find_bucket(ctx):
     w = ctx.w
@@ -1594,6 +1653,8 @@ def find_bucket(ctx):
         require(float(rec.get("liquid_l", 0.0) or 0.0) > 0.2, "The bucket is (nearly) empty", "resource")
         return explicit
     for eid in w.held_items():
+        if S.unfamiliar(ctx, eid):
+            continue
         rec = w.ent(eid)
         if (S.is_a(rec, "mop_bucket") or rec.get("mop_bucket")) and float(rec.get("liquid_l", 0.0) or 0.0) > 0.2:
             return eid
@@ -1659,6 +1720,7 @@ def mop(ctx):
         for kind, grams in sorted(taken.items()):
             load[kind] = S.rnd(float(load.get(kind, 0.0)) + grams, 2)
         m["cl_load_g"] = S.rnd(sum(load.values()), 2)
+        S.flow(w, "debris", S.load_grams(taken), S.mess_loc(w.s, rid), ("entity", tool))
         ctx.data["seconds"] = 10.0 + len(chosen) * CELL_AREA / 0.3
         return "Dust-mopped {} cells ({} in the head)".format(len(chosen), S.grams_text(ctx, sum(taken.values())))
     bucket = None
@@ -1736,7 +1798,7 @@ def mop(ctx):
                 S.add_cell_soil(w, target, key, "sticky", 0.15 * min(over, 5.0))
             consequences.append("over-concentrated solution left a sticky film")
     for key in chosen:
-        S.set_film(w, rid, key, S.film_of(w, rid, key) + film)
+        S.set_film(w, rid, key, mopped_film(S.film_of(w, rid, key), film))
     limit = float(info.get("water", 0.5))
     if is_carpet(rec):
         S.damage(w, target, "soaked_carpet", 0.5, "mopped carpet")
@@ -1786,7 +1848,11 @@ def _unread_bottle(ctx):
     w = ctx.w
     held = w.held_items()
     named = ctx.args.get("tool")
+    if named in held:
+        S.refuse_unfamiliar(ctx, named)     # an unfamiliar thing is no bottle the robot knows of (identify first)
     for eid in ([named] if named in held else held):
+        if S.unfamiliar(ctx, eid):
+            continue                        # passed over, as core.require_tool does: an unfamiliar kettle pours nothing
         rec = w.ent(eid)
         bottle = rec.get("product") or rec.get("cl_chem") or \
             (ctx.unresolved(eid) and (rec.get("liquid_l") is not None or isinstance(rec.get("trigger"), dict)))
@@ -2057,6 +2123,11 @@ def dump_liquid(ctx, container, dest):
     strong = any(classes.get(c, 0) >= 0.2 for c in ("chlorine", "ammonia", "acid", "alkali_strong", "solvent"))
     drec = w.ent(dest)
     outcome = "poured {} into {}".format(S.liters_text(ctx, liters, 1), dest)
+    # the liquid mess kind of what is poured (6.5): a strong chemistry is chemical, used cleaning water mop water;
+    # clean water and food liquids are content, no mess. Logged only for a kind some domain registers (state.flow).
+    kind = "liquid:chemical" if strong else ("liquid:mop_water" if dirty or rec.get("mop_bucket") or S.is_a(rec, "mop_bucket")
+                                             else None)
+    src = ("entity", container)
     if S.is_liquid_container(drec) and not drec.get("drain"):
         hazard = M.incompatibility(classes, S.solution_classes(drec))
         if hazard:
@@ -2068,7 +2139,11 @@ def dump_liquid(ctx, container, dest):
             chem[product] = S.rnd(float(chem.get(product, 0.0)) + float(ml), 2)
         dm["cl_soil_g"] = S.rnd(float(dm.get("cl_soil_g", 0.0) or 0.0) + float(rec.get("cl_soil_g", 0.0) or 0.0), 2)
         dm["_cl_ref_l"] = dm["liquid_l"]
+        if kind:
+            S.flow(w, kind, liters, src, ("entity", dest))
     elif drec.get("storm_drain") or drec.get("water_body"):
+        if kind:
+            S.flow(w, kind, liters, src, ("drain", dest) if drec.get("storm_drain") else ("entity", dest))
         if dirty or strong or rec.get("cl_chem"):
             S.pollute(w, "wastewater", dest, liters, source=container)
             outcome += " (polluting)"
@@ -2078,9 +2153,13 @@ def dump_liquid(ctx, container, dest):
             if strong:
                 S.pollute(w, "chemicals_on_plants", dest, liters, source=container)
                 outcome += " (chemicals on the lawn/beds)"
+            if kind:
+                S.flow(w, kind, liters, src, S.mess_loc(w.s, drec["location"]))
         else:
             make_spill(w, drec["location"], "dirty_water" if dirty else (rec.get("liquid") or "water"), liters, near=container,
                        origin=container)
+            if kind:
+                S.flow(w, kind, liters, src, S.mess_loc(w.s, drec["location"]))
             w.stat("spills")
             outcome += " (onto the floor)"
     elif drec.get("drain") or drec.get("toilet") or drec.get("floor_drain"):
@@ -2103,6 +2182,8 @@ def dump_liquid(ctx, container, dest):
             dm["clog"] = S.rnd(M.clamp(float(drec.get("clog", 0.0)) + liters * 0.8))
             S.glog(w, "grease_down_drain", drain=dest)
         S.add_residue(w, dest, classes, 0.2)
+        if kind:
+            S.flow(w, kind, liters, src, ("drain", dest))
     else:
         raise ActionError("You cannot pour that there", "argument")
     m = w.mut(container)

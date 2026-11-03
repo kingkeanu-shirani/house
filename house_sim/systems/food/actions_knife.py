@@ -1008,7 +1008,13 @@ def crush(ctx):
     tool_id = ctx.args.get("tool")
     if tool_id and ctx.holding(tool_id) and "crush" not in (w.ent(tool_id).get("capabilities") or []):
         # an improvised pounder (jar, can, glass): rigid enough to crush, but glassware shatters
-        require(float(w.ent(tool_id).get("mass_kg", 0.0)) >= 0.2 or w.ent(tool_id).get("fragile"),
+        # whether it is heavy (or brittle) enough depends on what it really is: a thing the robot has not told apart
+        # from its look-alikes gets the kernel's one identify-first refusal, never an answer from its true mass (an
+        # empty plain spray bottle and a full cleaner, a pre-filter and a HEPA panel, a crib and a flat sheet answered
+        # differently; WP-D food look-alike sweep, the phase-1 look-alike rows)
+        ctx.refuse_unidentified(tool_id)
+        trec = w.ent(tool_id)
+        require(float(trec.get("mass_kg", 0.0) or 0.0) >= 0.2 or trec.get("fragile"),
                 "That is too light to crush with", "capability")
     else:
         tool_id = C.tool(ctx, "crush", tool_id)

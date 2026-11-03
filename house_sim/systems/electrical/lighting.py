@@ -23,6 +23,7 @@ from ...kernel.actions import ActionError
 from ...kernel.perception import light_level
 from ...kernel.plugins import after, before, hook, system
 from . import common as C
+from . import hardening as H
 from . import power as P
 
 LEVELS = {"off": 0.0, "low": 0.33, "medium": 0.66, "high": 1.0}
@@ -272,7 +273,8 @@ def _lights_step(w, dt, tick):
             if m["_flicker_s"] >= FLICKER_FAIL_S:
                 for b in working_bulbs(state, eid):
                     if not ents[b].get("dimmable", True):
-                        w.mut(b)["burnt_out"] = True
+                        # a non-dimmable bulb on a dimmer: the fixture, its switches and supply caused it
+                        w.mut(b, cause=C.writer_cause(w, b, lambda: [b] + C.inputs_of(state, eid)))["burnt_out"] = True
                         C.event(w, "bulb_failed", b, reason="dimmed_non_dimmable")
                 m["_flicker_s"] = 0.0
                 C.refresh(w)
@@ -281,6 +283,8 @@ def _lights_step(w, dt, tick):
             m = w.mut(eid)
             m["_overheat_s"] = round(C.num(m.get("_overheat_s"), 0.0) + dt, 1)
             if m["_overheat_s"] >= 600 and not m.get("socket_scorched"):
+                w.mut(eid, cause=C.writer_cause(w, eid, lambda: sorted({eid} | set(bulbs(state, eid)) |
+                                                                     set(C.inputs_of(state, eid)))))
                 m["socket_scorched"] = True
                 # the robot's when it fitted the bulb, switched the fixture on or acted on its supply (a staged
                 # over-wattage bulb burning in a lamp nobody touched is exogenous: common.consequence)
@@ -452,7 +456,11 @@ def _setting_changed(ctx, eid, name, old, new):
 
 @before("set", order=42)
 def _smart_offline(ctx):
-    rec = ctx.w.s["entities"].get(ctx.args.get("target")) or {}
+    target = ctx.args.get("target")
+    rec = ctx.w.s["entities"].get(target) or {}
+    if rec and ctx.realistic and H.electrical_member(ctx, target):
+        # an unresolved LED bulb: whether it has an app setting at all (a smart bulb) is what reading its box tells
+        H.identify_first(ctx, target)
     if rec.get("smart") and rec.get("category") == "light_bulb":
         parent = ctx.w.s["entities"].get(rec.get("location")) or {}
         if ctx.realistic:

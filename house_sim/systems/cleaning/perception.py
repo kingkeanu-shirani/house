@@ -182,6 +182,15 @@ def _realistic_room_view(env, w, obs, realism):
         obs.setdefault("floor_soil", {})[floor] = dict(list(cells.items())[:80])
 
 
+@hook("visible_veto")
+def down_the_drain(state, eid, entity):
+    """A thing that went down a drain (relation "drain": tipped into a sink or toilet, pushed through a floor or storm
+    drain grate, state.send_down_drain) is in the trap or the sewer: out of sight in every perception mode."""
+    if entity.get("relation") == "drain":
+        return True
+    return None
+
+
 @hook("visible_floor_hazard", order=60)
 def wet_floor_seen(state, rid, cell, kind, source):
     """Realistic grid.hazards: a wet cell (rooms.<rid>.wet_cells) shows only where a camera would see water - a film

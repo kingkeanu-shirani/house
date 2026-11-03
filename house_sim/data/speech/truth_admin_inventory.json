@@ -1,0 +1,22 @@
+{
+ "about": "The admin_inventory domain's truth mappings for claims about printers, shredders, mail, parcels and stored goods (kernel/speech.py truth(); VERIFY_HARDENING 13.1-13.3, 13.6; WP-D admin_inventory). Words from house_sim/data/vocab/admin_inventory.json. Conditions read the subject's own record (hidden truth included: the evaluator's view, never an observation); a room is judged over the things in it. issues (any condition present and holding makes it true, all present and failing make it false, none present leaves it unknown): a paper jam is a printer whose status is a paper or feeder jam, or a sheet jammed in a document feeder; out of paper is a printer whose status says so, or a paper tray with no sheets loaded; low ink is a printer reporting low or empty ink; out of ink a printer whose ink is empty; misdelivered is mail or a parcel for a neighbour, a wrong address or an unknown name (anyone of the household, or the household, makes it false); a former occupant's mail is addressed to someone who moved away; postage due is the carrier's note on a returned piece; crushed is a box the kernel's crush law dented (damage.crushed) or flagged crushed; sagging is a shelf or support the kernel's overload law shows sagging; illegible is a label smudged by water or a thermal receipt faded by heat. states (the first condition whose field the record has decides): shredded is a document cut into strips; a mailbox is flagged while its flag is up and unflagged while it is down. Words without a mapping here (filed, delivered, collected, misfiled, overdue, duplicate, incompatible storage) need more than the subject's own record and are not scored (unknown, never false). The kernel's truth.json owns sealed / unsealed, open / closed, empty, jammed (a shredder's jammed flag), torn and the rest.",
+ "states": {
+  "shredded": [{"field": "shredded", "op": "is_true"}],
+  "flagged": [{"field": "settings.flag", "op": "eq", "value": "up"}],
+  "unflagged": [{"field": "settings.flag", "op": "eq", "value": "down"}]
+ },
+ "issues": {
+  "paper_jam": [{"field": "status", "op": "in", "value": ["paper_jam", "feeder_jam"]}, {"field": "feeder_jammed", "op": "is_true"}],
+  "out_of_paper": [{"field": "status", "op": "eq", "value": "out_of_paper"}, {"field": "sheets_loaded", "op": "eq", "value": 0}],
+  "low_ink": [{"field": "status", "op": "in", "value": ["ready_low_ink", "ink_empty"]}],
+  "out_of_ink": [{"field": "status", "op": "eq", "value": "ink_empty"}],
+  "misdelivered": [{"field": "_addressee", "op": "in", "value": ["neighbor", "wrong_address", "unknown"]}],
+  "former_occupant": [{"field": "_addressee", "op": "eq", "value": "former_occupant"}],
+  "postage_due": [{"field": "carrier_note", "op": "eq", "value": "postage due"}],
+  "crushed": [{"field": "crushed", "op": "is_true"}, {"field": "damage.crushed", "op": "gt", "value": 0}],
+  "sagging": [{"field": "sagging", "op": "is_true"}],
+  "illegible": [{"field": "label_smudged", "op": "is_true"}, {"field": "faded", "op": "is_true"}]
+ },
+ "quantities": {},
+ "acts": {}
+}

@@ -757,8 +757,12 @@ def dishes(ctx, on=None, kinds=None, count=None, soil=None, burnt=None, var="dis
         kinds = (kinds * (int(count) // len(kinds) + 1))[:int(count)]
     out = {}
     made = []
+    placed = {}
     surfaces = [s for s in (on, on2) if s]
-    for i, k in enumerate(kinds):
+    # placed in ctx.placer.order (schema 4: a seeded order, so where a dish lands says nothing about its role or kind,
+    # VERIFY_HARDENING 9.2; older specs: the given order, no draw); bindings keep the kinds' order
+    for i in ctx.placer.order(list(range(len(kinds)))):
+        k = kinds[i]
         spec = DISH_SPECS[k]
         props = {"soil": copy.deepcopy((soil or {}).get(k, SOIL_BY_DISH.get(k, {"food": 0.3}))), "_dw_state": "dirty"}
         if burnt and k in burnt:
@@ -771,8 +775,9 @@ def dishes(ctx, on=None, kinds=None, count=None, soil=None, burnt=None, var="dis
         if new is None:
             raise SpecError("no room for dish " + k)
         made.append(new)
+        placed[i] = new
         out["{}_{}".format(k, sum(1 for x in kinds[:i + 1] if x == k))] = new
-    out[var] = made
+    out[var] = [placed[i] for i in range(len(kinds))]
     return out
 
 

@@ -13,15 +13,18 @@ and alarm clocks, ESD-sensitive PC parts. Verbs: `plug_in`, `unplug`, `connect_c
 
 Code: `house_sim/systems/electrical/` (package: common, power, cords, lighting, batteries, cables, devices, charging,
 detectors, clocks, pairing, perception, percept, harms, physical, sightlines, hub, furnish, smarthome, scenarios,
-skills). Types: `house_sim/data/types/electrical.json` (about 140 types, with realistic-perception tiers, look-alike
-groups, camera `view` blocks and domain-wide `field_tiers`). Tests: `tests/test_electrical.py` (184 tests; pass with all
-16 domains loaded, with `HOUSE_SIM_STRICT=1` and with `HOUSE_SIM_DOMAINS=core,electrical`). Examples:
+skills, hardening). Types: `house_sim/data/types/electrical.json` (about 140 types, with realistic-perception tiers, look-alike
+groups, camera `view` blocks and domain-wide `field_tiers`). Tests: `tests/test_electrical.py` (184 tests) and
+`tests/test_electrical_hardening.py` (24 tests, phase 2); both pass with all 16 domains loaded, with `HOUSE_SIM_STRICT=1`
+and with `HOUSE_SIM_DOMAINS=core,electrical`. Verification data: `house_sim/data/verify/watch/electrical.json` (field
+classes) and `house_sim/data/speech/truth_electrical.json` (truth mappings). Examples:
 `tasks/authored/electrical__examples.json` (12 specs, oracle) and `tasks/authored/electrical__perception.json` (4
 perception-centric specs, realistic, `"camera": "geometric"`); every spec declares `"house": {"gen": 2}` and passes
 `--check` on seeds 0, 1, 2, 41, 97 in its own mode; the examples also pass `--perception realistic` with either camera.
 The tier-1 adoption (kernel v3.0 physics, camera and robot body, v3.1 sweep, the smart-home layer) is section 11; the
 report vocabulary is section 12; phase 1 of the stabilisation after the independent review (2026-10-22) is section 13,
-its finishing round section 14 and its close-out section 15.
+its finishing round section 14 and its close-out section 15; phase 2's verification-hardening prerequisites (WP-D
+electrical, with the Latched fields table) are section 16.
 
 Fidelity: S for switching logic, device state machines and bookkeeping; G for plug/connector geometry, cord routing
 over the room grid, Qi coil alignment, cable reach, IR line of sight and ceiling reach; P-approx for the lumped loads
@@ -960,3 +963,112 @@ camera (the read probe included): 0 leaks, 0 crashes; `layout_audit.py 20 --doma
 problems; `fuzz.py --coverage`: 44,296 commands, 0 defects, 0 nondeterministic replays. The new idle probe costs about
 0.13 us per substep. `tests/test_plumbing_liquids.py`, `test_cleaning.py`, `test_appliances_cooking.py`,
 `test_safety.py`, `test_kernel_contracts.py` and `test_physics_fluids.py` pass.
+
+## 16. Phase 2: verification-hardening prerequisites (WP-D electrical, 2026-10-29)
+
+Inputs: docs/design/VERIFY_HARDENING.md sections 6, 8.2, 10.3, 13, 14.2, 15.2-15.3, 23.3 and 25 ("WP-D electrical"),
+the decisions in docs/design/VERIFY_HARDENING_DECISIONS.md, the requests of run A's packages to the WP-D packages, and
+the open phase-1 rows in electrical's files. Code: `hardening.py` (new) plus changes in common, power, lighting,
+batteries, charging, cables, cords, harms, hub, physical and skills. Data: `house_sim/data/verify/watch/electrical.json`
+and `house_sim/data/speech/truth_electrical.json` (new). Handoff: `catalog/analysis/phase2/handoff_WP-D_electrical.md`.
+Regression tests: `tests/test_electrical_hardening.py`.
+
+* **Field classes** (6.3, lint L-WATCH): `watch/electrical.json` classifies every property name of every electrical type
+  and every field electrical's verbs, hooks and systems write onto its own types, by the domain itself. Ratings, kinds,
+  wiring and printed text are `identity`; what the robot sets (switches, plugs and how far they sit, cord routes and
+  coils, settings, clocks and alarms, pairing, cable ends, slots, covers) is `setting`; what electrical derives every
+  refresh (energized, live, powered, light levels, displays and sources, charging, links, boot states, alarm LEDs and
+  states, CO readings, a cord's cells) is `process` -- the setting that caused it is what the ledger compares -- except a
+  lamp's `lit`, which the kernel's light allowance keeps a setting; damage and faults (scorched, tripped, burnt out, a
+  bent prong, a strained or kinked cord, leaking or swollen cells, ESD damage, corruption, a cracked screen, water
+  inside, a cord's walkway / rug / water / heat hazards) are `condition` with the worse direction; counters, test records
+  and timestamps are `bookkeeping`. Per type: a cell's `condition` word ("new" -> "in use") is wear (its leak is
+  `leaking`), and the core light types take electrical's `burnt_out`, `dim_level` and `flicker`.
+* **Water-sensitive gear** (6.3; phase-1 closeout_breakages row 6, data half): the watch file's `water_sensitive` lists
+  the gear `physical.electrical_gear` names that no IP or weather rating protects (lamps, bulbs, chargers, strips,
+  breakers, switches, alarms, remotes, clocks, electronics; not IP67/68 phones and watches, IPX4 earbuds, outdoor
+  outlets and cords, cells or cables), so the kernel's `ledger.water_sensitive` is one predicate for electrical gear
+  (`house.wet` judges them; plumbing_liquids already asks it). A base type is listed only when every type below it is
+  sensitive too (the weatherproof outdoor outlet is a `wall_outlet`, the IP68 phone a `rechargeable_device`). The
+  readers that still ask `electronic or water_safe is False` are cleaning's and mechanisms' (requests); marking the gear
+  `water_safe: false` in the type data would change every generated house (gen-1 digests, not this package's class).
+* **Causes** (6.2): every physical write electrical makes records what it follows from, so the ledger's causal link
+  can tell the robot's doing from a resident's or the scenario's. `common.set_if` (the derived-field writes) cites
+  `hardening.inputs(state, eid)`: the thing, its supply path and breakers, the load on a tripped breaker or strip on that
+  path, what it is installed in or sits on, the parts installed in it, the switches wired to it. The mutation sites that
+  know their cause cite it: a breaker tripping cites the loads on its circuit and any shorted device there, a strip its
+  loads, a GFCI the device or receptacle whose ground fault tripped it, a scorching or igniting cord and an arcing
+  outlet what draws through them (`power.causal_ids`), a burnt-out bulb and a scorched socket the fixture's inputs, a
+  leaking cell its device and cells, a swollen battery's runaway and a primary cell in a NiMH bay their charger chain,
+  power-loss consequences (lost work, corrupted updates, lost recordings, a clock's lost alarms, a device switched off)
+  what cut the power (`power.cut_ids`), water ingress the wet thing and the liquid's source, a broken device itself,
+  and a smart-home automation the hub or app that ran it. Every electrical system is `writer="physical"` (electrical
+  carries out no resident's or pet's own decisions). A lamp a resident switches off now goes dark with no link to the
+  robot (before: "link unknown", charged by the conservative default); a breaker tripped by a heater the robot switched
+  on is linked to the robot; a staged overload's trip is not.
+* **Mess and hazardous creations** (6.5, 6.4): electrical creates no entities and moves no mess (a leaking cell is a
+  condition of the cell; its electrolyte is not modelled as a liquid), so it registers no mess kind and no
+  `hazard_created` type. It owns no people or pets (no zones or passability).
+* **Latched fields** (8.2): the table below.
+* **Harm labels an expectation can name** (14.2; WP8-fix's request): the harm families compose `electrical.<kind>:<id>`
+  at run time, so the lint (which reads the labels an invariant returns literally) rejected `inv:electrical.<kind>` and
+  no electrical harm could be expected by name. Each family's invariant now names its labels literally
+  (`harms.family_label`), so `inv:electrical.cord_trip_hazard` and the rest pass L-EXPECT and match
+  `electrical.cord_trip_hazard:<id>`; the labels themselves are unchanged (no legacy failure list moves). The family
+  names (`electrical.trip_hazard` ...) stay what `allow` names; `inv:electrical.trip_hazard` still matches no label
+  (the protect classifier should draft the label names: request to WP8).
+* **Cord hazards as the room is now** (8.2 and a world fix for every schema): a cord's `cord_hazard` is written when
+  the cord is routed, so a rug taken off the cord kept `under_rug` (the fire-risk invariant kept failing the task) and
+  one laid over it later never showed. `cords.live_hazards` recomputes the hazards from the cord's cells with the
+  routing rule; the trip and fire-risk invariants judge a cord's lasting hazard by it, and the derived field
+  `cord_hazard` gives a schema-4 predicate the same value. A rug laid over a cord after routing raises no harm label
+  (nothing sees the rug move): the derived field shows it, the invariant does not (known gap).
+* **Settings skills** (10.3; B14's changed and damaged probes): `plugged_in` (unplug; or plug into the nearest free live
+  receptacle that takes the plug), the damaging verbs `strain_relief_damaged` (unplug by the cord), `plug_damage` (a
+  one-way plug forced in reversed: a bent prong), `kinked` (the cord coiled tight) and `damaged` for cables (yanked out
+  by the cable), and `clock.format_24h`, through the skill `electrical.set_field(target, field, value)`. Battery
+  covers use admin_inventory's generic `cover_open` skill; switches, settings with options and doors use the kernel's
+  defaults.
+* **Truth mappings** (13.1-13.3; `truth_electrical.json`): states paired / unpaired, dark, dimmed, charged; issues
+  no_signal, no_internet, not_charging, swollen_battery, reversed_battery, wrong_time, cracked_screen, liquid_damage,
+  overloaded, loose_plug, damaged_cable, dim_light, low_battery, dead_battery, exposed_wire (each defined in the file's
+  `about`). The kernel's own words for electrical state stay truth.json's (requests to WP4: `flickering` should read
+  `flicker`, `no_power` `energized` / `live`, `frayed` `_cord_damage`, `working` / `not_working` an alarm's
+  `operational` and a remote's `functional` before `broken`).
+* **Structured readings** (15.2): the battery tester's line in a cell's inspect output carries `"reading": {"subject",
+  "quantity": "voltage", "value", "unit": "V"}` (the tester's own 10 mV display), which WP7's evidence index records as
+  a measurement of that cell.
+* **Identify first** (15.3; the phase-1 look-alike and unfamiliar-thing rows): `charge` and `connect_cable` answer
+  an unresolved look-alike member or an unfamiliar thing with the kernel's one generic refusal
+  (`hardening.identify_first`) before any check that depends on what it is -- the sweep found `charge` telling the 65 W
+  USB-C brick from the barrel bricks by connector fit ("NOT charging" vs "has no port that takes that plug") -- except
+  members of a group only a test resolves (USB-C data and charge-only cables, which charge and connect alike); core
+  `set` refuses an unresolved LED bulb before the smart bulb's app guard ("does not respond" told the smart bulb from
+  plain LED bulbs); core `install` refuses an unfamiliar thing for a battery compartment, charger bay or lamp socket
+  before the slot is matched by its true part type (the novel sweep found unfamiliar AA cells going into a NiMH bay
+  where every other unfamiliar thing had "no compatible slot"). The reference skills `electrical.charge` and
+  `electrical.connect` inspect (then read) such a thing first in realistic mode; oracle traces are unchanged.
+* **Hazard zones** (13.5; WP4's request to the domains): `@hook("hazard_zones")` lists the active electrical hazards a
+  warning is about -- a bared cord or a half-seated plug on live mains, a scorched, burning or arcing cord or receptacle
+  still live, live gear with water inside or a wet live receptacle, a swollen or burning battery -- each only as the
+  thing itself (no room: walking into the room with a frayed lamp cord is not walking into the hazard).
+* **Ingress gathering** (phase-1 closeout_breakages row 7): `physical._gathers` reads the kernel's
+  `liquids.wetness_before(w, eid)`, so a device that was dry when an arrival came forgets what reached it before it
+  dried even when the system that dried it ran before `electrical.wet_gear` in the same substep (section 15's known
+  limit is closed).
+
+### Latched fields (8.2)
+
+A goal field an action hook or a system latches is recomputed by a registered `@derived_field` (listed here; lint
+L-LATCH reads this table) or kept as state by the system that owns it (below the table).
+
+| Field | Types | Recompute (`hardening.py`) |
+|---|---|---|
+| `cord_hazard` | every corded device (`plug_required`, or a record carrying `cord_cells`) | the cord's hazards as the room is now (`cords.live_hazards`: `cord_hazards` over its cells, plus `doorway` for a run through a door); none when unplugged; a cord with no floor cells keeps what was recorded |
+
+Kept as state, no latch: the derived fields electrical refreshes after every electrical change and every substep
+(section 1: `energized`, `live`, `powered`, `lit`, `brightness`, `dim_level`, `flicker`, `cct_mismatch`, `functional`,
+`display`, `display_source`, `charging`, `online`, `wan_ok`, an alarm's `operational` and `led`) are recomputed by
+their own systems, so their values at evaluation are the current state; test records (`last_test_s`,
+`last_test_result`, `electrical.remote_tests`, `restarts`) are event records of the robot's own acts, which no later act
+undoes.

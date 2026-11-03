@@ -21,6 +21,7 @@ from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, system
 from . import air as A
 from . import common as C
+from . import hardening as HD
 
 body.register_robot_field("gloves_contaminated", False, "safety", "exact",
                           "the gloves the robot wears touched a bodily-fluid mess (take them off before touching anything clean)")
@@ -175,7 +176,9 @@ def clean_biohazard(ctx):
                 prod["sheets"] = sheets - used
             frac = 1.0 if need <= 0 else used / float(need)
         m["liquid_l"] = round(liquid * (1.0 - frac), 4)
-        m["solids_kg"] = round(float(rec.get("solids_kg", 0.0)) + liquid * frac * 0.3, 4)
+        # the soaked-up liquid is held in the clumps (mass kept: the mess balance of VERIFY_HARDENING 6.5 counts it
+        # until it is scooped into the bag)
+        m["solids_kg"] = round(float(rec.get("solids_kg", 0.0)) + liquid * frac, 4)
         m["absorbed_s"] = now
         _step(m, "absorb")
         if ctx.realistic:
@@ -209,8 +212,8 @@ def clean_biohazard(ctx):
         solids = float(m.get("solids_kg", 0.0))
         removed = solids if msg == "" or "smeared" in msg else solids * 0.6
         m["solids_kg"] = round(max(0.0, solids - removed), 4)
+        HD.carry(w, eid, bag, removed)          # biohazard_waste_kg and the mess flow into the bag (6.5)
         bm = w.mut(bag)
-        bm["biohazard_waste_kg"] = round(float(bm.get("biohazard_waste_kg", 0.0)) + removed, 4)
         bm["contamination"] = dict(bm.get("contamination") or {}, biohazard=0.9)
         _step(m, "scoop")
         if ctx.realistic:
@@ -255,18 +258,32 @@ def clean_biohazard(ctx):
         ctx.data["seconds"] = 15.0
     elif step in ("rinse", "wipe"):
         if step == "wipe":
-            _held_product(ctx, "tool", ("paper_towels",))
+            towel, _ = _held_product(ctx, "tool", ("paper_towels",))
         else:
+            towel = None
             _held_product(ctx, "product", ("water",))
         if rec.get("disinfect_until_s") and now < float(rec["disinfect_until_s"]):
             m["disinfect_effective"] = False
             msg = "Wiped before the contact time was up: not disinfected. "
+        before_kg = float(rec.get("liquid_l", 0.0) or 0.0) + float(rec.get("solids_kg", 0.0) or 0.0)
         m["liquid_l"] = 0.0
         if float(rec.get("solids_kg", 0.0)) <= 0.05:
             m["solids_kg"] = 0.0
         if kind == "rodent_droppings" and rec.get("wetted_s") is not None:
             m["solids_kg"] = 0.0
             m["droppings"] = 0
+        if towel is not None:
+            # what the towels wiped up is in the used sheets now: straight into the bag named as destination (or held),
+            # else still in the towels in hand -- either way never left on the floor (VERIFY_HARDENING 6.5)
+            bag = ctx.args.get("destination")
+            if bag is None:
+                bag = next((h for h in w.held_items() if w.ent(h).get("sealable") or w.ent(h).get("category") == "bag"), None)
+            if bag is not None and bag in state["entities"] and bag != towel:
+                if bag not in w.held_items():
+                    ctx.obj(bag, touch=True)
+            else:
+                bag = towel
+            HD.carry(w, eid, bag, before_kg - float(m.get("liquid_l", 0.0)) - float(m.get("solids_kg", 0.0)))
         _step(m, step)
         msg += "Wiped/rinsed the area"
     elif step in ("dry_sweep", "vacuum"):
@@ -277,10 +294,12 @@ def clean_biohazard(ctx):
             msg = "Dry {} kicked dried material into the air (pathogen aerosol)".format(step.replace("_", " "))
         else:
             msg = "Swept/vacuumed the area"
+        lifted = float(rec.get("solids_kg", 0.0)) * 0.8
         m["solids_kg"] = round(float(rec.get("solids_kg", 0.0)) * 0.2, 4)
         if step == "vacuum":
             tool = ctx.args.get("tool") or next((h for h in w.held_items() if "vacuum" in str(w.ent(h).get("tool_kind") or w.ent(h).get("type"))), None)
             if tool:
+                HD.carry(w, eid, tool, lifted)      # in the vacuum's bin: not a sink for bodily fluids (6.5)
                 tm = w.mut(tool)
                 tm["contamination"] = dict(tm.get("contamination") or {}, biohazard=0.8)
         _step(m, step)

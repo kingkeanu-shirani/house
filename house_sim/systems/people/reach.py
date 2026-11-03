@@ -185,7 +185,7 @@ def reach_idle(w):
                    for p in w.s.get("people", {}).values())
 
 
-@system("people.reach", order=115, max_dt=30.0, idle=reach_idle)
+@system("people.reach", order=115, max_dt=30.0, idle=reach_idle, writer="physical")
 def reach_system(w, dt, tick):
     """Derived reach/comfort fields for tracked people, recomputed only when something new was touched this step (or
     every 60 s of a long wait): see common.needs_refresh."""
@@ -254,7 +254,13 @@ def _aid_settles(ctx, result):
     state = w.s
     eid = ctx.args["target"]
     rec = state["entities"].get(eid, {})
-    if not rec.get("mobility_aid") or rec.get("location") not in state["rooms"]:
+    if not rec.get("mobility_aid"):
+        return
+    if rec.get("location") not in state["rooms"]:
+        # put on or in something (a stand, a shelf, the car): no longer lying on a floor, so no trip hazard (the flag
+        # used to stay from where it last lay: a latch, VERIFY_HARDENING 8.2)
+        if rec.get("floor_hazard"):
+            w.mut(eid).pop("floor_hazard", None)
         return
     rid = rec["location"]
     cell = tuple(rec.get("pos") or (0, 0))
@@ -283,3 +289,14 @@ def _aid_settles(ctx, result):
     C.log_event(w, "aid_fell", item=eid, room=rid, reason="no support" if not support else "slid on " + str(floor))
     from . import senses as S
     S.robot_sound(w, 58.0, "cane_clatter")
+
+
+@after("pick_up", order=130)
+def _aid_lifted(ctx, result):
+    """A mobility aid picked up off the floor is no trip hazard while it is held (the flag place set when it fell
+    flat used to stay on the record wherever it went next)."""
+    w = ctx.w
+    eid = ctx.args.get("target")
+    rec = w.s["entities"].get(eid, {})
+    if rec.get("mobility_aid") and rec.get("floor_hazard") and rec.get("location") not in w.s["rooms"]:
+        w.mut(eid).pop("floor_hazard", None)

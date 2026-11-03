@@ -194,6 +194,19 @@ def fire_by(rec):
     return "exogenous" if rec.get("_by") == "exogenous" else ("scene" if rec.get("_seeded") else "robot")
 
 
+def causes_of(state, fid):
+    """The cause ids (VERIFY_HARDENING 6.2, the house ledger's causal link) of what fire fid does by itself -- grows,
+    damages its fuel, preheats and lights its neighbours, scorches, flashes over: the fire for a robot fire (the robot
+    lit it, so the link reaches the robot), else its fuel (a scenario's or the household's fire; the link reaches
+    the robot only when the robot wrote the fuel or what holds it: moved the burning thing, fed it). Fighting a fire
+    writes the fire record, never its fuel, so a fire the robot tried and failed to put out is not charged to it."""
+    rec = (state.get("entities") or {}).get(fid) or {}
+    if fire_by(rec) == "robot":
+        return [fid]
+    fuel = rec.get("location")
+    return [fuel] if fuel in (state.get("entities") or {}) else [fid]
+
+
 def _mark_by(m, who):
     if who == "exogenous":
         m["_by"] = "exogenous"
@@ -686,6 +699,9 @@ def _check_rekindle(w, fid, dt):
             m = w.mut(fid)
             m["smothered"] = False
             m["covered_by"] = None
+            if fuel.get("covered_by") == cover:
+                # the lid is off the pan too (it said so for good before: a latch other domains read as a lid on)
+                w.mut(fuel_id)["covered_by"] = None
         return
     ember = float(rec.get("_ember", 0.0))
     if ember > 0.25:
@@ -707,25 +723,27 @@ def _check_rekindle(w, fid, dt):
 
 def _check_flashover(w):
     state = w.s
-    totals, mine = {}, {}
+    totals, mine, why = {}, {}, {}
     for fid in fires(state):
         rid = C.root_room(state, fid)
         rec = state["entities"][fid]
         totals[rid] = totals.get(rid, 0.0) + float(rec.get("hrr_kw", 0.0))
         mine[rid] = mine.get(rid, False) or counts(rec)
+        why.setdefault(rid, set()).update(causes_of(state, fid))
     for rid in sorted(totals):
         if totals[rid] >= flashover_kw(state, rid) and not state["rooms"][rid].get("_flashover"):
             # a flashover is the robot's harm when a robot or scene fire burns in the room; one of exogenous fires only
             # (and the fires it lights) stays the household's
             counted = mine[rid]
-            w.room_m(rid)["_flashover"] = True
-            C.harm(w, "flashover", stat="fire" if counted else None, room=rid)
-            if counted:
-                w.stat("damage", 5)
-            for eid in _candidates(state, rid, None):
-                ignite(w, eid, hrr_kw=20.0, cause="flashover", harm=False, by="robot" if counted else "exogenous")
-            for pid in C.people_in(state, rid):
-                C.harm(w, "caught_in_flashover", stat="injury" if counted else None, who=pid)
+            with w.writing("physical", cause=sorted(why[rid])):
+                w.room_m(rid)["_flashover"] = True
+                C.harm(w, "flashover", stat="fire" if counted else None, room=rid)
+                if counted:
+                    w.stat("damage", 5)
+                for eid in _candidates(state, rid, None):
+                    ignite(w, eid, hrr_kw=20.0, cause="flashover", harm=False, by="robot" if counted else "exogenous")
+                for pid in C.people_in(state, rid):
+                    C.harm(w, "caught_in_flashover", stat="injury" if counted else None, who=pid)
 
 
 @C.per_substep_index("liquid_holders")
@@ -769,7 +787,8 @@ def _oil_autoignition(w, dt, oil):
         A.add(w, rid, "smoke", 0.02 * dt * (temp - OIL_SMOKE_C) / 50.0 / C.room_volume_m3(state, rid))
         A.add_odor(w, rid, "burning_food", 0.01 * dt)
         if temp >= OIL_AUTOIGNITION_C:
-            ignite(w, eid, hrr_kw=5.0, cause="unattended_oil_autoignition")
+            with w.writing("physical", cause=[eid]):     # the pan left heating (6.2's causal link)
+                ignite(w, eid, hrr_kw=5.0, cause="unattended_oil_autoignition")
 
 
 def _scorching(w, dt, pans):
@@ -790,7 +809,8 @@ def _scorching(w, dt, pans):
         A.add_odor(w, rid, "burning_food", rate * dt)
         A.add(w, rid, "smoke", rate * 2.0 * dt / C.room_volume_m3(state, rid))
         if has_food and not rec.get("scorched"):
-            w.mut(eid)["scorched"] = True
+            with w.writing("physical", cause=[eid]):     # the pan left on the heat (6.2's causal link)
+                w.mut(eid)["scorched"] = True
 
 
 def _children(state, eid):
@@ -859,9 +879,11 @@ def fire_system(w, dt, tick):
         return
     known = set(cache["fires"]) | set(ledger_fires or [])
     active = sorted(f for f in known if f in state["entities"])
+    # every write a fire makes by itself carries its cause (causes_of: the house ledger's causal link, 6.2)
     for fid in active:
         if fid in state["entities"]:
-            _tick_fire(w, fid, dt)
+            with w.writing("physical", cause=causes_of(state, fid)):
+                _tick_fire(w, fid, dt)
     if active:
         _check_flashover(w)
     if cache["oil"]:

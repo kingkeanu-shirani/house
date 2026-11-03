@@ -29,6 +29,7 @@ from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, hook
 from ..core import place_item, release_from_hands
 from . import common as C
+from . import hardening as H
 from . import percept as P
 
 UPPER_ARM_CLEARANCE_M = 0.28
@@ -379,6 +380,10 @@ def _unload_seconds(ctx):
             "straight to `destination`. A slice jammed in a toaster is freed with `tool` (use a non-metal tool, toaster unplugged).")
 def unload(ctx):
     ctx.obj(ctx.args["target"], touch=True, grasp=True)
+    # an unfamiliar destination or tool serves as no receptacle or tool the robot knows of: one identify-first
+    # refusal before anything is picked up or checked by its type (closeout_breakages row 3; core place refuses it
+    # too, but only after the pick-up and the jam / coating checks ran)
+    ctx.refuse_unfamiliar(ctx.args.get("destination"), ctx.args.get("tool"))
     # kernel access refusals (visibility, reach, permission) above pass unchanged; this domain's own reasons below
     # are generic for an unidentified (look-alike or unfamiliar) target, so they cannot name what it is
     with P.plain_refusals(ctx, ctx.args.get("target")):
@@ -683,6 +688,7 @@ def _dw_tick(w, eid, step):
     program = canonical(rec, machine.get("program"))
     spec = (machine.get("programs") or {}).get(machine.get("program"), {})
     temp = C.num(spec.get("temp_c"), 60.0)
+    H.meter_wash_water(w, eid, hd, frac, C.num(spec.get("water_l"), 12.0))     # each fill on the water meter (6.8)
     if frac < 0.1:
         phase, t_in = "prewash", 35.0
     elif frac < 0.5:
@@ -912,6 +918,7 @@ def _dw_complete(w, eid, *_):
     util = w.sec("utilities")
     water = C.num(spec.get("water_l"), 12.0)
     util["water_l"] = round(C.num(util.get("water_l"), 100000.0) - water, 3)
+    H.meter_wash_water(w, eid, hd, 1.0, water)          # every fill booked once the program is through (6.8)
     if flt:
         add = 0.04 * len(results) / 10.0
         fm = w.mut(flt)

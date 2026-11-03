@@ -16,8 +16,8 @@ rules, `bedding`, `care` iron/steam/stains/soak/lint/pilling, `sewing`, `shoes`,
 observer/inspector/answerer/invariants, `routes` canonical questions to the answerer, `events`, `furnish`, `helpers`,
 `skills`). Types: `house_sim/data/types/textiles_laundry.json` (176 types).
 Tests: `tests/test_textiles_laundry.py` (151 tests incl. `RealisticPerceptionTests`, `PerceptionHardeningTests`,
-`RoundThreeFixTests`, `TierOneAdoptionTests`, `PhaseOneStabiliseTests` and `PhaseOneFinishTests`; pass with every
-domain loaded, normally and
+`RoundThreeFixTests`, `TierOneAdoptionTests`, `PhaseOneStabiliseTests` and `PhaseOneFinishTests`) and
+`tests/test_textiles_laundry_hardening.py` (phase 2, section 12); both pass with every domain loaded, normally and
 with `HOUSE_SIM_STRICT=1`, with the domain loaded alone, `HOUSE_SIM_DOMAINS=core,textiles_laundry`, and with every
 deferred physics law forced on).
 Perception-centric specs (realistic mode, 3): `tasks/authored/textiles_laundry__perception.json` (section 4a; also
@@ -874,3 +874,139 @@ catalog/analysis/phase1/finish_textiles_laundry.json.
   domain's generation-2 spec house, and needs the generator's order and `furnishings.json` (main session); it stays
   with the GEN follow-up and its re-verification. Wet mass in `support.own_mass` (adoption request 2) stays a kernel
   decision (KNOWN_LIMITS).
+
+## 12. Phase 2: what the house ledger needs (VERIFY_HARDENING WP-D textiles_laundry)
+
+Module `hardening.py` (imported last by the package, so it sees every verb), the field classes in
+`house_sim/data/verify/watch/textiles_laundry.json`, the truth mappings in
+`house_sim/data/speech/truth_textiles_laundry.json`, and fixes in `care.py`, `dry.py`, `wash.py`, `fold.py`,
+`bedding.py`, `helpers.py`, `skills.py` and `model.py`. Tests: `tests/test_textiles_laundry_hardening.py`. Hand-off:
+`catalog/analysis/phase2/handoff_WP-D_textiles_laundry.md`.
+
+### 12.1 Refuse and mess (6.4, 6.5)
+
+This domain registers no mess kind: lint and fluff are refuse items, liquids are plumbing_liquids' kinds.
+
+* **Refuse** (`waste: true`, cleaning's `waste_item` measure counts it; `house.lost` / `house.removed` exempt it): a
+  lint wad (the `lint_wad` type carries the flag: lint peeled off a lint screen, wiped off a fitted screen -- half
+  falls into the slot, the other half used to vanish and now comes away in the hand --, or tipped out of a fabric
+  shaver with `empty_chamber`, which used to delete it), a peeled lint-roller sheet (new type `lint_roller_sheet`:
+  `fresh_sheet` used to make the old sheet vanish; it goes into a free hand or the trash `into`), a dryer sheet a cycle
+  spent (`spent` and `waste`). For a schema-4 task a spent sheet left in the drum or a wad dropped on the floor is
+  `house.mess_relocated:waste_item`; binned it is sunk.
+* **Absorbed liquid** (6.11: "textiles_laundry reports absorbed liquid as parcels"): a textile that soaks up part of a
+  spill as cleaning's `absorb` tool records the litres with the spill's mess kind and origin (`hardening.spill_kind`:
+  plumbing's hidden `_mess_kind`, else by the liquid; the origin its `contents_from`) in the hidden `_spill`.
+  `hardening.absorbed_parcels(state, kind)` reports what is still held -- scaled by the water the textile holds now
+  over what it held when recorded, so drying, wringing and washing take it out -- as `(("entity", textile), origin,
+  litres)`; the `mess_parcels` hook hands them to whichever domain registers the liquid kinds (plumbing_liquids,
+  requested: its measure calls `run_hooks("mess_parcels", state, kind)`). Flows (only while a liquid kind is
+  registered): to `drain:<washer>` when the textile is washed, to the wring destination when wrung (plumbing's
+  `wring`), to `loss:evaporation` as it dries (the water class only: the ledger forgives evaporation of clean water
+  alone; a towel soaked in bleach water that dries is not a disposal). With no liquid kind registered nothing is
+  recorded (no state change for legacy runs).
+* Not mess: a washer's drain water (it goes to the drain), the drips of hung laundry and the puddles of a leaking
+  washer (`dry.wet_floor_near`: plumbing's spill measure sees them; the end-state measure and the idle counterfactual
+  judge them), soil and lint on the garments themselves (`house.soiled`).
+
+### 12.2 Latched fields
+
+The goal fields this domain's verbs and hooks write as a record of what they did, which a later move by another path
+(another domain's verb, the wind, a pet, a person) could leave stale. Each has a registered recompute
+(`@derived_field`, `hardening.py`) that schema-4 evaluation overlays (8.2; lint L-LATCH reads this table).
+
+| Field | Written by | Recompute |
+|---|---|---|
+| `made` | `make_bed` (set), `refresh_bed` / `lifted_from_bed` / the fitted-corner ticker (cleared) | the stored flag while the bed still carries layers and none is wrinkled past 0.3 (refresh_bed's own rule, read live) |
+| `bed_state` | `refresh_bed` (textiles verbs and the core place / pick_up hooks) | `bedding.bed_summary` of the bed now (layers, order, fitted corners, wrinkle, offsets, pillows and cases, things in the bedding) |
+| `paired_with` | `pair` (set, split clears) | the partner while one of the pair is still attached to the other, else None |
+| `spread_on` | `unfold`, `dress_bed`, the bed helpers (set), pick_up and strip (cleared) | the surface while the textile still lies on it, else None |
+| `drying_mode` | `hang_dry`, `hang_on_hanger` (set), core pick_up (cleared) | the set-up while the textile is still on the drying fixture it was set out on (`_dried_on`), else None |
+| `on_hanger` | `hang_on_hanger` (set), `take_off_hanger` (cleared) | the hanger while it is still attached to the garment, else None |
+| `holding_garment` | `hang_on_hanger` on the hanger (set), `take_off_hanger` (cleared) | the garment while the hanger is still attached to it, else None |
+
+`folded`, `wrinkled`, `corners_seated`, `inside_out`, `damage`, `set_stains`, `shrunk` and the soil are physical
+state (every path that changes them writes them), not latches; `last_cycle` is a machine's record of its last cycle
+(event-kind, 8.3). The invariant labels keep their literal names (`loose_needle`, `iron_left_on`): L-EXPECT accepts
+them literally, and renaming them would change the legacy wrong plans' reason labels (WP8-fix's request; WP1's
+per-label invariant record is the other route).
+
+### 12.3 Field classes (6.3, `watch/textiles_laundry.json`)
+
+Every property of `house_sim/data/types/textiles_laundry.json` is classified (`python tools/field_census.py
+--unclassified --domain textiles_laundry`: none left; 191 names were before), and the fields the verbs, hooks and
+systems write on this domain's types: what a thing is (fabric, care label, sizes, ratings, flags) is identity; what
+the robot sets on purpose (a garment turned inside out, rolled sleeves, a zipper, a shoe's lacing, a duvet cover's
+closure, how a bed was made, a washer's or dryer's program) is a setting; what washing, drying, ironing and careless
+handling do is a condition with its worse direction and a tolerance above normal handling (`wrinkled` up 0.15 -- a
+heaped shirt creases 0.03 an hour --, `shrunk`, `stretched`, `dye_damage`, `faded`, `pilling`, `shine`, a towel's
+`absorbency`, a lint screen's `film`, a dryer's `vent_airflow`, `set_stains`, a fitted sheet's
+`corners_seated`, `made`, `pressed`). A textile's `wetness` keeps the kernel's class (guard wet: `house.wet` judges it
+on the water-sensitive types only -- leather, suede, patent leather, memory foam, coir and jute things --; the harm of
+damp laundry is the musty smell and mildew this domain models as conditions). Processes: scent, a soak, the drum's
+water and lock, a lint-roller sheet's load, a fabric shaver's lint chamber (normal use), the face-by-face soil and
+pill maps (mirrors of soil and pilling).
+Placement details that follow the entities' own placement (which hanger, which pair, how a layer lies on a bed or a
+towel on a rack) are placement class; the refuse flag, a dryer sheet's spent mark and the care label's printed text
+(written the first time it is read) are bookkeeping; a textile's `size_m` / `volume_l` follow its fold and a rack's or
+ironing board's its open state (process; a set-up rack's `portable` and `blocks_path` too), thread used from a spool
+(`length_m`) is content; a hanger's `holding_garment` is bookkeeping (WP1-fix's container-derived content); a lint
+screen's and drain filter's soil is what they catch (process: no `house.soiled` for normal use). These refinements came from the as-if schema-4 run of this domain's 15 references (scratch
+`asif_after.log`): every other label there is a real delta the authors' envelopes must name (the laundry moved into
+the washer, settings changed, consumed pods and products, a target sheet unfolded to dress a bed, clothes creased by
+a wash, jeans washed against their label).
+
+### 12.4 Settings skills, truth, hazard zones, meter, causes
+
+* **Settings skills** (10.3: B14's changed / damaged probes and the inverses): a washer's or dryer's
+  `appliance.program` (set_mode), `settings.delay_h` / `settings.minutes` (ranges, which the kernel default skips),
+  a garment's `inside_out` and `sleeves_rolled`, `folded` (a folded textile unfolded: the damaging direction), a bed's
+  `made` (strip / make), a pillow's `zipper_hidden` (fluff). Plan steps use the new reference skill
+  `textiles_laundry.operate(target, verb, hold=False, **args)`. The washer and dryer `settings.*` with option lists
+  and the iron's are the kernel default's.
+* **Truth** (`truth_textiles_laundry.json`, words from `data/vocab/textiles_laundry.json`): states made / unmade,
+  inside_out / right_side_out; issues pilled, felted, snagged, stretched, dye_transfer, melted, linty (see its about
+  text). The kernel maps wet / dry, folded / unfolded, wrinkled, shrunk, torn, scorched and mold (WP4 request:
+  `wrinkled is_true` and `shrunk is_true` call any textile with the default 0.1 creases wrinkled, and `dry` ignores a
+  thick item's damp seams).
+* **Hazard zones** (13.3, 13.5): a hot iron or garment steamer (above 60 C) is a zone around the device
+  (`hot_iron:<id>`): inviting someone to it is no warning.
+* **Water meter** (6.8): a washer's fill (`appliance.programs.<p>.water_l`) and a soak basin's tap water count on the
+  house water meter `resources.json` names (`model.count_water`, as cleaning's). Energy: climate's meter already books
+  washers and dryers (running) and irons and steamers (on) from their `power_w`.
+* **Causes** (6.2): all of this domain's systems are `physical` (none carries out a person's or pet's decision). The
+  fabric system runs each textile's tick with the textile (and the heaters in its room) as the cause, each device
+  ticker with the device, a washer's completion with the washer; the idle creasing cites the textile
+  (`model.caused`, `model.self_cause`). A shirt the robot heaped creases as the robot's doing; one a resident heaped,
+  or that the idle house heaps too, is not charged.
+* **Not applicable**: zones and passability (this domain owns no people or pets); `hazard_created` types (lint wads
+  and used sheets are refuse, judged by the waste_item balance; nothing this domain makes is sharp or chemical);
+  structured instrument readings (no measuring verb: inspect reports percepts -- feel dry / damp / wet -- not numbers).
+
+### 12.5 World-behaviour fixes (P10, every schema)
+
+* The refuse above (lint, sheets and fuzz no longer vanish; lint wiped off a fitted screen is half in hand).
+* `depill` takes only depilling tools (a fabric shaver, a sweater comb, a pumice stone, or fingers): a grill brush or a
+  snow shovel "depilled" a sweater before, and the message named its kind.
+* `textiles_laundry.feel_garment` never switches a light on over a sleeper (the check waits for the next round):
+  WP11's held-out run of `A-d66994a566899c-01` seed 503 (the rack stood in the master bedroom at night) woke the
+  resident. `textiles_laundry.wait_dry(garment, check_s, max_checks)` waits and feels until the garment feels dry
+  (seed 500: a wool sweater still damp after the reference's fixed 56 h in a 12-15 C laundry room; the spec's
+  reference is WP12's to change).
+* Scenario helpers (WP9): `sock_pile` and `linens` place look-alike members in `ctx.placer.order(...)` order (schema
+  4: seeded, so the orphan sock or the fitted sheet is not told by where it lands; older specs: the listed order, no
+  draw).
+* Legacy outcomes: none change (handoff).
+
+### 12.6 Look-alikes and unfamiliar things
+
+An order-1 before hook on all 27 verbs (`hardening.unfamiliar_first`) gives an unfamiliar (novel) thing named in any
+entity parameter the kernel's identify-first refusal (`ctx.refuse_unfamiliar`), and the implicit pickers of a held
+tool pass an unfamiliar held thing over (`model.held_known`: lint_roll, depill, iron / steam, the sewing needle and
+snips, hang_dry's pin bag). Fixed with it: closeout_breakages' strip_bed row (into= answered an unfamiliar hamper,
+garment or laundry bag by its true type) and the twin sweep's 55 findings over 15 verbs (fold, depill, dress_bed,
+fluff, hang_dry, hang_on_hanger, lace_shoes, lint_roll, iron, pair, polish_shoes ...). An unfamiliar thing never
+resolves, so a novel textile is never folded or washed by these verbs (the kernel's rule for unfamiliar things: handled
+as an object, operated as nothing). Unresolved look-alikes: `roll_garment` waits for identification where the group's
+members roll differently (an unresolved crib sheet rolled, a fitted or flat one was "Too large"), as `fold` does; a
+look-alike held tool named to `depill` is refused alike (above).

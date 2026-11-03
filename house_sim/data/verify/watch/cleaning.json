@@ -1,0 +1,449 @@
+{
+ "about": "Field classes of the cleaning domain's types for the house ledger (VERIFY_HARDENING 6.3, WP-D cleaning). fields: every property name of house_sim/data/types/cleaning.json that the kernel's watch_fields.json does not classify, and the fields cleaning's verbs and systems write on its own types (classes: identity, setting, condition with its worse direction and tolerance, content, process, bookkeeping; guard mess: a load the mess balance of 6.5 judges -- dustpan and bin loads, pile composition, dirty bucket water). types: per-type refinements -- a waste container's fill_level / contents only follow what is in it (its children's placements are judged), a vacuum bin's or dustpan's fill_level follows its load (mess), a mop bucket's water is mess. water_sensitive: types a charged wetting damages (house.wet): vacuums and their paper filters and bags, paper and cardboard waste, the recycling guide. +affordances / +tags are the type data's merge keys of affordances / tags (identity).",
+ "fields": {
+  "+affordances": "identity",
+  "+tags": "identity",
+  "absorbed": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "absorbent": "identity",
+  "accepts_any_waste": "identity",
+  "accepts_materials": "identity",
+  "animal_latch": "identity",
+  "bag_model": "identity",
+  "bag_seal": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "burnt_out": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "capacity_g": "identity",
+  "chem_hazards": "identity",
+  "cl_boiled_over": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "cl_dripped": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "cl_fumed": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "cl_hair": "process",
+  "cl_load": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "cl_load_g": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "cl_overfilled": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "cl_pollutants": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "cl_sanitized": "process",
+  "cl_shine": "process",
+  "cl_soaked_with": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "cl_soil_g": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "cl_unlabeled_contents": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "cl_used_zones": "bookkeeping",
+  "cl_wet_treads": "process",
+  "cl_zone": "identity",
+  "composition": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "compostable": "identity",
+  "conditioned": "setting",
+  "conditioned_t": "bookkeeping",
+  "contaminated": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "contents_left": "content",
+  "default_head": "identity",
+  "discarded_t": "bookkeeping",
+  "distilled_only": "identity",
+  "double_bagged": "setting",
+  "drain_debris_g": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "drying_rack": "identity",
+  "dustpan": "identity",
+  "faces": "identity",
+  "faces_access": "identity",
+  "filter_kind": "identity",
+  "finish": "identity",
+  "flattenable": "identity",
+  "flattened": "setting",
+  "food_type": "identity",
+  "form": "identity",
+  "fruit_flies": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "gear_kind": "identity",
+  "glass_type": "identity",
+  "grabber": "identity",
+  "greasy": "identity",
+  "handheld": "identity",
+  "handle_m": "identity",
+  "handled_with": "bookkeeping",
+  "hands_free_operable": "identity",
+  "hang_slots": "identity",
+  "has_cap": "identity",
+  "has_meat_waste": "bookkeeping",
+  "has_sticker": "setting",
+  "hazardous_waste": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "head_kind": "identity",
+  "hidden_in_water": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "in_stream": "bookkeeping",
+  "inspect_from_afar": "identity",
+  "installed_wet": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "internal_dust": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "leaks": "identity",
+  "lid_kind": "identity",
+  "liner": "identity",
+  "liner_bunched": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "liner_l": "identity",
+  "liquid_container": "identity",
+  "lock_kind": "identity",
+  "lockable": "identity",
+  "loose_bristles": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "max_load_kg": "identity",
+  "metal": "identity",
+  "model": "identity",
+  "mop_bucket": "identity",
+  "mould_risk": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "mount_height_m": "identity",
+  "movable": "identity",
+  "nominal_capacity_l": "identity",
+  "oiled_t": "bookkeeping",
+  "on_carpet": "process",
+  "paper_type": "identity",
+  "part_type": "identity",
+  "plug_required": "identity",
+  "polished": "setting",
+  "pooled_water": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "private_contents": "identity",
+  "push_operable": "identity",
+  "relined_dirty": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "resin_code": "identity",
+  "reusable": "identity",
+  "rim_folded": "setting",
+  "rippled": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "scattered": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "seated": "setting",
+  "sharp_hazard": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "slipped": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "slippery": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "soaked_l": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "soil_load": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "spread_factor": "process",
+  "stain_area_m2": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.005
+  },
+  "stock_item": "identity",
+  "stream_errors": "bookkeeping",
+  "stream_label": "identity",
+  "stream_ok": "bookkeeping",
+  "superheated": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "switchable": "identity",
+  "tool_kind": "identity",
+  "toxic_to_pets": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "treads": "identity",
+  "trigger": "identity",
+  "two_handed": "identity",
+  "vacuum_kind": "identity",
+  "vent_debris_g": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "washable": "identity",
+  "washed_t": "bookkeeping",
+  "waste": "identity",
+  "waste_kind": "identity",
+  "waste_stream": "identity",
+  "waste_type": "identity",
+  "water_l": "process",
+  "wear": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.1
+  },
+  "wear_slot": "identity",
+  "wearable": "identity",
+  "wet_dry": "identity",
+  "wet_floor_sign": "identity",
+  "wheeled": "identity",
+  "wringer": "identity",
+  "wrinkled": "process"
+ },
+ "types": {
+  "backyard_compost_bin": {
+   "fill_level": "bookkeeping",
+   "lid_blocked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "contents": "bookkeeping"
+  },
+  "bathroom_wastebasket": {
+   "fill_level": "bookkeeping",
+   "lid_blocked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "contents": "bookkeeping"
+  },
+  "cart_liner": {
+   "folded": "process"
+  },
+  "compost_caddy": {
+   "fill_level": "bookkeeping",
+   "lid_blocked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "contents": "bookkeeping"
+  },
+  "compostable_liner": {
+   "folded": "process"
+  },
+  "contractor_bag": {
+   "folded": "process"
+  },
+  "dustpan": {
+   "fill_level": "bookkeeping"
+  },
+  "kitchen_trash_can": {
+   "fill_level": "bookkeeping",
+   "lid_blocked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "contents": "bookkeeping"
+  },
+  "long_handled_dustpan": {
+   "fill_level": "bookkeeping"
+  },
+  "mop_bucket": {
+   "liquid": "content",
+   "liquid_l": {
+    "class": "content",
+    "tol": 0.001,
+    "guard": "mess"
+   },
+   "cl_chem": {
+    "class": "content",
+    "guard": "mess"
+   },
+   "cl_soil_g": {
+    "class": "content",
+    "guard": "mess"
+   }
+  },
+  "office_paper_bin": {
+   "fill_level": "bookkeeping",
+   "lid_blocked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "contents": "bookkeeping"
+  },
+  "organics_cart": {
+   "fill_level": "bookkeeping",
+   "lid_blocked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "contents": "bookkeeping"
+  },
+  "recycling_bin": {
+   "fill_level": "bookkeeping",
+   "lid_blocked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "contents": "bookkeeping"
+  },
+  "recycling_cart": {
+   "fill_level": "bookkeeping",
+   "lid_blocked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "contents": "bookkeeping"
+  },
+  "spray_bottle": {
+   "liquid": "content",
+   "liquid_l": {
+    "class": "content",
+    "tol": 0.001
+   },
+   "cl_chem": {
+    "class": "content",
+    "guard": "mess"
+   }
+  },
+  "trash_cart": {
+   "fill_level": "bookkeeping",
+   "lid_blocked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "contents": "bookkeeping"
+  },
+  "trash_liner": {
+   "folded": "process"
+  },
+  "trash_liner_13gal": {
+   "folded": "process"
+  },
+  "trash_liner_4gal": {
+   "folded": "process"
+  },
+  "trash_liner_8gal": {
+   "folded": "process"
+  },
+  "vacuum_bag": {
+   "fill_level": "bookkeeping"
+  },
+  "vacuum_bin": {
+   "fill_level": "bookkeeping"
+  },
+  "waste_cart": {
+   "fill_level": "bookkeeping",
+   "lid_blocked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "contents": "bookkeeping"
+  },
+  "waste_container": {
+   "fill_level": "bookkeeping",
+   "lid_blocked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "contents": "bookkeeping"
+  },
+  "wastebasket": {
+   "fill_level": "bookkeeping",
+   "lid_blocked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "contents": "bookkeeping"
+  },
+  "yard_waste_cart": {
+   "fill_level": "bookkeeping",
+   "lid_blocked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "contents": "bookkeeping"
+  }
+ },
+ "water_sensitive": [
+  "canister_vacuum",
+  "cardboard_box",
+  "charcoal_filter",
+  "foil_wrapping_paper",
+  "food_carton",
+  "gift_bag",
+  "handheld_vacuum",
+  "liner_box",
+  "newspaper",
+  "paper_cup",
+  "paper_napkin",
+  "paper_plate",
+  "paper_scrap",
+  "pizza_box",
+  "recycling_guide",
+  "stick_vacuum",
+  "thermal_receipt",
+  "upright_vacuum",
+  "vacuum_bag",
+  "vacuum_cleaner",
+  "vacuum_filter_hepa",
+  "wrapping_paper"
+ ]
+}

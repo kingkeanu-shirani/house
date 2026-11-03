@@ -1,0 +1,75 @@
+{
+ "id": "WP-D_manipulation",
+ "landed": [
+  "watch/manipulation.json: every property of the domain's type data classified (L-WATCH part 2: 0 unclassified, was 89 names / 224 pairs) plus every field the domain writes (278 names, 14 per-type roll entries: a consumable roll's length_m is content), container mirrors (receptacles, stack_count, attached_parts) bookkeeping, pooled_water_l content with guard mess, 25 water-sensitive paper/cardboard/print types, a 'writes' list of names written on any type",
+  "every system tagged writer=physical with causes (falls: the falling thing; breaks: the broken thing; timers: the changed thing; wind: a blown cover cites cover + target, a light item none on purpose; jobs: the mounted item); the co-carry partner's own steps written volition (manipulation.partner)",
+  "records.py: relation records kept true after any move (world fix, P10) -- after-hook (order 995) of every verb of the domain and the hooked core verbs (pick_up, place, hand_over, receive, move, approach, walk_to, open, close) and inside the falls and wind systems: stale stack_member / stack_count, inserted / slot / seated + the rack slot, pack_seq / pack_z_m / pack_on, cover / clip / wrap-sheet / cap / prop back-references cleared; detach no longer writes a connector record onto a thing without one",
+  "derived fields (8.2): stack_member, stack_count, inserted, pack_seq, pack_z_m, pack_on, cover_coverage, clipped_by, closure; docs/domains/manipulation.md section 19 'Latched fields' table (L-LATCH) lists exactly these",
+  "mess flows (6.5): mess-parcel things moved by the domain's verbs / systems logged with world.mess_flow from the last logged place (else created:<verb>), idempotent with core's flows; remove_label's label / sticker scraps are waste (world fix)",
+  "settings skills (verify.py) via the new reference skill manipulation.operate: wrapped, zipper.closed_frac, velcro.engaged, rolled, cap.on; damaging verbs for B14 through the same registry: broken (throw hard), torn (tear by hand)",
+  "truth_manipulation.json: 13 states (wrapped, unwrapped, zipped, unzipped, upside_down, on_side, coiled, rolled_up, flattened, inflated, deflated, stacked, packed) and 5 issues (tangled, knotted, peeling_label, blown_away, loose_cap)",
+  "phase-1 carry-over: manipulation.items registered takes_env=True reading dialogue.known_record (a gone thing with hidden truth routes plain, like one out of view); novel helpers delegate to Ctx.unfamiliar / Ctx.refuse_unfamiliar",
+  "WP9 request: manipulation.displace moves its items in ctx.placer.order (seeded in schema 4, given order otherwise)",
+  "tests/test_manipulation_hardening.py (28 tests; 26 fail on pristine HEAD, the system-tag pin and the ledger pin of refuse left out pass there by design)"
+ ],
+ "deviations": [
+  {
+   "what": "Derived fields registered only for names this domain alone writes; wrapped, covered_by, covered, seated, receptacles, propped and sealed are kept true by the world rule only",
+   "why": "a derived field is one global registration per name and its recompute applies to every domain's entities carrying it; those names have other owners' meanings"
+  },
+  {
+   "what": "A world-behaviour fix (records.reconcile) in addition to the derived overlay 8.2 asks for",
+   "why": "the stale records were a simulation bug visible in inspect and in claim truth, so P10 applies; legacy outcomes unchanged (243/243)"
+  },
+  {
+   "what": "Damaging verbs (B14 damaged probe) registered through plugins.settings_skill for the condition fields broken and torn",
+   "why": "the kernel has no separate damaging-verb registry; requested WP6 to read them so"
+  },
+  {
+   "what": "No truth acts in truth_manipulation.json",
+   "why": "tests/test_speech.py requires lexicon verbs for every truth act and the lexicon is WP4's; requested"
+  },
+  {
+   "what": "The watch file's 'writes' list is data the ledger does not read yet",
+   "why": "the ledger applies a domain's 'fields' only to that domain's own types; requested WP1"
+  },
+  {
+   "what": "No mess kind, hazard_created type, structured reading, meter or zone registered",
+   "why": "the domain's refuse/debris/liquids are cleaning's, plumbing's and textiles' kinds; nothing it creates is a hazard class; it has no measuring instrument (heft is a felt class, learned by realism grant), no resource meter and owns no people or pets"
+  }
+ ],
+ "not_done": [
+  {
+   "what": "Physical look-alike differences left as they are: support mode=heft gives the felt weight class (bed_sheet crib vs fitted/flat, smooth_stone decor vs faux), and wrap names the roll it used (clear_plastic_roll)",
+   "why": "felt weight is the touch channel the kernel's own pick_up grants too (a physical consequence, not a refusal or wording tell); wrapping grants an inspect of the roll first, which resolves the group (resolve: inspect), so the message follows resolution"
+  },
+  {
+   "what": "Records moved by another domain's verb or by the kernel physics settle pass are corrected in the world only when a verb of this domain or a hooked core verb runs next",
+   "why": "this package may only hook its own verbs and the core verbs it already hooks; schema-4 evaluation is covered by the derived fields (for the shared names: the world rule only)"
+  },
+  {
+   "what": "WP9's audit skip for helpers that bind and place nothing",
+   "why": "those helpers write config sections setup.audit_diff compares, so skipping them in audit builds would be a harness error; no helper of this domain places look-alike members or takes role lists"
+  }
+ ],
+ "outcome_changes": [
+  "none: all 243 authored specs pass in their own mode on HEAD plus this package (no verification outcome change)",
+  "state digest only, outcome unchanged (re-verified): T-50c78da60ad2a8-01 (entities.*.pack_seq / pack_z_m: bread slices on a plate drop a stale packing record) and T-f2bea29c36142c-01 (entities.*.waste, logs.mess_flows: the peeled label scrap is refuse); golden rows proposed in catalog/analysis/phase2/WP-D_manipulation_reviewed.json"
+ ],
+ "tests": {
+  "new_tests": 28,
+  "passed": true,
+  "strict_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 243
+ },
+ "requests": [
+  "WP1: let the ledger apply a domain watch file's 'fields' classes to the names in its 'writes' list on things of any type (manipulation writes stack / pack / insert / cover / clip / closure / cap / thread records on core and other domains' things); also consider a kernel rule that length_m of a roll (width_m, wrap_material or tape_kind) is content (a spawned generic_item tape roll keeps identity)",
+  "WP4: lexicon verbs + truth acts for wrap / unwrap / stack / pack / zip / unzip / cover / uncover / roll up / flatten (end states wrapped, unwrapped, stacked, packed, zipped, unzipped, covered, uncovered, rolled_up, flattened); truth.json capped / uncapped could read cap.on and upright the orientation word",
+  "WP6: B14's damaged:<e>.<f> probe can take plugins.settings_steps(state, eid, f) for condition fields (manipulation registers broken and torn); B6 displace via core pick_up / detach no longer leaves stale manipulation records",
+  "main session: re-record the golden entries specs/T-50c78da60ad2a8-01 and specs/T-f2bea29c36142c-01 with the rows of catalog/analysis/phase2/WP-D_manipulation_reviewed.json; setup.py package_data for data/verify/watch/*.json and data/speech/truth_*.json"
+ ],
+ "notes": "Verification (HEAD bc1dc72 plus only this package's files, scratch minetree, unless said): tests/test_manipulation_hardening.py 28 + tests/test_manipulation.py 232 OK normal, strict and HOUSE_SIM_DOMAINS=core,manipulation (2 skips); 26 of the 28 new tests fail on pristine HEAD. Full suite green_tests.py 3: 158 runs, 5,441 tests per mode, failing only test_gate_tool and test_eval_tier1_gate in the copy because it is not a git work tree; both pass on the live tree. All 243 authored specs own mode 243/243; manipulation__examples 12/12 and __perception 2/2 on seeds 0 1 2 41 97, geometric 2/2. Golden dump --all A/B: 2 of 275 files differ (state digest only). perception_audit 60 80: room and geometric 0 leaks 0 crashes (84 probes); layout_audit 20 --domain manipulation: 120 houses 0 problems. field_census --unclassified manipulation 0, --check 0; py39_lint 17 files 0 violations; files LF. Look-alike sweep over every verb of the domain plus the hooked core verbs (78 groups, 253 member types, 192 commands, table and held): physical differences only (felt weight of support heft, throw fragility, raw egg spill, wrap after the roll is resolved). Phase-1 carry-over closed: closeout_breakages 'manipulation, people' (takes_env route + dialogue.known_record) and the optional unfamiliar-rule cleanup; closeout_REV / VER2 have no finding in this domain's files; INT3's requests to manipulation are those two rows. Requests to WP-D fulfilled for this domain: watch file (incl. container mirrors and mess-guard loads), truth file, Latched fields table, writer tags and causes, derived fields, settings skills, WP9 placer order; not applicable: volition tags for people/pets/safety, hazard_zones, invariant prefixes, held-out failures (none for manipulation). Scratch: C:/Users/keanu/AppData/Local/Temp/claude/C--Users-keanu-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_WP-D_manipulation/ (probe_light.py, sweep_lookalike*.log, golden_diff.txt, asif_*.json, check_mine.log, green_mine.json, paudit_*.txt, layout.txt, make_minetree.sh). Nothing committed; nothing created under the user profile .house_ai folder."
+}

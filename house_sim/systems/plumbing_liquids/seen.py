@@ -233,8 +233,11 @@ def stain_moisture(rec):
 
 
 def _held(ctx):
+    """The held things an instrument may be picked from: an unfamiliar one serves as no instrument the robot knows of
+    (core.require_tool's rule), so a close look never measures with it."""
     w = ctx.w
-    return [h for h in w.held_items() if h in w.s["entities"]]
+    unfamiliar = getattr(ctx, "unfamiliar", None)
+    return [h for h in w.held_items() if h in w.s["entities"] and not (callable(unfamiliar) and unfamiliar(h))]
 
 
 def thermometer(ctx):

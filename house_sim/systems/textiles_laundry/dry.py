@@ -317,7 +317,9 @@ def dryer_complete(w, eid):
         w.mut(item).pop("_heat_exposure_min", None)
     for item in M.load_of(w, eid):
         if w.ent(item).get("dryer_sheet"):
-            w.mut(item)["spent"] = True
+            sm = w.mut(item)
+            sm["spent"] = True
+            sm["waste"] = True               # a spent dryer sheet is refuse (VERIFY_HARDENING 6.4, 6.5: waste_item)
     m = w.mut(eid)
     m["_cycle"] = None
     m["internal_temp_c"] = None
@@ -728,9 +730,10 @@ def hang_dry(ctx):
     if pins:
         bag = ctx.args.get("pin_bag")
         if not bag:
-            bag = next((h for h in w.held_items() if w.ent(h).get("clothespins")), None)
+            bag = next((h for h in M.held_known(ctx) if w.ent(h).get("clothespins")), None)
         if not bag:
-            bag = next((c for c in sorted(w.s["entities"]) if w.ent(c).get("clothespins") and geometry.reach_problem(w.s, c) is None and ctx.visible(c)), None)
+            bag = next((c for c in sorted(w.s["entities"]) if w.ent(c).get("clothespins") and geometry.reach_problem(w.s, c) is None
+                        and ctx.visible(c) and not ctx.unfamiliar(c)), None)
         require(bag is not None, "Bring a clothespin bag within reach", "resource")
         ctx.obj(bag, touch=True)
         require(int(w.ent(bag).get("count", 0)) >= pins, "Not enough clothespins left in the bag", "resource")
@@ -1125,11 +1128,12 @@ def _fabric_run(w, dt):
         rec = ents.get(eid)
         if rec is None:
             continue
-        for fn in DEVICE_TICKERS:
-            fn(w, eid, rec, dt)
-            rec = ents.get(eid)
-            if rec is None:
-                break
+        with M.caused(w, eid):               # what a device does is its consequence (VERIFY_HARDENING 6.2)
+            for fn in DEVICE_TICKERS:
+                fn(w, eid, rec, dt)
+                rec = ents.get(eid)
+                if rec is None:
+                    break
     heaters = M.heat_sources(w)
     heat = heat_context(w, heaters)
     rain = rain_rooms(w)
@@ -1163,15 +1167,25 @@ def _fabric_run(w, dt):
         if rid not in env_cache:
             env_cache[rid] = environment(w, rid)
         env = env_cache[rid]
-        _tick_textile(w, eid, rec, dt, mode, rid, env, heaters, now)
-        rec = ents.get(eid)
+        spill = rec.get("_spill")
+        held = P.water_held_l(w.s, eid) if spill else 0.0
+        # a textile's own creasing, souring, drips and heat damage are consequences of where it was left and of the
+        # heaters near it (the house ledger's causal link: VERIFY_HARDENING 6.2)
+        near = [h for h in heaters if M.room_of(w, h) == rid] if heaters else ()
+        with M.caused(w, eid, *near):
+            _tick_textile(w, eid, rec, dt, mode, rid, env, heaters, now)
+            rec = ents.get(eid)
+            if rec is not None:
+                for fn in TEXTILE_TICKERS:
+                    fn(w, eid, rec, dt, (mode, rid, env))
+                    rec = ents.get(eid)
+                    if rec is None:
+                        break
         if rec is None:
             continue
-        for fn in TEXTILE_TICKERS:
-            fn(w, eid, rec, dt, (mode, rid, env))
-            rec = ents.get(eid)
-            if rec is None:
-                break
+        if spill:
+            from .hardening import spill_dried
+            spill_dried(w, eid, held, P.water_held_l(w.s, eid))
         if rec is not None and mode in ("bunched", "enclosed") and float(rec.get("wetness", 0.0)) > 0.0:
             groups.setdefault(rec.get("location"), []).append(eid)
     if not groups:
@@ -1286,9 +1300,9 @@ def _wrinkle_run(w, dt):
             continue
         mode, _ = drying_context(w, eid, rec)
         if mode in ("bunched", "held") and wrinkled < cap:
-            w.mut(eid)["wrinkled"] = round(min(cap, wrinkled + 0.03 * prone * hours), 4)
+            w.mut(eid, cause=M.self_cause(w, eid))["wrinkled"] = round(min(cap, wrinkled + 0.03 * prone * hours), 4)
         elif mode in ("hung", "pinned") and wrinkled > floor:
-            w.mut(eid)["wrinkled"] = round(max(floor, wrinkled - 0.03 * hours * (1.2 - prone)), 4)
+            w.mut(eid, cause=M.self_cause(w, eid))["wrinkled"] = round(max(floor, wrinkled - 0.03 * hours * (1.2 - prone)), 4)
 
 
 def _tick_textile(w, eid, rec, dt, mode, rid, env, heaters, now):

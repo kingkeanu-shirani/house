@@ -1,0 +1,500 @@
+{
+ "about": "Field classes of the textiles_laundry domain's types for the house ledger (VERIFY_HARDENING 6.3, lint L-WATCH; WP-D textiles_laundry). 'fields' classifies every property name of house_sim/data/types/textiles_laundry.json the kernel's watch_fields.json does not, and the fields this domain's verbs, hooks and systems write on its own types; a dotted name is one sub-key of a dict field, '<head>.*' its other sub-keys. What a textile or a machine is (fabric, care label, sizes, ratings, flags) is identity; what the robot sets on purpose (a garment turned inside out, rolled sleeves, a zipper, a shoe's lacing, a duvet cover's closure, how a bed was made, a washer's or dryer's program) is a setting; what washing, drying, ironing and careless handling do to a textile is a condition with its worse direction and a tolerance above normal handling: creases (wrinkled up 0.15: a heaped shirt creases 0.03 an hour), shrinkage, stretch, dye transfer, fading, pilling, iron shine, a towel's absorbency, a lint screen's softener film and a dryer vent's airflow, set stains, a fitted sheet's seated corners, a made bed, a pressed crease. A textile's wetness keeps the kernel's class (guard wet: house.wet judges it on the water-sensitive types below only; the harm of damp laundry is the musty smell and mildew this domain models as conditions); its scent, a soak, the drum's water and door lock, a lint roller sheet's load, a fabric shaver's lint chamber (normal use: emptying it gives a lint wad) and the face-by-face soil and pill maps (mirrors of soil and pilling) are processes. Which hanger, which pair, how a layer lies on a bed or a towel on a rack are placement details that follow the entities' own placement (judged by the placement guards); the refuse flag, a dryer sheet's spent mark and the care label's printed text (written when first read) are bookkeeping; a textile's size_m / volume_l follow its fold and a rack's or board's its open state (process), thread used from a spool is content. types: a hanger's holding_garment follows the garment it hangs, a set-up rack's or ironing board's portable / blocks_path follow its open setting, a lint screen's and drain filter's soil is what they catch. water_sensitive: leather, suede, patent leather, memory foam, coir and jute things a charged wetting damages (house.wet).",
+ "fields": {
+  "absorbency": {
+   "class": "condition",
+   "worse": "down",
+   "tol": 0.05
+  },
+  "agitator": "identity",
+  "aglets": {
+   "class": "condition",
+   "worse": "down",
+   "tol": 0.5
+  },
+  "appliance": "setting",
+  "appliance.*": "process",
+  "appliance.elapsed_s": "process",
+  "appliance.error": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "appliance.program": "setting",
+  "appliance.remaining_s": "process",
+  "appliance.state": "process",
+  "appliance_kind": "identity",
+  "appliance_of": "identity",
+  "arranged_index": "placement",
+  "athletic": "identity",
+  "auto_off": "identity",
+  "balled": "setting",
+  "bar": "identity",
+  "basin": "identity",
+  "bed_role": "identity",
+  "bed_size": "identity",
+  "bed_state": "bookkeeping",
+  "bleed": "identity",
+  "blocks_egress": "process",
+  "blown_down": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "breathable": "identity",
+  "buried_in_bed": "placement",
+  "button_holes": "identity",
+  "care": "identity",
+  "care_label": "bookkeeping",
+  "case": "placement",
+  "chemical_class": "identity",
+  "child_hazard": "identity",
+  "child_resistant": "identity",
+  "cleaner_tablet": "identity",
+  "clips": "identity",
+  "closure_open": "setting",
+  "clothesline": "identity",
+  "clothespins": "identity",
+  "coated": "identity",
+  "color_catcher": "identity",
+  "color_class": "identity",
+  "colorfast": "identity",
+  "colorfast_known": "identity",
+  "colorfast_tested": "process",
+  "com_frac": "identity",
+  "combustible": "identity",
+  "compartment": "identity",
+  "corner_ties": "identity",
+  "corners_filled": {
+   "class": "condition",
+   "worse": "down",
+   "tol": 0.5
+  },
+  "corners_matched": {
+   "class": "condition",
+   "worse": "down",
+   "tol": 0.5
+  },
+  "corners_seated": {
+   "class": "condition",
+   "worse": "down",
+   "tol": 0.5
+  },
+  "cover": "placement",
+  "cover_dims_m": "identity",
+  "cover_mass_kg": "identity",
+  "cover_removable": "identity",
+  "cover_role": "identity",
+  "crease": "identity",
+  "crowded": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "crushable": "identity",
+  "crushed": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "cuffed": "setting",
+  "curtain": "identity",
+  "cushion_cover": "placement",
+  "cushion_insert": "identity",
+  "damp_under": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "delicate": "identity",
+  "designated": "placement",
+  "dispenser": "identity",
+  "door_locked": "process",
+  "dose_ml_eq": "identity",
+  "double_crease": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "drape_cm": "process",
+  "drip_safe": "identity",
+  "drip_tray": "identity",
+  "drop_diff_cm": "process",
+  "drop_m": "identity",
+  "drop_short": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "dry_capacity_kg": "identity",
+  "dry_fixture": "identity",
+  "dryer": "placement",
+  "dryer_ball": "identity",
+  "dryer_sheet": "identity",
+  "drying_mode": "placement",
+  "drying_rack": "identity",
+  "duvet_style": "setting",
+  "dye_damage": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "elastic_stretch": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "embellished_faces": "identity",
+  "error": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "eye_mm": "identity",
+  "eyelets": "identity",
+  "fabric": "identity",
+  "fabric_exclusions": "identity",
+  "face_pilling": "process",
+  "face_pilling.*": "process",
+  "face_soil": "process",
+  "face_soil.*": "process",
+  "faded": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.02
+  },
+  "filled_with": "placement",
+  "film": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.05
+  },
+  "fitted": "identity",
+  "fitted_damp": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "flame_resistant": "identity",
+  "flat_size_m": "identity",
+  "flat_slots": "identity",
+  "floor_item": "identity",
+  "fluffable": "identity",
+  "fold_base_m": "identity",
+  "fold_class": "identity",
+  "fold_over": "setting",
+  "fold_style": "process",
+  "foldable": "identity",
+  "folded_damp": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "folded_inside": "setting",
+  "folded_size_m": "identity",
+  "folding_stand": "identity",
+  "friction_mu": "identity",
+  "garment_kind": "identity",
+  "glass_door": "identity",
+  "grommets": "identity",
+  "hamper": "identity",
+  "hang_length_m": "identity",
+  "hang_load_kg": "identity",
+  "hang_loop": "identity",
+  "hang_method": "placement",
+  "hang_slots": "identity",
+  "hanger_kind": "placement",
+  "hangs_folded_stands": "identity",
+  "has_buttons": "identity",
+  "has_care_label": "identity",
+  "has_legs": "identity",
+  "has_sleeves": "identity",
+  "has_snaps": "identity",
+  "has_zipper": "identity",
+  "he": "identity",
+  "head": "setting",
+  "heat_pump": "identity",
+  "hem": "process",
+  "hem_height_m": "process",
+  "hook_spacing_cm": "identity",
+  "hook_spacing_even": "process",
+  "hooks": "identity",
+  "hooks_attached": "setting",
+  "hooks_lost": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.5
+  },
+  "hooks_total": "identity",
+  "hooks_used": "setting",
+  "inner_floor_m": "identity",
+  "insert": "placement",
+  "insert_dims_m": "identity",
+  "inside_out": "setting",
+  "inside_tub": "process",
+  "intimate": "identity",
+  "invertible": "identity",
+  "ironing_surface": "identity",
+  "knit": "identity",
+  "knit_grade": "identity",
+  "lace_type": "identity",
+  "lacing": "setting",
+  "laid_flat": "placement",
+  "last_cycle": "bookkeeping",
+  "layer_thickness_m": "identity",
+  "length": "identity",
+  "length_cm": "identity",
+  "length_m": "content",
+  "liftable": "identity",
+  "liner": "identity",
+  "lining_facing": "setting",
+  "lint_chamber": "process",
+  "lint_screen": "identity",
+  "liquid_container": "identity",
+  "loader": "identity",
+  "looks_empty": "identity",
+  "loose_bedding": "identity",
+  "loose_hooks": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "loose_size_m": "identity",
+  "loose_threads": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "lost_on_floor": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "made": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "made_at": "bookkeeping",
+  "made_style": "setting",
+  "mat": "identity",
+  "mattress_depth_cm": "identity",
+  "max_load_kg": "identity",
+  "mesh_bag": "identity",
+  "mismatched_insert": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "molded_cups": "identity",
+  "moth_repellent": "identity",
+  "mount_height_m": "identity",
+  "mouth_frac": "identity",
+  "narrow_neck": "identity",
+  "needle": "identity",
+  "needle_storage": "identity",
+  "needs_hanger": "identity",
+  "no_softener": "identity",
+  "noise_db": "identity",
+  "non_slip": "identity",
+  "notches": "identity",
+  "on_bed": "placement",
+  "on_hanger": "placement",
+  "open_end": "process",
+  "open_size_m": "identity",
+  "pair_kind": "identity",
+  "pairable": "identity",
+  "paired_with": "placement",
+  "part_of_set": "identity",
+  "part_type": "identity",
+  "pilling": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.02
+  },
+  "pillow_size": "identity",
+  "pin_at": "placement",
+  "pins": "placement",
+  "pins_on_line": "bookkeeping",
+  "plug_required": "identity",
+  "pocket": "identity",
+  "pocket_depth_cm": "identity",
+  "pocket_name": "identity",
+  "pod": "identity",
+  "polish_color": "setting",
+  "polish_layer": "process",
+  "polish_smeared": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "popped_off": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "pose": "placement",
+  "press_cloth": "identity",
+  "pressed": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "protective_sheet": "identity",
+  "protector": "placement",
+  "rack_side": "placement",
+  "ready": "process",
+  "rigid": "identity",
+  "ring_risk": "identity",
+  "rings_attached": "setting",
+  "rod": "placement",
+  "roll_tight": "setting",
+  "sagging": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "saturated": "process",
+  "scented": "process",
+  "season": "identity",
+  "section": "identity",
+  "secured_threads": "process",
+  "set_stains": {
+   "class": "condition",
+   "worse": "change"
+  },
+  "sewing_button": "identity",
+  "sewing_kit": "identity",
+  "shape": "identity",
+  "shape_match": "process",
+  "sharp_point": "identity",
+  "sheet_load": "process",
+  "shine": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.02
+  },
+  "shoe_polish": "identity",
+  "shoe_tree": "identity",
+  "shoelace": "identity",
+  "shower_curtain": "identity",
+  "shows_inside_out": "process",
+  "shrunk": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.005
+  },
+  "side": "identity",
+  "side_up": "setting",
+  "single_size_m": "process",
+  "single_volume_l": "process",
+  "size": "identity",
+  "size_m": "process",
+  "size_mm": "identity",
+  "sleeves_rolled": "setting",
+  "soak_agents": "process",
+  "soaking": "process",
+  "soft_sided": "identity",
+  "softened": "process",
+  "softener_residue": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "spent": "bookkeeping",
+  "spread_on": "placement",
+  "stack_pos": "placement",
+  "stackable": "identity",
+  "stain_agent": "identity",
+  "stain_spread": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "stock_item": "identity",
+  "stoppered": "process",
+  "stored_months": "process",
+  "strained": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "strapless": "identity",
+  "stretched": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.005
+  },
+  "structured": "identity",
+  "switchable": "identity",
+  "textile": "identity",
+  "thick": "identity",
+  "thread_spool": "identity",
+  "throw_at_foot": "setting",
+  "ties": "identity",
+  "ties_tied": "setting",
+  "tip_margin_kg": "identity",
+  "tool_kind": "identity",
+  "towel_class": "identity",
+  "tucked_duvet": "setting",
+  "two_handed": "identity",
+  "vent_airflow": {
+   "class": "condition",
+   "worse": "down",
+   "tol": 0.05
+  },
+  "vented": "identity",
+  "volume_l": "process",
+  "wash_capacity_kg": "identity",
+  "waste": "bookkeeping",
+  "waste_stream": "identity",
+  "water_above_door": "process",
+  "water_level": "process",
+  "watertight": "identity",
+  "weather_class": "identity",
+  "wet_cells": "bookkeeping",
+  "wide_hem": "identity",
+  "wide_shoulder": "identity",
+  "wrinkle_propensity": "identity",
+  "wrinkled": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.15
+  },
+  "zip_side": "setting",
+  "zipper": "setting",
+  "zipper.closed_frac": {
+   "class": "setting",
+   "tol": 0.05
+  },
+  "zipper_hidden": "setting"
+ },
+ "types": {
+  "clip_hanger": {
+   "holding_garment": "bookkeeping"
+  },
+  "clothes_hanger": {
+   "holding_garment": "bookkeeping"
+  },
+  "drying_rack": {
+   "portable": "process",
+   "blocks_path": "process"
+  },
+  "ironing_board": {
+   "portable": "process",
+   "blocks_path": "process"
+  },
+  "lint_screen": {
+   "soil": "process",
+   "soil.*": "process"
+  },
+  "padded_hanger": {
+   "holding_garment": "bookkeeping"
+  },
+  "plastic_hanger": {
+   "holding_garment": "bookkeeping"
+  },
+  "velvet_hanger": {
+   "holding_garment": "bookkeeping"
+  },
+  "washer_drain_filter": {
+   "soil": "process",
+   "soil.*": "process"
+  },
+  "wire_hanger": {
+   "holding_garment": "bookkeeping"
+  },
+  "wooden_hanger": {
+   "holding_garment": "bookkeeping"
+  }
+ },
+ "water_sensitive": [
+  "belt",
+  "boot",
+  "coir_doormat",
+  "dress_shoe",
+  "glove",
+  "memory_foam_bath_mat",
+  "patent_shoe",
+  "shoe",
+  "suede_boot"
+ ]
+}

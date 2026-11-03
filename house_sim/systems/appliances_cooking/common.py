@@ -261,7 +261,9 @@ def spill(w, liters, liquid="water", onto=None, at=None, source=None, by="robot"
     """Liquid that leaves its vessel, through the kernel's single spill entry (liquids.spill): onto a support it films
     the top (wetness) and runs down to the floor (a cleaning spill or a kernel puddle and the room's wet cells); at a
     (room, cell) it lands on that floor. cause "leak" or "drip" counts only a portion that starts a new puddle (a
-    trickle of several substeps). Returns the floor spill's id, or None."""
+    trickle of several substeps). Returns the floor spill's id, or None. No mess flow is logged (VERIFY_HARDENING 6.5):
+    the liquid kinds' measures (plumbing_liquids) see the spill where it lies, and a flow into a measured place would
+    outlive a mop-up that logs none."""
     return physics.spill(w, liters, liquid=liquid, at=at, onto=onto, source=source, by=by, cause=cause)
 
 

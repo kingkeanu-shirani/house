@@ -21,6 +21,7 @@ tests/test_plumbing_liquids.py checks that states are identical with probes on a
 from ...kernel.plugins import hook, system
 from . import common as C
 from . import fixtures as F
+from . import hardening as H
 from . import ice as I
 from . import leaks as K
 from . import liquids as L
@@ -175,39 +176,48 @@ def _water(w, dt):
         if rec is None:
             continue
         kind = C.kind(rec)
-        if kind in ("sink", "tub", "shower", "dispenser"):
-            meter += F.outlet_step(w, eid, dt, cache)
-            if L.is_basin(w.ent(eid)):
-                F.basin_step(w, eid, dt)
-                _attended_fill(w, eid)
-                rec = w.ent(eid)
-                if isinstance(rec.get("_clog"), dict) and rec.get("standing_l") != C.rnd(L.liters(rec), 3):
-                    w.mut(eid)["standing_l"] = C.rnd(L.liters(rec), 3)
-        elif kind == "toilet":
-            meter += T.toilet_step(w, eid, dt, cache)
-        elif kind == "spigot":
-            meter += O.spigot_step(w, eid, dt, cache)
-        elif kind == "controller":
-            O.controller_step(w, eid, dt)
+        with C.caused(w, eid):          # what a tap, basin, toilet or spigot does is a consequence of its own state
+            if kind in ("sink", "tub", "shower", "dispenser"):
+                meter += F.outlet_step(w, eid, dt, cache)
+                if L.is_basin(w.ent(eid)):
+                    F.basin_step(w, eid, dt)
+                    _attended_fill(w, eid)
+                    rec = w.ent(eid)
+                    if isinstance(rec.get("_clog"), dict) and rec.get("standing_l") != C.rnd(L.liters(rec), 3):
+                        w.mut(eid)["standing_l"] = C.rnd(L.liters(rec), 3)
+            elif kind == "toilet":
+                meter += T.toilet_step(w, eid, dt, cache)
+            elif kind == "spigot":
+                meter += O.spigot_step(w, eid, dt, cache)
+            elif kind == "controller":
+                O.controller_step(w, eid, dt)
     O.sprinkler_spray(w, dt)
     meter += K.leak_step(w, dt, cache)
     for eid in L.holder_ids(w):
         rec = entities.get(eid)
         if rec is None or not _holder_active(rec):
             continue
-        if rec.get("reservoir_l"):
-            I.pitcher_step(w, eid, dt)
-        if C.num(rec.get("foam_l")) > 0:
-            foam = C.num(rec.get("foam_l")) * max(0.0, 1.0 - dt / 40.0)
-            w.mut(eid)["foam_l"] = C.rnd(foam, 4) if foam > 1e-4 else 0.0
-        if not rec.get("food"):
-            I.freeze_step(w, eid, dt)
-        _hot_hazard(w, eid)
-        if eid in entities and C.num(w.ent(eid).get("fizz")) > 0.01:
-            # a shaken, sealed carbonated drink calms down over a couple of minutes
-            w.mut(eid)["fizz"] = C.rnd(C.num(w.ent(eid)["fizz"]) * max(0.0, 1.0 - dt / 90.0), 3)
+        with C.caused(w, eid):
+            _holder_step(w, eid, rec, dt)
     K.drip_step(w, dt)
     S.meter_update(w, meter)
+
+
+def _holder_step(w, eid, rec, dt):
+    """One liquid holder's substep: a filter pitcher's reservoir, foam settling, freezing and melting, the hot-liquid
+    hazard, a shaken drink calming down."""
+    entities = w.s["entities"]
+    if rec.get("reservoir_l"):
+        I.pitcher_step(w, eid, dt)
+    if C.num(rec.get("foam_l")) > 0:
+        foam = C.num(rec.get("foam_l")) * max(0.0, 1.0 - dt / 40.0)
+        w.mut(eid)["foam_l"] = C.rnd(foam, 4) if foam > 1e-4 else 0.0
+    if not rec.get("food"):
+        I.freeze_step(w, eid, dt)
+    _hot_hazard(w, eid)
+    if eid in entities and C.num(w.ent(eid).get("fizz")) > 0.01:
+        # a shaken, sealed carbonated drink calms down over a couple of minutes
+        w.mut(eid)["fizz"] = C.rnd(C.num(w.ent(eid)["fizz"]) * max(0.0, 1.0 - dt / 90.0), 3)
 
 
 @system("plumbing_liquids.slow", order=101, max_dt=600.0, period=120)
@@ -257,3 +267,9 @@ def episode_start(w, env):
         F.refresh(w, eid, cache)
         if L.is_basin(w.ent(eid)):
             F.refresh_drain(w, eid)
+    # a hose a household put away coiled somewhere other than its hanger (generation 2's winter storage, a spec's
+    # coiled hose) stays coiled until something moves it: its place is recorded for the derived coiled (hardening)
+    for eid in O.hoses(w):
+        rec = w.s["entities"][eid]
+        if rec.get("coiled") is True and H.COILED_AT not in rec and not H.on_hose_storage(w.s, rec):
+            H.mark_coiled_at(w, eid)

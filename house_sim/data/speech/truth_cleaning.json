@@ -1,0 +1,260 @@
+{
+ "about": "The cleaning domain's truth mappings for claims about its state (kernel/speech.py truth(); VERIFY_HARDENING 13.1-13.3, 13.6; WP-D cleaning; the format of truth.json, whose keys this file never repeats). Cleaning owns soil (docs/domains/cleaning.md section 0: an entity's soil dict {kind: level 0..1} is the max over its faces, shadows and floor cells; a kind is clean below 0.05), cleaning products, waste streams and bin fill. states: clean / dirty read the highest soil level of the subject ($max:soil, the pseudo-field the kernel reads as the largest number of a dict field: until speech._field reads it the claim is unscored, never wrong); full is a bin, vacuum bin, product or caddy at 90 % of its fill (fill_level, recomputed from what it holds); soapy / rinsed read the soap left on a washed thing (cl_suds, rinsing clears it); sanitized reads the subject's highest contamination ($max:contamination). issues (any present condition that holds makes it true, all present and false make it false): a soil kind at 0.05 or more (dusty, crumbs, sticky, greasy, stained over the stain kinds, streaky, water_spots, fingerprints, mildew, rusty), finish harm in the damage dict (etched), a waste item in a stream it does not belong to (wrong_bin: stream_ok false), a bin past full (overfull), hair around a vacuum's brush roll (hair_wrapped), raw-meat or toilet germs carried onto a surface (cross_contaminated), fruit flies at a caddy. A floor's wetness follows its room's water film (state.sync_floor_wetness), so the kernel's wet / dry states read a mopped floor. acts: clean (I cleaned / will clean X) is lenient: one of the robot's cleaning verbs on the subject, or the end state for a commitment.",
+ "states": {
+  "clean": [
+   {
+    "field": "$max:soil",
+    "op": "lt",
+    "value": 0.05
+   }
+  ],
+  "dirty": [
+   {
+    "field": "$max:soil",
+    "op": "gte",
+    "value": 0.05
+   }
+  ],
+  "full": [
+   {
+    "field": "fill_level",
+    "op": "gte",
+    "value": 0.9
+   }
+  ],
+  "soapy": [
+   {
+    "field": "cl_suds",
+    "op": "gt",
+    "value": 0.05
+   }
+  ],
+  "rinsed": [
+   {
+    "field": "cl_suds",
+    "op": "lte",
+    "value": 0.05
+   }
+  ],
+  "sanitized": [
+   {
+    "field": "$max:contamination",
+    "op": "lt",
+    "value": 0.05
+   }
+  ]
+ },
+ "issues": {
+  "dusty": [
+   {
+    "field": "soil.dust",
+    "op": "gte",
+    "value": 0.05
+   },
+   {
+    "field": "soil.drywall_dust",
+    "op": "gte",
+    "value": 0.05
+   }
+  ],
+  "crumbs": [
+   {
+    "field": "soil.crumbs",
+    "op": "gte",
+    "value": 0.05
+   }
+  ],
+  "sticky": [
+   {
+    "field": "soil.sticky",
+    "op": "gte",
+    "value": 0.05
+   },
+   {
+    "field": "soil.gum",
+    "op": "gte",
+    "value": 0.05
+   }
+  ],
+  "greasy": [
+   {
+    "field": "soil.grease",
+    "op": "gte",
+    "value": 0.05
+   },
+   {
+    "field": "greasy",
+    "op": "is_true"
+   }
+  ],
+  "stained": [
+   {
+    "field": "soil.stain_wine",
+    "op": "gte",
+    "value": 0.05
+   },
+   {
+    "field": "soil.stain_coffee",
+    "op": "gte",
+    "value": 0.05
+   },
+   {
+    "field": "soil.stain_blood",
+    "op": "gte",
+    "value": 0.05
+   },
+   {
+    "field": "soil.stain_oil",
+    "op": "gte",
+    "value": 0.05
+   },
+   {
+    "field": "soil.stain_ink",
+    "op": "gte",
+    "value": 0.05
+   },
+   {
+    "field": "soil.stain_grass",
+    "op": "gte",
+    "value": 0.05
+   },
+   {
+    "field": "soil.stain_food",
+    "op": "gte",
+    "value": 0.05
+   },
+   {
+    "field": "soil.stain_juice",
+    "op": "gte",
+    "value": 0.05
+   }
+  ],
+  "streaky": [
+   {
+    "field": "soil.streaks",
+    "op": "gte",
+    "value": 0.05
+   }
+  ],
+  "water_spots": [
+   {
+    "field": "soil.water_spots",
+    "op": "gte",
+    "value": 0.05
+   }
+  ],
+  "fingerprints": [
+   {
+    "field": "soil.fingerprints",
+    "op": "gte",
+    "value": 0.05
+   }
+  ],
+  "mildew": [
+   {
+    "field": "soil.mildew",
+    "op": "gte",
+    "value": 0.05
+   },
+   {
+    "field": "soil.mold",
+    "op": "gte",
+    "value": 0.05
+   }
+  ],
+  "rusty": [
+   {
+    "field": "soil.rust",
+    "op": "gte",
+    "value": 0.05
+   },
+   {
+    "field": "damage.rust",
+    "op": "gte",
+    "value": 0.05
+   }
+  ],
+  "etched": [
+   {
+    "field": "damage.etched",
+    "op": "gte",
+    "value": 0.05
+   },
+   {
+    "field": "damage.etching",
+    "op": "gte",
+    "value": 0.05
+   }
+  ],
+  "wrong_bin": [
+   {
+    "field": "stream_ok",
+    "op": "eq",
+    "value": false
+   }
+  ],
+  "overfull": [
+   {
+    "field": "lid_blocked",
+    "op": "is_true"
+   },
+   {
+    "field": "fill_level",
+    "op": "gt",
+    "value": 1.0
+   }
+  ],
+  "hair_wrapped": [
+   {
+    "field": "brushroll_wrap",
+    "op": "gte",
+    "value": 0.3
+   }
+  ],
+  "cross_contaminated": [
+   {
+    "field": "contamination.raw_meat",
+    "op": "gte",
+    "value": 0.1
+   },
+   {
+    "field": "contamination.biohazard",
+    "op": "gte",
+    "value": 0.1
+   }
+  ],
+  "fruit_flies": [
+   {
+    "field": "fruit_flies",
+    "op": "is_true"
+   }
+  ]
+ },
+ "quantities": {},
+ "acts": {
+  "clean": {
+   "state": "clean",
+   "agency": "lenient",
+   "actions": [
+    "wipe",
+    "scrub",
+    "degrease",
+    "dust",
+    "polish",
+    "rinse",
+    "dry",
+    "disinfect",
+    "descale",
+    "squeegee",
+    "scrape",
+    "treat_upholstery",
+    "sweep",
+    "collect_debris",
+    "vacuum",
+    "mop",
+    "absorb",
+    "wash"
+   ]
+  }
+ }
+}

@@ -28,3 +28,4 @@ from . import furnish  # noqa: F401
 from . import smarthome  # noqa: F401
 from . import scenarios  # noqa: F401
 from . import skills  # noqa: F401
+from . import hardening  # noqa: F401

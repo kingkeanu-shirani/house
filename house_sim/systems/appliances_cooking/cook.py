@@ -702,6 +702,10 @@ def _check_doneness_body(ctx):
         lo, hi = (trec.get("range_c") or [-40.0, 300.0])[:2]
         out["reading_c"] = round(max(C.num(lo), min(C.num(hi), reading)), 1)
         out["where"] = where
+        # the structured instrument reading (VERIFY_HARDENING 15.2: tasks/perceive.py indexes {subject, quantity,
+        # value, unit, field} of an action message as measure-level evidence of that field): the core temperature
+        out["reading"] = {"subject": target, "quantity": "temperature", "value": out["reading_c"], "unit": "C",
+                          "field": "core_temp_c", "where": where, "instrument": tool}
         # the probe measured the food at that point (to its accuracy_c); the knowledge is about the core, not the surface
         ctx.grant(target, "measure", ["_core_c", "internal_temp_c"])
         if (rec.get("food") or {}).get("raw") or (rec.get("food") or {}).get("needs_cooking") and not hc.get("safe"):

@@ -1,0 +1,21 @@
+{
+ "about": "The people domain's truth mappings for claims about people (kernel/speech.py truth(); VERIFY_HARDENING 13.1-13.3; WP-D people). Words from house_sim/data/vocab/core.json (home, away) and house_sim/data/vocab/people.json (fever). Conditions read a person's own record (state people.<pid>). states: a person is home when present (common.present: not away; a person record always carries a role, so a resident without an away flag is home), away when their away flag is set (they left through a door or their schedule took them out); the role condition makes both words person-only, so 'the candle is out' about a thing is never scored by them. issues: a fever is a body temperature of 38.0 C or more (the hidden _body_temp_c; a person without one is unknown, never false). acts: 'I let the plumber in' is about the robot's own let_in (the visitor's admitted record, written by let_in); a resident or a key that let them in is not the robot's act, and a claim whose subject the parser names by role alone is left unscored (agency lenient).",
+ "states": {
+  "home": [
+   {"field": "away", "op": "is_false"},
+   {"field": "role", "op": "exists", "value": true}
+  ],
+  "away": [
+   {"field": "away", "op": "is_true"},
+   {"field": "role", "op": "exists", "value": false}
+  ]
+ },
+ "issues": {
+  "fever": [
+   {"field": "_body_temp_c", "op": "gte", "value": 38.0}
+  ]
+ },
+ "acts": {
+  "let_in": {"fields": ["admitted"], "agency": "lenient", "actions": ["let_in"]}
+ }
+}

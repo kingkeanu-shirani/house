@@ -26,6 +26,7 @@ from ...kernel.plugins import after, before, hook
 from ..core import apply_setting
 from . import common as C
 from . import fixtures as F
+from . import hardening as H
 from . import liquids as L
 from . import seen as V
 from . import supply as S
@@ -291,6 +292,7 @@ def drain_hose(ctx, hose):
     if long_enough:
         m["kinks"] = 0
     m["coiled"] = False
+    m.pop(H.COILED_AT, None)
     if have > 0:
         parcel = L.take(w, hose, have)
         cell = list(w.robot.get("pos") or [0, 0])
@@ -475,6 +477,7 @@ def hose_stored(ctx, result):
     if drec.get("hose_storage"):
         m["coiled"] = True
         m["coiled_s"] = C.now(w)
+        H.mark_coiled_at(w, eid)            # where it was coiled (the derived coiled of a schema-4 evaluation)
         if rec.get("pressurized"):
             m["kinks"] = int(C.num(rec.get("kinks"))) + 2
             C.damage(w, eid, "kinked and bulged: coiled while pressurized", kind="kinked", severity=0.5)
@@ -493,6 +496,7 @@ def hose_stored(ctx, result):
             ctx.note("water ran out of the coil")
     else:
         m["coiled"] = False
+        m.pop(H.COILED_AT, None)
         if drec.get("hook_kind") == "nail" or drec.get("sharp_hook"):
             C.damage(w, eid, "punctured by the nail it hangs on", kind="punctured", severity=0.6)
             m["_leak"] = C.robot_leak(w, {"component": "hose_wall", "rate_lpm": 2.0, "when": "pressurized_hose", "started_s": C.now(w)})
@@ -632,7 +636,9 @@ def rinse_cells(w, floor, cells, power, passes, downslope=None):
 
 def _held_hose(ctx, tool=None):
     w = ctx.w
-    candidates = [tool] if tool else w.held_items()
+    # an unfamiliar held thing serves as no tool the robot knows of (core.require_tool's rule): passed over unnamed
+    held = [h for h in w.held_items() if not ctx.unfamiliar(h)]
+    candidates = [tool] if tool else held
     for eid in candidates:
         if not eid or eid not in w.s["entities"] or not ctx.holding(eid):
             continue
@@ -641,7 +647,7 @@ def _held_hose(ctx, tool=None):
             return eid
         if rec.get("hose_nozzle") and w.s["entities"].get(rec.get("location"), {}).get("hose"):
             return rec["location"]
-    for eid in w.held_items():
+    for eid in held:
         if w.ent(eid).get("hose"):
             return eid
     raise ActionError("Hold the hose (with its nozzle) to spray", "capability")
@@ -1049,16 +1055,18 @@ def freeze_step(w, dt):
             trapped = interior_open or (outdoor_closed and not rec.get("drained")) or attached is not None
         if not trapped:
             continue
-        m = w.mut(eid)
-        m["frozen_burst"] = True
         interior = rec.get("interior_valve")
-        burst_room = C.room_of(w, interior) if interior and interior in w.s["entities"] else C.room_of(w, eid)
-        m["_leak"] = {"component": "frozen_supply_pipe", "rate_lpm": 12.0, "when": "pressurized", "line": "cold",
-                      "fixture": eid, "to": {"room": burst_room, "cell": C.cell_of(w, interior) if interior in w.s["entities"] else C.cell_of(w, eid)},
-                      "started_s": C.now(w), "severity": "spray"}
-        # a hose left attached traps the water (frost-free bibs): then the burst is the robot's when it handled that hose
-        C.damage(w, eid, "pipe burst by ice in the wall", kind="freeze_burst", cause=attached or eid)
-        C.plog(w, "freeze_burst", spigot=eid)
+        # the trapped water's causes: a hose left attached, the interior valve left open, the spigot itself (6.2)
+        with C.caused(w, eid, attached, interior if interior in w.s["entities"] else None):
+            m = w.mut(eid)
+            m["frozen_burst"] = True
+            burst_room = C.room_of(w, interior) if interior and interior in w.s["entities"] else C.room_of(w, eid)
+            m["_leak"] = {"component": "frozen_supply_pipe", "rate_lpm": 12.0, "when": "pressurized", "line": "cold",
+                          "fixture": eid, "to": {"room": burst_room, "cell": C.cell_of(w, interior) if interior in w.s["entities"] else C.cell_of(w, eid)},
+                          "started_s": C.now(w), "severity": "spray"}
+            # a hose left attached traps the water (frost-free bibs): then the burst is the robot's when it handled that hose
+            C.damage(w, eid, "pipe burst by ice in the wall", kind="freeze_burst", cause=attached or eid)
+            C.plog(w, "freeze_burst", spigot=eid)
 
 
 @after("open_valve", order=150)

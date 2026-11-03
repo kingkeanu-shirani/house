@@ -1,0 +1,697 @@
+{
+ "about": "Field classes of the manipulation domain (VERIFY_HARDENING 6.3, lint L-WATCH; WP-D manipulation). 'fields' classifies, for this domain's types (house_sim/data/types/manipulation.json), every property of the type data the kernel's name table (watch_fields.json) does not, a few the kernel table misfits for these types (text: a price tag's printed price, identity; heat_limit_c / max_temp_c: a trivet's and a sheet's rated limits, identity, not process) and every field this domain's verbs and systems write: identity = what a thing is (static props); placement = where and how it sits (stack, pack, insert, cover, clip and lean records); setting = a configuration the robot sets (zipper, velcro, knots, closures, caps and threads, covers, tape, inflation, assembly); condition = damage in its worse direction (true is worse unless 'worse' says false or up); content = what it holds (cards, pieces, a game's components; rain pooled on a cover is a mess load the mess balance judges, guard mess); process = transient physics (falling, rolling, mixing); bookkeeping = records of what happened and mirrors of other things' placements (receptacles' items, a stack base's count, attached part lists: the things themselves are judged). 'types': per-type entries (a consumable roll's length_m is content: tearing wrap or tape off uses it up, allowed by envelope.consume). 'water_sensitive': paper, cardboard and framed prints (house.wet). 'writes': the field names of 'fields' this domain writes on things of ANY type (core mugs, plates, bags, other domains' covers and cords); the ledger applies a domain's 'fields' only to its own types, so for other types these names fall back to the kernel table or the default (setting: watched, a false alarm at worst, never a hole) until the kernel reads this list (request to WP1).",
+ "fields": {
+  "accepts_in": "identity",
+  "aid_kind": "identity",
+  "base_half_width_m": "identity",
+  "breathable": "identity",
+  "casters": "identity",
+  "cell_dividers": "identity",
+  "choking_hazard": "identity",
+  "clip": "identity",
+  "clip.*": "identity",
+  "coilable": "identity",
+  "cover_area_m2": "identity",
+  "crush_force_n": "identity",
+  "crush_kg": "identity",
+  "crushable": "identity",
+  "decor": "identity",
+  "delicate": "identity",
+  "delicate_finish": "identity",
+  "diameter_m": "identity",
+  "diameter_mm": "identity",
+  "double_wall": "identity",
+  "drop_tolerance_m": "identity",
+  "features": "identity",
+  "features.*": "identity",
+  "flammable": "identity",
+  "flattenable": "identity",
+  "food_safe": "identity",
+  "foot_material": "identity",
+  "glass_pane": "identity",
+  "grip_damage": "identity",
+  "grip_damage.*": "identity",
+  "handle_rating_kg": "identity",
+  "hang_slots": "identity",
+  "hang_wire": "identity",
+  "has_handle": "identity",
+  "heat_limit_c": "identity",
+  "heat_resistant": "identity",
+  "holiday": "identity",
+  "hollow": "identity",
+  "insulated": "identity",
+  "liquid_container": "identity",
+  "load_capacity_kg": "identity",
+  "load_rating_text": "identity",
+  "max_bundle_perimeter_m": "identity",
+  "max_load_kg": "identity",
+  "max_stack_load_kg": "identity",
+  "max_temp_c": "identity",
+  "min_age": "identity",
+  "min_bend_radius_m": "identity",
+  "opening_width_m": "identity",
+  "pair_id": "identity",
+  "panel_thickness_m": "identity",
+  "pieces_total": "identity",
+  "players": "identity",
+  "protrusions": "identity",
+  "resistance": "identity",
+  "rollable": "identity",
+  "rolls": "identity",
+  "rolls_on_edge": "identity",
+  "round": "identity",
+  "set_id": "identity",
+  "sheet_area_m2": "identity",
+  "sheet_mass_kg_per_m2": "identity",
+  "sleeved": "identity",
+  "slippery": "identity",
+  "small_parts": "identity",
+  "soft": "identity",
+  "soft_sided": "identity",
+  "stackable": "identity",
+  "tape_kind": "identity",
+  "text": "identity",
+  "thickness_m": "identity",
+  "this_side_up": "identity",
+  "tilt_to_roll": "identity",
+  "tip_imbalance_kg": "identity",
+  "toy_category": "identity",
+  "transport_wheels": "identity",
+  "two_handed": "identity",
+  "weight_kg": "identity",
+  "wheeled": "identity",
+  "width_m": "identity",
+  "wind_lift_mps": "identity",
+  "wrap_material": "identity",
+  "zip_tie": "identity",
+  "gap_depth_m": "identity",
+  "hold_down_kg": "identity",
+  "hook_rating_kg": "identity",
+  "dries_uncapped_s": "identity",
+  "price_tag": "identity",
+  "price_tag.*": "identity",
+  "nest_group": "identity",
+  "weak_joints": "identity",
+  "prop_need": "identity",
+  "prop_need.*": "identity",
+  "lid_fit": "identity",
+  "fits": "identity",
+  "snap_cap": "identity",
+  "bristles": "identity",
+  "pull_limit_n": "identity",
+  "water_line_slack_m": "identity",
+  "cord_slack_m": "identity",
+  "label_pii": "identity",
+  "nested": "placement",
+  "stack_offset_m": "placement",
+  "pack_seq": "placement",
+  "pack_z_m": "placement",
+  "pack_on": "placement",
+  "covering": "placement",
+  "clipped_to": "placement",
+  "leaning_on": "placement",
+  "inserted": "placement",
+  "inserted.*": "placement",
+  "slot": "placement",
+  "in_divider": "placement",
+  "over_rug_edge": "placement",
+  "pulled_forward": "placement",
+  "laid_out": "placement",
+  "routed": "placement",
+  "protruding": "placement",
+  "overhang_m": "placement",
+  "spine_out": "placement",
+  "mounted_pose": "placement",
+  "mounted_pose.*": "placement",
+  "mount_height_m": "placement",
+  "tilted_on_wheels": "placement",
+  "under_aid": "placement",
+  "hem_inside_tub": "placement",
+  "layer": "placement",
+  "hung_points": "placement",
+  "tethered_to": "placement",
+  "in_street": "placement",
+  "cloth_shifted": "placement",
+  "wedged": "placement",
+  "head_end": "placement",
+  "seated": "placement",
+  "assembled": "setting",
+  "inflated": "setting",
+  "kickstand": "setting",
+  "velcro": "setting",
+  "velcro.*": "setting",
+  "zipper": "setting",
+  "zipper.closed_frac": "setting",
+  "zipper.meshed": "setting",
+  "snaps": "setting",
+  "snaps.*": "setting",
+  "snaps_closed": "setting",
+  "knot": "setting",
+  "knot.*": "setting",
+  "knot_structure": "setting",
+  "laces_tied": "setting",
+  "tie": "setting",
+  "closure": "setting",
+  "closure.*": "setting",
+  "clipped_by": "setting",
+  "bound": "setting",
+  "covered": "setting",
+  "cover_coverage": "setting",
+  "cover_secured": "setting",
+  "cover_breathable": "setting",
+  "cover_sealed": "setting",
+  "cover_gap_mm": "setting",
+  "taped": "setting",
+  "taped_with": "setting",
+  "tape_on_surface": "setting",
+  "label_covered": "setting",
+  "flattened": "setting",
+  "rolled_turns": "setting",
+  "cord_wrapped": "setting",
+  "connector": "setting",
+  "connector.*": "setting",
+  "propped": "setting",
+  "propped_by": "setting",
+  "edges_squared": "setting",
+  "opened_out": "setting",
+  "crumpled": "setting",
+  "packaged": "setting",
+  "flap_adhesion": "setting",
+  "air_frac": "setting",
+  "exposed_opening_frac": "setting",
+  "secure": "setting",
+  "ribbon": "setting",
+  "bundled": "setting",
+  "tight": "setting",
+  "mended_with": "setting",
+  "facing_wrong": "setting",
+  "misalign_mm": "setting",
+  "tangle.with": "setting",
+  "cap": "setting",
+  "cap.*": "setting",
+  "thread": "setting",
+  "thread.engaged_turns": "setting",
+  "thread.torque_nm": "setting",
+  "thread.stuck_nm": "setting",
+  "thread.turns_to_seat": "setting",
+  "thread.spec_nm": "setting",
+  "thread.max_nm": "setting",
+  "thread.mate": "setting",
+  "thread.direction": "setting",
+  "thread.child_resistant": "setting",
+  "thread.strict_mate": "setting",
+  "stuck_nm": "setting",
+  "folded_inward": "setting",
+  "needs_latch": "setting",
+  "valve_open": "setting",
+  "packaging_intact": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "cross_threaded": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "thread.cross_threaded": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "zipper.snagged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "zipper.teeth_split": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "misaligned_snaps": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "misfastened": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "tangle.tight": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "order_lost": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "shuffled": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "ventilation_blocked": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "label_peeled": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "wobbly": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "sagging": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "warped": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "ink_run": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "wrap_melted": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "foil_corroded": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "water_line_kinked": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "handles_torn": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "bottom_failed": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "squashed": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "bubble_imprint": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "pinched": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "girdled": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "too_tight": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "ends_curled": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "rippled": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "bumpy": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "off_runners": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "stuck_nested": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "mildewed": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "drawstring_pulled_out": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "ran_away": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "torn_open": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "track_contaminated": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "floor_hazard": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "trailing_damage": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "abraded_m": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "tangle": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.5
+  },
+  "tangle.crossings": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.5
+  },
+  "tangle.knots": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.5
+  },
+  "cards": "content",
+  "components": "content",
+  "components.*": "content",
+  "pieces": "content",
+  "pooled_water_l": {
+   "class": "content",
+   "guard": "mess",
+   "tol": 0.001
+  },
+  "falling": "process",
+  "falling.*": "process",
+  "rolling": "process",
+  "rolling.*": "process",
+  "in_motion": "process",
+  "agitation": "process",
+  "emulsified": "process",
+  "separated": "process",
+  "mixed_s": "process",
+  "co_held_by": "bookkeeping",
+  "held_for_job": "bookkeeping",
+  "offered": "bookkeeping",
+  "level_checked": "bookkeeping",
+  "deploy_result": "bookkeeping",
+  "deploy_result.*": "bookkeeping",
+  "sealed_contents": "bookkeeping",
+  "dispensed": "bookkeeping",
+  "label_fallen_text": "bookkeeping",
+  "unflattened_size_m": "bookkeeping",
+  "unrolled_size_m": "bookkeeping",
+  "attached_parts": "bookkeeping",
+  "stack_count": "bookkeeping",
+  "receptacles": "bookkeeping",
+  "receptacles.*": "bookkeeping",
+  "waste": "bookkeeping",
+  "empty": "bookkeeping",
+  "hefted": "bookkeeping",
+  "manip_from": "bookkeeping"
+ },
+ "types": {
+  "bubble_wrap_roll": {
+   "length_m": {
+    "class": "content",
+    "tol": 0.001
+   }
+  },
+  "clear_tape": {
+   "length_m": {
+    "class": "content",
+    "tol": 0.001
+   }
+  },
+  "duct_tape": {
+   "length_m": {
+    "class": "content",
+    "tol": 0.001
+   }
+  },
+  "gift_wrap_roll": {
+   "length_m": {
+    "class": "content",
+    "tol": 0.001
+   }
+  },
+  "kraft_paper_roll": {
+   "length_m": {
+    "class": "content",
+    "tol": 0.001
+   }
+  },
+  "masking_tape": {
+   "length_m": {
+    "class": "content",
+    "tol": 0.001
+   }
+  },
+  "packing_tape": {
+   "length_m": {
+    "class": "content",
+    "tol": 0.001
+   }
+  },
+  "painters_tape": {
+   "length_m": {
+    "class": "content",
+    "tol": 0.001
+   }
+  },
+  "ribbon_spool": {
+   "length_m": {
+    "class": "content",
+    "tol": 0.001
+   }
+  },
+  "stretch_wrap_roll": {
+   "length_m": {
+    "class": "content",
+    "tol": 0.001
+   }
+  },
+  "tape_gun": {
+   "length_m": {
+    "class": "content",
+    "tol": 0.001
+   }
+  },
+  "tape_roll": {
+   "length_m": {
+    "class": "content",
+    "tol": 0.001
+   }
+  },
+  "tissue_paper": {
+   "length_m": {
+    "class": "content",
+    "tol": 0.001
+   }
+  },
+  "twine_spool": {
+   "length_m": {
+    "class": "content",
+    "tol": 0.001
+   }
+  }
+ },
+ "water_sensitive": [
+  "cell_kit_box",
+  "collectible_figure_boxed",
+  "dish_pack_box",
+  "game_box",
+  "gift_bag_handled",
+  "gift_box",
+  "gift_tag",
+  "gift_wrap_roll",
+  "jigsaw_puzzle",
+  "kraft_paper_roll",
+  "label_sheet",
+  "masking_tape",
+  "moving_box_large",
+  "moving_box_medium",
+  "moving_box_small",
+  "ornament_tray",
+  "painters_tape",
+  "paper_grocery_bag",
+  "party_banner",
+  "picture_frame",
+  "price_tag",
+  "streamer_roll",
+  "tissue_paper",
+  "trading_cards",
+  "wall_frame"
+ ],
+ "writes": [
+  "abraded_m",
+  "agitation",
+  "air_frac",
+  "assembled",
+  "attached_parts",
+  "bottom_failed",
+  "bound",
+  "bubble_imprint",
+  "bumpy",
+  "bundled",
+  "cap",
+  "cards",
+  "clipped_by",
+  "clipped_to",
+  "closure",
+  "cloth_shifted",
+  "co_held_by",
+  "components",
+  "connector",
+  "cord_wrapped",
+  "cover_breathable",
+  "cover_coverage",
+  "cover_gap_mm",
+  "cover_sealed",
+  "cover_secured",
+  "covered",
+  "covering",
+  "cross_threaded",
+  "crumpled",
+  "deploy_result",
+  "dispensed",
+  "drawstring_pulled_out",
+  "edges_squared",
+  "empty",
+  "emulsified",
+  "ends_curled",
+  "exposed_opening_frac",
+  "facing_wrong",
+  "falling",
+  "flap_adhesion",
+  "flattened",
+  "floor_hazard",
+  "foil_corroded",
+  "folded_inward",
+  "girdled",
+  "handles_torn",
+  "head_end",
+  "hefted",
+  "held_for_job",
+  "hem_inside_tub",
+  "hung_points",
+  "in_divider",
+  "in_motion",
+  "in_street",
+  "inflated",
+  "ink_run",
+  "inserted",
+  "kickstand",
+  "knot",
+  "knot_structure",
+  "label_covered",
+  "label_fallen_text",
+  "label_peeled",
+  "laces_tied",
+  "laid_out",
+  "layer",
+  "leaning_on",
+  "level_checked",
+  "manip_from",
+  "mended_with",
+  "mildewed",
+  "misalign_mm",
+  "misaligned_snaps",
+  "misfastened",
+  "mixed_s",
+  "mount_height_m",
+  "mounted_pose",
+  "needs_latch",
+  "nested",
+  "off_runners",
+  "offered",
+  "opened_out",
+  "order_lost",
+  "over_rug_edge",
+  "overhang_m",
+  "pack_on",
+  "pack_seq",
+  "pack_z_m",
+  "packaged",
+  "packaging_intact",
+  "pieces",
+  "pinched",
+  "pooled_water_l",
+  "price_tag",
+  "propped",
+  "propped_by",
+  "protruding",
+  "pulled_forward",
+  "ran_away",
+  "receptacles",
+  "ribbon",
+  "rippled",
+  "rolled_turns",
+  "rolling",
+  "routed",
+  "sagging",
+  "sealed_contents",
+  "seated",
+  "secure",
+  "separated",
+  "shuffled",
+  "slot",
+  "snaps",
+  "snaps_closed",
+  "spine_out",
+  "squashed",
+  "stack_count",
+  "stack_offset_m",
+  "stuck_nested",
+  "stuck_nm",
+  "tangle",
+  "tangle.crossings",
+  "tangle.knots",
+  "tangle.tight",
+  "tangle.with",
+  "tape_on_surface",
+  "taped",
+  "taped_with",
+  "tethered_to",
+  "thread",
+  "thread.child_resistant",
+  "thread.cross_threaded",
+  "thread.direction",
+  "thread.engaged_turns",
+  "thread.mate",
+  "thread.max_nm",
+  "thread.spec_nm",
+  "thread.strict_mate",
+  "thread.stuck_nm",
+  "thread.torque_nm",
+  "thread.turns_to_seat",
+  "tie",
+  "tight",
+  "tilted_on_wheels",
+  "too_tight",
+  "torn_open",
+  "track_contaminated",
+  "trailing_damage",
+  "under_aid",
+  "unflattened_size_m",
+  "unrolled_size_m",
+  "valve_open",
+  "velcro",
+  "ventilation_blocked",
+  "warped",
+  "waste",
+  "water_line_kinked",
+  "wedged",
+  "wobbly",
+  "wrap_melted",
+  "zipper",
+  "zipper.closed_frac",
+  "zipper.meshed",
+  "zipper.snagged",
+  "zipper.teeth_split"
+ ]
+}

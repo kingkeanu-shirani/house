@@ -272,25 +272,28 @@ def security_system(w, dt, tick):
     now = C.now(state)
     if not mechanisms_closer():
         _fallback_closers(w, state, now)
-    # visitor scripts
-    for pid in sorted(state.get("people", {})):
-        script = state["people"][pid].get("_visit")
-        if not script:
-            continue
-        done = int(state["people"][pid].get("_visit_i", 0))
-        while done < len(script) and float(script[done].get("at_s", 0.0)) <= now:
-            _visitor_step(w, pid, script[done], now)
-            done += 1
-            w.person_m(pid)["_visit_i"] = done
-    # swimmers
-    for pid in sorted(state.get("people", {})):
-        p = state["people"][pid]
-        at = p.get("_swim_at_s")
-        if at is None or p.get("_swim_done") or now < float(at):
-            continue
-        _swim(w, pid)
-    if not C.domain_loaded("pets"):
-        _pets_at_open_doors(w, now, dt)
+    # what visitors, swimmers and pets do is their own decision (VERIFY_HARDENING 6.2: writer class volition); the
+    # closers, the pool audit and the alarm panel stay physical (the system's class)
+    with w.writing("volition"):
+        # visitor scripts
+        for pid in sorted(state.get("people", {})):
+            script = state["people"][pid].get("_visit")
+            if not script:
+                continue
+            done = int(state["people"][pid].get("_visit_i", 0))
+            while done < len(script) and float(script[done].get("at_s", 0.0)) <= now:
+                _visitor_step(w, pid, script[done], now)
+                done += 1
+                w.person_m(pid)["_visit_i"] = done
+        # swimmers
+        for pid in sorted(state.get("people", {})):
+            p = state["people"][pid]
+            at = p.get("_swim_at_s")
+            if at is None or p.get("_swim_done") or now < float(at):
+                continue
+            _swim(w, pid)
+        if not C.domain_loaded("pets"):
+            _pets_at_open_doors(w, now, dt)
     _pool_audit(w)
     for eid in C.alarm_panels(state):
         _panel_tick(w, eid, now)

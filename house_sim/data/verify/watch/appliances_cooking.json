@@ -1,0 +1,417 @@
+{
+ "about": "Field classes of the appliances_cooking domain's types for the house ledger (VERIFY_HARDENING 6.3, lint L-WATCH; WP-D appliances_cooking). 'fields' classifies every property name of house_sim/data/types/appliances_cooking.json and the fields this domain's verbs, hooks and systems write onto its own types, for the types that file defines; a dotted name is one sub-key of a dict field, '<head>.*' its other sub-keys. Ratings, sizes, kinds and capabilities are identity; knobs, programs, lit burners, locks and a delayed start are settings; what a heater, a thermostat or a program drives (temperatures, countdowns, status lights, preheated, load_state, ringing, alarms, a pressure cooker's pressure, an espresso boiler, a delayed start counting down) is process; damage a heater or program does (a scratched coating, a warped or discoloured part, an overheated motor, a scorched or melted handle, milk dried on a steam wand, a dead igniter, a dislodged burner cap) is a condition with its worse direction; fuel and doses used up (charcoal, propane, an espresso dose) are content; ash and toaster crumbs are mess loads (guard mess). 'types' refines one type: a toaster's fill_level follows the slices in its slots and its allergen contamination is its normal use, a microwave's settings.time_s is the countdown it shows, a dishwasher filter's or sump's soil is the food it is there to catch, an electric griddle's grease trough is a mess load, the program a dishwasher, an oven, a toaster or a cooker runs is the copy of its panel setting (bookkeeping: the setting is watched), a dishwasher's detergent cup lid opens by the program; generic_item lists the names this domain writes onto the core generic_item that stands in for pots, pans, dishes and food (damage a dishwasher does to an unsuitable item, a handle direction on a burner, a dish on the oven floor) and that the kernel's watch_fields.json does not classify. water_sensitive: types a soaking spoils whose record does not say water_safe false (paper filters, charcoal, detergent pods and powder, coffee pods, oven mitts and pot holders that then conduct heat, digital timers and probe thermometers); every countertop appliance is water_safe false already.",
+ "fields": {
+  "ac_kind": "identity",
+  "accepts_on_top": "identity",
+  "always_on": "identity",
+  "appliance": "setting",
+  "appliance.*": "process",
+  "appliance.delay_s": "process",
+  "appliance.door_interlock": "identity",
+  "appliance.duration_s": "process",
+  "appliance.elapsed_s": "process",
+  "appliance.error": {
+   "class": "condition",
+   "worse": "change"
+  },
+  "appliance.program": "setting",
+  "appliance.programs": "identity",
+  "appliance.remaining_s": "process",
+  "appliance.requires_closed": "identity",
+  "appliance.requires_power": "identity",
+  "appliance.state": "process",
+  "arc_damaged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "attachment_kind": "identity",
+  "base_diameter_m": "identity",
+  "blender": "identity",
+  "blender.*": "identity",
+  "brand": "identity",
+  "burner": "setting",
+  "burner.*": "process",
+  "burner.cap_seated": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "burner.diameter_m": "identity",
+  "burner.efficiency": "identity",
+  "burner.error": {
+   "class": "condition",
+   "worse": "change"
+  },
+  "burner.flame": "process",
+  "burner.igniter_ok": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "burner.kind": "identity",
+  "burner.lit": "setting",
+  "burner.max_w": "identity",
+  "burner.residual_hot": "process",
+  "burner.scale": "identity",
+  "burner.size": "identity",
+  "charcoal_kg": {
+   "class": "content",
+   "tol": 0.05
+  },
+  "child_resistant": "identity",
+  "clip_on": "identity",
+  "coating": "identity",
+  "coating_scratched": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "coffee": "identity",
+  "coffee.*": "process",
+  "coffee_filter": "identity",
+  "compartments": "identity",
+  "conducts_heat": "identity",
+  "cooktop": "identity",
+  "cooktop.*": "identity",
+  "cord_m": "identity",
+  "cord_over_edge": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "crumb_tray": "setting",
+  "crumb_tray.level": {
+   "class": "content",
+   "tol": 0.02,
+   "guard": "mess"
+  },
+  "decaf": "identity",
+  "delicate": "identity",
+  "detergent": "identity",
+  "detergent.dose": {
+   "class": "content",
+   "tol": 0.01
+  },
+  "detergent.for": "identity",
+  "detergent.kind": "process",
+  "discolored": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "dishwasher": "identity",
+  "dishwasher.*": "identity",
+  "door_alarm": "process",
+  "drain_open": "setting",
+  "error": {
+   "class": "condition",
+   "worse": "change"
+  },
+  "espresso": "setting",
+  "espresso.*": "process",
+  "espresso.boiler_c": "process",
+  "espresso.dose_g": {
+   "class": "content",
+   "tol": 0.5
+  },
+  "espresso.level": "process",
+  "espresso.puck": "process",
+  "espresso.ready": "process",
+  "espresso.tamped": "process",
+  "exhaust_m3s": "process",
+  "flare_up": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "fridge": "identity",
+  "fridge.*": "identity",
+  "fridge_zone": "identity",
+  "fuel_kg": {
+   "class": "content",
+   "tol": 0.05
+  },
+  "gear_kind": "identity",
+  "griddle": "identity",
+  "griddle.*": "identity",
+  "grill": "setting",
+  "grill.*": "process",
+  "grill.ash_c": "process",
+  "grill.ash_kg": {
+   "class": "content",
+   "tol": 0.01,
+   "guard": "mess"
+  },
+  "grill.burner_w": "identity",
+  "grill.burners": "identity",
+  "grill.coals_kg": "process",
+  "grill.coals_lit": "setting",
+  "grill.fuel": "identity",
+  "grill.grate_c": "process",
+  "grill.igniter_ok": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "grill.lit": "setting",
+  "grill.ready": "process",
+  "grip_name": "identity",
+  "handle_melted": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "handle_scorched": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "heat_load_w": "process",
+  "heat_resistant": "identity",
+  "heat_source": "identity",
+  "holes_mm": "identity",
+  "home_hint": "identity",
+  "hood": "identity",
+  "hood.*": "identity",
+  "hot_light": "process",
+  "indicator": "process",
+  "ingestion_hazard": "identity",
+  "inspect_from_afar": "identity",
+  "keep_warm": "process",
+  "kettle": "identity",
+  "kettle.*": "identity",
+  "lid_thermometer_c": "process",
+  "lid_vented": "identity",
+  "light_on": "process",
+  "liquid_container": "identity",
+  "live_when_plugged": "identity",
+  "load_state": "process",
+  "lock": "setting",
+  "lockable": "identity",
+  "low_threshold": "identity",
+  "mesh_ok": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "microwave": "identity",
+  "microwave.*": "identity",
+  "motor_base": "identity",
+  "motor_overheated": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "mount_height_m": "identity",
+  "movable": "identity",
+  "outdoor_item": "identity",
+  "oven": "identity",
+  "oven.*": "identity",
+  "part_type": "identity",
+  "plug_required": "identity",
+  "pod_used": "process",
+  "preheated": "process",
+  "pressure": "process",
+  "pressure.*": "process",
+  "probe": "identity",
+  "pucks": "bookkeeping",
+  "rack_capacity": "identity",
+  "rack_capacity.*": "identity",
+  "rack_kind": "identity",
+  "reads": "identity",
+  "ready_light": "process",
+  "reported": "bookkeeping",
+  "ringing": "process",
+  "self_clean_safe": "identity",
+  "shelf_clearance_m": "identity",
+  "specific_heat": "identity",
+  "stackable": "identity",
+  "status_light": "process",
+  "sticky_glides": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "stock_item": "identity",
+  "switchable": "identity",
+  "temp_alarm": "process",
+  "timer_channels": "identity",
+  "timer_display": "process",
+  "toaster": "identity",
+  "toaster.*": "identity",
+  "tool_kind": "identity",
+  "transparent": "process",
+  "two_handed": "identity",
+  "wand": "setting",
+  "wand.*": "process",
+  "wand.clogged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "wand.milk_residue": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.05
+  },
+  "wand.purged": "process",
+  "warped": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "waste_stream": "identity",
+  "watertight": "identity",
+  "wear_slot": "identity",
+  "wearable": "identity",
+  "weatherproof": "identity",
+  "whistle": "identity"
+ },
+ "types": {
+  "toaster": {
+   "fill_level": "bookkeeping",
+   "contamination": "process",
+   "contamination.*": "process",
+   "appliance.program": "bookkeeping"
+  },
+  "toaster_4slot": {
+   "fill_level": "bookkeeping",
+   "contamination": "process",
+   "contamination.*": "process"
+  },
+  "microwave": {
+   "settings.time_s": "process"
+  },
+  "microwave_otr": {
+   "settings.time_s": "process"
+  },
+  "dishwasher_filter": {
+   "soil": "process",
+   "soil.*": "process"
+  },
+  "dishwasher": {
+   "appliance.program": "bookkeeping"
+  },
+  "dishwasher_drawer": {
+   "appliance.program": "bookkeeping"
+  },
+  "electric_pressure_cooker": {
+   "appliance.program": "bookkeeping"
+  },
+  "range_oven": {
+   "appliance.program": "bookkeeping"
+  },
+  "wall_oven": {
+   "appliance.program": "bookkeeping"
+  },
+  "toaster_oven": {
+   "appliance.program": "bookkeeping"
+  },
+  "rice_cooker": {
+   "appliance.program": "bookkeeping"
+  },
+  "detergent_cup": {
+   "open": "process"
+  },
+  "dishwasher_sump": {
+   "soil": "process",
+   "soil.*": "process"
+  },
+  "electric_griddle": {
+   "grease_l": {
+    "class": "content",
+    "tol": 0.005,
+    "guard": "mess"
+   }
+  },
+  "knock_box": {
+   "pucks": "bookkeeping"
+  },
+  "generic_item": {
+   "arc_damaged": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "charred": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "coating_scratched": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "discolored": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "dw_damaged": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "edge": {
+    "class": "condition",
+    "worse": "change"
+   },
+   "etched": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "filled_with_water": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "food_type": "identity",
+   "grind": "identity",
+   "handle_dir": "placement",
+   "handle_melted": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "handle_scorched": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "on_oven_floor": "bookkeeping",
+   "ruined_self_clean": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "seasoning": {
+    "class": "condition",
+    "worse": "down",
+    "tol": 0.05
+   },
+   "sharpness": {
+    "class": "condition",
+    "worse": "down",
+    "tol": 0.05
+   },
+   "spent": "process",
+   "stuck": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "texture": "process",
+   "touching_element": "bookkeeping",
+   "trim_burned": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "trim_faded": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "vacuum_lost": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "volume_l": {
+    "class": "content",
+    "tol": 0.001
+   },
+   "warped": {
+    "class": "condition",
+    "worse": "true"
+   }
+  }
+ },
+ "water_sensitive": [
+  "charcoal_bag",
+  "coffee_pod",
+  "deep_fry_thermometer",
+  "dishwasher_pod",
+  "dishwasher_pod_tub",
+  "dishwasher_powder",
+  "instant_read_thermometer",
+  "kitchen_timer",
+  "oven_mitts",
+  "paper_coffee_filter",
+  "pot_holder"
+ ]
+}

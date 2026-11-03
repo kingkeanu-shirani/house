@@ -188,7 +188,8 @@ def mechanisms_flushed(ctx, eid, fraction):
 def _plunger(ctx):
     w = ctx.w
     tool = ctx.args.get("tool")
-    candidates = [tool] if tool else w.held_items()
+    # an unfamiliar held thing serves as no tool the robot knows of (core.require_tool's rule): passed over unnamed
+    candidates = [tool] if tool else [h for h in w.held_items() if not ctx.unfamiliar(h)]
     for eid in candidates:
         if eid and ctx.holding(eid) and w.ent(eid).get("plunger_kind"):
             return eid
@@ -320,7 +321,7 @@ def gloves_for_the_bowl(ctx):
     if not parent.get("toilet") or rec.get("relation") != "in":
         return
     wearing = set(w.robot.get("wearing", []))
-    reacher = any(w.ent(h).get("tool_kind") in ("reacher", "grabber", "tongs") for h in w.held_items())
+    reacher = any(w.ent(h).get("tool_kind") in ("reacher", "grabber", "tongs") for h in w.held_items() if not ctx.unfamiliar(h))
     require(wearing & {"rubber_gloves", "disposable_gloves"} or reacher, "Put on rubber gloves before reaching into the toilet", "safety")
 
 

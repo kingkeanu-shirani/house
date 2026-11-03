@@ -1,0 +1,70 @@
+{
+ "id": "WP6",
+ "package": "P2-WP6 BATTERY (VERIFY_HARDENING section 25; sections 9.5-9.7, 10, 11, 12.2-12.3, 22)",
+ "handoff": "catalog/analysis/phase2/handoff_WP6.md",
+ "files": ["house_sim/tasks/battery/__init__.py", "house_sim/tasks/battery/trace.py",
+           "house_sim/tasks/battery/mapping.py", "house_sim/tasks/battery/generate.py",
+           "house_sim/tasks/battery/effects.py", "house_sim/tasks/battery/accept.py",
+           "house_sim/tasks/battery/policies.py", "house_sim/tasks/battery/answers.py",
+           "house_sim/tasks/battery/audits.py", "house_sim/tasks/battery/budget.py",
+           "house_sim/tasks/battery/mustpass.py", "house_sim/tasks/battery/hidden.py",
+           "house_sim/data/verify/actions.json", "house_sim/data/verify/inverses.json",
+           "tests/test_battery.py", "tests/test_mustpass.py", "tests/test_audits.py"],
+ "landed": [
+  "battery.run: the S5 public gaming battery B2-B14 (B1 is the verifier's idle rollout) with 10.1's skill-level generation and candidate fallback, 10.2's effect checks and outcomes, 10.4's accepted labels (accept.py), 10.5's caps, breadth-first sweep, decided-early stop, forking from reference snapshots with the fork audit and fast-forwarded waits with their audit, 10.6's run records and hints, --explain",
+  "battery.mustpass: M1-M6 legitimate variants with the G8 summary and 11.4's hints",
+  "battery.audit / audits.py: 200-build setup-only audits on WP9's fast path and house cache (setup.audit_diff on the first seed), best constants, balance, set membership, positional tells with the exact binomial bound, fixed-timer exposure by monitor.timing_outcome, a depth-2 nuisance-feature tree, L-AUDIT lint rows, B5c / B7 rate records",
+  "battery.private / hidden.py: P3, P4, P5, P7, P8, PM with the salt in every draw; class-only results, details for the private store, PM as mustpass_runs; nothing runs without the salt",
+  "B11 guess rates from blind runs on every candidate including the true one; B5a discordant-failure share; B14 protect probes (moved, changed, removed, lost, left_open, held_open, waste, damaged through domain settings skills) and protect_live",
+  "WP7's perception_audit.audit_run over the first generated run of each family in a realistic mode (leaks are harness errors)",
+  "robustness: a stage, generator or audit that raises becomes an error record and a harness error, never a crash of the verifier",
+  "house_sim/data/verify/actions.json (all 427 registered actions classed; perceive.command_class reads it) and inverses.json (55 inverses)",
+  "tests: test_battery.py 66, test_mustpass.py 12, test_audits.py 12 (determinism, evaluation / own / room-camera modes, fork audit, caps, private salt, guards)"
+ ],
+ "interfaces": {
+  "battery.run": "run(spec, builds, traces, seeds, mode, level, explain=None, families=None, root=None) -> {ran, runs, summary, applicable_families, guess, b5a_discordant_failure_share, protect_live, load_bearing, rates, lint, harness_errors, notes, tier, cpu_s}",
+  "battery.mustpass": "mustpass(spec, builds, traces, seeds, mode, level, prechecked=None, root=None) -> {ran, runs, summary: {applicable, realised, passed, failed_unexempt, failed, unrealised, capped, budget}, harness_errors}",
+  "battery.audit": "audit(spec, n=200, builds=None) -> audits.audit record (cached per spec hash and n)",
+  "battery.private": "private(spec, references, seeds, mode, level, salt=None, key=None, pool=None) -> {ran, results, runs, mustpass_runs, details, harness_errors}",
+  "battery.heldout_rates": "heldout_rates(spec, builds, traces, seeds, mode, level) -> run() restricted to B4, B5, B7, B8",
+  "battery.allowances": "allowances(traces) -> {reference_resources, reference_open_s}"
+ },
+ "deviations": [
+  {"what": "skill-level generation throughout: retargets rebind the reference plan, B8 cross runs the other variant's plan with this seed's bindings, concrete commands moved to another layout are lifted to skills (fetch / put / use / approach)", "why": "replayed concrete footsteps were refused in another layout and made most of these runs unrealised battery debt; B5a keeps A's ids, values and waits (open loop)"},
+  {"what": "B6 undo_last undoes the last command a success label reads; undo_all is checked against the values before the earliest undone command", "why": "undoing put(close=True)'s cabinet door failed a correct spec on house.changed alone (fails_other)"},
+  {"what": "B11 is one rate record per decision role; its blind picks, B12's pre-checks and a breadth-first sub-policy's later seeds are recorded as skipped:tier (not counted)", "why": "their requirement is the rate, the load-bearing test or the already reported pass"},
+  {"what": "B5c's best constant and B7's fixed-timer exposure are battery records (B5.c-share, B7.exposure) at the full level; entity constants by rank in the group", "why": "they are those families' requirements (10.3); ids differ between houses"},
+  {"what": "forking only when the reference prefix costs at least 0.6 CPU-s; snapshots in the system temp folder (or HOUSE_SIM_FORK_CACHE), not reports/cache/forks/", "why": "a snapshot costs 0.07 s + 0.27 s and 4 MB; the project folder is OneDrive-synced"},
+  {"what": "the decided-early stop is checked at D, the fast-forward equivalence check replays the reference only", "why": "the saving is settle and look-ahead; the idle half is the verifier's fine-tick idle rollout"},
+  {"what": "P7's confirming runs use V's seeds and the private pool is derived from the salt (test candidates skipped only with key=)", "why": "battery.private receives V's references and the salt only (request to WP5)"},
+  {"what": "PM's runs are reported as mustpass_runs, not runs", "why": "a must-pass pass is met; in private_battery it would fail G3"},
+  {"what": "B14 damaged uses a domain's settings skill for a condition field; tells use four orderings (no handle order)", "why": "the kernel has no damaging-verb registry (plugins.py is WP1's); handles are issued at run time, not at setup"},
+  {"what": "M1 instruments are tool arguments, carriers and tool-like types; M2's surface excludes the baseline place; M4 goes before a step that brings its own approach; M5 is one run per seed (k = 1 and 2, other units)", "why": "a thing moved aside is M2's; a raw command right after the reference's approach assumes the robot is still there; 11.4's run counts"}
+ ],
+ "not_done": [
+  {"what": "S7's rate families on held-out seeds are not wired (battery.heldout_rates exists)", "why": "verify.py (WP5) does not call it; request filed"},
+  {"what": "the verifier does not read guess, b5a share, audit_values, battery / audit harness errors and lint, protect_live, private mustpass_runs, load_bearing, explain", "why": "verify.py is WP5's file; requests filed (strength.py already reads record['guess'] and record['randomisation'])"},
+  {"what": "WP-D navigation_robot's damaging-verb registry", "why": "a kernel registry (plugins.py, WP1); B14 uses domain settings skills for condition fields instead"},
+  {"what": "fast-forward, B9 and B12 shotgun are not exercised end to end by a fixture", "why": "the package's fixtures are H0 tasks without user-simulator facts or answer groups in speech; generation and the arithmetic are unit-tested"}
+ ],
+ "outcome_changes": [],
+ "legacy_invariance": "new files only; actions.json is read only by schema-4 evidence gating (perceive.command_class); all 243 authored specs pass in their own mode",
+ "tests": {"new_tests": 90, "passed": true, "strict_passed": true,
+           "detail": "test_battery 66, test_mustpass 12, test_audits 12: 90 / 90 normal and HOUSE_SIM_STRICT=1. Full suite (green_tests.py 3): 5,647 tests per mode, 5 files failing in both modes: test_verify_hardening's WP6-absent pin (HeldoutTests.test_private_heldout_seeds_stay_out_of_the_record, request to WP5) and four from the concurrent WP-D edits (test_dialogue vocab tables, test_ledger debris registered twice by cleaning/hardening.py, test_lint T-d389e2979f6aad-01 L-LATCH after cleaning's derived in_stream, test_room_golden 3 entries of cleaning / navigation_robot / safety)"},
+ "specs": {"total": 243, "passed": 243},
+ "cost": "a generated run 0.5-1.0 CPU-s, the per-seed preparation 1.5-2 CPU-s; standard battery on 3 seeds: book 21.6 CPU-s, bleach 45.7 CPU-s, two-branch task (4 seeds) 39.5 CPU-s; must-pass 0.7-1.2 CPU-s per run; verify_hardened(book, standard, seeds=[0]) S5 10 CPU-s; 22.4 plans 71 + 16 CPU-s for a 6-seed H0 spec; an audit build on a reused house about 0.1 CPU-s",
+ "requests": [
+  "WP5: after S5 copy battery['guess'] to record['guess'] and battery['b5a_discordant_failure_share'] to record['randomisation']; after S6 copy audit['answers'][name]['audit_values'] into record['randomisation']['answers'][name] (c_guess, c_random)",
+  "WP5: extend record['harness_errors'] with the battery, must-pass and private harness_errors (G7) and record['lint'] with battery['lint'] and audit['lint'] (L-AUDIT, G5)",
+  "WP5: record['private_mustpass'] = {'runs': private['mustpass_runs']}; pass key= and the private held-out references to battery.private (P7 confirms on private seeds; the pool skips the hidden test candidates)",
+  "WP5: merge battery['protect_live'] into record['protect'] liveness (7.6 sources b and c)",
+  "WP5: pass builds['budget'] (budget_check: formula_ok, tier, formula_time_s), builds['expected'] (E(entry)), builds['cpu_s'] (core CPU for 22.6's cap), explain= and prechecked=battery['load_bearing'] (int seed keys) to battery.mustpass; optionally run the eval-geom mode job with capture={} so references carry the idle projections",
+  "WP5: call battery.heldout_rates on up to 4 held-out seeds in S7 and count its passes in the held-out battery pass share (16.2, c_heldout)",
+  "WP5: tests/test_verify_hardening.py HeldoutTests.test_private_heldout_seeds_stay_out_of_the_record pins assertFalse(private['ran']) ('the private families are WP6's'); with WP6 installed replace it by assertTrue(private['ran']) and check private_battery rows carry only family, outcome and label_class (verified on a copy)",
+  "WP8: document the battery's interfaces, run records, policy ids, actions.json and inverses.json in docs/EVALUATION.md and docs/KERNEL_API.md",
+  "WP10: the gate's S5 / S6 / S7p stages read these records; tools/battery_review.py keys exemptions on the policy id without the seed index; tools/harden_audit.py --cost can read summary.budget",
+  "WP-D navigation_robot: register @settings_skill for condition fields of its damaging verbs (free_stuck_robot drag, refill_robot_tank with a forbidden liquid); B14's damaged probe reads settings skills",
+  "Main session: setup.py package_data must include house_sim/data/verify/actions.json and inverses.json (the data/verify/*.json glob already requested)"
+ ],
+ "notes": "Requests to WP6 fulfilled: WP5 call shapes and tier plan; P2-S2-merge item 9 (actions.json, B12 denial and hedge, M5 number words); WP4 / WP4-fix (negate, hedge, shotgun, paraphrase, convert_units, the denial frame); WP11 put(close=True); WP3 timing_outcome exposure; WP7 / WP7-fix (audit_run, agent labels, forked runs keep perception evidence); WP9 (fast path, disk cache, audit_diff); WP-D manipulation (damaged via settings_steps); WP-D cleaning (carriers from plugins.MESS_KINDS); WP-D safety (settings skills used by B14). Phase-1 carry-over: no open row lies in WP6's files (all new)."
+}

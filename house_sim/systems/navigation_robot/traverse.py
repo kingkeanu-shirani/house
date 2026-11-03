@@ -1100,13 +1100,24 @@ def _deposit_foot_soil(w, rid, c):
         if amount < 0.05:
             continue
         if kind == "water":
-            if C.wet_floor_cells(w, rid, [c], C.FILM_FOOTPRINT_MM):
+            added = C.wet_floor_cells(w, rid, [c], C.FILM_FOOTPRINT_MM)
+            if added:
                 C.bump(w, "terrain.wet_footprints")
+                # 6.5: a wet footprint is created mess on this floor (the film's volume over the cell)
+                C.mess_flow(w, "liquid:spill", len(added) * C.FILM_FOOTPRINT_MM * geometry.CELL * geometry.CELL,
+                            "created:robot_feet", C.floor_key(state, rid), origin="water:robot_feet")
             if fid:
                 add_soil(w, fid, "streaks", round(0.1 * amount, 3))
         elif fid:
-            add_soil(w, fid, {"sand": "sand", "mud": "mud", "biohazard": "biohazard"}.get(kind, "dirt"), round(min(0.5, 0.5 * amount), 3))
+            soil_kind = {"sand": "sand", "mud": "mud", "biohazard": "biohazard"}.get(kind, "dirt")
+            level = round(min(0.5, 0.5 * amount), 3)
+            add_soil(w, fid, soil_kind, level)
             tracked = True
+            # 6.5: soil the robot's feet carried in is created mess on this floor (debris; pet waste stepped in is
+            # pet_waste): it must be cleaned up like any other
+            mess = C.FOOT_SOIL_KINDS.get(kind, "debris")
+            C.mess_flow(w, mess, C.soil_grams(soil_kind, level, C.floor_area_m2(state, rid)), "created:robot_feet",
+                        C.floor_key(state, rid), origin=None if mess == "debris" else mess + ":robot_feet")
         if amount * 0.5 >= 0.05:
             remaining[kind] = round(amount * 0.5, 3)
     w.robot_m()["nav_foot_soil"] = remaining

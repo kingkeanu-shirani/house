@@ -35,7 +35,7 @@ VISIBLE_SOIL = 0.02     # the kernel shows a soil kind at inspect from this leve
 
 def _held_tool(ctx, key, value=None, tool_id=None):
     w = ctx.w
-    candidates = [tool_id] if tool_id else w.held_items()
+    candidates = [tool_id] if tool_id else M.held_known(ctx)
     for eid in candidates:
         if not eid or not ctx.holding(eid):
             continue
@@ -465,6 +465,7 @@ def soak(ctx):
         added = min(want, capacity)
         utilities = w.sec("utilities")
         utilities["water_l"] = round(max(0.0, float(utilities.get("water_l", 1e5)) - want), 3)
+        M.count_water(w, want)               # the house water meter (VERIFY_HARDENING 6.8)
         seconds += want / float(drec.get("flow_lpm", 8.0)) * 60.0
         dm = w.mut(dest)
         dm["liquid"], dm["liquid_l"] = "water", round(added, 3)
@@ -612,6 +613,24 @@ def _lint_seconds(ctx):
     return ctx.data.get("seconds", 30.0)
 
 
+def _trash_ok(ctx, into, message):
+    """into is a trash can (or another open receptacle without a waste stream) the robot can drop refuse in."""
+    irec = ctx.obj(into, touch=True)
+    require(irec.get("waste_stream") in ("trash", "landfill", None) and (irec.get("container") or irec.get("accepts_items")), message)
+    require(not irec.get("openable") or irec.get("open"), "Open the trash can first")
+    return irec
+
+
+def _lint_wad(w, where, lint, hand=None):
+    """A wad of lint (refuse: the lint_wad type carries waste true) in a hand (where "robot") or on where."""
+    volume = round(0.2 * float(lint) + 0.05, 3)
+    if where == "robot":
+        wad = w.spawn("lint_wad", "robot", eid=w.new_id("lint_wad"), relation="held", held_hand=hand, volume_l=volume)
+        w.robot_m()["hands"][hand] = wad
+        return wad
+    return w.spawn("lint_wad", where, eid=w.new_id("lint_wad"), relation="on", volume_l=volume)
+
+
 @action("lint_roll", params={"target": "entity", "tool": "?entity", "faces": "?list", "fresh_sheet": {"type": "bool", "default": False},
                              "into": "?entity", "avoid_embellishment": {"type": "bool", "default": False},
                              "with_nap": {"type": "bool", "default": True}},
@@ -635,16 +654,21 @@ def lint_roll(ctx):
         require(lint > 0.0, "The lint screen is already clean")
         dryer = rec.get("location")
         if rec.get("relation") == "part" and dryer in w.s["entities"]:
-            M.add_soil(w, dryer, "lint", lint * 0.5)
+            # the half that does not fall into the slot comes away in the hand as a wad (refuse: it was simply gone
+            # before); with no hand free all of it goes down the slot
+            hand = ctx.free_hand()
+            M.add_soil(w, dryer, "lint", lint * (0.5 if hand is not None else 1.0))
             M.set_soil(w, target, "lint", 0.0)
             ctx.data["seconds"] = 10.0
             w.emit("lint_into_slot", target=target)
-            return "Wiped the lint off the screen in place - about half of it fell into the lint slot"
+            if hand is not None:
+                wad = _lint_wad(w, "robot", 0.5 * lint, hand=hand)
+                return ("Wiped the lint off the screen in place - about half of it fell into the lint slot, the rest "
+                        "is in hand ({})".format(wad))
+            return "Wiped the lint off the screen in place - it fell into the lint slot"
         into = ctx.args.get("into")
         if into:
-            irec = ctx.obj(into, touch=True)
-            require(irec.get("waste_stream") in ("trash", "landfill", None) and (irec.get("container") or irec.get("accepts_items")), "Put lint in the trash")
-            require(not irec.get("openable") or irec.get("open"), "Open the trash can first")
+            _trash_ok(ctx, into, "Put lint in the trash")
             wad = w.spawn("lint_wad", into, eid=w.new_id("lint_wad"), relation="in", volume_l=round(0.2 * lint + 0.05, 3))
         else:
             hand = ctx.free_hand()
@@ -657,17 +681,31 @@ def lint_roll(ctx):
     require(M.is_textile(rec) or rec.get("upholstered"), "Lint-roll fabrics", "argument")
     tool = ctx.args.get("tool")
     if not tool:
-        tool = next((h for h in w.held_items() if w.ent(h).get("tool_kind") in ("lint_roller", "clothes_brush", "tape")), None)
+        tool = next((h for h in M.held_known(ctx) if w.ent(h).get("tool_kind") in ("lint_roller", "clothes_brush", "tape")), None)
     require(tool and ctx.holding(tool), "Hold a lint roller or clothes brush", "capability")
     trec = w.ent(tool)
     kind = trec.get("tool_kind")
     require(kind in ("lint_roller", "clothes_brush", "tape"), "That tool does not lift lint", "capability")
     if kind == "lint_roller" and ctx.args["fresh_sheet"]:
         require(int(trec.get("sheets", 0)) > 1, "The roller has no sheets left; refill it", "resource")
+        # the peeled sheet, with what it picked up, is refuse to bin (VERIFY_HARDENING 6.4: it used to vanish)
+        into = ctx.args.get("into")
+        hand = None
+        if into:
+            _trash_ok(ctx, into, "Put the used sheet in the trash")
+        else:
+            hand = ctx.free_hand()
+            require(hand is not None, "Free a hand for the used sheet, or name the trash can (into)", "capability")
         tm = w.mut(tool)
         tm["sheets"] = int(tm["sheets"]) - 1
         tm["sheet_load"] = 0.0
         trec = w.ent(tool)
+        if into:
+            w.spawn("lint_roller_sheet", into, eid=w.new_id("lint_roller_sheet"), relation="in")
+        else:
+            sheet = w.spawn("lint_roller_sheet", "robot", eid=w.new_id("lint_roller_sheet"), relation="held",
+                            held_hand=hand)
+            w.robot_m()["hands"][hand] = sheet
     faces = _faces(rec, ctx.args.get("faces"))
     m = w.mut(target)
     face_soil = copy.deepcopy(m.get("face_soil") or {"all": {k: float(v) for k, v in (m.get("soil") or {}).items() if k in ("lint", "pet_hair", "hair")}})
@@ -710,6 +748,9 @@ def lint_roll(ctx):
     return "Went over {} ({}) with {}".format(target, ", ".join(faces), tool)
 
 
+DEPILL_TOOLS = ("fabric_shaver", "sweater_comb", "pumice_stone")
+
+
 @action("depill", params={"target": "entity", "tool": "?entity", "faces": "?list",
                           "pressure": {"type": "str", "default": "light", "choices": ["light", "firm"]},
                           "taut": {"type": "bool", "default": True}, "empty_chamber": {"type": "bool", "default": False}},
@@ -724,14 +765,25 @@ def depill(ctx):
     require(rec.get("location") != "robot", "Lay it flat on a surface first")
     tool = ctx.args.get("tool")
     if not tool:
-        tool = next((h for h in w.held_items() if w.ent(h).get("tool_kind") in ("fabric_shaver", "sweater_comb", "pumice_stone")), None)
+        tool = next((h for h in M.held_known(ctx) if w.ent(h).get("tool_kind") in DEPILL_TOOLS), None)
     kind = w.ent(tool).get("tool_kind") if tool else "hand"
     ctx.data["depill_tool"] = kind
     if tool:
         require(ctx.holding(tool), "Hold the tool", "capability")
+        if ctx.unresolved(tool) and M.group_varies(ctx.env, tool, lambda r: r.get("tool_kind") in DEPILL_TOOLS):
+            raise ActionError("Look it over first (inspect it) to see what tool it is", "precondition")
+        # a grill brush or a snow shovel is no depilling tool (it was used as one, and the message named its kind:
+        # look-alike grill brushes and snow shovels were told apart before they were identified)
+        require(kind in DEPILL_TOOLS, "That tool does not take pills off; use a fabric shaver, a sweater comb, a "
+                                      "pumice stone or your fingers (no tool)", "capability")
     if kind == "fabric_shaver":
         trec = w.ent(tool)
         if ctx.args["empty_chamber"]:
+            chamber = float(trec.get("lint_chamber", 0.0) or 0.0)
+            if chamber > 0:
+                # the fuzz tipped out of the chamber is refuse in the free hand, else on the garment's support
+                hand = ctx.free_hand()
+                _lint_wad(w, "robot" if hand is not None else rec.get("location"), chamber, hand=hand)
             w.mut(tool)["lint_chamber"] = 0.0
             trec = w.ent(tool)
         require(float(trec.get("lint_chamber", 0.0)) < 1.0, "The shaver's lint chamber is full; empty it", "resource")
@@ -764,4 +816,4 @@ def depill(ctx):
         tm = w.mut(tool)
         tm["lint_chamber"] = round(min(1.0, float(tm.get("lint_chamber", 0.0)) + 0.15 * len(faces)), 3)
     ctx.data["seconds"] = (90.0 if kind == "fabric_shaver" else 150.0) * len(faces)
-    return "Depilled {} ({}) with {}".format(target, ", ".join(faces), kind)
+    return "Depilled {} ({}) with {}".format(target, ", ".join(faces), tool or "fingers")

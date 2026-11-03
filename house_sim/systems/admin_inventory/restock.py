@@ -10,7 +10,8 @@ from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, hook
 from ..core import add_soil, release_from_hands
 from .common import admin_facts, drop_cell, held_with, indexed, reads, slug
-from .perceive import approx_litres, count_seen, dumps, name_of, render, spill_words
+from .hardening import created, refuse, writing
+from .perceive import approx_litres, count_seen, dumps, group_answer, name_of, render, spill_words
 
 VISCOUS = {"hand_soap": 0.04, "foaming_hand_soap": 0.08, "dish_soap": 0.04, "lotion": 0.02, "shampoo": 0.04,
            "body_wash": 0.04, "laundry_detergent": 0.06, "hand_sanitizer": 0.05}
@@ -244,6 +245,8 @@ def _spill(w, near, product, liters, kind="liquid", generic=False, cause="spill"
     else:
         spill = w.spawn("generic_item", room, size_m=[0.3, 0.3, 0.002], floor_hazard="slip", **pile)
         w.mut(spill)["pos"] = drop_cell(w, room, w.robot.get("pos"), spill)
+    refuse(w, spill)                        # spilled dry goods are refuse to sweep up (6.5: created:refill)
+    created(w, spill, "refill")
     w.stat("spills")
     w.emit("spill", target=spill, product=product, liters=round(liters, 3))
     return spill
@@ -264,7 +267,12 @@ def refill(ctx):
     src = w.ent(src_id)
     dest = ctx.obj(dest_id, touch=True)
     for rec, eid in ((src, src_id), (dest, dest_id)):
-        require(rec.get("liquid_container") or rec.get("bulk_store"), "{} cannot hold poured product".format(name_of(ctx.env, eid)), "argument")
+        # an unresolved look-alike is judged as the robot can know it: when its group's members disagree on holding
+        # poured product (plain spray bottles do, product sprays do not) the answer waits for identification
+        pourable = group_answer(ctx, eid, lambda r: bool(r.get("liquid_container") or r.get("bulk_store")))
+        require(pourable is not None, "Look closely at {} first: it could be one of several things".format(
+            name_of(ctx.env, eid)), "perception")
+        require(pourable, "{} cannot hold poured product".format(name_of(ctx.env, eid)), "argument")
         require(not rec.get("openable") or rec.get("open"), "Open the {} first".format(name_of(ctx.env, eid)), "precondition")
     liquid = bool(src.get("liquid_container"))
     require(liquid == bool(dest.get("liquid_container")), "Pour liquids into liquid containers and dry goods into bulk jars", "argument")
@@ -441,6 +449,8 @@ def normalize_consumables(w, eid, rec):
         m["label"] = "empty cardboard core"
         m["material"] = "cardboard"
         m["mass_kg"] = 0.01
+        if refuse(w, eid):                  # the core is refuse for the recycling (6.4, 6.5)
+            created(w, eid, "spent_roll", cause=eid)
 
 
 # Residents' consumption (opt-in: household.consumption.enabled). Typical US use: ~0.4 rolls of
@@ -470,14 +480,21 @@ def normalize_rolls(w):
     for eid in indexed(w, "rolls", _is_roll):
         rec = ents[eid]
         if float(rec.get("remaining", 1.0)) <= 0.0 and rec.get("waste_stream") != "recycling":
-            normalize_consumables(w, eid, rec)
+            with writing(w, "physical", None, cause=eid):       # 6.2: the spent roll itself is the cause
+                normalize_consumables(w, eid, rec)
 
 
 def consumption_tick(w, dt):
-    """Residents' use of installed rolls, pumps and tissues; linear in dt, so exact for any period."""
+    """Residents' use of installed rolls, pumps and tissues; linear in dt, so exact for any period. The residents act
+    by their own decision (VERIFY_HARDENING 6.2 volition): what they use up is never charged to the robot."""
     cfg = w.s.get("household", {}).get("consumption") or {}
     if not cfg.get("enabled"):
         return
+    with writing(w, "volition", "admin_inventory.residents"):
+        _consume(w, dt, cfg)
+
+
+def _consume(w, dt, cfg):
     people = max(1, len(w.s.get("people", {})))
     rates = dict(CONSUMPTION)
     rates.update(cfg.get("rates", {}))

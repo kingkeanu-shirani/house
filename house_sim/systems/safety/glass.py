@@ -272,19 +272,25 @@ def glass_system(w, dt, tick):
     for eid in C.sindex(state, "glassy", _glassy):
         rec = state["entities"][eid]
         if rec.get("broken") and _scatters(state, rec) and ((rec.get("location") in state["rooms"]) or rec.get("fell")):
-            if not rec.get("shattered"):
-                shatter(w, eid)
-            elif not has_shard_field(state, eid):
-                shatter(w, eid, kernel_break=True)      # pieces out of a wrap: no breaking sound
+            # the shard field is caused by the broken item (6.2's causal link: a glass the robot dropped or left at
+            # the edge is the robot's; one a toddler knocked off is not)
+            with w.writing("physical", cause=[eid]):
+                if not rec.get("shattered"):
+                    shatter(w, eid)
+                elif not has_shard_field(state, eid):
+                    shatter(w, eid, kernel_break=True)      # pieces out of a wrap: no breaking sound
     _clear_zones(w)
 
 
 def _clear_zones(w):
+    """A glass zone is cleared while none of its pieces lies loose on the zone room's floor (or under furniture there),
+    judged afresh every substep: pieces tipped back out of the dustpan reopen it (VERIFY_HARDENING 8.2: the zone's
+    cleared flag is the floor's state, not a latch the first clean sweep sets for good)."""
     state = w.s
     zones = C.ledger_r(state).get("zones") or {}
     for name in sorted(zones):
         z = zones[name]
-        if not name.startswith("glass:") or z.get("cleared"):
+        if not name.startswith("glass:"):
             continue
         origin = name[6:]
         left = []
@@ -294,9 +300,15 @@ def _clear_zones(w):
                 continue
             if srec.get("location") in state["rooms"] or srec.get("relation") == "under":
                 left.append(sid)
-        if not left:
+        if not left and not z.get("cleared"):
             sec = C.ledger(w)
             sec["zones"][name] = dict(z, cleared=True, cleared_s=C.now(state))
+        elif left and z.get("cleared"):
+            sec = C.ledger(w)
+            reopened = dict(z, cleared=False)
+            reopened.pop("cleared_s", None)
+            sec["zones"][name] = reopened
+            C.log(w, "glass_zone_reopened", zone=name, pieces=len(left))
 
 
 # ---------------------------------------------------------------------------------------------

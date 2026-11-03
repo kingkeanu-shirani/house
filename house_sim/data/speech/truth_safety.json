@@ -1,0 +1,20 @@
+{
+  "about": "The safety domain's truth mappings for claims about alarms, hazards and people in emergencies (kernel/speech.py truth(); VERIFY_HARDENING 13.1-13.3, 13.6; WP-D safety). Words from house_sim/data/vocab/safety.json. Conditions read the subject's own record (hidden truth included: the evaluator's view, never an observation); a room is judged over the things in it (kernel issue_truth). states (the first condition whose field the record has decides): a smoke / CO alarm is sounding while its alarm_state is alarm and silent while it is idle, hushed or dead (a low-battery or end-of-life chirp is neither: unscored for silent, false for sounding), hushed while hushed; an alarm panel by its siren. issues (any condition present and holding makes it true, all present and failing make it false, none present leaves it unknown): carbon monoxide is a CO alarm sounding its temporal-4 pattern (a smoke alarm's T3, a chirp or an end-of-life chirp make it false; a quiet alarm leaves it unknown -- the gas itself is room air the kernel's per-thing rule cannot read); a biohazard is a bodily-fluid mess still carrying pathogens (above the 0.05 a finished clean-up leaves); venomous is the pest's true species flag; end of life is the alarm's end_of_life; structural damage is a collapsed section or one whose hidden load limit is below 100 kg (rot, loose boards; a sound deck section holds 300 kg); fallen is a person or pet lying fallen or pinned (anyone standing, sitting or lying in bed makes it false); unresponsive is a person whose hidden condition says they do not respond; trapped is someone pinned under something (_trapped_under, or a pinned posture); a suspicious person is a visitor whose hidden script is a threat or whose role is intruder / stranger (a resident or an ordinary visitor makes it false); electrical burning is a device whose hidden hazard marker is electrical_burning (an overheating device's routine marker makes it false). The kernel's own words for safety's state (fire, smoke, gas_smell, broken_glass, chemical_leak) are truth.json's; their requests are in catalog/analysis/phase2/handoff_WP-D_safety.md.",
+  "states": {
+    "sounding": [{"field": "alarm_state", "op": "eq", "value": "alarm"}, {"field": "siren_on", "op": "is_true"}],
+    "silent": [{"field": "alarm_state", "op": "in", "value": ["idle", "hushed", "dead"]}, {"field": "siren_on", "op": "is_false"}],
+    "hushed": [{"field": "alarm_state", "op": "eq", "value": "hushed"}]
+  },
+  "issues": {
+    "carbon_monoxide": [{"field": "alarm_pattern", "op": "eq", "value": "T4"}],
+    "biohazard": [{"field": "pathogen", "op": "gt", "value": 0.05}],
+    "venomous": [{"field": "venomous", "op": "is_true"}],
+    "end_of_life": [{"field": "end_of_life", "op": "is_true"}],
+    "structural_damage": [{"field": "collapsed", "op": "is_true"}, {"field": "_load_limit_kg", "op": "lt", "value": 100.0}],
+    "fallen": [{"field": "posture", "op": "in", "value": ["fallen", "pinned"]}],
+    "unresponsive": [{"field": "_condition.responsive", "op": "is_false"}],
+    "trapped": [{"field": "_trapped_under", "op": "exists", "value": true}, {"field": "posture", "op": "eq", "value": "pinned"}],
+    "suspicious_person": [{"field": "_threat", "op": "is_true"}, {"field": "role", "op": "in", "value": ["intruder", "stranger", "prowler"]}],
+    "electrical_burning": [{"field": "_hazard.kind", "op": "eq", "value": "electrical_burning"}]
+  }
+}

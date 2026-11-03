@@ -22,6 +22,7 @@ from . import common as C
 from . import data as D
 from . import model as M
 from . import percept as P
+from . import hardening as H
 from . import physical as PH
 
 
@@ -766,6 +767,7 @@ def _after_unwrap(ctx, result):
             scrap = w.spawn("food_outer_packaging", room, relation="on", **props)
             w.mut(scrap)["pos"] = list(w.robot.get("pos") or [0, 0])
         m["_outer_scrap"] = scrap
+        H.refuse(w, scrap)          # refuse from its creation (VERIFY_HARDENING 6.4-6.5): recycling or trash
     if rec.get("protective_packaging"):
         m["_protective_removed"] = True
         m["opened"] = True
@@ -800,3 +802,4 @@ def _after_take_off(ctx, result):
     rec = w.s["entities"].get(ctx.args.get("target"))
     if rec is not None and rec.get("gear_kind") == "disposable_gloves":
         w.mut(ctx.args["target"])["used"] = True
+        H.refuse(w, ctx.args["target"])     # a worn pair of disposable gloves is trash (VERIFY_HARDENING 6.4-6.5)

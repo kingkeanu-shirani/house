@@ -132,7 +132,7 @@ def _vessel_area(rec):
     return 2 * (a * b + a * c + b * c)
 
 
-@system("food.thermal", order=52, max_dt=THERMAL_MAX_DT, idle=lambda w: thermal_idle(w))
+@system("food.thermal", order=52, max_dt=THERMAL_MAX_DT, idle=lambda w: thermal_idle(w), writer="physical")
 def food_thermal(w, dt, tick):
     state = w.s
     entities = state["entities"]
@@ -596,7 +596,8 @@ def safety_idle(w):
     return not M.registered(w.s, "labeled")
 
 
-@system("food.safety", order=130, max_dt=SAFETY_PERIOD_S, period=SAFETY_PERIOD_S, idle=lambda w: safety_idle(w))
+@system("food.safety", order=130, max_dt=SAFETY_PERIOD_S, period=SAFETY_PERIOD_S, idle=lambda w: safety_idle(w),
+        writer="physical")
 def food_safety(w, dt, tick):
     """Slow clocks once per 300 s of simulated time; dt is the exact interval since the last run."""
     if dt > 0:
@@ -616,7 +617,7 @@ def _food_episode_start(w, env):
     _derived(w)
 
 
-@system("food.refresh", order=131, max_dt=30.0, idle=lambda w: _first_substep(w) is False)
+@system("food.refresh", order=131, max_dt=30.0, idle=lambda w: _first_substep(w) is False, writer="physical")
 def food_refresh(w, dt, tick):
     """Derived truth right after an action (first substep of every step), so predicates see its effect."""
     if tick.index != 0:
@@ -783,6 +784,7 @@ def _clocks(w, dt, now, foods=None, index=None):
             if moved:
                 changes["soil"] = soil
                 w.mut(rec["location"])["grit"] = round(float(parent.get("grit", 0.0)) + moved, 4)
+                _cause(w, rec["location"], eid)         # the grit came out of what soaks in the bowl (6.2)
             fchanges["wet"] = 0.8
             if f.get("absorbs_water"):
                 fchanges["soak_s"] = round(float(f.get("soak_s", 0.0)) + dt, 1)
@@ -872,6 +874,20 @@ def _drips(w, dt, foods=None):
             z = z or M.zone_of(state, eid)
             if z["unit"] == sz["unit"] and z["level"] is not None and z["level"] < sz["level"] - 0.05 and not z["covered"]:
                 M.add_contam(w, eid, "raw_meat", min(0.5, 0.15 * dt / 3600.0))
+                _cause(w, eid, src)                     # the raw meat dripping from above (6.2)
+
+
+def _cause(w, rid, *ids):
+    """Record what a physical write of rid is a consequence of (VERIFY_HARDENING 6.2 causal links, WP2's
+    World.cause): the house ledger charges a divergent physical change to the robot only when its cause chain reaches
+    something the robot wrote. No-op when the World does not track or did not write rid in this frame."""
+    cause = getattr(w, "cause", None)
+    if not callable(cause) or not getattr(w, "tracking", False):
+        return
+    try:
+        cause(rid, *ids)
+    except ValueError:
+        pass                # nothing written to rid by this writer in this frame (the change was below rounding)
 
 
 def _utensil_melting(w):

@@ -358,6 +358,26 @@ def _leak_rate(rec):
     return 0.0
 
 
+LEAK_KIND = "liquid:chemical"      # VERIFY_HARDENING 6.5's kind of a leaked product (registered by its owner)
+
+
+def _log_leak(w, eid, holder, lost_ml):
+    """The leaked product as a mess flow (6.5, world.mess_flow): from the container onto what holds it (a shelf, a
+    cabinet, a tray) or the room's floor (outdoors: outside), origin the container."""
+    flow = getattr(w, "mess_flow", None)
+    if not callable(flow) or lost_ml <= 0:
+        return
+    state = w.s
+    rooms = state.get("rooms") or {}
+    if holder in rooms:
+        dst = ["outside" if (rooms[holder] or {}).get("outdoor") else "floor", holder]
+    elif holder in (state.get("entities") or {}):
+        dst = ["entity", holder]
+    else:
+        return
+    flow(LEAK_KIND, round(float(lost_ml) / 1000.0, 6), ["entity", eid], dst, origin="chemical:" + eid)
+
+
 def leaks(w, dt, ids):
     state = w.s
     for eid in ids:
@@ -378,6 +398,7 @@ def leaks(w, dt, ids):
         holder = rec.get("location")
         target = holder if holder in state["entities"] else None
         classes = C.chem_classes(rec)
+        _log_leak(w, eid, holder, lost)
         if target:
             hm = w.mut(target)
             residue = dict(hm.get("_chem_spill") or {})
@@ -410,6 +431,8 @@ def chemical_system(w, dt, tick):
         rec = state["entities"][eid]
         if rec.get("orientation") in ("on_side", "upside_down") or rec.get("leaking"):
             ids.append(eid)
-    if ids:
-        leaks(w, dt, sorted(ids))
+    for eid in sorted(ids):
+        # a leak is caused by the container left on its side, open or leaking (6.2's causal link)
+        with w.writing("physical", cause=[eid]):
+            leaks(w, dt, [eid])
     run_audit(w)

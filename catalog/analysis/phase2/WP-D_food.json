@@ -1,0 +1,71 @@
+{
+ "id": "WP-D_food",
+ "landed": [
+  "house_sim/data/verify/watch/food.json: field classes for every property of the 365 food types and every food.* sub-key (field_census --unclassified --domain food: 0, was 72 names / 930 pairs); identity = what a food is and what processing made of it, content = food.qty_g / count / composition / a package's volume_l, process = heat- and time-driven state (ice, cooked, raw, doneness, toast, ripeness, soggy, proof, foam), condition = handling damage (food.bruise, cracked, torn, scorch, burnt, split, shell_fragments, yolk_fat_g, knife sharpness down, coating_damage), bookkeeping = mirrors and records (served_to, reported, derived_from, a bulk portion's size_m, a vessel's fill_level, a grocery bag's fill_l / load_kg); contamination hazards (raw meat, germs, chemical, glass, allergens) condition, kosher / flavour / spice / capsaicin marks process; water_sensitive paper packaging, recipe card, scale; 'writes' for WP1",
+  "refuse (6.4/6.5, hardening.py): prep scraps, eggshells, removed outer packaging and worn disposable gloves carry waste: true -- before the baseline (mark_refuse, episode_start) and from creation (add_scraps, crack_egg's shell, unwrap's sleeve, take_off of used gloves) with a waste_item flow from created:<id>; judged by cleaning's waste_item measure (scraps left on a board: house.wrong_sink:waste_item; composted: sunk); house.lost / house.removed exempt refuse",
+  "writer classes and causes (6.2): food.thermal / food.safety / food.refresh declared writer='physical'; drips cite the dripping raw-meat pack, grit settling in a soaking bowl cites the food it came from",
+  "settings skills (10.3): opened of packaged food (open, with the can opener / corkscrew it needs; one way), food.bruise of soft produce (a firm pick-up: B14's damaged probe)",
+  "water meter (6.8): a refreshed cold-water thaw bath counts its bowl's litres on resources.json's meter",
+  "structured readings (15.2): weigh returns reading {subject, quantity mass|volume, value, unit, field mass_kg} for the one (visible) thing weighed, else the scale's load; inspect with a probe thermometer and a cold space's dial add readings; subjects are handles in realistic mode and perceive.index picks them up",
+  "house_sim/data/speech/truth_food.json: states frozen, thawed, cooked, raw, ripe, unripe, overripe; issues expired, bruised, bulging, freezer_burn; act cook -- every condition reads a field only food records carry ('the chicken is cooked' about raw chicken is now false)",
+  "latched fields (8.2): docs/domains/food.md 13.6 lists _report_check and served_to (hook-written, never recomputable) so L-LATCH refuses them in schema-4 success; the derived truth (_food_status, _zone, _storage_ok, _fifo_ok, _dish, ...) is recomputed by food.refresh / food.safety: no latch",
+  "world fix (P10): crush judged an improvised pounder by its true mass, telling a held unresolved look-alike apart (empty plain spray bottle vs full cleaner; pre-filter vs HEPA panel); an unresolved pounder now gets the kernel's identify-first refusal (Ctx.refuse_unidentified), an identified one keeps the 0.2 kg rule (regression LookalikeTests: 4 of 4 fail on the old code)",
+  "world fix (P10): the food.kitchen stand-in compost caddy is a waste bin (waste_bin, as the trash stand-in's accepts_any_waste), so refuse composted in it is sunk mess and cleaning's stream rules see it",
+  "phase-1 closeout_breakages row 'navigation_robot, food, manipulation': common.held_known uses Ctx.unfamiliar, common.tool delegates to core.require_tool, percept.unfamiliar_first refuses through Ctx.refuse_unfamiliar (regression: tests/test_food_hardening.py UnfamiliarHelperTests, 2 of 3 fail on the old code)",
+  "look-alike / unfamiliar sweep over every food verb (38 verbs x every entity parameter and portion's list, counter and held; scratch sweep_food.py): 78 registry groups -- before 8 differences (crush:tool for spray_bottle, purifier_panel, smooth_stone; egg_in_shell), after 0 for every crush group (spray_bottle, purifier_panel, bed_sheet, smooth_stone) and only egg_in_shell's by-design differences (cracking a boiled egg resolves the group; a new portion's opaque handle); 58 unfamiliar twins: 0 differences",
+  "WP9's request: food.groceries places items in ctx.placer.order(items) order",
+  "docs/domains/food.md section 13; tests/test_food_hardening.py"
+ ],
+ "deviations": [
+  {
+   "what": "no mess kind registered (liquid:grease included)",
+   "why": "food's refuse is the kernel's waste: true, counted by cleaning's waste_item measure (a second registration raises); solid spills soil surfaces (house.soiled), liquid food is a kernel spill (plumbing's kinds); rendered fat is a food entity and the grease sink class has no household container type, so a jar of saved bacon fat would be relocated mess -- fat down a drain stays the food.fat_down_drain invariant"
+  },
+  {
+   "what": "_report_check and served_to are listed as latched fields without a recompute",
+   "why": "they record events (a report graded when made, a hand-over); no recompute from the state exists, so L-LATCH should refuse them as schema-4 success evidence (reports: the report predicate; serving: placement)"
+  },
+  {
+   "what": "hot / warm / cold claims not mapped",
+   "why": "the only per-entity temperature field is the kernel's temperature_c, which rooms carry too ('the kitchen is cold' would be judged by food thresholds); no food-only temperature field exists on every food"
+  },
+  {
+   "what": "raw claims scored only on an explicit false cooked flag; a claim that produce is cooked is not caught",
+   "why": "food.raw means 'raw animal product': 'the carrot is raw' must not be judged false; leaving it unknown is never a false alarm"
+  },
+  {
+   "what": "causes recorded only for drips and soaked-out grit",
+   "why": "every other physical change of a food is linked through its location chain (robot_attributable); a cause citing an uncaused pan temperature would end the chain early and drop a charge"
+  }
+ ],
+ "not_done": [
+  {
+   "what": "look-alike sweep with the geometric camera",
+   "why": "food's only look-alike behaviour change (crush) is camera-independent (an identify-first refusal for an unresolved pounder); phase 1's geometric twin probe covered food's groups, and cleaning documented that the constant-salt harness loses reset sightings for a second geometric env in one process"
+  },
+  {
+   "what": "wheeled_cart look-alike group in the sweep",
+   "why": "the sweep's kitchen scene cannot seat a curb cart beside a counter (food.kitchen: no counter with room); food verbs cannot take a curb cart as a tool or vessel anyway"
+  }
+ ],
+ "outcome_changes": [],
+ "tests": {
+  "new_tests": 35,
+  "passed": true,
+  "strict_passed": true
+ },
+ "specs": {
+  "total": 16,
+  "passed": 16
+ },
+ "requests": [
+  "WP4: truth.json spoiled / mold read spoiled / mold fields food does not carry -- add {field _spoil, op gte, value 1.0} and {field _rotten, op is_true}; $contents counts only children and liquid_l, so 'the milk carton is empty' is judged TRUE for a full 1.95 kg carton (count a food record's own food.qty_g > 0.5 g); open / sealed of a package should read food's opened field; quantities.temperature lacks temperature_c; a condition scope (e.g. 'if': {'field': 'food'}) so food can map hot / warm / cold on temperature_c without judging rooms",
+  "WP1: watch_fields.json -- contamination.kosher_meat / kosher_dairy / flavor_* / spice_* / capsaicin / wax on core types (counters, sinks, fridge) are food-law and taste marks (process), not house.damaged; apply a domain watch file's 'writes' list to those names on any type (food's list is in watch/food.json, as manipulation's); optional kernel food.* rows mirroring watch/food.json for food records of other domains' types",
+  "WP-D_cleaning: classify contamination / contamination.* of waste-container types (kitchen_trash_can, compost_caddy, ...) as bookkeeping in watch/cleaning.json -- binned eggshells fire house.damaged:kitchen_trash_can_1.contamination.* in the as-if crack-egg reference",
+  "WP-D_textiles_laundry (bed_sheet group) and the smooth_stone group's owner / kernel realism: a held unresolved member shows its own weight class (crib sheet / resin stone 'light', fitted / flat sheet / river rock 'medium') while spray_bottle shows one class -- mask the held weight class per group or let the group resolve by heft",
+  "WP6: B14 damaged probe via plugins.settings_steps(state, eid, 'food.bruise') (soft produce), changed probe via settings_steps(state, eid, 'opened') for packaged food",
+  "WP12 food: as-if envelopes -- consume for portions and ingredients taken (food.qty_g, volume_l), change for food cut / peeled / seasoned and scale settings, to scopes for groceries put away (house.hidden), held_at_end or a final put-down, and compost the scraps in references or allow them (envelope.mess.waste_item.allow_at)",
+  "main session / P2-S3 merge: re-record room golden spec rows T-1df40780f5ddf2-01 (one of the 20 fixed specs; tests/test_room_golden.py fails on it until then), T-a03bc04a3a311c-01, T-a853f28cce9c86-01, X-44e90cc83ba0db-01, X-befab43585cde3-01 (state digests only: refuse flags, mess flows, the waste-bin compost caddy and cleaning's stream judgement of it; steps, time, evaluation unchanged); setup.py package_data for data/verify/watch/*.json and data/speech/truth_*.json"
+ ],
+ "notes": "A/B on frozen trees (before_tree = the working tree before this package, after_tree = before_tree + only this package's files): all 243 authored specs pass on seeds 0 1 in both, 0 of 486 trials changed in any verdict field or wrong-plan reason; the 16 food specs on seeds 0 1 2 41 97 16/16 in both, 0 of 80 changed (re-run with the final crush code: 0 changed); food__perception --camera geometric 4/4, food__examples --perception realistic 12/12. Tests: test_food_hardening (35) + test_food (174) = 209 OK normal, strict and HOUSE_SIM_DOMAINS=core,food (8 skips). Full suite (green_tests 2, live shared tree, other run-B packages editing concurrently; test_food_hardening there at 33 tests): 172 of 184 file-mode runs ok, failing only files owned elsewhere -- test_admin_inventory_hardening (admin's own watch file, concurrent work), test_dialogue (vocab tables after other WP-D vocab edits), test_ledger (cleaning's debris / waste_item registrations), test_lint (cleaning's derived in_stream), test_verify_hardening (WP5's WP6-absent pin), test_room_golden (re-records of several packages, food's T-1df40780f5ddf2-01 among them). L-WATCH: field_census --unclassified --domain food 0 (was 72 names / 930 pairs), --check 0. perception_audit: room 20 houses 2400 steps 0 leaks 0 crashes, geometric 10 houses 800 steps 0 leaks 0 crashes; layout_audit 20 --domain food: 120 houses 0 problems. py39_lint clean; every file LF. Nothing committed, nothing under %USERPROFILE%/.house_ai, no network or paid calls. Scratch: C:/Users/keanu/AppData/Local/Temp/claude/C--Users-keanu-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p2_WP-D_food/. Handoff: catalog/analysis/phase2/handoff_WP-D_food.md."
+}

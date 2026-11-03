@@ -214,7 +214,7 @@ def metrics_idle(w):
     return not any(room.get("track_metrics") for room in w.s["rooms"].values())
 
 
-@system("people.room_metrics", order=130, max_dt=30.0, idle=metrics_idle)
+@system("people.room_metrics", order=130, max_dt=30.0, idle=metrics_idle, writer="physical")
 def room_metrics(w, dt, tick):
     """Metrics of track_metrics rooms, recomputed only when something new was touched this step (or every 60 s of a
     long wait): see common.needs_refresh."""

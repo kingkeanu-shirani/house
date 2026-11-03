@@ -916,3 +916,117 @@ fields or temperatures pass in their own mode; `tests/test_appliances_cooking.py
 --domain food` 120 houses, 0 problems; `tools/fuzz.py --coverage` 243 specs, 0 defects (strict mode), 0
 nondeterministic replays; no LookalikeWarning or size spread for a food group. No spec outcome changed.
 Every new or extended regression fails on HEAD's food code and data.
+
+---------------------------------------------------------------------------------------------------------------------
+
+## 13. Verification hardening (VERIFY_HARDENING WP-D food; docs/design/VERIFY_HARDENING.md sections 6, 8.2, 10.3, 13, 15.2, 23.3)
+
+What the house ledger and the schema-4 verifier need from this domain (`house_sim/systems/food/hardening.py`,
+`house_sim/data/verify/watch/food.json`, `house_sim/data/speech/truth_food.json`; tests `tests/test_food_hardening.py`).
+
+### 13.1 Field classes (6.3, L-WATCH)
+
+`watch/food.json` classifies every property of `house_sim/data/types/food.json` (`tools/field_census.py --unclassified
+--domain food`: 0) and the food record's sub-keys one by one (a domain entry for the head `food` would hide the
+kernel's `food.*` rows; `food.*` is the watched catch-all, identity): what a food is and what the robot's processing
+made of it (`food.kind`, `cat`, `phase`, `cut`, `pieces`, `piece_mm`, `peeled`, `parts`, `mix`, `layers`, `seasoned`
+...) are identity; amounts (`food.qty_g`, `count`, `composition`, a package's `volume_l`) are content (a portion taken
+out is a removal unless `envelope.consume` names the source); what heat and time drive (`food.ice`, `cooked`, `raw`,
+doneness, `toast`, `ripeness`, `soggy`, `proof`, temperatures) is process; handling damage is condition with its worse
+direction (`food.bruise`, `cracked`, `torn`, `scorch`, `burnt`, `split`, `shell_fragments`, `yolk_fat_g`, a knife's
+`sharpness` down, a nonstick `coating_damage`); a bulk portion's `size_m` follows its amount and vessel (bookkeeping).
+Contamination on food's own types: raw-meat juice, germs, a chemical, glass and the allergens are condition (up is
+worse); kosher meat / dairy contact, flavour and spice taints, capsaicin and wax are process (the eater checks judge
+them when the food is served). `water_sensitive`: paper packaging, the recipe card, the kitchen scale, the grinder.
+
+### 13.2 Refuse and mess (6.4, 6.5)
+
+Food registers no mess kind of its own. Its refuse is the kernel's: `waste: true` on prep scraps (peels, trimmings,
+shells, bones), removed outer packaging and a worn pair of disposable gloves -- set before the baseline for those
+already in the house (`hardening.mark_refuse`) and at creation for the scraps pile, the eggshell halves, the sleeve
+`unwrap` takes off and gloves taken off after use, with a mess flow from `created` (core logs every later move).
+Cleaning's `waste_item` measure (every `waste: true` thing) then wants it in a waste container (compost bins and
+caddies are waste sinks): scraps left on the board are `house.mess_relocated:waste_item` unless
+`envelope.mess.waste_item.allow_at` lets them stay. `house.lost` / `house.removed` exempt refuse. Solid food spilled
+soils the surface below (`house.soiled`), liquid food is a kernel spill (the liquid kinds are plumbing's). Grease is
+not registered (see 13.7).
+
+### 13.3 Writers and causes (6.2)
+
+`food.thermal`, `food.safety` and `food.refresh` are `physical` (declared explicitly); none carries out a person's or
+a pet's own decision. Causes: raw meat dripping onto food below cites the dripping pack; grit settling in a bowl cites
+the food it soaked out of. Every other physical change of a food is linked to the robot through its location chain
+when the robot wrote the food or its container (`HouseEnv.robot_attributable`), so a cause is added only where the
+chain does not already say it.
+
+### 13.4 Settings skills, meters, readings (10.3, 6.8, 15.2)
+
+* `opened` of a packaged food: open it (with the can opener or corkscrew it needs, when the house has one); one way.
+* `food.bruise` of soft produce: a firm pick-up bruises it (B14's damaged probe). The kitchen scale's `on` and
+  `settings.unit` use the kernel defaults (switch, set).
+* A refreshed cold-water thaw bath empties and refills its bowl from the tap: the litres count on the water meter.
+* `weigh` returns `reading` {subject, quantity mass (volume in ml), value, unit, field mass_kg}: the one thing it
+  weighs (the single item on an un-tared scale, the single visible thing in a tared vessel), else the scale's load;
+  an inspection with a probe thermometer adds `readings` [{subject, temperature, value, C}] (the core), a cold
+  space's dial thermometer its `internal_temp_c`.
+
+### 13.5 Truth mappings (13.1-13.3)
+
+`truth_food.json` reads only fields food records carry, so a claim about anything else stays unknown: states frozen /
+thawed (`food.ice`), cooked (`food.cooked`, else not a raw animal product), raw (only a cooked flag that is false),
+ripe / unripe / overripe (`food.ripeness`); issues expired (`_food_status.days_left` below 0), bruised, bulging,
+freezer_burn; act cook. `spoiled`, `mold`, `open` / `sealed`, `empty` and temperatures are the kernel's keys and do
+not read food's fields yet (requests in the WP-D food handoff).
+
+### 13.6 Latched fields
+
+The goal fields a hook writes that nothing recomputes. Neither has a recompute (an event cannot be derived from the
+state): lint L-LATCH refuses them as schema-4 success evidence. Food's derived truth (`_food_status`, `_zone`,
+`_storage_ok`, `_fifo_ok`, `_dish`, `_recipe_check`, `_label_check`, `_policy_ok`, `_packaging_ok`) is recomputed
+from the current state by `food.refresh` after every action and by `food.safety` every 300 s, so it is no latch.
+
+| Field | Written by | Recompute |
+|---|---|---|
+| `_report_check` | the `report` hook (a report graded against the truth when it was made) | none: score reports with the `report` predicate (13.6 of the design) |
+| `served_to` | `hooks.consume` (who was handed the food) | none: score a served item by where it is and the eater's checks |
+
+### 13.7 World-behaviour fixes and the look-alike sweep (P10, every schema)
+
+* `crush` with an improvised pounder judged its true mass, so a held unresolved look-alike told its members apart (an
+  empty plain spray bottle, 0.1 kg, was "too light to crush with" while a full cleaner crushed; a pre-filter panel was
+  refused where a HEPA panel crushed). An unresolved pounder now gets the kernel's identify-first refusal
+  (`Ctx.refuse_unidentified`: judging it by the felt weight would still split groups whose held weight class differs,
+  bed sheets and smooth stones); an identified one keeps the 0.2 kg rule.
+* The `food.kitchen` stand-in compost caddy (a storage bin labelled "compost caddy") is a waste bin (`waste_bin`, as
+  the trash stand-in's `accepts_any_waste`): refuse composted in it is sunk for the ledger, and cleaning's stream rules
+  see it.
+* The phase-1 look-alike and unfamiliar-thing rows, for every food verb: a sweep of all 38 verbs x every entity
+  parameter (and `portion`'s list, and the tool left implicit when held), on the counter and held, over the 78 registry
+  look-alike groups and 58 unfamiliar twins behind one look, finds no tell left but cracking a boiled egg (the act
+  resolves the egg_in_shell group) and the handle of the portion a verb makes (named after the source's kind; an
+  opaque handle). Food's unfamiliar-tool rule is the kernel's (`Ctx.unfamiliar`, `Ctx.refuse_unfamiliar`,
+  `core.require_tool`).
+
+### 13.8 Not applicable, deviations and known gaps
+
+* Zones and passability: food owns no people or pets. `hazard_created`: food creates no hazard class (its scraps,
+  shells and sleeves are refuse, judged by the mess balance).
+* Grease (`liquid:grease`) is not registered: rendered fat is a food entity in a pan or jar, and the kernel's grease
+  sink class has no household container type, so a jar of saved bacon fat would be relocated mess; fat down a drain
+  stays the `food.fat_down_drain` invariant (every schema).
+* Derived fields: none (13.6).
+* Truth: hot / warm / cold are not mapped (the per-entity temperature field `temperature_c` is the kernel's and rooms
+  carry it too); `spoiled`, `mold`, `open` / `sealed`, `empty` and temperature quantities are kernel keys that read no
+  food field yet ("the milk carton is empty" reads true for a full carton: `$contents` counts children and liquid
+  only). Requested of WP4.
+
+### 13.9 Verification (WP-D food)
+
+`tests/test_food_hardening.py` (35 tests) and `tests/test_food.py` (174) green normally, with `HOUSE_SIM_STRICT=1` and
+with `HOUSE_SIM_DOMAINS=core,food` (8 skips there: other domains' types, verbs or mess kinds);
+`tools/field_census.py --unclassified --domain food` 0 and `--check` 0; all 243 authored specs pass on seeds 0 and 1
+with and without this package (0 of 486 trials changed), the 16 food specs on seeds 0, 1, 2, 41, 97 (0 of 80
+changed); `tools/perception_audit.py` 0 leaks, 0 crashes (room camera 20 houses, geometric 10 houses);
+`tools/layout_audit.py 20 --domain food` 120 houses, 0 problems. Room golden: 5 spec references change their final
+state digest only (refuse flags, mess flows, the waste-bin caddy; WP-D food handoff), steps, time and evaluation
+unchanged.

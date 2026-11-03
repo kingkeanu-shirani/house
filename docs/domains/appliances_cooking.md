@@ -34,6 +34,7 @@ refusals of unfamiliar things, cook_state juices) are fixed (section 4a).
 | `cold.py` | fridge/freezer air model (compressor, door open/ajar UA, alarms), frost growth, `defrost` (methods, meltwater containment), door obstruction (protruding items, gasket; `unit_contents` keeps a refrigerator's check out of its freezer part), shelf clearance guard |
 | `dishwasher.py` | slot classes and loading rules, `analyse` (spray arms, detergent door, nesting, spooning, overload, exposure), `load_check` truth, `load` / `unload` verbs, cycle hooks (programs, brands, delay, household rules, detergent release, rinse aid, wash outcome, damage to unsuitable items, drying), filter access, mid-cycle opening |
 | `grill.py`, `timers.py`, `handling.py`, `status.py`, `routes.py`, `systems.py` | `light_grill` + grill model (propane cylinder slot: install/uninstall hooks, valve-open refusal); `set_timer` + ringing; mitts (gripper heat fault), hot placement (kernel contact heat and thermal shock, `phys.contact_heat` claims), child reach, carry warnings, detergent invariant; observer, inspector, answerer (and the `permission:self_clean:` / `permission:defrost:` answerers), intent checks, always-on invariant, watchable fields; the dialogue routes to the answerer; the domain tick (static index, idle predicates, exact idle probe, vessel hand-back), the cold system and the drying fallback |
+| `hardening.py` | verification hardening (section 12): causes of physical writes, the energy / gas / water meters, derived fields `_load_check`, `load_state`, `power_state`, settings skills, hot-surface hazard zones |
 | `furnish.py`, `scenarios.py`, `skills.py` | furnishers (orders 45-47), 13 scenario helpers (+ kitchen workability: pets out of the way, reachable tools, counter room for appliances, dishes and props), 16 reference skills |
 
 All state-affecting iteration is over sorted ids; randomness only through `ctx.rng` / `tick.rng`. Systems (section 3):
@@ -991,3 +992,113 @@ geometric camera's L2 residual, generation 1 only); the cold contents memo scans
 `begin()` (about 0.03 ms per step; needs a kernel touch log that spans steps, requested); every substep journals a full
 copy of each fridge and relaxing appliance (the World journal; a quiet field write would hide the change from the
 kernel thermal active set and other touch-log readers).
+
+-----------------------------------------------------------------------------------------------
+
+## 12. Phase 2: verification hardening (WP-D appliances_cooking)
+
+docs/design/VERIFY_HARDENING.md section 25 row "WP-D <domain>" and section 23.3; handoff
+`catalog/analysis/phase2/handoff_WP-D_appliances_cooking.md`; tests `tests/test_appliances_cooking_hardening.py`.
+Code: `hardening.py` (new) and small hooks into `stove`, `oven`, `dishwasher`, `systems`, `cook`, `handling`,
+`status`, `scenarios`; data `house_sim/data/verify/watch/appliances_cooking.json` (field classes) and
+`house_sim/data/speech/truth_appliances_cooking.json` (truth mappings).
+
+### 12.1 Field classes (6.3, L-WATCH)
+
+Every property of this domain's 96 types is classified (`tools/field_census.py --unclassified --domain
+appliances_cooking`: 0 left, was 83 names / 285 pairs), with the sub-keys of the model blocks one by one: ratings,
+sizes and kinds are identity; knobs, programs, lit burners, locks and delayed starts are settings; what a heater, a
+thermostat or a program drives is process (`appliance.state` and its countdowns, `preheated`, `load_state`, alarms, an
+espresso boiler, a pressure cooker's pressure, `appliance.delay_s` counting down); damage a heater or a program does is
+a condition with its worse direction (a scratched coating, a warped or discoloured part, an overheated motor, a scorched
+handle, milk dried on a steam wand, a dead igniter, a dislodged burner cap); fuel and doses used up are content; ash and
+toaster crumbs are mess loads. Per type: a toaster's `fill_level` follows its slices and its allergen contamination is
+its normal use, a microwave's `settings.time_s` is the countdown it shows, a dishwasher filter's or sump's soil is the
+food it is there to catch, a detergent cup's `open` is the program's, the `appliance.program` of a dishwasher, an oven, a
+toaster or a cooker is the copy of its panel setting (bookkeeping: the setting itself is watched). `generic_item` (the
+stand-in for pots, pans, dishes and food in this domain's helpers) gets the damage names a dishwasher or a heater writes
+onto it (`dw_damaged`, `etched`, `warped`, `sharpness` down, `seasoning` down, ...); the same names are requested from
+the kernel's `watch_fields.json` for every type. Water-sensitive: paper filters, charcoal, detergent pods and powder,
+coffee pods, oven mitts and pot holders, digital timers and probe thermometers (countertop appliances are water_safe
+false already).
+
+### 12.2 Causes (6.2)
+
+The tick steps each appliance, burner and fridge inside `World.writing(<current class>, cause=[appliance])`, food
+cooked in or on a heater cites the heater, and the kernel appliance-cycle hooks of this domain's types (cycle_tick /
+cycle_complete / cycle_start, wrapped once by `hardening.install_causes`) cite their appliance. The ledger follows a
+physical change to the appliance's last writer: a pan scorched on a burner the robot turned on is the robot's (linked),
+one on a burner lit before the episode or by a resident is not (it was "link unknown", and charged, before).
+
+### 12.3 Meters (6.8)
+
+The heaters climate's meter does not book (it books a device that carries `power_w` or `standby_w`: countertop
+appliances, fridges, the dishwasher) are booked by this domain on the meters `resources.json` names: a burner's
+element (its share of max_w at the knob), an induction zone with a pan, a gas burner's flame and the unburnt gas a knob
+at LITE lets through (10.55 kWh per m3), a range or wall oven's elements or gas burner with the thermostat's duty
+(`climate.energy.kwh` / `gas_kwh`, the device's kWh in `by_device`; climate's `cost_usd` and `peak_kwh` are not
+touched). A dishwasher's fills go on the water meter as each wash phase starts (prewash 25 %, main wash 35 %, rinse and
+final rinse 20 % each of the program's water). The oven left at 250 C for 40 minutes books about 1.75 kWh; before, none
+of these heaters booked anything.
+
+### 12.4 Mess (6.5) and hazard zones (13.5)
+
+This domain logs no mess flow and registers no mess kind. What it creates is liquid out of a vessel (coffee missing the
+carafe, a kettle spitting, meltwater nobody caught, a dishwasher leak or flood, a blender eruption), which lands through
+the kernel's single spill entry (`common.spill`) as a spill or puddle entity, or a film on the support, where the liquid
+kinds' measures (plumbing_liquids' registrations) see it; a flow into a measured floor, surface or towel would outlive a
+mop-up that logs none (plumbing_liquids' rule). A boil-over becomes burnt or sticky soil on the burner and the range
+(`house.soiled`); meltwater caught in a tray stays water in a vessel (content). Ash and toaster crumbs are mess loads
+(guard mess) that no verb of this domain moves.
+
+Hazard zones (`@hook("hazard_zones")`, `hardening.hot_surface_zones`): a hot cooking surface is a zone as the thing
+itself (room None, subjects the appliance and what rests on or in it): a burner that is on or above 60 C, a running or
+hot oven, toaster oven or air fryer, a hot griddle or waffle maker, a lit or hot grill, a pressure cooker under
+pressure. An invitation to one ("come and look at the pot" while its burner is on) is what WP4's
+`house.warning_inverted` judges; safety's walkers act only on safety's own zones, so no resident behaviour changes.
+
+### 12.5 Latched fields
+
+The goal fields a hook writes and the state can later contradict; each has a registered recompute
+(`@derived_field`, `hardening.py`) that schema-4 evaluation overlays (8.2; lint L-LATCH reads this table).
+
+| Field | Written by | Recompute |
+|---|---|---|
+| `_load_check` | `dishwasher.refresh_check` after place, load and pick_up | `dishwasher.load_check` over the racks as they are now, whichever verb or agent moved a dish |
+| `load_state` | the cycle (clean), place into an empty machine (dirty), pick_up of the last item (empty) | "empty" once nothing is in the racks, else the stored state |
+
+`power_state` ("on" / "off" of a burner, a range or cooktop and an oven) is a derived view, not a latch: no record
+carries it, a predicate may name it, and the kernel's on / off claims will read it once speech reads derived fields
+(request to WP4). `preheated` is recomputed by the oven every substep (cleared when the oven stops or its set point is
+raised), `sealed` / `ajar` are the door's physical state (a jar that held the door open leaves it ajar when it is
+taken out), and the `_vessel`, `_cook` and `_kettle` peaks and counts are histories by design.
+
+### 12.6 Settings skills, truth, readings, labels, helpers
+
+* Settings skills (10.3): the settings whose options are a {min, max} range (`settings.temp` of ovens,
+  `settings.temp_c` of fridges, freezers and the air fryer, `settings.power` / `time_s`, `delay_h`, `hours`,
+  `minutes`, `time_min`, `timer_min`), `burner.lit` of a gas burner (ignite / knob off) and `timers` (set_timer). The
+  damaging acts of this domain (a freezer's evaporator chipped once it is off and open, a nonstick pan scratched by a
+  metal tool freeing food, an empty pan left on high) each need a multi-step setting, so B14's damaged probe has none.
+* Truth (13.3): states preheated, preheating (the panel reads PREHEATING), boiling (a simmer or a rolling boil),
+  simmering, keeping_warm, self_cleaning; issues frost_buildup (6 mm), door_not_sealing, too_warm (the temperature
+  alarm), boil_over, burnt_food, door_alarm, flare_up.
+* Readings (15.2): `check_doneness method=thermometer` returns a structured reading (`reading`: subject, quantity
+  temperature, value, unit C, field core_temp_c, instrument) that the perception index records as a measurement.
+* Invariant labels start with their registered name: `appliances_cooking.always_on_off:<unit>`,
+  `appliances_cooking.detergent_within_child_reach:<pod>` (were `always_on_appliance_off` and
+  `detergent_within_child_reach`), so `inv:appliances_cooking.always_on_off` matches them.
+* `appliances_cooking.dishes` places its dishes in `ctx.placer.order` (schema 4: a seeded order; older specs: the given
+  order, no draw); its bindings keep the kinds' order.
+
+### 12.7 World behaviour and the phase-1 carry-over
+
+* 23.3's items for this domain were in place since phase 1 and are pinned there: a boil-over carries at most what the
+  boiling lifts over the rim per substep (section 11), a pot that boils dry is marked `scorched` above 260 C and its
+  milk or sauce film burns on above 150 C (`_vessel.scorched`, burnt soil), and a watch handed to the robot is attended
+  by the robot alone (`pot_on_burner(watcher="robot")`).
+* closeout_breakages row 3 (VER2: fixed by the kernel's place refusal, but an unfamiliar rice cooker or pressure cooker
+  still answered "That does not work on it" through this domain's own place hooks): `unload` refuses an unfamiliar
+  destination or tool identify-first before anything is picked up or checked by type. The twin sweep of every verb of
+  this domain over every registry look-alike group (78) and 43 unfamiliar twins shows no other difference but a held
+  two-handed thing occupying both hands (a physical trial).

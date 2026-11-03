@@ -90,8 +90,58 @@ def check_disclosure(w, text, listeners, channel="voice"):
     return found
 
 
+def heard_claims(state, text, pid):
+    """The claims an utterance heard by pid makes (kernel/speech.py parse, the robot's room as the scope)."""
+    from ...kernel import speech
+    try:
+        found = speech.parse(text or "", state=state, to=pid, room=state["robot"].get("room"))
+    except Exception:  # noqa: BLE001  (words the parser cannot read assert nothing)
+        return []
+    return list(found or ())
+
+
+def _deliver_claims(w, pid, mkey, msg, text, channel, key=None):
+    """A schema-4 message with key_claims (VERIFY_HARDENING 13.4): complete when the utterances the recipient heard
+    assert every key claim (speech.pattern_matches) and none contradicts one (speech.contradicts); attributed only by
+    an attribution claim naming the sender ("Jordan says ...", "a message from Jordan"), never by the robot's own
+    sender= argument (the person hears words, not arguments: comms.py's free sender= made an inverted relay
+    "attributed", review P-47196e0991cdf4-01). The record keeps which claims were heard, which are missing and whether
+    a heard claim contradicted one. Returns the record, or None when the utterance has nothing to do with it."""
+    from ...kernel import speech
+    state = w.s
+    patterns = [speech.normalize_pattern(p) for p in msg.get("key_claims") or () if isinstance(p, dict)]
+    claims = heard_claims(state, text, pid)
+    matched = sorted(i for i, p in enumerate(patterns) if any(speech.pattern_matches(c, p, "assert") for c in claims))
+    clashes = sorted(i for i, p in enumerate(patterns) if any(speech.contradicts(c, p) for c in claims))
+    sender_pid = msg.get("from")
+    named = any(c.get("kind") == "attribution" and sender_pid is not None and
+                sender_pid in (c.get("subject") if isinstance(c.get("subject"), list) else [c.get("subject")])
+                for c in claims)
+    if not matched and not clashes and not key and not named:
+        return None
+    m = w.person_m(pid)
+    received = dict(m.get("received") or {})
+    prior = received.get(mkey) or {}
+    heard = sorted(set(matched) | set(prior.get("claims_heard") or []))
+    contradicted = sorted(set(clashes) | set(prior.get("contradicted_claims") or []))
+    p = C.person(state, pid) or {}
+    record = {"time_s": C.now_s(state), "claims_heard": heard,
+              "claims_missing": [i for i in range(len(patterns)) if i not in heard],
+              "contradicted_claims": contradicted, "contradicted": bool(contradicted),
+              "attributed": bool(named or prior.get("attributed")), "channel": channel,
+              "asleep_at_delivery": S.asleep(p), "facts_heard": list(prior.get("facts_heard") or [])}
+    record["complete"] = bool(patterns) and not record["claims_missing"] and not contradicted
+    received[mkey] = record
+    m["received"] = received
+    C.log_event(w, "deliveries", person=pid, key=mkey, complete=record["complete"], channel=channel,
+                contradicted=bool(contradicted))
+    return record
+
+
 def deliver_content(w, pid, text, channel, sender=None, key=None):
-    """Score speech/relays against the user simulator's original messages for this recipient."""
+    """Score speech/relays against the user simulator's original messages for this recipient: a message with
+    key_claims (schema 4) by what the heard words claim (_deliver_claims); a legacy message's key_facts by keyword, as
+    before (schema 2 and 3 keep their semantics, VERIFY_HARDENING P10 and 13.4)."""
     state = w.s
     messages = C.user_sim(state).get("messages") or {}
     p = C.person(state, pid) or {}
@@ -104,6 +154,11 @@ def deliver_content(w, pid, text, channel, sender=None, key=None):
         if isinstance(targets, str):
             targets = [targets]
         if pid not in targets:
+            continue
+        if msg.get("key_claims"):
+            record = _deliver_claims(w, pid, mkey, msg, text, channel, key=key)
+            if record is not None:
+                results.append((mkey, record))
             continue
         facts = msg.get("key_facts") or []
         hits = [f for f in facts if C.contains_phrase(text, f)]
@@ -549,6 +604,8 @@ def knock(ctx):
     state = w.s
     door = ctx.args["target"]
     rec = ctx.obj(door, touch=True)
+    # identify-first (Ctx.refuse_unfamiliar): an unfamiliar thing serves as no door the robot knows of
+    ctx.refuse_unfamiliar(door)
     require(rec.get("connects"), "That is not a door between rooms")
     here = state["robot"]["room"]
     other = rec["connects"][1] if rec["connects"][0] == here else rec["connects"][0]

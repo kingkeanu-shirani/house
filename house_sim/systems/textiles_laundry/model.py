@@ -543,6 +543,77 @@ def foreign_drying(w, eid, rec):
 
 
 # ---------------------------------------------------------------------------
+# causes of physical writes and held tools (VERIFY_HARDENING 6.2; realistic perception)
+
+class _NoCause(object):
+    __slots__ = ()
+
+    def __enter__(self):
+        return None
+
+    def __exit__(self, *exc):
+        return False
+
+
+_NO_CAUSE = _NoCause()
+
+
+def caused(w, *ids):
+    """Context manager for a physical system's writes that are consequences of ids (the house ledger's causal link,
+    WP2's World.writing(cls, cause=...)): a textile that creases, sours, drips or scorches cites itself (and the heater
+    it was left by), a washer's or dryer's cycle its machine. The writer class stays the current one; a robot action
+    (its writes are the robot's anyway), a World that does not track and no ids change nothing."""
+    ids = tuple(i for i in ids if isinstance(i, str) and i)
+    if not ids or not getattr(w, "tracking", False) or (getattr(w, "writer", None) or ("",))[0] != "physical":
+        return _NO_CAUSE
+    return w.writing("physical", cause=ids)
+
+
+def self_cause(w, eid):
+    """eid as the cause of a physical write to itself (a heaped shirt creasing: a consequence of where it was left),
+    or None outside a tracked physical system (World.mut's cause argument)."""
+    if not getattr(w, "tracking", False) or (getattr(w, "writer", None) or ("",))[0] != "physical":
+        return None
+    return eid
+
+
+def count_water(w, liters):
+    """Count litres this domain draws from the supply (a washer's fill, a soak basin's tap water) on the house water
+    meter the ledger reads (VERIFY_HARDENING 6.8: house_sim/data/verify/resources.json meters.water.path, plumbing's
+    meter, which cleaning's draws also count into). Nothing when the path is not a dotted section path or another
+    owner's value sits on it."""
+    if not liters or liters <= 0:
+        return
+    try:
+        from ...kernel import ledger
+        path = ((ledger.data("resources").get("meters") or {}).get("water") or {}).get("path")
+    except (OSError, ValueError, KeyError):
+        return
+    if not isinstance(path, str) or "." not in path:
+        return
+    parts = path.split(".")
+    node = w.sec(parts[0])
+    for key in parts[1:-1]:
+        child = node.get(key)
+        if not isinstance(child, dict):
+            if child is not None:
+                return
+            child = node[key] = {}
+        node = child
+    current = node.get(parts[-1], 0.0)
+    if isinstance(current, bool) or not isinstance(current, (int, float)):
+        return
+    node[parts[-1]] = round(float(current) + float(liters), 3)
+
+
+def held_known(ctx):
+    """The things the robot holds that it knows what they are: an unfamiliar (novel) thing in a hand is passed over by
+    the verbs' implicit tool pickers (a held unfamiliar lint roller, iron or needle serves as none: the identify-first
+    rule of ctx.refuse_unfamiliar, without naming it)."""
+    return [h for h in ctx.w.held_items() if not ctx.unfamiliar(h)]
+
+
+# ---------------------------------------------------------------------------
 # structure helpers
 
 def now(w):

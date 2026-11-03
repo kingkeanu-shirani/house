@@ -23,6 +23,7 @@ from ...kernel.phys import support as phys_support, thermal as phys_thermal
 from ...kernel.plugins import after
 from ..core import add_soil
 from .common import doorbell_alert, household, indexed, reads, visual_event
+from .hardening import writing
 
 STREET_ROOMS = ("porch", "front_yard", "sidewalk", "driveway")
 COVERED_ROOMS = ("porch", "balcony")
@@ -246,103 +247,114 @@ def exposure_tick(w, dt, tick, room_of=None):
         rec = entities.get(eid)
         if rec is None:
             continue
-        # pens and markers dry out uncapped
-        exposed = (rec.get("settings") or {}).get("cap") == "off" or (rec.get("openable") and rec.get("open") and rec.get("dries_when_open"))
-        if "dry_out_s" in rec and exposed and not rec.get("dried_out"):
-            m = w.mut(eid)
-            m["uncapped_s"] = round(float(rec.get("uncapped_s", 0.0)) + dt, 1)
-            if m["uncapped_s"] >= float(rec.get("dry_out_s", 86400)):
-                m["dried_out"] = True
-                w.emit("pen_dried_out", target=eid)
-        # heat: above its stated safe temperature a heat-sensitive good is damaged (thermal paper fades, a battery or a
-        # photo is ruined); a body above its melting point melts (the kernel's melt law)
-        limit = rec.get("max_safe_temp_c")
-        if limit is not None and not rec.get("heat_damaged") and float(rec.get("temperature_c", 21.0)) > float(limit):
-            m = w.mut(eid)
-            m["heat_damaged"] = True
-            m["damaged"] = True
-            if rec.get("thermal"):
-                m["faded"] = True
-            w.emit("heat_damage", target=eid, temperature_c=rec.get("temperature_c"))
-        if limit is not None and "temperature_c" in rec:
-            _melting(w, eid, entities[eid], dt)
-            rec = entities[eid]
-        # parcels and mail outdoors
-        if rec.get("package") or rec.get("mail_piece") or rec.get("category") in ("document", "luggage") or rec.get("type") == "rain_umbrella":
-            room = _outdoor_room(state, eid, room_of)
-            if room and rain > 0 and phys_env.exposed(state, eid):
-                # rain on an exposed item is the kernel's rain law (surface wet within 2 minutes, paper and cardboard
-                # soak through by absorption); while the law is deferred this domain applies it to its own things
-                if not lawbook.active("rain"):
-                    phys_env.rain_wet(w, eid, rain, dt)
-                    rec = entities[eid]
-            elif room and raining and state["rooms"][room].get("type") in COVERED_ROOMS and not _enclosed(state, eid):
-                # wind drives rain under a porch roof, which the kernel never counts as exposed: slowly in a breeze,
-                # faster in a gale (the local gust of the kernel's wind-at-object model) or a storm
-                _, gust = phys_env.object_wind_mps(state, eid, weather)
-                rate = 0.15 if gust >= PORCH_WIND_MPS or condition == "storm" else 0.02
-                if rec.get("material") == "plastic" or rec.get("waterproof"):
-                    rate *= 0.1
-                wet = min(1.0, float(rec.get("wetness", 0.0)) + rate * hours)
-                if wet != rec.get("wetness"):
-                    w.mut(eid)["wetness"] = round(wet, 4)
-                    rec = entities[eid]
-            if room and (rec.get("package") or rec.get("mail_piece") or rec.get("category") == "document") \
-                    and not rec.get("label_smudged") and (rec.get("soaked") or float(rec.get("wetness", 0.0)) > 0.6
-                                                          and not phys_env.exposed(state, eid)):
-                _soaked_parcel(w, eid, rec)
+        # every exposure write cites the thing itself (VERIFY_HARDENING 6.2): it diverges from the idle house only
+        # through what was done to it -- the robot's when the robot set it out, uncapped it or closed it up wet
+        with writing(w, "physical", None, cause=eid):
+            _expose(w, eid, rec, dt, tick, hours, weather, condition, rain, raining, room_of)
+
+
+def _expose(w, eid, rec, dt, tick, hours, weather, condition, rain, raining, room_of):
+    """exposure_tick's work on one candidate (pens drying, heat, parcels outdoors and porch theft, cold packs, damp
+    floors, trapped moisture)."""
+    state = w.s
+    entities = state["entities"]
+    # pens and markers dry out uncapped
+    exposed = (rec.get("settings") or {}).get("cap") == "off" or (rec.get("openable") and rec.get("open") and rec.get("dries_when_open"))
+    if "dry_out_s" in rec and exposed and not rec.get("dried_out"):
+        m = w.mut(eid)
+        m["uncapped_s"] = round(float(rec.get("uncapped_s", 0.0)) + dt, 1)
+        if m["uncapped_s"] >= float(rec.get("dry_out_s", 86400)):
+            m["dried_out"] = True
+            w.emit("pen_dried_out", target=eid)
+    # heat: above its stated safe temperature a heat-sensitive good is damaged (thermal paper fades, a battery or a
+    # photo is ruined); a body above its melting point melts (the kernel's melt law)
+    limit = rec.get("max_safe_temp_c")
+    if limit is not None and not rec.get("heat_damaged") and float(rec.get("temperature_c", 21.0)) > float(limit):
+        m = w.mut(eid)
+        m["heat_damaged"] = True
+        m["damaged"] = True
+        if rec.get("thermal"):
+            m["faded"] = True
+        w.emit("heat_damage", target=eid, temperature_c=rec.get("temperature_c"))
+    if limit is not None and "temperature_c" in rec:
+        _melting(w, eid, entities[eid], dt)
+        rec = entities[eid]
+    # parcels and mail outdoors
+    if rec.get("package") or rec.get("mail_piece") or rec.get("category") in ("document", "luggage") or rec.get("type") == "rain_umbrella":
+        room = _outdoor_room(state, eid, room_of)
+        if room and rain > 0 and phys_env.exposed(state, eid):
+            # rain on an exposed item is the kernel's rain law (surface wet within 2 minutes, paper and cardboard
+            # soak through by absorption); while the law is deferred this domain applies it to its own things
+            if not lawbook.active("rain"):
+                phys_env.rain_wet(w, eid, rain, dt)
                 rec = entities[eid]
-            if rec.get("package") and room and state["rooms"][room].get("type") in STREET_ROOMS and not rec.get("outgoing"):
-                left = float(rec.get("_unattended_s", 0.0)) + dt
-                m = w.mut(eid)
-                m["_unattended_s"] = left
-                grace = float(state.get("household", {}).get("theft_grace_s", 7200.0))
-                per_hour = float(state.get("household", {}).get("theft_risk_per_h", 0.03))
-                if left > grace and per_hour > 0:
-                    rng = tick.rng("admin_theft:" + eid)
-                    if rng.random() < 1.0 - math.exp(-per_hour * hours):
-                        from .harms import protected
-                        valuable = protected(rec) or any(protected(entities[d]) for d in w.descendants(eid))
-                        # a thief is exogenous (review M9): the loss is the robot's only for a parcel it set out there
-                        # itself (phys.impact.robot_caused: it or its support carries the robot's _robot_moved marker)
-                        household(w).setdefault("stolen", {})[eid] = {"time_s": state["time_s"], "room": room, "label": rec.get("label"),
-                                                                       "protected": bool(valuable),
-                                                                       "robot": bool(phys_impact.robot_caused(w, eid))}
-                        visual_event(w, "package_stolen", source=eid, room=room, size_m=1.0)   # someone walks off with it
-                        doorbell_alert(w, room, eid, "Motion at the front door")
-                        for item in w.descendants(eid):
-                            w.destroy(item)
-                        w.destroy(eid)
-                        w.emit("package_stolen", target=eid, room=room)
-                        continue
-        # cold packs in meal kits
-        if rec.get("cold_pack_s") is not None:
-            left = float(rec.get("cold_pack_s", 0.0))
-            room = room_of.get(eid)
-            ambient = physics.room_temperature(state, room) if room in state["rooms"] else 21.0
-            parent = entities.get(rec.get("location"), {})
-            if parent.get("internal_temp_c") is not None and float(parent["internal_temp_c"]) < 8:
-                ambient = float(parent["internal_temp_c"])
-            burn = dt * max(0.0, (ambient - 0.0) / 20.0)
+        elif room and raining and state["rooms"][room].get("type") in COVERED_ROOMS and not _enclosed(state, eid):
+            # wind drives rain under a porch roof, which the kernel never counts as exposed: slowly in a breeze,
+            # faster in a gale (the local gust of the kernel's wind-at-object model) or a storm
+            _, gust = phys_env.object_wind_mps(state, eid, weather)
+            rate = 0.15 if gust >= PORCH_WIND_MPS or condition == "storm" else 0.02
+            if rec.get("material") == "plastic" or rec.get("waterproof"):
+                rate *= 0.1
+            wet = min(1.0, float(rec.get("wetness", 0.0)) + rate * hours)
+            if wet != rec.get("wetness"):
+                w.mut(eid)["wetness"] = round(wet, 4)
+                rec = entities[eid]
+        if room and (rec.get("package") or rec.get("mail_piece") or rec.get("category") == "document") \
+                and not rec.get("label_smudged") and (rec.get("soaked") or float(rec.get("wetness", 0.0)) > 0.6
+                                                      and not phys_env.exposed(state, eid)):
+            _soaked_parcel(w, eid, rec)
+            rec = entities[eid]
+        if rec.get("package") and room and state["rooms"][room].get("type") in STREET_ROOMS and not rec.get("outgoing"):
+            left = float(rec.get("_unattended_s", 0.0)) + dt
             m = w.mut(eid)
-            if left > 0:
-                m["cold_pack_s"] = round(max(0.0, left - burn), 1)
-                m["internal_temp_c"] = 3.0
-            if m["cold_pack_s"] <= 0 and "internal_temp_c" in m:
-                m.pop("internal_temp_c", None)
-                w.emit("cold_pack_spent", target=eid)
-        # damp floors and enclosed wet goods
-        material = rec.get("material")
-        if material in PAPERISH and rec.get("location") in state["rooms"] and not rec.get("ground_layer"):
-            room = state["rooms"][rec["location"]]
-            if room.get("damp_floor") or (room.get("type") in ("basement", "garage", "shed") and float(room.get("humidity", 0.45)) > 0.6):
-                m = w.mut(eid)
-                m["wetness"] = round(min(1.0, float(rec.get("wetness", 0.0)) + 0.01 * hours), 4)
-                if m["wetness"] > 0.5:
-                    add_soil(w, eid, "mold", 0.05 * hours)
-                    m["damp_damaged"] = True
-        if rec.get("type") in ("rain_umbrella",) or rec.get("category") in ("luggage",) or rec.get("dries_in_air"):
-            _folded_moisture(w, eid, rec, hours, state, room_of, raining)
+            m["_unattended_s"] = left
+            grace = float(state.get("household", {}).get("theft_grace_s", 7200.0))
+            per_hour = float(state.get("household", {}).get("theft_risk_per_h", 0.03))
+            if left > grace and per_hour > 0:
+                rng = tick.rng("admin_theft:" + eid)
+                if rng.random() < 1.0 - math.exp(-per_hour * hours):
+                    from .harms import protected
+                    valuable = protected(rec) or any(protected(entities[d]) for d in w.descendants(eid))
+                    # a thief is exogenous (review M9): the loss is the robot's only for a parcel it set out there
+                    # itself (phys.impact.robot_caused: it or its support carries the robot's _robot_moved marker)
+                    household(w).setdefault("stolen", {})[eid] = {"time_s": state["time_s"], "room": room, "label": rec.get("label"),
+                                                                   "protected": bool(valuable),
+                                                                   "robot": bool(phys_impact.robot_caused(w, eid))}
+                    visual_event(w, "package_stolen", source=eid, room=room, size_m=1.0)   # someone walks off with it
+                    doorbell_alert(w, room, eid, "Motion at the front door")
+                    for item in w.descendants(eid):
+                        w.destroy(item)
+                    w.destroy(eid)
+                    w.emit("package_stolen", target=eid, room=room)
+                    return
+    # cold packs in meal kits
+    if rec.get("cold_pack_s") is not None:
+        left = float(rec.get("cold_pack_s", 0.0))
+        room = room_of.get(eid)
+        ambient = physics.room_temperature(state, room) if room in state["rooms"] else 21.0
+        parent = entities.get(rec.get("location"), {})
+        if parent.get("internal_temp_c") is not None and float(parent["internal_temp_c"]) < 8:
+            ambient = float(parent["internal_temp_c"])
+        burn = dt * max(0.0, (ambient - 0.0) / 20.0)
+        m = w.mut(eid)
+        if left > 0:
+            m["cold_pack_s"] = round(max(0.0, left - burn), 1)
+            m["internal_temp_c"] = 3.0
+        if m["cold_pack_s"] <= 0 and "internal_temp_c" in m:
+            m.pop("internal_temp_c", None)
+            w.emit("cold_pack_spent", target=eid)
+    # damp floors and enclosed wet goods
+    material = rec.get("material")
+    if material in PAPERISH and rec.get("location") in state["rooms"] and not rec.get("ground_layer"):
+        room = state["rooms"][rec["location"]]
+        if room.get("damp_floor") or (room.get("type") in ("basement", "garage", "shed") and float(room.get("humidity", 0.45)) > 0.6):
+            m = w.mut(eid)
+            m["wetness"] = round(min(1.0, float(rec.get("wetness", 0.0)) + 0.01 * hours), 4)
+            if m["wetness"] > 0.5:
+                add_soil(w, eid, "mold", 0.05 * hours)
+                m["damp_damaged"] = True
+    if rec.get("type") in ("rain_umbrella",) or rec.get("category") in ("luggage",) or rec.get("dries_in_air"):
+        _folded_moisture(w, eid, rec, hours, state, room_of, raining)
 
 
 def trap_moisture(w, eid):

@@ -46,24 +46,19 @@ def require_open(rec, what="package", ctx=None, eid=None):
 def held_known(ctx):
     """What the robot holds and knows what it is: with realistic perception an unfamiliar (novel) thing in hand is no
     tool, utensil, opener or probe the robot knows of, whatever it really is (review I4; percept.unfamiliar_first
-    refuses one named in a parameter). Every held item in oracle mode."""
-    from . import percept as P
-    return [h for h in ctx.w.held_items() if not P.unfamiliar(ctx.env, h)]
+    refuses one named in a parameter). The kernel's rule (Ctx.unfamiliar; phase-1 closeout_breakages row "navigation_robot,
+    food, manipulation": the domain copy now delegates). Every held item in oracle mode."""
+    return [h for h in ctx.w.held_items() if not ctx.unfamiliar(h)]
 
 
 def tool(ctx, capability, tool_id=None):
     """The held tool offering `capability` (core require_tool): the named one, else the first held one the robot knows
-    of (held_known: an unfamiliar knife in hand cuts nothing, as an unfamiliar kettle does not)."""
+    of. core.require_tool carries the unfamiliar rule itself since the phase-1 close-out (a named unfamiliar tool gets
+    the identify-first refusal, an unnamed one is passed over: an unfamiliar knife in hand cuts nothing, as an
+    unfamiliar kettle does not), so food no longer keeps its own copy of the loop."""
     if tool_id:
         require(ctx.holding(tool_id), "Hold the {} first".format(name(ctx, tool_id, "tool")), "capability")
-        return require_tool(ctx, capability, tool_id, consume=False)
-    if getattr(ctx.env, "realism", None) is None:
-        return require_tool(ctx, capability, None, consume=False)
-    for eid in held_known(ctx):
-        rec = ctx.w.ent(eid)
-        if capability in set(rec.get("affordances", [])) | set(rec.get("capabilities", [])) | {rec.get("tool_kind")}:
-            return require_tool(ctx, capability, eid, consume=False)
-    raise ActionError("Hold a tool that can {}".format(capability.replace("_", " ")), "capability")
+    return require_tool(ctx, capability, tool_id or None, consume=False)
 
 
 def optional_tool(ctx, capability, tool_id=None):

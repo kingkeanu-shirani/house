@@ -168,22 +168,16 @@ def refuse_unfamiliar(ctx, eid):
     """Realistic perception: refuse a thing the robot takes for an unfamiliar (novel) one with the kernel's one
     identify-first wording (actions.NOVEL_OPERATE_MESSAGE), before any check that depends on what it really is. The
     engine does this itself for the target of a verb declared operates=True; this is for the other things such a verb
-    works with (the trash can a bin is tipped into, the container a tank is filled from), as cleaning's empty_into and
-    plumbing's fill do (review I4; phase-1 close-out). No-op in oracle mode and for anything else."""
-    if unfamiliar(ctx, eid):
-        from ...kernel.actions import NOVEL_OPERATE_MESSAGE
-        raise ActionError(NOVEL_OPERATE_MESSAGE, "precondition")
+    works with (the trash can a bin is tipped into, the container a tank is filled from, the thing mark marks), as
+    cleaning's empty_into and plumbing's fill do (review I4; phase-1 close-out). The kernel's Ctx.refuse_unfamiliar
+    (closeout_breakages row 10: the domain copy now delegates). No-op in oracle mode and for anything else."""
+    ctx.refuse_unfamiliar(eid)
 
 
 def unfamiliar(ctx, eid):
-    """Realistic perception: the robot takes eid for an unfamiliar (novel) thing (realism.novel_unidentified). False in
-    oracle mode and for unknown ids."""
-    realism = getattr(ctx.env, "realism", None)
-    rec = ctx.w.s["entities"].get(eid) if realism is not None and isinstance(eid, str) else None
-    if rec is None:
-        return False
-    novel = getattr(realism, "novel_unidentified", None)
-    return bool(novel(eid, rec) if callable(novel) else rec.get("novel"))
+    """Realistic perception: the robot takes eid for an unfamiliar (novel) thing (the kernel's Ctx.unfamiliar:
+    realism.novel_unidentified). False in oracle mode and for unknown ids."""
+    return ctx.unfamiliar(eid)
 
 
 def tool_candidates(ctx, tool_id=None):
@@ -518,6 +512,85 @@ def system_present(name):
     return any(s[1] == name for s in SYSTEMS)
 
 
+# ----------------------------------------------------------------------
+# mess flows (VERIFY_HARDENING 6.5; world.mess_flow, WP2): what this domain's verbs and systems move or create
+
+# grams per m2 of floor at soil level 1.0 for the loose kinds this domain picks up or tracks in: cleaning's soil table
+# (house_sim/systems/cleaning/model.py SOILS g_m2, copied so the domain never imports cleaning: importing a domain
+# package registers it); a kind not listed weighs DEFAULT_G_M2, as cleaning's model.grams does
+SOIL_G_M2 = {"dust": 4.0, "crumbs": 60.0, "hair": 3.0, "pet_hair": 6.0, "lint": 2.0, "sand": 180.0, "dirt": 90.0,
+             "leaves": 120.0, "litter": 40.0, "cat_litter": 250.0, "mud": 20.0, "biohazard": 20.0}
+DEFAULT_G_M2 = 20.0
+# loose vacuum debris (dust, crumbs, hair, grit) packed in a robot vacuum's bin or a dock bag: about 0.2 g/mL
+BIN_DEBRIS_G_PER_L = 200.0
+# what the tracked-in foot soil is as a mess kind (6.5): pet waste stepped in is pet_waste, everything else debris
+FOOT_SOIL_KINDS = {"biohazard": "pet_waste"}
+
+
+def soil_grams(kind, level, area_m2):
+    """Grams of loose soil `kind` at `level` spread over `area_m2` (cleaning's model.grams)."""
+    return float(SOIL_G_M2.get(kind, DEFAULT_G_M2)) * max(0.0, float(level)) * max(0.0, float(area_m2))
+
+
+def floor_area_m2(state, rid):
+    size = (state["rooms"].get(rid) or {}).get("size_m") or [4.0, 4.0]
+    return max(1.0, num(size[0], 4.0) * num(size[1], 4.0))
+
+
+def floor_key(state, rid):
+    """The mess location key of a room's floor (6.5): ["floor", rid], outdoors ["outside", rid]."""
+    return ["outside" if (state["rooms"].get(rid) or {}).get("outdoor") else "floor", rid]
+
+
+def mess_flow(w, kind, amount, src, dst, origin=None, cause=None):
+    """world.mess_flow when the World logs flows (WP2) and the amount is positive; never fails an action."""
+    flow = getattr(w, "mess_flow", None)
+    if not callable(flow) or amount is None or float(amount) <= 1e-9:
+        return None
+    return flow(kind, round(float(amount), 6), src, dst, origin=origin, cause=cause)
+
+
+def log_mess_move(w, eid, before, after, before_relation=None):
+    """A move of an entity that is itself a mess parcel (a crumpled wrapper a robot vacuum swallows, a bin's contents
+    tipped into the trash) as a mess flow: core's helper, which logs nothing for anything else."""
+    from ..core import log_mess_move as _log
+    _log(w, eid, before, after, before_relation)
+
+
+def liquid_mess(liquid):
+    """(mess kind, origin class) of a liquid outside its vessel (6.5): toxic or corrosive liquids are chemical, oils
+    grease, dirty, muddy and soapy water dirty water, urine and vomit pet waste class, perishable and staining food
+    liquids food, the rest water (kernel liquids.json columns)."""
+    from ...kernel.phys import props
+    row = props.liquid_props(liquid or "water")
+    name = row.get("name")
+    residue = row.get("residue")
+    if row.get("toxic") or row.get("corrosive"):
+        return "liquid:chemical", "chemical"
+    if residue in ("grease", "stain_oil") or name in ("oil",):
+        return "liquid:grease", "grease"
+    if residue in ("urine", "biohazard"):
+        return "liquid:spill", "pet_waste"
+    if name in ("dirty_water", "mud_water", "soapy_water") or residue in ("dirt", "mud", "streaks"):
+        return "liquid:dirty_water", "dirty_water"
+    if row.get("perishable") or residue in ("protein", "sticky", "food", "stain_coffee", "stain_wine"):
+        return "liquid:spill", "food"
+    return "liquid:spill", "water"
+
+
+def log_spill_flow(w, liquid, liters, source, spill_id, rid=None):
+    """The liquid the robot's motion slopped or spilled as created mess (6.5: content of a vessel becomes a mess
+    parcel where it lands): from created:<source> to the floor the spill lies on (the spill entity's room), with the
+    origin <class>:<source> so the group is judged by its liquid's class. Nothing when nothing landed (droplets)."""
+    rec = w.s["entities"].get(spill_id or "")
+    room = root_room(w.s, spill_id) if rec is not None else rid
+    if room not in w.s["rooms"]:
+        return None
+    kind, cls = liquid_mess(liquid)
+    src = source if isinstance(source, str) and source else "robot"
+    return mess_flow(w, kind, liters, "created:" + src, floor_key(w.s, room), origin="{}:{}".format(cls, src))
+
+
 def cleaning_owns_floor_water():
     """With the cleaning domain loaded, spills (liquid_l evaporation, residue) and room `water_film` (which also
     derives `wet_cells` and dries them) are cleaning's; this domain only adds water to them (CONVENTIONS 5)."""
@@ -577,8 +650,10 @@ def spawn_spill(w, rid, at, liters, liquid="water", source=None, cause="spill"):
         return None
     liquid = liquid or "water"
     src = source if isinstance(source, str) and source in w.s["entities"] else None
-    return _looks(w, liquids.spill(w, liters, liquid, at=(rid, list(cell(at))), source=src, by="robot", cause=cause),
-                  liquid)
+    sid = _looks(w, liquids.spill(w, liters, liquid, at=(rid, list(cell(at))), source=src, by="robot", cause=cause),
+                 liquid)
+    log_spill_flow(w, liquid, liters, src, sid, rid)
+    return sid
 
 
 def _looks(w, sid, liquid):
@@ -618,7 +693,8 @@ def slop(w, item, liters, cause="slosh"):
     liquid = rec.get("liquid") or "water"
     lost = drain(w, item, liters)
     if lost > 0:
-        _looks(w, liquids.deposit_below(w, item, lost, liquid, source=item, by="robot", cause=cause), liquid)
+        sid = _looks(w, liquids.deposit_below(w, item, lost, liquid, source=item, by="robot", cause=cause), liquid)
+        log_spill_flow(w, liquid, lost, item, sid)
     return lost
 
 
