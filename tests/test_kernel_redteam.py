@@ -15,6 +15,7 @@ Scenes with domain types skip when HOUSE_SIM_DOMAINS leaves the domain out; the 
 import copy
 import json
 import os
+import re
 import tempfile
 import unittest
 import warnings
@@ -258,13 +259,21 @@ class RememberedSubjectTests(unittest.TestCase):
             out = self.run_case(perception)
             self.assertTrue(all(ok for ok, _, _ in out["apple_a"][:first]), out["apple_a"])
             self.assertEqual(len(out["apple_a"]), first + len(self.MORE_ASPECTS))
-            self.assertEqual(out["apple_a"], out["apple_b"], perception)
+            # a report's number counts the reports before it, and nothing else differs
+            plain = [[(ok, cat, re.sub(r'"numbers": \[[\d, ]*\], ', "", str(said))) for ok, cat, said in out[eid]] for eid in ("apple_a", "apple_b")]
+            self.assertEqual(plain[0], plain[1], perception)
 
     def test_a_thing_never_seen_is_still_refused(self):
         env = env_of({"apple_a": floor_thing((3, 3), label="apple")}, perception="oracle")
-        result = env.step("report", kind="finding", subject="apple_zz", issue="missing")
+        result = env.step("report", kind="finding", subject="obj_zzzzzzzz", issue="missing")
         self.assertFalse(result["ok"])
         self.assertEqual(result["message"], "You have not seen that")
+
+    def test_a_word_that_names_nothing_is_refused_alike_whatever_exists(self):
+        env = env_of({"apple_a": floor_thing((3, 3), label="apple")}, perception="realistic")
+        answers = [env.step("report", kind="finding", subject=word, issue="missing") for word in ("apple_zz", "request", "the apple")]
+        self.assertEqual([a["ok"] for a in answers], [False] * 3)
+        self.assertEqual({a["message"] for a in answers}, {"A report's subject is a handle you were shown, a room, a person or pet id, or house"})
 
 
 class UnfamiliarThingTests(unittest.TestCase):

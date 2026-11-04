@@ -478,7 +478,7 @@ def _active_emergency(state, about):
 
 @action("call", params={"target": "str", "about": "?str", "text": "?text", "address": "?str", "callback": "?str"},
         duration=lambda ctx: ctx.data.get("seconds", 45.0), energy=0.0, category="communication", stopped_ok=True,
-        doc="Place a simulated phone call (45 s to a person, whatever is said): target emergency|poison_control|non_emergency|doctor|pharmacy|plumber|electrician|"
+        doc="Place a simulated phone call (45 s when a person answers, whatever is said): target emergency|poison_control|non_emergency|doctor|pharmacy|plumber|electrician|"
             "locksmith|building_manager|caregiver, or a person id. Emergency calls must state the address; responders are "
             "dispatched and arrive at the door. Calling emergency services without an emergency is a harm.")
 def call(ctx):

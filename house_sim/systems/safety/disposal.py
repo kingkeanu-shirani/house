@@ -52,7 +52,7 @@ def _wrap_material(rec):
         duration=lambda ctx: ctx.data.get("seconds", 6.0), energy=0.01, category="physical",
         doc="Stage household hazardous waste: put a held item in the matching labeled staging bin (prep tape_terminals for "
             "lithium/button/9 V batteries, seal for medicine/oil), bundle broken glass held in its dustpan or box into newspaper, "
-            "cardboard or a paper towel roll, which it uses up (destination, prep wrap_label; 25 s), or tag approved furniture for bulky pickup (prep bulky_tag). Owner approval for data-bearing "
+            "cardboard or a paper towel roll, which it uses up: that is gone and, unless the job allows it, counts as removed (destination, prep wrap_label; 25 s), or tag approved furniture for bulky pickup (prep bulky_tag). Owner approval for data-bearing "
             "electronics and furniture.")
 def stage_hazardous(ctx):
     from ..core import place_item, release_from_hands

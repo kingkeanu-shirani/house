@@ -583,6 +583,7 @@ def ev_use(w, args, env):
         elif parent.get("shelf_heights"):
             m["shelf"] = int(args.get("shelf", 0))
     m["last_used_by"] = pid
+    m["last_used_room"] = C.room_of(state, eid)
     m["last_used_s"] = C.now_s(state)
     observe_human_move(w, pid, eid, origin, dest, env)
     log = C.plog(w)

@@ -215,9 +215,10 @@ class TestReferenceEpisode(Base):
         long_form = '{} "{}" step --session "{}"'.format(form["python"], form["script"], form["session"])
         more_form = long_form.replace(" step --session", " more --session")
         # byte for byte, with only the format paragraph and the three phrases that are not true of this form replaced
-        limit = json.loads((self.a["folder"] / "session.json").read_text(encoding="utf-8")).get("time_limit_s")
-        self.assertEqual(briefing, base.replace(L.JSON_FORMAT, robot.SPARSE_FORMAT.format(step=long_form, more=more_form, limit=robot.LIMIT_SENTENCE.format(limit) if limit else "")).replace(
-            robot.HARNESS_TURN_SENTENCE, robot.SPARSE_TURN_SENTENCE).replace(robot.HARNESS_DONE_SENTENCE, robot.SPARSE_DONE_SENTENCE).replace(robot.HARNESS_WAIT_WORDS, robot.SPARSE_WAIT_WORDS))
+        session_now = json.loads((self.a["folder"] / "session.json").read_text(encoding="utf-8"))
+        limit = session_now.get("time_limit_s")
+        self.assertEqual(briefing, base.replace(L.JSON_FORMAT, robot.SPARSE_FORMAT.format(step=long_form, more=more_form, limit=robot.LIMIT_SENTENCE.format(limit, session_now.get("step_limit") or 0) if limit else "")).replace(
+            robot.HARNESS_TURN_SENTENCE, robot.SPARSE_TURN_SENTENCE).replace(robot.HARNESS_DONE_SENTENCE, robot.SPARSE_DONE_SENTENCE if session_now.get("settled") else robot.HARNESS_DONE_SENTENCE).replace(robot.HARNESS_WAIT_WORDS, robot.SPARSE_WAIT_WORDS))
         for doc_rule in ("fall to the floor", "first free spot", "30 s boundary", "within 30 cm"):
             self.assertIn(doc_rule, briefing)
         self.assertNotIn(L.JSON_FORMAT, briefing)

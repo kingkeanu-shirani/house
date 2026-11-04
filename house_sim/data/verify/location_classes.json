@@ -112,6 +112,10 @@
         "types": ["biohazard_spill"],
         "categories": ["biohazard"],
         "sinks": ["hazardous_waste", "waste"]
+      },
+      "wrapped_glass": {
+        "types": ["sharps_bundle"],
+        "sinks": ["waste"]
       }
     }
   }

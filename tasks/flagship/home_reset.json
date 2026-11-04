@@ -4463,6 +4463,15 @@
    "type:kitchen_paper_roll",
    "type:trash_liner_13gal"
   ],
+  "create": {
+   "type:sharps_bundle": {
+    "to": [
+     "within:counter_1",
+     "within:counter_2",
+     "within:{kit_holder}"
+    ]
+   }
+  },
   "unread_floor_soil": 0.02,
   "move": {
    "{glass}": {
@@ -4483,7 +4492,7 @@
     "to": [
      "baseline",
      "within:{table}",
-     "room:kitchen_1"
+     "off_floor:kitchen_1"
     ]
    },
    "{mitts}": {
@@ -4531,7 +4540,9 @@
     "to": [
      "off_floor:master_bedroom_1",
      "off_floor:office_1",
-     "off_floor:bathroom_1"
+     "within:cabinet_1",
+     "within:upper_cabinet_1",
+     "within:wall_shelf_1"
     ]
    },
    "{dish}": {
@@ -4662,7 +4673,8 @@
     "op": "gte",
     "value": 1
    },
-   "relatch": true
+   "relatch": true,
+   "relatch_until": "wiped"
   },
   "leak_off": {
    "any": [

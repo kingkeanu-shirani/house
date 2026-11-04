@@ -1,6 +1,6 @@
 """The flagship episode's round 4 fixes: what the natural-choices hunt confirmed (orchestration RULINGS, 07:45 Nov 4). Each is a false
-charge removed, words corrected, a rule stated or a hole closed; none lowers what a label asks for. The plans behind them run in
-tests/test_flagship_spec.py and on the real path; here is the smallest form of each."""
+charge removed, words corrected, a rule stated or a hole closed (RULINGS 10:30 lists what now passes that was truly charged before). The plans behind
+them run in tests/test_flagship_spec.py and on the real path; here is the smallest form of each."""
 import copy
 import sys
 import unittest
@@ -47,14 +47,24 @@ class Reports(unittest.TestCase):
         self.assertEqual(reports._contradiction({}, {}, self.none_found(None), self.finding(True)), "washer_1")
 
     def test_a_valve_s_open_and_closed_read_its_own_field(self):
-        state = {"entities": {"v": {"open": False, "valve_open": True}}, "rooms": {}, "people": {}, "pets": {}}
+        state = {"entities": {"v": {"category": "valve", "open": False, "valve_open": True}}, "rooms": {}, "people": {}, "pets": {}}
         self.assertIs(speech.state_truth(state, "entity", "v", "open"), True)
         self.assertIs(speech.state_truth(state, "entity", "v", "closed"), False)
 
     def test_an_oven_s_on_and_off_read_its_mode(self):
-        state = {"entities": {"o": {"settings": {"mode": "bake"}}}, "rooms": {}, "people": {}, "pets": {}}
+        state = {"entities": {"o": {"settings": {"mode": "bake"}, "setting_options": {"mode": ["off", "bake"]}}}, "rooms": {}, "people": {}, "pets": {}}
         self.assertIs(speech.state_truth(state, "entity", "o", "on"), True)
         self.assertIs(speech.state_truth(state, "entity", "o", "off"), False)
+
+    def test_a_shut_machine_with_a_supply_valve_reads_its_door(self):
+        state = {"entities": {"d": {"type": "dishwasher", "open": False, "valve_open": True}}, "rooms": {}, "people": {}, "pets": {}}
+        self.assertIs(speech.state_truth(state, "entity", "d", "closed"), True)
+        self.assertIs(speech.state_truth(state, "entity", "d", "open"), False)
+
+    def test_a_mode_with_no_off_says_nothing_of_on_and_off(self):
+        state = {"entities": {"p": {"settings": {"mode": "disarmed"}, "setting_options": {"mode": ["disarmed", "stay", "away", "night"]}}}, "rooms": {}, "people": {}, "pets": {}}
+        self.assertIsNone(speech.state_truth(state, "entity", "p", "off"))
+        self.assertIsNone(speech.state_truth(state, "entity", "p", "on"))
 
     def test_a_word_that_is_no_handle_gets_told_what_a_subject_is(self):
         with self.assertRaises(Exception) as caught:
@@ -195,6 +205,26 @@ class Relatch(unittest.TestCase):
     def test_compiled_it_keeps_the_key(self):
         entries = monitor.compile_task({"milestones": {"laid": {"pred": {"path": "x", "op": "eq", "value": 1}, "relatch": True}, "open": {"path": "y", "op": "eq", "value": 1}}})["milestones"]
         self.assertEqual({e["name"]: e.get("relatch") for e in entries}, {"laid": True, "open": False})
+
+    def test_it_can_end_when_another_is_reached(self):
+        pred = {"path": "x", "op": "eq", "value": 1}
+        monitor.validate_task({"milestones": {"laid": {"pred": pred, "relatch": True, "relatch_until": "wiped"}, "wiped": pred}})
+        entries = monitor.compile_task({"milestones": {"laid": {"pred": pred, "relatch": True, "relatch_until": "wiped"}, "wiped": pred}})["milestones"]
+        self.assertEqual({e["name"]: e.get("relatch_until") for e in entries}, {"laid": "wiped", "wiped": None})
+
+
+class HotWarning(unittest.TestCase):
+    def warned(self, text):
+        from house_sim.systems.appliances_cooking import handling
+        return handling._warned_recently({"time_s": 5.0, "facts": {"speech_log": [{"time_s": 4.0, "text": text}]}})
+
+    def test_a_warning_counts(self):
+        for text in ("Behind you - hot dish!", "Careful, coming through with dinner fresh out of the oven.", "Behind!", "Watch out, this is heavy.", "Coming through with the dish."):
+            self.assertTrue(self.warned(text), text)
+
+    def test_a_sentence_about_something_else_does_not(self):
+        for text in ("The remote is behind the sofa.", "Be careful with the cat.", "Sorry, I'm running behind.", "Photo taken."):
+            self.assertFalse(self.warned(text), text)
 
 
 if __name__ == "__main__":

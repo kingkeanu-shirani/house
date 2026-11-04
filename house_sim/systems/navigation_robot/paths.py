@@ -665,7 +665,7 @@ def _resolve(ctx, target):
     if target in state["entities"]:
         known = ctx.visible(target) or target in (state.get("facts", {}).get("inspected") or {}) or state["robot"].get("map_known", True) and \
             state["entities"][target].get("location") in state["rooms"] and not state["entities"][target].get("portable")
-        require(known, "It is not in view from here: go to its room first. recall seen:<handle> says where you last saw it", "perception")
+        require(known, "It is not in view from here: go to its room first, and it may be inside something. recall seen:<handle> says where you last saw it", "perception")
         return C.room_of(state, target), target, None
     if target in state.get("people", {}) or target in state.get("pets", {}):
         group = "people" if target in state.get("people", {}) else "pets"
@@ -820,12 +820,12 @@ def _short_of(ctx, entity, cell):
 @action("go_to", params={"target": "target", "avoid": "?list", "speed": "?str:careful|normal|fast",
                          "restore_doors": {"type": "bool", "default": False}, "social": {"type": "bool", "default": False}},
         duration=lambda ctx: 0.5, energy=0.0, category="physical", timing="speed",
-        doc="Walk to a room, an object (stopping within reach), a person in sight, 'home' (the configured park pose), 'dock', "
+        doc="Walk to a room, an object in view or one you have inspected (stopping within reach; with a map, any fixed thing in a room), a person in sight, 'home' (the configured park pose), 'dock', "
             "or a learned alias (memory room_alias:<name>) across rooms with the robot's map. Opens unlocked doors on the way; "
             "restore_doors closes the ones it opened. A door it cannot pass (locked, or stopped too narrow) or a fall ends the "
             "walk there: the answer says where it stopped and why, and what happened on the way stands. avoid lists hazard "
             "kinds; social=true also keeps out of people's personal space, conversations, TV sightlines and call camera frames. "
-            "Each leg is a core walk_to/move, so all hazards apply. speed: careful 0.4, normal 0.8 (the default), fast 1.2 m/s; fast can bump a person.")
+            "Each leg is a core walk_to/move, so all hazards apply. speed: careful 0.4, normal 0.8 (the default), fast 1.2 m/s; fast can bump a person and spills from a loaded dustpan or a brimming glass.")
 def go_to(ctx):
     w = ctx.w
     target = ctx.args["target"]

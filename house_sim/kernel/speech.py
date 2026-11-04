@@ -2409,12 +2409,22 @@ def _field(state, kind, sid, rec, field):
     return get_path(rec, field)
 
 
+def _cond_applies(rec, cond):
+    """A row can speak of some records only: on_kinds by type or category, on_mode_option by what its mode can be set to."""
+    rec = rec or {}
+    kinds = cond.get("on_kinds")
+    if kinds and rec.get("type") not in kinds and rec.get("category") not in kinds:
+        return False
+    option = cond.get("on_mode_option")
+    return not option or option in ((rec.get("setting_options") or {}).get("mode") or ())
+
+
 def _conds_truth(state, kind, sid, rec, conds, mode):
     """mode "first": the first condition whose field is present decides; "any": any present and holding -> True,
     all present and failing -> False; None when no field is present."""
     seen = False
     for cond in conds or ():
-        if not isinstance(cond, dict) or not isinstance(cond.get("field"), str):
+        if not isinstance(cond, dict) or not isinstance(cond.get("field"), str) or not _cond_applies(rec, cond):
             continue
         value = _field(state, kind, sid, rec, cond["field"])
         if value is MISSING or value is None:

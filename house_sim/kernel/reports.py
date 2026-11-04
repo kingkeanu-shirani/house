@@ -599,6 +599,8 @@ def record(ctx, rec):
         require(subject_known(env, ref), "You have not seen that")
     if rec.get("scope"):
         require(subject_known(env, rec["scope"]), "You have not seen that")
+    earlier = _report_log(w)
+    require(rec.get("corrects") is None or (earlier and rec["corrects"] <= earlier[-1].get("n", len(earlier))), "corrects names an earlier report's number", "argument")
     channel, delivered, note = deliver(ctx, rec)
     text = render_text(env, rec, refs)
     if note is not None:

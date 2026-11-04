@@ -899,7 +899,7 @@ class GoToMeetsADoorTests(DoorCase):
         env = self.stopped("realistic")
         result = env.step("move", "bedroom")
         self.assertFalse(result["ok"])
-        self.assertEqual(result["message"], "The {} is open only about 30 cm; push it wider (push_handle) to pass".format(env.realism.handles.handle("door_bed")))
+        self.assertEqual(result["message"], "The {} is open only about 30 cm; push it wider (push_handle with extent=1) to pass".format(env.realism.handles.handle("door_bed")))
 
     def test_direct_move_never_says_the_something(self):
         env = self.stopped("realistic")

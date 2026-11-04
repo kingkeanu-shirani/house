@@ -864,7 +864,7 @@ REPORT_DOC = ("Report (kind finding/measurement/status/count/none_found; subject
               "subject: a handle (or a list), room, person, pet or house. to: a person or household; channel: in_person "
               "(default, they must be here), phone, text, intercom, note (hold a note or stand at a whiteboard) or app. "
               "Words are matched to a vocabulary (synonyms allowed); an unknown word is kept and suggestions are "
-              "listed. corrects: the number of an earlier report this one corrects. Legacy form: target (an inspected "
+              "listed. corrects: the number of an earlier report this one corrects (each reply gives its numbers). Legacy form: target (an inspected "
               "entity), field, value, to.")
 
 
@@ -914,7 +914,7 @@ def _typed_report(ctx):
         args[key] = None
     args.setdefault("value", None)
     first = out["records"][0] if out["records"] else {}
-    message = {"reported": rec["kind"], "records": len(out["records"]),
+    message = {"reported": rec["kind"], "records": len(out["records"]), "numbers": [item.get("n") for item in out["records"]],
                "subject": [r["subject"]["id"] for r in out["records"] if r.get("subject")]}
     for key in ("issue", "severity", "state", "quantity", "unit", "value", "of"):
         if first.get(key) is not None:
@@ -965,7 +965,7 @@ WALK_TO_SETTLE_S = 0.2      # stopping at a cell
 
 @action("move", params={"target": "room", "avoid": "?list", "speed": "?str:careful|normal|fast"},
         duration=lambda ctx: ctx.data.get("seconds", 2.0), category="physical", inverse=_move_inverse, timing="speed",
-        doc="Walk to an adjacent room through a connecting doorway, door, gate or stairs. avoid lists hazard kinds to route around (wet, trip, sharp, fragile, slip, sleeping, ...).")
+        doc="Walk to an adjacent room through a connecting doorway, door, gate or stairs. avoid lists hazard kinds to route around (wet, trip, sharp, fragile, slip, sleeping, ...). speed: careful 0.4, normal 0.8 (the default), fast 1.2 m/s; fast can bump a person and spills from a loaded dustpan or a brimming glass.")
 def move(ctx):
     w = ctx.w
     state = w.s
@@ -1023,7 +1023,7 @@ def _approach_cells(state, target):
 
 @action("approach", params={"target": "target", "avoid": "?list", "speed": "?str:careful|normal|fast"},
         duration=lambda ctx: ctx.data.get("seconds", 0.5), category="physical", timing="speed",
-        doc="Walk within the current room to within arm's reach of an entity, person or pet. speed: careful 0.4, normal 0.8 (the default), fast 1.2 m/s; fast can bump a person.")
+        doc="Walk within the current room to within arm's reach of an entity, person or pet. speed: careful 0.4, normal 0.8 (the default), fast 1.2 m/s; fast can bump a person and spills from a loaded dustpan or a brimming glass.")
 def approach(ctx):
     w = ctx.w
     state = w.s
@@ -1066,7 +1066,7 @@ def approach(ctx):
 @action("walk_to", params={"cell": "cell", "adjacent": {"type": "bool", "default": False}, "avoid": "?list",
                            "speed": "?str:careful|normal|fast"},
         duration=lambda ctx: ctx.data.get("seconds", 0.5), category="physical", timing="speed",
-        doc="Walk to a floor cell [col,row] in the current room (adjacent=true stops next to it). speed: careful 0.4, normal 0.8 (the default), fast 1.2 m/s; fast can bump a person.")
+        doc="Walk to a floor cell [col,row] in the current room (adjacent=true stops next to it). speed: careful 0.4, normal 0.8 (the default), fast 1.2 m/s; fast can bump a person and spills from a loaded dustpan or a brimming glass.")
 def walk_to(ctx):
     w = ctx.w
     state = w.s
@@ -1648,7 +1648,7 @@ def _open_close(ctx, opening):
 
 
 @action("open", params={"target": "entity"}, duration=2.0, category="physical", inverse=_toggle_inverse("close"),
-        doc="Open a door, window, lid, drawer, cabinet, gate, container or appliance door. An oven door stays open a minute at most.", operates=True)
+        doc="Open a door, window, lid, drawer, cabinet, gate, container or appliance door. An oven door does not close by itself: shut it within a minute, or it counts against you.", operates=True)
 def open_(ctx):
     return _open_close(ctx, True)
 
@@ -2110,9 +2110,9 @@ def set_quiet(ctx):
 
 
 @action("set_speed", params={"target": "str:careful|normal|fast"}, duration=0.5, energy=0.0, category="control",
-        doc="Motion profile: careful halves speed and is required around fragile items, wet floors and people. Fast "
+        doc="Motion profile: careful halves speed. On a wet floor it keeps the robot's footing unless it carries something heavy; it also stops a brush when squeezing between two people or carrying a wide load, and steadies a glass filled near the brim. Fast "
             "is refused while quiet mode is on or in limp mode (battery critical, weak legs). The profile sets the hands too: at fast, doors "
-            "and drawers slam and a dish set down can chip. To walk faster and nothing else, give speed=fast on the walk.")
+            "and drawers slam and a dish set down can chip. To walk faster and leave the hands as they are, give speed=fast on the walk.")
 def set_speed(ctx):
     problem = body.speed_problem(ctx.state, ctx.args["target"])
     if problem is not None:

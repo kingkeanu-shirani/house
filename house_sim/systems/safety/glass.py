@@ -447,6 +447,11 @@ def clean_shards(ctx):
             "capability")
     if not _in_hand(w, receiver):
         ctx.obj(receiver, touch=True)
+    holder = state["entities"][receiver]
+    kinds = set(holder.get("affordances", [])) | set(holder.get("capabilities", [])) | {holder.get("tool_kind"), holder.get("category")}
+    require(receiver == tool or kinds & {"dustpan", "box", "bag", "container"} or holder.get("container") or holder.get("dustpan") or holder.get("liner")
+            or holder.get("waste_kind") == "bag" or holder.get("part_type") == "vacuum_bin" or holder.get("category") == "liner" or holder.get("waste_bin"),
+            "Shards go into a dustpan, box, bag or other container", "capability")
     pos = tuple(robot.get("pos") or (0, 0))
     floor_mat = state["rooms"][rid].get("floor_material", "tile")
     hard = floor_mat in HARD_FLOORS

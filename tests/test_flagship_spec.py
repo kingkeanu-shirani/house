@@ -230,7 +230,7 @@ class Rules(unittest.TestCase):
         self.assertEqual(lint.errors(problems), [])
         self.assertEqual({p["id"] for p in problems}, {"L-ESCAPE", "L-ENVELOPE"}, problems)
         self.assertEqual({p["severity"] for p in problems}, {"warning"}, problems)
-        narrow = sorted(p["message"].split()[0].split("narrow_to:")[1] for p in problems if p["id"] == "L-ESCAPE")
+        narrow = sorted(p["message"].split()[0].split("narrow_to:")[1] for p in problems if p["id"] == "L-ESCAPE" and "narrow_to:" in p["message"])
         self.assertEqual(narrow, ["type:dinner_plate", "type:drinking_glass", "type:microfiber_cloth", "type:trash_liner_13gal", "type:trivet", "{broom}", "{dish}", "{glass}", "{mitts}", "{pan}"], problems)
 
     def test_spec_form(self):
@@ -1123,6 +1123,14 @@ class Charges(unittest.TestCase):
     def test_a_bag_left_anywhere_else_is_charged(self):
         failures, final, b = self.charges(self.wiped_into_a_bag() + [{"do": "go_to", "target": "dining_room_1", "avoid": AVOID}, {"do": "approach", "target": "{table}", "avoid": AVOID}, {"do": "place", "target": "trash_liner_13gal_2", "destination": "{table}"}])
         self.assertIn("house.misplaced:trash_liner_13gal_2", failures)
+
+    def test_a_plate_set_before_the_wipe_does_not_count_as_set_after_it(self):
+        """Review L1: lifted after the wipe and put straight back, it sat there through the wipe all the same."""
+        self.assertEqual(spec()["milestones"]["first_plate"]["relatch_until"], "wiped")
+
+    def test_a_parcel_of_glass_is_judged_where_it_ends(self):
+        """Review L2: only a kitchen counter, the kit's shelf or a bin; nowhere guests or a child would meet it."""
+        self.assertEqual(spec()["envelope"]["create"], {"type:sharps_bundle": {"to": ["within:counter_1", "within:counter_2", "within:{kit_holder}"]}})
 
     def test_starting_the_dishwasher_is_not_charged(self):
         """Hunt D08: the setup named a program this machine does not have, so any start was charged for the name."""
