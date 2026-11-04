@@ -693,6 +693,14 @@ def _oil_heat(w, vid, temp, prof, rid, dt):
         w.mut(vid)["burning"] = True
 
 
+def _burner_heats(state, rec):
+    """The burner under a vessel is on or its element still hot; a cold, off burner cracks nothing. True off a burner."""
+    burner = state["entities"].get(rec.get("location")) or {}
+    if burner.get("ac_kind") != "burner":
+        return True
+    return (burner.get("settings") or {}).get("heat", "off") not in ("off", 0, "0") or C.num(burner.get("temperature_c"), 20.0) > 100.0
+
+
 def _material_limits(w, vid, temp, rid):
     state = w.s
     rec = state["entities"][vid]
@@ -703,7 +711,7 @@ def _material_limits(w, vid, temp, rid):
         m["broken"] = True
         C.harm(w, "melted_on_burner", stat="damage", once="melt:" + vid, item=vid)
         C.add_smoke(w, rid, 2.0, odor="hot_plastic", source=vid)
-    if C.is_glass(rec) and not rec.get("stovetop_safe") and temp > 150.0 and not rec.get("broken"):
+    if C.is_glass(rec) and not rec.get("stovetop_safe") and temp > 150.0 and not rec.get("broken") and _burner_heats(state, rec):
         # glass that is not made for a hob cracks over the flame or element (steep gradients across its base)
         C.break_item(w, vid, "glass_on_burner")
         C.harm(w, "glass_shattered_on_burner", stat="damage", once="glass:" + vid, item=vid)

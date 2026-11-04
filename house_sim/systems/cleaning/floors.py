@@ -1844,7 +1844,7 @@ def _pour_unread_over(ctx, target, bottle):
         duration=lambda ctx: ctx.data.get("seconds", 10.0), energy=0.01, category="physical",
         doc="Soak up a liquid spill (or water film on floor cells, or moisture in upholstery/rugs) with a held towel, rag, "
             "paper towels (sheets), sponge or mop by blotting; or pour/spread absorbent granules from a held container over oil "
-            "or antifreeze (then sweep and bag them). Rubbing spreads the spill and drives it into carpet.")
+            "or antifreeze (then sweep and bag them). Rubbing spreads the spill and drives it into carpet. A soaked tool drips on every floor it crosses: wring it before you walk.")
 def absorb(ctx):
     w = ctx.w
     target = ctx.args["target"]

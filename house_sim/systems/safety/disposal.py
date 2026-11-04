@@ -51,8 +51,8 @@ def _wrap_material(rec):
                                    "prep": "?str:tape_terminals|seal|bag|wrap_label|bulky_tag|none"},
         duration=lambda ctx: ctx.data.get("seconds", 6.0), energy=0.01, category="physical",
         doc="Stage household hazardous waste: put a held item in the matching labeled staging bin (prep tape_terminals for "
-            "lithium/button/9 V batteries, seal for medicine/oil), bundle collected broken glass into newspaper/cardboard "
-            "(prep wrap_label), or tag approved furniture for bulky pickup (prep bulky_tag). Owner approval for data-bearing "
+            "lithium/button/9 V batteries, seal for medicine/oil), bundle broken glass held in its dustpan or box into newspaper, "
+            "cardboard or a paper towel roll, which it uses up (destination, prep wrap_label; 25 s), or tag approved furniture for bulky pickup (prep bulky_tag). Owner approval for data-bearing "
             "electronics and furniture.")
 def stage_hazardous(ctx):
     from ..core import place_item, release_from_hands
@@ -133,9 +133,9 @@ def _bundle_sharps(ctx, holder, wrap):
     require(ctx.holding(holder), "Hold the dustpan/box with the glass")
     shards = [e for e in w.descendants(holder) if _is_shard(w.ent(e))]
     require(shards, "There is no broken glass in it", "precondition")
-    require(wrap is not None and wrap in state["entities"], "Name the newspaper or cardboard to wrap it in", "argument")
+    require(wrap is not None and wrap in state["entities"], "Name the paper or cardboard to wrap it in (destination)", "argument")
     wrec = ctx.obj(wrap, touch=True)
-    require(_wrap_material(wrec), "Wrap glass in thick paper or a cardboard box", "argument")
+    require(_wrap_material(wrec), "Wrap glass in thick paper (a paper towel roll will do) or a cardboard box", "argument")
     loc = wrec.get("location")
     relation = wrec.get("relation", "on")
     props = {"shard_count": len(shards), "mass_kg": round(sum(float(w.ent(s).get("mass_kg", 0.0)) for s in shards) + 0.2, 3)}

@@ -687,6 +687,10 @@ def selector_problem(selector, scope, mode="selector", dynamic=None, index=None)
     if unbound:
         return ("{!r}: {} {} not bound by the setup".format(selector, ", ".join("{" + n + "}" for n in unbound),
                                                            "is" if len(unbound) == 1 else "are"), "error")
+    if mode == "to" and selector.startswith("off_floor_open:"):
+        selector = "off_floor:" + selector[len("off_floor_open:"):]
+    elif mode == "to" and selector.startswith("within_away:"):
+        selector = "within:" + selector[len("within_away:"):].rpartition(":")[0]
     bare = VAR.sub("x", selector)
     if "{" in bare or "}" in bare:
         return ("{!r}: a malformed placeholder (write {{name}})".format(selector), "error")

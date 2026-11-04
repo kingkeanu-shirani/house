@@ -403,7 +403,8 @@ def _damp_pickup(w):
         duration=lambda ctx: ctx.data.get("seconds", 10.0), energy=0.03, noise=0.2, category="physical",
         doc="Collect broken glass on the floor around the robot (radius m): pick (gloved, large pieces), sweep (broom + "
             "dustpan), damp_wipe (damp paper towel/tape for slivers, crouched), vacuum (into its own bin; large pieces can cut "
-            "its hose). Shards go into the held dustpan/box/bag or destination container.")
+            "its hose). Shards go into the held dustpan/box/bag or destination container. Loose broken glass never goes in a trash or recycling bin: "
+            "bundle it first (stage_hazardous prep wrap_label), then the bundle may go in the trash.")
 def clean_shards(ctx):
     w = ctx.w
     state = w.s

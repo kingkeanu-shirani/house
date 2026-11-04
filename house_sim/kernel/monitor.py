@@ -3,7 +3,7 @@
 
 Spec keys (all optional; a task without them only samples its milestones):
 
-    "milestones": {"door_open": P, "kept_dry": {"pred": P, "held_for_s": 600}, "chime": {"pred": P, "count": true}}
+    "milestones": {"door_open": P, "kept_dry": {"pred": P, "held_for_s": 600}, "chime": {"pred": P, "count": true}, "laid": {"pred": P, "relatch": true}}
     "never":  [P, {"pred": P, "after": "lit", "until": "extinguished", "label": "stove_unattended"}]
     "always": [{"pred": P, "after": "phase:p1"}]
     "responses": [{"trigger": "chime" | P, "response": P, "within_s": 120, "each": true, "label": "notified"},
@@ -293,9 +293,9 @@ def compile_task(task, phase=None, prefix=""):
     for name, raw in sorted((task.get("milestones") or {}).items()):
         if isinstance(raw, dict) and "pred" in raw:
             entry = {"name": ref(name), "pred": raw["pred"], "held_for_s": raw.get("held_for_s"),
-                     "count": bool(raw.get("count"))}
+                     "count": bool(raw.get("count")), "relatch": bool(raw.get("relatch"))}
         else:
-            entry = {"name": ref(name), "pred": raw, "held_for_s": None, "count": False}
+            entry = {"name": ref(name), "pred": raw, "held_for_s": None, "count": False, "relatch": False}
         if phase is not None:
             entry["phase"] = phase
         out["milestones"].append(entry)
@@ -436,8 +436,8 @@ def validate_task(task, phases=()):
     for scope in [task or {}] + [p for p in phases or () if isinstance(p, dict)]:
         for name, raw in (scope.get("milestones") or {}).items():
             if isinstance(raw, dict) and "pred" in raw:
-                if set(raw) - {"pred", "held_for_s", "count"}:
-                    raise ValueError("milestone {}: keys are pred, held_for_s, count".format(name))
+                if set(raw) - {"pred", "held_for_s", "count", "relatch"}:
+                    raise ValueError("milestone {}: keys are pred, held_for_s, count, relatch".format(name))
                 validate_predicate(raw["pred"])
                 if raw.get("held_for_s") is not None and (not isinstance(raw["held_for_s"], (int, float)) or
                                                           raw["held_for_s"] < 0):
@@ -946,6 +946,8 @@ class Monitor(object):
                     reached["times"] = (list(reached.get("times") or []) + [t])[-MAX_TIMES:]
             elif achieved and reached is None:
                 self.milestones[name] = {"step": step, "time_s": t}
+            elif reached is not None and not achieved and entry.get("relatch"):
+                del self.milestones[name]       # undone: it is reached again when next it holds
         for kind in ("never", "always"):
             for entry in self.entries[kind]:
                 label = kind + ":" + entry["label"]

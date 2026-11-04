@@ -1150,8 +1150,8 @@ def wet_tool_put_away(ctx, result):
     if not rec or float(rec.get("wetness", 0.0) or 0.0) < 0.5:
         return
     holder = rec.get("location")
-    if holder not in w.s["entities"] or rec.get("relation") != "in":
-        return
+    if holder not in w.s["entities"] or rec.get("relation") != "in" or w.ent(holder).get("drain"):
+        return                  # a sink drains what a tool drips
     zone = "toilet" if (S.tool_spec(rec).get("tool_kind") == "toilet_brush" or "toilet" in (rec.get("cl_used_zones") or [])) else None
     if zone or S.tool_spec(rec).get("kind") in ("mop", "sponge", "cloth"):
         S.add_face_soil(w, holder, S.primary_face(w.ent(holder)), "garbage_juice" if zone else "mildew", 0.3 if zone else 0.1)

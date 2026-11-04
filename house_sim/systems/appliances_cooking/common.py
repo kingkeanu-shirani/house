@@ -978,12 +978,19 @@ def front_edge_distance(state, eid):
     spos = rec.get("spos")
     if not spos or rec.get("relation") != "on":
         return None
-    sw, sd = surface_dims(parent)
     iw, idp = geometry.footprint_m(rec)
-    front = sd - (num(spos[1]) + idp)
+    x, y = num(spos[0]), num(spos[1])
+    grand = state["entities"].get(parent.get("location")) or {}
+    if parent.get("ac_kind") == "burner":       # a burner reads on its range: rear burners at the back, front ones half way
+        return max(0.0, surface_dims(grand)[1] - ((0.0 if parent.get("burner_pos") in ("LR", "RR") else surface_dims(grand)[1] / 2.0) + idp))
+    if parent.get("portable") and parent.get("spos") and parent.get("relation") == "on":     # a pad or tray: measure on what stands under it
+        x, y = x + num(parent["spos"][0]), y + num(parent["spos"][1])
+        parent = grand
+    sw, sd = surface_dims(parent)
+    front = sd - (y + idp)
     if (parent.get("category") == "counter" and not parent.get("island")) or parent.get("ac_kind") == "range":
         return max(0.0, front)
-    return max(0.0, min(front, num(spos[1]), num(spos[0]), sw - (num(spos[0]) + iw)))
+    return max(0.0, min(front, y, x, sw - (x + iw)))
 
 
 def surface_height(state, eid):

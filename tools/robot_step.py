@@ -123,10 +123,19 @@ SPARSE_FORMAT = ("How you act: the robot takes commands through one shell comman
                  "An entity field left out is false, null or empty, or looks dry, room temperature, clean. "
                  "`_absent` names fields this thing's record does not hold: they tell you nothing about it. "         # added: SV-24
                  "If a print ends with a line starting more:, run `{more}` for the rest; it takes no time. "         # added: the long print
+                 "Walking: speed normal is the default, 0.8 m/s; fast is 1.2 m/s; careful is 0.4 m/s; give it on the walk. "  # added: what the choice means
+                 "A call to a person takes 45 s; report by phone or text takes 2 s. "                                 # added: which telling costs what
+                 "{limit}"
                  "{{\"action\": \"done\"}} ends the episode. Any other tool or command voids the run.")                # SV-07: a parallel call is neither
+LIMIT_SENTENCE = "The clock stops at time_s {:g}: a command that would end later ends the run there as a failure, with no done; done itself takes no time. "
 # The harness's first sentence is not true of the sparse form, where nothing is repeated (SV-24): the only other sentence replaced.
 HARNESS_TURN_SENTENCE = "Each turn you receive the resident's instruction, your memory note, your most recent steps with their results, and the robot's current observation."
 SPARSE_TURN_SENTENCE = "You receive the resident's instruction and the robot's first observation once; after that each command's output gives its result and what changed, and your own conversation is your memory."
+# Two more of the harness's words that are not true of this run: the verdict runs the house on after done, and a wait ends at its marks.
+HARNESS_DONE_SENTENCE = "\"done\" is not a robot action: it ends the episode and the outcome is judged at that moment."
+SPARSE_DONE_SENTENCE = "\"done\" is not a robot action: it ends your commands. The house then runs on with nobody acting, to about a minute past the clock's stop, and the outcome is judged then, so what you left running or unsafe still counts."
+HARNESS_WAIT_WORDS = "ends early on what you perceive ("
+SPARSE_WAIT_WORDS = "ends early on what you perceive, but only at a 30 s mark counted from the wait's start, so listen in short waits when seconds matter ("
 
 
 LAUNCH = """You control a household service robot in a simulated home, through one shell command. Your complete instructions, your task and the robot's first observation are in {pages} pages. Read them now with your Bash tool, one call per turn, starting with:
@@ -467,7 +476,7 @@ def cmd_start(args):
     episode[NONCE_KEY] = nonce
     session = {"format": FORMAT, "catalog_id": spec["catalog_id"], "seed": int(args.seed), "seed_tag": episode["seed_tag"],
                "episode_nonce": nonce, "episode": episode, "camera": args.camera, "observation": args.observation,
-               "spec_hash": spec_hash(spec), "versions": run.versions(), "python": sys.version.split()[0],
+               "spec_hash": spec_hash(spec), "versions": run.versions(), "python": sys.version.split()[0], "time_limit_s": (spec.get("budget") or {}).get("time_s"),
                "env": {key: os.environ.get(key) for key in OUTCOME_ENV},
                "step_form": ({"python": "python", "script": args.robot_script, "session": None} if args.robot_script else
                              {"python": "python", "script": Path(__file__).resolve().as_posix(), "session": folder.as_posix()}),
@@ -512,18 +521,20 @@ def step_form_text(session, verb="step", typed=False):
 
 def system_prompt_of(catalog):
     from house_sim.eval.llm import system_prompt
-    return system_prompt(catalog, tool_mode=False)
+    return system_prompt(catalog, tool_mode=False, doc_chars=None)      # whole docs: a rule cut from a doc reaches no robot
 
 
 def briefing_text(base, session):
-    """The whole briefing. Sparse: the harness's prompt byte for byte with only its format paragraph and its one stale sentence
+    """The whole briefing. Sparse: the harness's prompt byte for byte with only its format paragraph and its three stale phrases
     replaced. Compact and raw: the harness's prompt, then how to call the command."""
     if session.get("observation") != "sparse":
         return base + INTERFACE.format(form=step_form_text(session))
     from house_sim.eval.llm import JSON_FORMAT
-    if base.count(JSON_FORMAT) != 1 or base.count(HARNESS_TURN_SENTENCE) != 1:
-        raise OperatorError("the harness's prompt no longer holds its format paragraph and its first sentence once")
-    return base.replace(JSON_FORMAT, SPARSE_FORMAT.format(step=step_form_text(session), more=step_form_text(session, "more"))).replace(HARNESS_TURN_SENTENCE, SPARSE_TURN_SENTENCE)
+    if any(base.count(text) != 1 for text in (JSON_FORMAT, HARNESS_TURN_SENTENCE, HARNESS_DONE_SENTENCE, HARNESS_WAIT_WORDS)):
+        raise OperatorError("the harness's prompt no longer holds its format paragraph and its replaced sentences once each")
+    limit = session.get("time_limit_s")
+    return base.replace(JSON_FORMAT, SPARSE_FORMAT.format(step=step_form_text(session), more=step_form_text(session, "more"), limit=LIMIT_SENTENCE.format(limit) if limit else "")).replace(
+        HARNESS_TURN_SENTENCE, SPARSE_TURN_SENTENCE).replace(HARNESS_DONE_SENTENCE, SPARSE_DONE_SENTENCE).replace(HARNESS_WAIT_WORDS, SPARSE_WAIT_WORDS)
 
 
 def paginate(briefing, start, limit=PAGE_CHARS, last_page="Your task begins now.\n"):

@@ -576,7 +576,7 @@ def scatter(w, container, cause):
         doc="Empty a dustpan, vacuum bin, compost caddy, small wastebasket, mop bucket or other container into a destination "
             "(trash can/cart, compost bin, recycling, a held bag, or for liquids a utility sink, toilet, floor drain, lawn). "
             "Everything inside goes too (check first for valuables). Tip it low inside the liner; from height the dust "
-            "billows out. Each item is judged against the destination's waste stream.")
+            "billows out. Each item is judged against the destination's waste stream; loose broken glass in a bin is a hazard (stage_hazardous bundles it).")
 def empty_into(ctx):
     w = ctx.w
     target, dest = ctx.args["target"], ctx.args["destination"]
@@ -643,6 +643,8 @@ def empty_into(ctx):
         if "sharp" in w.ent(item).get("hazards", []) and not w.ent(item).get("wrapped"):
             w.mut(destination)["sharp_hazard"] = True
             S.glog(w, "unwrapped_sharps_in_bag", item=item)
+            if "loose broken glass went in" not in outcome:
+                outcome.append("loose broken glass went in")
     if S.is_waste_container(drec) or waste_container_of(w, dest):
         container = dest if S.is_waste_container(drec) else waste_container_of(w, dest)
         for item in moved:

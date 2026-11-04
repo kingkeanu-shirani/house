@@ -1203,8 +1203,8 @@ def _before_move(ctx):
         # the gap as the camera judges it (to 5 cm), the door by handle when the robot can see it: the id of a door out of
         # view would come out as "something", so then it is the door to that room
         door_name = door_id if ctx.visible(door_id) else "door to {}".format(dest)
-        raise ActionError("The {} is open only about {:.0f} cm; open it wider to pass".format(door_name, gap), "precondition")
-    raise ActionError("The {} is open only {:.0f} cm; open it wider to pass".format(state["entities"][door_id].get("label", "door"), gap), "precondition")
+        raise ActionError("The {} is open only about {:.0f} cm; push it wider (push_handle) to pass".format(door_name, gap), "precondition")
+    raise ActionError("The {} is open only {:.0f} cm; push it wider (push_handle) to pass".format(state["entities"][door_id].get("label", "door"), gap), "precondition")
 
 
 @after("move", order=30)

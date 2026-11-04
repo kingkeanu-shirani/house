@@ -210,12 +210,16 @@ class TestReferenceEpisode(Base):
     def test_the_briefing_is_the_real_prompt_plus_the_step_form_and_no_scenario_fact(self):
         briefing = self.a["briefing"]
         catalog = robot.rebuild(*self._session_args()).agent.catalog
-        base = L.system_prompt(catalog, tool_mode=False)
+        base = L.system_prompt(catalog, tool_mode=False, doc_chars=None)
         form = json.loads((self.a["folder"] / "session.json").read_text(encoding="utf-8"))["step_form"]
         long_form = '{} "{}" step --session "{}"'.format(form["python"], form["script"], form["session"])
         more_form = long_form.replace(" step --session", " more --session")
-        # byte for byte, with only the format paragraph and the first sentence, which is not true of this form, replaced
-        self.assertEqual(briefing, base.replace(L.JSON_FORMAT, robot.SPARSE_FORMAT.format(step=long_form, more=more_form)).replace(robot.HARNESS_TURN_SENTENCE, robot.SPARSE_TURN_SENTENCE))
+        # byte for byte, with only the format paragraph and the three phrases that are not true of this form replaced
+        limit = json.loads((self.a["folder"] / "session.json").read_text(encoding="utf-8")).get("time_limit_s")
+        self.assertEqual(briefing, base.replace(L.JSON_FORMAT, robot.SPARSE_FORMAT.format(step=long_form, more=more_form, limit=robot.LIMIT_SENTENCE.format(limit) if limit else "")).replace(
+            robot.HARNESS_TURN_SENTENCE, robot.SPARSE_TURN_SENTENCE).replace(robot.HARNESS_DONE_SENTENCE, robot.SPARSE_DONE_SENTENCE).replace(robot.HARNESS_WAIT_WORDS, robot.SPARSE_WAIT_WORDS))
+        for doc_rule in ("fall to the floor", "first free spot", "30 s boundary", "within 30 cm"):
+            self.assertIn(doc_rule, briefing)
         self.assertNotIn(L.JSON_FORMAT, briefing)
         self.assertIn(long_form, briefing)
         for wording in ("What is listed depends on where you stand.", "`out_of_view` means not listed from here, not that it moved.",
@@ -226,7 +230,7 @@ class TestReferenceEpisode(Base):
         session = json.loads((self.a["folder"] / "session.json").read_text(encoding="utf-8"))
         for fact in (session["episode_nonce"], session["catalog_id"], session["spec_hash"], session["instruction"], "spec.json", "dev:0", "budget"):
             self.assertNotIn(fact, briefing)
-        self.assertEqual(session["system_prompt_sha256"], robot.hashlib.sha256(L.system_prompt(catalog, tool_mode=False).encode("utf-8")).hexdigest())
+        self.assertEqual(session["system_prompt_sha256"], robot.hashlib.sha256(L.system_prompt(catalog, tool_mode=False, doc_chars=None).encode("utf-8")).hexdigest())
 
     def _session_args(self):
         folder, session, spec = robot.load_session(self.a["folder"])
@@ -611,7 +615,7 @@ class TestOtherForms(Base):
         briefing = call("prompt", "--session", folder)[1]
         loaded = robot.load_session(folder)
         catalog = robot.rebuild(loaded[1], loaded[2], [], []).agent.catalog
-        self.assertTrue(briefing.startswith(L.system_prompt(catalog, tool_mode=False)))
+        self.assertTrue(briefing.startswith(L.system_prompt(catalog, tool_mode=False, doc_chars=None)))
         self.assertIn("--goal", briefing)
 
 

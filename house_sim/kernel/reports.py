@@ -234,6 +234,8 @@ def _subject_ref(state, value, remembered=()):
             return {"kind": kind, "id": text}
     if text in remembered:
         return {"kind": "entity", "id": text}
+    if not text.startswith("obj_"):
+        raise ActionError("A report's subject is a handle you were shown, a room, a person or pet id, or house", "precondition")
     raise ActionError("You have not seen that", "precondition")
 
 
@@ -1206,6 +1208,8 @@ def _contradiction(state, task, r1, r2):
     k1, k2 = r1.get("kind"), r2.get("kind")
     s1, s2 = (r1.get("subject") or {}).get("id"), (r2.get("subject") or {}).get("id")
     if k1 == k2 == "status" and s1 == s2 and s1 is not None:
+        if r1.get("state") == "running" and r2.get("state") == "done":
+            return None             # progress, in that order
         if _exclusive_states(r1.get("state"), r2.get("state")) and not _both_true(r1, r2):
             return s1
         return None
@@ -1230,6 +1234,8 @@ def _contradiction(state, task, r1, r2):
             return None
         if _both_true(r1, r2):
             return None
+        if k1 == "finding" and (r1.get("truth") or {}).get("ok") is True and (r2.get("truth") or {}).get("ok") is not False:
+            return None             # true when said, and the later none_found is not known false: the issue ended
         return (finding.get("subject") or {}).get("id")
     if k1 == k2 == "field" and s1 == s2 and r1.get("field") == r2.get("field") and r1.get("value") != r2.get("value"):
         return s1

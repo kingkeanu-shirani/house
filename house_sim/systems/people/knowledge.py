@@ -151,6 +151,9 @@ def where(env, w, pid, topic, ctx):
         and ("preferred_location:" + eid) not in state.get("memory", {})
     _count(w, necessary)
     if key is None:
+        if rec.get("last_used_by") == pid:
+            room = C.room_of(state, eid)
+            return {"topic": topic, "value": "I had it last. It's in {}.".format(state["rooms"].get(room, {}).get("label", room)), "by": pid}
         return {"topic": topic, "value": "Wherever it usually goes.", "by": pid}
     dest = storage[key]
     habit = next((h for _, h in sorted((p.get("habits") or {}).items())

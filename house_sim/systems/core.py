@@ -1023,7 +1023,7 @@ def _approach_cells(state, target):
 
 @action("approach", params={"target": "target", "avoid": "?list", "speed": "?str:careful|normal|fast"},
         duration=lambda ctx: ctx.data.get("seconds", 0.5), category="physical", timing="speed",
-        doc="Walk within the current room to within arm's reach of an entity, person or pet.")
+        doc="Walk within the current room to within arm's reach of an entity, person or pet. speed: careful 0.4, normal 0.8 (the default), fast 1.2 m/s; fast can bump a person.")
 def approach(ctx):
     w = ctx.w
     state = w.s
@@ -1055,7 +1055,7 @@ def approach(ctx):
                               ignore_sources=geometry.target_sources(state, target) if target in state["entities"] or
                               target in state.get("people", {}) or target in state.get("pets", {}) else (),
                               hazard_filter=ctx.route_filter)
-    require(path is not None, "No clear path to it")
+    require(path is not None, "No clear path to it (blocked or hazards to avoid)" if ctx.args.get("avoid") else "No clear path to it")
     walked = ctx.motion(path, start, extra_s=APPROACH_SETTLE_S)
     w.robot_m()["pos"] = list(walked[-1]) if walked else list(start)
     if ctx.data["motion"]["cut"] is not None:
@@ -1066,7 +1066,7 @@ def approach(ctx):
 @action("walk_to", params={"cell": "cell", "adjacent": {"type": "bool", "default": False}, "avoid": "?list",
                            "speed": "?str:careful|normal|fast"},
         duration=lambda ctx: ctx.data.get("seconds", 0.5), category="physical", timing="speed",
-        doc="Walk to a floor cell [col,row] in the current room (adjacent=true stops next to it).")
+        doc="Walk to a floor cell [col,row] in the current room (adjacent=true stops next to it). speed: careful 0.4, normal 0.8 (the default), fast 1.2 m/s; fast can bump a person.")
 def walk_to(ctx):
     w = ctx.w
     state = w.s
@@ -1648,7 +1648,7 @@ def _open_close(ctx, opening):
 
 
 @action("open", params={"target": "entity"}, duration=2.0, category="physical", inverse=_toggle_inverse("close"),
-        doc="Open a door, window, lid, drawer, cabinet, gate, container or appliance door.", operates=True)
+        doc="Open a door, window, lid, drawer, cabinet, gate, container or appliance door. An oven door stays open a minute at most.", operates=True)
 def open_(ctx):
     return _open_close(ctx, True)
 
@@ -2111,7 +2111,8 @@ def set_quiet(ctx):
 
 @action("set_speed", params={"target": "str:careful|normal|fast"}, duration=0.5, energy=0.0, category="control",
         doc="Motion profile: careful halves speed and is required around fragile items, wet floors and people. Fast "
-            "is refused while quiet mode is on or in limp mode (battery critical, weak legs).")
+            "is refused while quiet mode is on or in limp mode (battery critical, weak legs). The profile sets the hands too: at fast, doors "
+            "and drawers slam and a dish set down can chip. To walk faster and nothing else, give speed=fast on the walk.")
 def set_speed(ctx):
     problem = body.speed_problem(ctx.state, ctx.args["target"])
     if problem is not None:

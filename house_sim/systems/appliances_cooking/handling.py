@@ -200,7 +200,8 @@ def _warned_recently(state, window=60.0):
     for entry in reversed((state.get("facts") or {}).get("speech_log") or []):
         if now - C.num(entry.get("time_s"), -1e9) > window:
             break
-        if "hot" in str(entry.get("text", "")).lower():
+        text = str(entry.get("text", "")).lower()
+        if any(word in text for word in ("hot", "careful", "behind", "watch out")):
             return True
     return False
 

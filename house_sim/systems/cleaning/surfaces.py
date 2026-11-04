@@ -48,6 +48,10 @@ def surface_floor_cell(w, eid, count=1):
     return floor, (S.ck(ring[0]) if ring else (S.ck(cells[0]) if cells else None))
 
 
+def _receives_debris(rec):
+    return bool(rec.get("container") or rec.get("dustpan") or rec.get("drain") or rec.get("category") == "liner" or S.is_waste_container(rec))
+
+
 def drop_loose(ctx, eid, loose, into=None, capture=0.0, tool=None, area=1.0):
     """Route loose debris removed from a surface: tool, a container, or the floor below."""
     w = ctx.w
@@ -240,13 +244,14 @@ def _surface_pass(ctx, verb, kinds_allowed, contact=E.CONTACT_S):
         E.drip_down(w, target, face, wetness)
         into = ctx.args.get("into")
         if into:
-            ctx.obj(into, touch=True)
-        if result["loose"]:
-            drop_loose(ctx, target, result["loose"], into=into, capture=result["capture"], tool=tool, area=area)
+            require(into != target and _receives_debris(ctx.obj(into, touch=True)), "Loose debris needs a dustpan, bin, sink or other container to go into", "argument")
+        if result["loose"] and drop_loose(ctx, target, result["loose"], into=into, capture=result["capture"], tool=tool, area=area):
+            ctx.data["debris_fell"] = True
         finish_face_checks(ctx, target, face, tool, wetness, force, direction)
         out.append("{}: {}".format(face, E.describe(result, ctx)))
     ctx.data["seconds"] = 3.0 + len(faces) * area / (0.25 if verb == "wipe" else 0.08) * (1.3 if force == "hard" else 1.0)
-    return "{} {} ({})".format(verb.capitalize() + "d" if verb.endswith("e") else verb.capitalize() + "bed", target, "; ".join(out))
+    return "{} {} ({}){}".format(verb.capitalize() + "d" if verb.endswith("e") else verb.capitalize() + "bed", target, "; ".join(out),
+                                 "; loose debris fell to the floor" if ctx.data.get("debris_fell") else "")
 
 
 # ----------------------------------------------------------------------
@@ -498,7 +503,7 @@ def oily_overspray(ctx, target):
                         "force": "?str:light|normal|hard", "around": "?bool"},
         duration=lambda ctx: ctx.data.get("seconds", 6.0), energy=0.01, noise=0.02, category="physical",
         doc="Wipe a surface face with a held cloth, sponge, paper towel or wipe (damp/dry as the tool is). Loose crumbs go "
-            "into `into` (a held dustpan, bin or sink) or fall to the floor. Products on the face act according to how long "
+            "into `into` (a dustpan, bin, sink or other container) or fall to the floor. Products on the face act according to how long "
             "they dwelt. Also wipes up spills, spot-cleans floor cells (cells=[[c,r],...]) and wipes the robot's own grippers "
             "(target robot_hand, robot_hand_left or robot_hand_right).")
 def wipe(ctx):
@@ -1020,7 +1025,9 @@ def rinse(ctx):
         liters = 1.5 if trec.get("size_m", [0.2])[0] < 0.4 else 4.0
         water_use(w, liters * (2.0 if temp == "hot" else 1.0) * share)
         ctx.data["seconds"] = seconds
-        return "Rinsed {} at {} ({})".format(target, dest, ", ".join(out))
+        rinsed = w.ent(target)
+        soaked = float(rinsed.get("wetness", 0.0) or 0.0) > 0.85 and S.tool_spec(rinsed).get("kind") in ("mop", "towel", "cloth", "sponge")
+        return "Rinsed {} at {} ({}){}".format(target, dest, ", ".join(out), "; it is soaked and will drip: wring it" if soaked else "")
     if trec.get("toilet") or trec.get("category") == "toilet":
         # a toilet is rinsed by flushing: decided by what it is, never by words in a label (a bottle of bowl cleaner or
         # a plunger is not flushed, and the routing must not tell unread look-alikes apart)

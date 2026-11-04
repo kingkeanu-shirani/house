@@ -437,7 +437,8 @@ def _contact(trip, eid, c, prev):
                 C.break_entity(w, eid, "crushed under the robot's foot")
         return
     if rec.get("floor_hazard") == "sharp" or "sharp" in (rec.get("hazards") or []) and rec.get("category") in ("shards", "broken_glass", "debris"):
-        _spread_shards(trip, eid, c)
+        if rec.get("spotted", True):        # a sliver nothing shows is no hazard the robot walked through knowingly
+            _spread_shards(trip, eid, c)
         return
     if rec.get("tines_up") or rec.get("tines") == "up":
         C.collide(w, "rake handle snapped up", eid, trip.rid, c, damage=False)
@@ -729,6 +730,12 @@ def _knock_neighbor_items(trip, c):
                 continue
             C.knock_off(w, item, trip.rid, c, "knocked off {} in a tight gap".format(eid))
             return
+
+
+def _footprint_film(w, rid, c):
+    """This cell's water is no deeper than the film a wet sole leaves itself: walking it wets the sole no further."""
+    film = (w.s["rooms"].get(rid, {}).get("water_film") or {}).get("{},{}".format(int(c[0]), int(c[1])))
+    return film is not None and float(film) <= C.FILM_FOOTPRINT_MM + 1e-9
 
 
 def _foot_soil(w, kind, amount):
@@ -1062,7 +1069,8 @@ def traverse(trip):
         _proximity(trip, c, i, agents, social)
         _social_lines(trip, c, social)
         if any(h.get("kind") == "wet" for h in plain):
-            _foot_soil(w, "water", 0.4)
+            if not _footprint_film(w, rid, c):
+                _foot_soil(w, "water", 0.4)
             C.bump(w, "terrain.wet_cells_walked")
             fid = C.floor_id(state, rid)
             if fid and any(h.get("film") for h in plain):
@@ -1325,7 +1333,7 @@ def _arrival_cell(trip, c):
     trip.path = [c]
     agents = [(g, a, None) for g, a, _ in C.agents_in_room(w.s, trip.rid)]
     _proximity(trip, c, 0, agents, social_context(w.s, trip.rid))
-    if any(h.get("kind") == "wet" for h in plain):
+    if any(h.get("kind") == "wet" for h in plain) and not _footprint_film(w, trip.rid, c):
         _foot_soil(w, "water", 0.4)
     if C.nav_read(w.s).get("shards_on_feet"):
         hazards = w.room_m(trip.rid).setdefault("floor_hazards", [])

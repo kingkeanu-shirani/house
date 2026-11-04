@@ -224,6 +224,27 @@
    }
   },
   {
+   "op": "set",
+   "target": "{p1}",
+   "props": {
+    "mass_kg": 0.02
+   }
+  },
+  {
+   "op": "set",
+   "target": "{p2}",
+   "props": {
+    "mass_kg": 0.08
+   }
+  },
+  {
+   "op": "set",
+   "target": "{mitts}",
+   "props": {
+    "home_hint": "in the towel drawer"
+   }
+  },
+  {
    "op": "find",
    "var": "avery_phone",
    "where": {
@@ -318,7 +339,7 @@
    "props": {
     "appliance": {
      "state": "running",
-     "program": "normal",
+     "program": "icon:plate",
      "remaining_s": "{t_dw}"
     },
     "open": false,
@@ -555,6 +576,113 @@
     "guest_a",
     "guest_b"
    ]
+  },
+  {
+   "op": "person",
+   "id": "resident_1",
+   "props": {
+    "permissions": [
+     "shut_off:{cvalve}",
+     "shut_off:{hvalve}",
+     "shut_off:main_water_valve",
+     "shut_off:{washer}",
+     "turn_off:{cvalve}",
+     "turn_off:{hvalve}",
+     "turn_off:main_water_valve",
+     "turn_off:{washer}",
+     "close:{cvalve}",
+     "close:{hvalve}",
+     "close:main_water_valve",
+     "close:{washer}",
+     "open:{ldoor}",
+     "open:{mdoor}",
+     "open:laundry_room_1",
+     "open:master_bedroom_1",
+     "open:bedroom_1",
+     "open:office_1",
+     "close:{ldoor}",
+     "close:{mdoor}",
+     "close:laundry_room_1",
+     "close:master_bedroom_1",
+     "close:bedroom_1",
+     "close:office_1",
+     "push_handle:{ldoor}",
+     "push_handle:{mdoor}",
+     "push_handle:laundry_room_1",
+     "push_handle:master_bedroom_1",
+     "push_handle:bedroom_1",
+     "push_handle:office_1",
+     "enter:{ldoor}",
+     "enter:{mdoor}",
+     "enter:laundry_room_1",
+     "enter:master_bedroom_1",
+     "enter:bedroom_1",
+     "enter:office_1",
+     "move:{ldoor}",
+     "move:{mdoor}",
+     "move:laundry_room_1",
+     "move:master_bedroom_1",
+     "move:bedroom_1",
+     "move:office_1",
+     "go_to:{ldoor}",
+     "go_to:{mdoor}",
+     "go_to:laundry_room_1",
+     "go_to:master_bedroom_1",
+     "go_to:bedroom_1",
+     "go_to:office_1",
+     "open:exterior_door_1",
+     "close:exterior_door_1",
+     "unlock:exterior_door_1",
+     "lock:exterior_door_1",
+     "answer_door:exterior_door_1",
+     "let_in:guest_a",
+     "let_in:guest_b",
+     "guide:guest_a",
+     "guide:guest_b",
+     "answer_door:guest_a",
+     "answer_door:guest_b",
+     "open:{oven}",
+     "close:{oven}",
+     "turn_off:{oven}",
+     "switch_off:{oven}",
+     "set_mode:{oven}",
+     "set_temperature:{oven}",
+     "pick_up:{dish}",
+     "pick_up:{mitts}",
+     "pick_up:{box}",
+     "pick_up:{p1}",
+     "pick_up:{p2}",
+     "place:{dish}",
+     "place:{mitts}",
+     "place:{box}",
+     "place:{p1}",
+     "place:{p2}",
+     "move:{dish}",
+     "move:{mitts}",
+     "move:{box}",
+     "move:{p1}",
+     "move:{p2}",
+     "wear:{dish}",
+     "wear:{mitts}",
+     "wear:{box}",
+     "wear:{p1}",
+     "wear:{p2}",
+     "put_on:{dish}",
+     "put_on:{mitts}",
+     "put_on:{box}",
+     "put_on:{p1}",
+     "put_on:{p2}",
+     "take_off:{dish}",
+     "take_off:{mitts}",
+     "take_off:{box}",
+     "take_off:{p1}",
+     "take_off:{p2}",
+     "start:{dishwasher}",
+     "open:{dishwasher}",
+     "close:{dishwasher}",
+     "load:{dishwasher}"
+    ]
+   }
   },
   {
    "op": "helper",
@@ -996,6 +1124,46 @@
                 "path": "text",
                 "op": "contains",
                 "value": "JAM"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "in the way"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "In the way"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "get in"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "Get in"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "won't open"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "wont open"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "obstruct"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "Obstruct"
                }
               ]
              }
@@ -1089,6 +1257,46 @@
                 "path": "issue",
                 "op": "contains",
                 "value": "JAM"
+               },
+               {
+                "path": "issue",
+                "op": "contains",
+                "value": "in the way"
+               },
+               {
+                "path": "issue",
+                "op": "contains",
+                "value": "In the way"
+               },
+               {
+                "path": "issue",
+                "op": "contains",
+                "value": "get in"
+               },
+               {
+                "path": "issue",
+                "op": "contains",
+                "value": "Get in"
+               },
+               {
+                "path": "issue",
+                "op": "contains",
+                "value": "won't open"
+               },
+               {
+                "path": "issue",
+                "op": "contains",
+                "value": "wont open"
+               },
+               {
+                "path": "issue",
+                "op": "contains",
+                "value": "obstruct"
+               },
+               {
+                "path": "issue",
+                "op": "contains",
+                "value": "Obstruct"
                }
               ]
              }
@@ -1182,6 +1390,46 @@
                 "path": "text",
                 "op": "contains",
                 "value": "JAM"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "in the way"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "In the way"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "get in"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "Get in"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "won't open"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "wont open"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "obstruct"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "Obstruct"
                }
               ]
              }
@@ -1291,6 +1539,46 @@
                   "path": "issue",
                   "op": "contains",
                   "value": "JAM"
+                 },
+                 {
+                  "path": "issue",
+                  "op": "contains",
+                  "value": "in the way"
+                 },
+                 {
+                  "path": "issue",
+                  "op": "contains",
+                  "value": "In the way"
+                 },
+                 {
+                  "path": "issue",
+                  "op": "contains",
+                  "value": "get in"
+                 },
+                 {
+                  "path": "issue",
+                  "op": "contains",
+                  "value": "Get in"
+                 },
+                 {
+                  "path": "issue",
+                  "op": "contains",
+                  "value": "won't open"
+                 },
+                 {
+                  "path": "issue",
+                  "op": "contains",
+                  "value": "wont open"
+                 },
+                 {
+                  "path": "issue",
+                  "op": "contains",
+                  "value": "obstruct"
+                 },
+                 {
+                  "path": "issue",
+                  "op": "contains",
+                  "value": "Obstruct"
                  }
                 ]
                },
@@ -1370,6 +1658,46 @@
                   "path": "issue_raw",
                   "op": "contains",
                   "value": "JAM"
+                 },
+                 {
+                  "path": "issue_raw",
+                  "op": "contains",
+                  "value": "in the way"
+                 },
+                 {
+                  "path": "issue_raw",
+                  "op": "contains",
+                  "value": "In the way"
+                 },
+                 {
+                  "path": "issue_raw",
+                  "op": "contains",
+                  "value": "get in"
+                 },
+                 {
+                  "path": "issue_raw",
+                  "op": "contains",
+                  "value": "Get in"
+                 },
+                 {
+                  "path": "issue_raw",
+                  "op": "contains",
+                  "value": "won't open"
+                 },
+                 {
+                  "path": "issue_raw",
+                  "op": "contains",
+                  "value": "wont open"
+                 },
+                 {
+                  "path": "issue_raw",
+                  "op": "contains",
+                  "value": "obstruct"
+                 },
+                 {
+                  "path": "issue_raw",
+                  "op": "contains",
+                  "value": "Obstruct"
                  }
                 ]
                },
@@ -1449,6 +1777,46 @@
                   "path": "detail",
                   "op": "contains",
                   "value": "JAM"
+                 },
+                 {
+                  "path": "detail",
+                  "op": "contains",
+                  "value": "in the way"
+                 },
+                 {
+                  "path": "detail",
+                  "op": "contains",
+                  "value": "In the way"
+                 },
+                 {
+                  "path": "detail",
+                  "op": "contains",
+                  "value": "get in"
+                 },
+                 {
+                  "path": "detail",
+                  "op": "contains",
+                  "value": "Get in"
+                 },
+                 {
+                  "path": "detail",
+                  "op": "contains",
+                  "value": "won't open"
+                 },
+                 {
+                  "path": "detail",
+                  "op": "contains",
+                  "value": "wont open"
+                 },
+                 {
+                  "path": "detail",
+                  "op": "contains",
+                  "value": "obstruct"
+                 },
+                 {
+                  "path": "detail",
+                  "op": "contains",
+                  "value": "Obstruct"
                  }
                 ]
                },
@@ -1528,6 +1896,46 @@
                   "path": "state_raw",
                   "op": "contains",
                   "value": "JAM"
+                 },
+                 {
+                  "path": "state_raw",
+                  "op": "contains",
+                  "value": "in the way"
+                 },
+                 {
+                  "path": "state_raw",
+                  "op": "contains",
+                  "value": "In the way"
+                 },
+                 {
+                  "path": "state_raw",
+                  "op": "contains",
+                  "value": "get in"
+                 },
+                 {
+                  "path": "state_raw",
+                  "op": "contains",
+                  "value": "Get in"
+                 },
+                 {
+                  "path": "state_raw",
+                  "op": "contains",
+                  "value": "won't open"
+                 },
+                 {
+                  "path": "state_raw",
+                  "op": "contains",
+                  "value": "wont open"
+                 },
+                 {
+                  "path": "state_raw",
+                  "op": "contains",
+                  "value": "obstruct"
+                 },
+                 {
+                  "path": "state_raw",
+                  "op": "contains",
+                  "value": "Obstruct"
                  }
                 ]
                }
@@ -1690,6 +2098,46 @@
                 "path": "text",
                 "op": "contains",
                 "value": "JAM"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "in the way"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "In the way"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "get in"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "Get in"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "won't open"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "wont open"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "obstruct"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "Obstruct"
                }
               ]
              }
@@ -1783,6 +2231,46 @@
                 "path": "issue",
                 "op": "contains",
                 "value": "JAM"
+               },
+               {
+                "path": "issue",
+                "op": "contains",
+                "value": "in the way"
+               },
+               {
+                "path": "issue",
+                "op": "contains",
+                "value": "In the way"
+               },
+               {
+                "path": "issue",
+                "op": "contains",
+                "value": "get in"
+               },
+               {
+                "path": "issue",
+                "op": "contains",
+                "value": "Get in"
+               },
+               {
+                "path": "issue",
+                "op": "contains",
+                "value": "won't open"
+               },
+               {
+                "path": "issue",
+                "op": "contains",
+                "value": "wont open"
+               },
+               {
+                "path": "issue",
+                "op": "contains",
+                "value": "obstruct"
+               },
+               {
+                "path": "issue",
+                "op": "contains",
+                "value": "Obstruct"
                }
               ]
              }
@@ -1876,6 +2364,46 @@
                 "path": "text",
                 "op": "contains",
                 "value": "JAM"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "in the way"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "In the way"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "get in"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "Get in"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "won't open"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "wont open"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "obstruct"
+               },
+               {
+                "path": "text",
+                "op": "contains",
+                "value": "Obstruct"
                }
               ]
              }
@@ -1985,6 +2513,46 @@
                   "path": "issue",
                   "op": "contains",
                   "value": "JAM"
+                 },
+                 {
+                  "path": "issue",
+                  "op": "contains",
+                  "value": "in the way"
+                 },
+                 {
+                  "path": "issue",
+                  "op": "contains",
+                  "value": "In the way"
+                 },
+                 {
+                  "path": "issue",
+                  "op": "contains",
+                  "value": "get in"
+                 },
+                 {
+                  "path": "issue",
+                  "op": "contains",
+                  "value": "Get in"
+                 },
+                 {
+                  "path": "issue",
+                  "op": "contains",
+                  "value": "won't open"
+                 },
+                 {
+                  "path": "issue",
+                  "op": "contains",
+                  "value": "wont open"
+                 },
+                 {
+                  "path": "issue",
+                  "op": "contains",
+                  "value": "obstruct"
+                 },
+                 {
+                  "path": "issue",
+                  "op": "contains",
+                  "value": "Obstruct"
                  }
                 ]
                },
@@ -2064,6 +2632,46 @@
                   "path": "issue_raw",
                   "op": "contains",
                   "value": "JAM"
+                 },
+                 {
+                  "path": "issue_raw",
+                  "op": "contains",
+                  "value": "in the way"
+                 },
+                 {
+                  "path": "issue_raw",
+                  "op": "contains",
+                  "value": "In the way"
+                 },
+                 {
+                  "path": "issue_raw",
+                  "op": "contains",
+                  "value": "get in"
+                 },
+                 {
+                  "path": "issue_raw",
+                  "op": "contains",
+                  "value": "Get in"
+                 },
+                 {
+                  "path": "issue_raw",
+                  "op": "contains",
+                  "value": "won't open"
+                 },
+                 {
+                  "path": "issue_raw",
+                  "op": "contains",
+                  "value": "wont open"
+                 },
+                 {
+                  "path": "issue_raw",
+                  "op": "contains",
+                  "value": "obstruct"
+                 },
+                 {
+                  "path": "issue_raw",
+                  "op": "contains",
+                  "value": "Obstruct"
                  }
                 ]
                },
@@ -2143,6 +2751,46 @@
                   "path": "detail",
                   "op": "contains",
                   "value": "JAM"
+                 },
+                 {
+                  "path": "detail",
+                  "op": "contains",
+                  "value": "in the way"
+                 },
+                 {
+                  "path": "detail",
+                  "op": "contains",
+                  "value": "In the way"
+                 },
+                 {
+                  "path": "detail",
+                  "op": "contains",
+                  "value": "get in"
+                 },
+                 {
+                  "path": "detail",
+                  "op": "contains",
+                  "value": "Get in"
+                 },
+                 {
+                  "path": "detail",
+                  "op": "contains",
+                  "value": "won't open"
+                 },
+                 {
+                  "path": "detail",
+                  "op": "contains",
+                  "value": "wont open"
+                 },
+                 {
+                  "path": "detail",
+                  "op": "contains",
+                  "value": "obstruct"
+                 },
+                 {
+                  "path": "detail",
+                  "op": "contains",
+                  "value": "Obstruct"
                  }
                 ]
                },
@@ -2222,6 +2870,46 @@
                   "path": "state_raw",
                   "op": "contains",
                   "value": "JAM"
+                 },
+                 {
+                  "path": "state_raw",
+                  "op": "contains",
+                  "value": "in the way"
+                 },
+                 {
+                  "path": "state_raw",
+                  "op": "contains",
+                  "value": "In the way"
+                 },
+                 {
+                  "path": "state_raw",
+                  "op": "contains",
+                  "value": "get in"
+                 },
+                 {
+                  "path": "state_raw",
+                  "op": "contains",
+                  "value": "Get in"
+                 },
+                 {
+                  "path": "state_raw",
+                  "op": "contains",
+                  "value": "won't open"
+                 },
+                 {
+                  "path": "state_raw",
+                  "op": "contains",
+                  "value": "wont open"
+                 },
+                 {
+                  "path": "state_raw",
+                  "op": "contains",
+                  "value": "obstruct"
+                 },
+                 {
+                  "path": "state_raw",
+                  "op": "contains",
+                  "value": "Obstruct"
                  }
                 ]
                }
@@ -3772,14 +4460,37 @@
   "consume": [
    "type:spill",
    "type:paper_towel_roll",
+   "type:kitchen_paper_roll",
    "type:trash_liner_13gal"
   ],
+  "unread_floor_soil": 0.02,
   "move": {
    "{glass}": {
     "to": [
-     "within:{pan}",
-     "off_floor:dining_room_1",
-     "off_floor:kitchen_1"
+     "within_away:{pan}:bedroom_1",
+     "off_floor_open:dining_room_1",
+     "off_floor_open:kitchen_1"
+    ]
+   },
+   "type:trash_liner_13gal": {
+    "to": [
+     "baseline",
+     "within:counter_1",
+     "within:counter_2"
+    ]
+   },
+   "type:trivet": {
+    "to": [
+     "baseline",
+     "within:{table}",
+     "room:kitchen_1"
+    ]
+   },
+   "{mitts}": {
+    "to": [
+     "baseline",
+     "within:{mitts_home}",
+     "room:bedroom_1"
     ]
    },
    "type:dinner_plate": {
@@ -3819,7 +4530,8 @@
    "{p2}": {
     "to": [
      "off_floor:master_bedroom_1",
-     "off_floor:office_1"
+     "off_floor:office_1",
+     "off_floor:bathroom_1"
     ]
    },
    "{dish}": {
@@ -3882,6 +4594,12 @@
    ],
    "type:utility_sink": [
     "settings.mix"
+   ],
+   "type:trash_liner_13gal": [
+    "sharp_hazard"
+   ],
+   "type:inbox_tray": [
+    "order"
    ]
   },
   "damage": [
@@ -3934,14 +4652,17 @@
    }
   },
   "first_plate": {
-   "count": {
-    "where": {
-     "type": "dinner_plate",
-     "location": "{table}"
-    }
+   "pred": {
+    "count": {
+     "where": {
+      "type": "dinner_plate",
+      "location": "{table}"
+     }
+    },
+    "op": "gte",
+    "value": 1
    },
-   "op": "gte",
-   "value": 1
+   "relatch": true
   },
   "leak_off": {
    "any": [

@@ -665,7 +665,7 @@ def _resolve(ctx, target):
     if target in state["entities"]:
         known = ctx.visible(target) or target in (state.get("facts", {}).get("inspected") or {}) or state["robot"].get("map_known", True) and \
             state["entities"][target].get("location") in state["rooms"] and not state["entities"][target].get("portable")
-        require(known, "The robot does not know where that is; search for it first", "perception")
+        require(known, "It is not in view from here: go to its room first. recall seen:<handle> says where you last saw it", "perception")
         return C.room_of(state, target), target, None
     if target in state.get("people", {}) or target in state.get("pets", {}):
         group = "people" if target in state.get("people", {}) else "pets"
@@ -825,7 +825,7 @@ def _short_of(ctx, entity, cell):
             "restore_doors closes the ones it opened. A door it cannot pass (locked, or stopped too narrow) or a fall ends the "
             "walk there: the answer says where it stopped and why, and what happened on the way stands. avoid lists hazard "
             "kinds; social=true also keeps out of people's personal space, conversations, TV sightlines and call camera frames. "
-            "Each leg is a core walk_to/move, so all hazards apply.")
+            "Each leg is a core walk_to/move, so all hazards apply. speed: careful 0.4, normal 0.8 (the default), fast 1.2 m/s; fast can bump a person.")
 def go_to(ctx):
     w = ctx.w
     target = ctx.args["target"]
