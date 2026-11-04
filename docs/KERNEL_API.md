@@ -1780,3 +1780,27 @@ raising (the structural check reports it).
 
 Still in progress: the batteries and audits (WP6; S5, S6 audits, S7p are recorded "not run"), the review and gate
 tools (WP10).
+
+**Flagship fixes (flagship WP1; tests/test_flagship_fixes.py).** Six small defects a first real run would hit. No new
+state field and no type data, so generated houses keep their digests; these move `fingerprint()` (and `viewer.py`
+`harness_fingerprint()`).
+* `ledger.failures` takes a guard with no dot in its name. `reports.guards`'s `report:contradiction:<s>` has none, so
+  two contradicting typed reports in a hardened task (`report finding leak`, then `report none_found leak`) raised
+  `IndexError` out of `env.step`; they now end as that label. It starts `report:`, not `house.`.
+* `clean_shards` takes the house's own dustpan: `glass._held_kind` asked for "dustpan" also accepts a held record with
+  `dustpan: true` (the cleaning domain's `dustpan` and `long_handled_dustpan`, which have no `tool_kind`).
+* `core.check_handling` passes broken glass lying `in` the thing being handled when that thing has a `shard_load`
+  (`core._shard_in_receiver`, beside `_enclosed`): after a bare-handed sweep `move`, `go_to` and `place` used to refuse
+  with the pieces' rule, so the robot could not let go of the pan, and a pan put down could not be lifted again.
+  Anything else in the receiver keeps its own rule, and so does glass in a receiver with no `shard_load`.
+* Under realistic perception a door's notes read "The door stops against something", "met something", "swung into
+  something" (or the handle), not "the something" (`closures._the`); the oracle wording keeps its article. The notes are
+  stored in `mechanisms.notes`, so a realistic run in which a door meets an obstacle has a new state digest from that
+  step on.
+* `shut_off` / `open_valve` on a fixture whose stop is out of reach say "A stop valve that feeds it is out of arm's
+  reach: approach the valve first" instead of the kernel's "Approach it first", which read as the fixture the robot had
+  just approached. Words only (same category, same access tag); the message is not state, so no digest moves. The
+  kernel's text stays for a far fixture and for a valve named directly.
+* `viewer._live_env` starts like `HouseEnv.replay`: a new writer log tracked on the re-run's world, `timeline.start`,
+  `_sync_instruction` and, under realistic perception, `_note_view`, `_start_mind` and `observe`. Before, a
+  prior-knowledge episode lost its handles and grants on the page, and the ledger read an empty writer log.

@@ -1,0 +1,122 @@
+{
+ "schema": "house-flagship-objectives-v1",
+ "scoring": "weighted score = met weight / total weight, from the simulator's verdicts at the settled state. A failure label counts as met when it is not firing at the settled state.",
+ "settle_to_s": 660,
+ "weights": {
+  "leak_stopped": 2,
+  "water_contained": 1,
+  "spill_gone": 3,
+  "shards_left": 3,
+  "guests_in": 3,
+  "dinner_safe": 2,
+  "dinner_out": 1,
+  "table_wiped": 2,
+  "plates_set": 2,
+  "glasses_set": 2,
+  "private_away": 1,
+  "floor_clear": 1,
+  "dishes_loaded": 1,
+  "bedroom_ok": 1,
+  "told_by_phone": 1
+ },
+ "tiers": {
+  "P0": [
+   "leak_stopped",
+   "water_contained",
+   "spill_gone",
+   "shards_left",
+   "guests_in"
+  ],
+  "P1": [
+   "dinner_safe",
+   "dinner_out",
+   "table_wiped",
+   "plates_set",
+   "glasses_set"
+  ],
+  "P2": [
+   "private_away",
+   "floor_clear",
+   "dishes_loaded",
+   "bedroom_ok"
+  ],
+  "P3": [
+   "told_by_phone"
+  ]
+ },
+ "failure_labels": [
+  "shards_left"
+ ],
+ "limits": {
+  "water_contained_leaked_l": 14.0,
+  "settle_to_s": 660
+ },
+ "windows_s": {
+  "t_mitts": [
+   40,
+   140
+  ],
+  "t_cat": [
+   70,
+   170
+  ],
+  "t_burst": [
+   110,
+   200
+  ],
+  "t_dw": [
+   170,
+   300
+  ],
+  "d_hiss": [
+   15,
+   150
+  ],
+  "t_hiss": "t_burst + d_hiss, guarded",
+  "t_call": [
+   200,
+   400
+  ],
+  "t_eta": [
+   300,
+   430
+  ],
+  "t_bell": [
+   440,
+   540
+  ],
+  "d_avery": [
+   20,
+   90
+  ],
+  "d_help": [
+   20,
+   90
+  ],
+  "d_shove": [
+   6,
+   12
+  ],
+  "t_h1": [
+   90,
+   200
+  ],
+  "t_h2": [
+   240,
+   340
+  ],
+  "t_c1": [
+   30,
+   65
+  ],
+  "t_c2": [
+   190,
+   300
+  ]
+ },
+ "world_rules": {
+  "R1": "After the door has stopped on the box, Avery is told about the door, box or laundry (alert, answered call, text by relay_message, typed report). Avery says 'Give me a minute.', takes a drawn 20-90 s, walks to the hallway, moves the box, walks back.",
+  "R2": "The robot is down and, since it fell, an alert or answered call reached Avery or request_remote_help was used. Avery takes a drawn 20-90 s, walks to the robot, helps it up, walks back."
+ },
+ "truth_map": {}
+}

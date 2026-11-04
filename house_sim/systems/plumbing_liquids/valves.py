@@ -11,7 +11,7 @@ shut_off target may be:
     the fill when the stop is seized.
 open_valve reverses (fraction 0..1, method=float releases a propped float).
 """
-from ...kernel.actions import action
+from ...kernel.actions import access_error, action
 from ...kernel.errors import ActionError, require
 from . import common as C
 from . import fixtures as F
@@ -141,7 +141,13 @@ def _operate(ctx, closing):
     for vid in stops:
         vrec = w.ent(vid)
         require(ctx.visible(vid), "Its stop valves are not visible: open the cabinet or panel first", "perception")
-        ctx.obj(vid, touch=True)
+        try:
+            ctx.obj(vid, touch=True)
+        except ActionError as exc:
+            if "arm's reach" not in str(exc):
+                raise
+            # the same refusal in other words: the kernel's "Approach it first" would read as the fixture itself
+            raise access_error("A stop valve that feeds it is out of arm's reach: approach the valve first", exc.category)
         msg, seconds = turn_valve(ctx, vid, closing, force=force)
         # realistic perception: which stop is the hot one is not known from turning both (inspect traces the lines)
         out.append(msg if V.realistic(ctx) else "{} {}".format(vrec.get("line", ""), msg).strip())

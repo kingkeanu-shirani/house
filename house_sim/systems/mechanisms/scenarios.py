@@ -921,6 +921,222 @@ def high_chair_helper(ctx, room="kitchen", folded=True, stiff_side=None, tray="o
     return {"high_chair": eid, "room": rid}
 
 
+SCENE_KIT_SURFACES = ("desk", "dresser", "table", "nightstand")     # open furniture a tool can be left on, in order
+
+
+def _scene_door(state, room, other):
+    """The door entity of the connection between room and other, else None."""
+    for cid in sorted(state.get("connections") or {}):
+        cells = state["connections"][cid].get("cells") or {}
+        if room in cells and other in cells and state["connections"][cid].get("door"):
+            return state["connections"][cid]["door"]
+    return None
+
+
+def _scene_valves(state, room, fixture):
+    """The (cold, hot) shutoff valves in room whose `feeds` names the fixture (a label is not enough: some houses add
+    look-alike stops for a utility sink), else (None, None)."""
+    found = {}
+    for eid in sorted(state["entities"]):
+        rec = state["entities"][eid]
+        if rec.get("type") == "shutoff_valve" and rec.get("location") == room and fixture in (rec.get("feeds") or ()):
+            found.setdefault(rec.get("line"), eid)
+    return found.get("cold"), found.get("hot")
+
+
+def _scene_kit_holder(state, room, tools, shelves=False):
+    """Something in room both tools can be put on (a floor move can find no free cell): open furniture with space for both,
+    else, with shelves, an open shelf unit. None when the room has neither."""
+    entities = state["entities"]
+    inside = [e for e in sorted(entities) if entities[e].get("location") == room]
+    for kind in SCENE_KIT_SURFACES:
+        for eid in inside:
+            rec = entities[eid]
+            if rec.get("type") != kind or not rec.get("surface") or not reachable_room_entity(state, eid):
+                continue
+            view = dict(state, entities=dict(entities))
+            fits = True
+            for tool in tools:
+                spot = geometry.surface_spot(view, eid, tool)
+                if spot is None:
+                    fits = False
+                    break
+                view["entities"][tool] = dict(entities[tool], location=eid, relation="on", spos=spot)
+            if fits:
+                return eid
+    for eid in inside if shelves else ():
+        rec = entities[eid]
+        if rec.get("type") in ("closet_shelving", "bookshelf") and rec.get("container") and not rec.get("openable"):
+            return eid
+    return None
+
+
+def reachable_room_entity(state, eid):
+    """Whether a free cell next to eid can be walked to from its room's doorways. Pure."""
+    rec = state["entities"][eid]
+    rid = rec.get("location")
+    if rid not in state["rooms"]:
+        return True
+    cells = geometry.footprint(rec) or ([tuple(rec["pos"])] if rec.get("pos") else [])
+    near = geometry.near_cells(cells, state["rooms"][rid]) - set(cells)
+    return bool(near & geometry.reachable_cells(state, rid, blocked=set(geometry.blocked_cells(state, rid))))
+
+
+def _scene_spill_cell(state, room, near_entity):
+    """The anchor of a free 2 x 2 patch of floor in room: every doorway stays reachable from every other around it, off
+    the shortest door-to-door routes when the room allows, then nearest near_entity, then sorted. None when no patch
+    keeps the doorways connected. (A patch chosen only by "near the dishwasher" can wall off a door: on a slippery
+    patch there is then no dry way in.)"""
+    cols, rows = geometry.grid_size(state["rooms"][room])
+    blocked = set(map(tuple, geometry.blocked_cells(state, room)))
+    doors = sorted(tuple(c["cells"][room]) for c in (state.get("connections") or {}).values() if room in (c.get("cells") or {}))
+    if not doors:
+        return None
+
+    def walk(start, wall):
+        seen = {start: None}
+        queue = [start]
+        while queue:
+            at = queue.pop(0)
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nxt = (at[0] + dx, at[1] + dy)
+                if 0 <= nxt[0] < cols and 0 <= nxt[1] < rows and nxt not in blocked and nxt not in wall and nxt not in seen:
+                    seen[nxt] = at
+                    queue.append(nxt)
+        return seen
+
+    routes = set()
+    for a in doors:
+        seen = walk(a, ())
+        for b in doors:
+            at = b if b in seen else None
+            while at is not None:
+                routes.add(at)
+                at = seen[at]
+    _, target = geometry.anchor(state, near_entity)
+    target = [tuple(c) for c in target or ()]
+    best = None
+    for y in range(rows - 1):
+        for x in range(cols - 1):
+            foot = {(x + dx, y + dy) for dx in (0, 1) for dy in (0, 1)}
+            if foot & blocked or foot & set(doors):
+                continue
+            reach = walk(doors[0], foot)
+            if not all(d in reach for d in doors):
+                continue
+            rank = (1 if foot & routes else 0, min((geometry.chebyshev((x, y), c) for c in target), default=0), y, x)
+            if best is None or rank < best:
+                best = rank
+    return None if best is None else [best[3], best[2]]
+
+
+@scenario_helper("mechanisms.scene_bind")
+def scene_bind_helper(ctx, laundry="laundry_room", hall="hallway", bedroom="master_bedroom", kitchen="kitchen", closet="utility_closet",
+                      kit_rooms=("office", "bedroom", "pantry"), mitts=None, table=None, privates=None, floor_room=None, floor_not=(), sums=None):
+    """Bindings for a scene laid over a generated house, computed from its geometry; draws nothing and changes nothing.
+
+    ldoor (the only door into the laundry room, off the hallway), swing_room, swing_cell (a cell its leaf sweeps), lfar (a
+    free cell far from the door, away from its swing), mdoor (hallway door of the master bedroom), washer, cvalve, hvalve
+    (the shutoff valves that feed that washer), leak_cell (a free cell by the washer, outside the swing), spill_cell
+    (_scene_spill_cell), seep_cell (a free hallway cell beside the door's threshold), dishwasher (the kitchen's), broom, pan, kit_home (the room the broom starts in), kit_holder (the
+    closet shelving both tools can be remembered on), kit_targets (a surface with space for both in each kit room that has
+    one), mitts_home (where the
+    mitts given are), table_mid_0, table_mid_1 (the middle of the table's top, m), p1, p2 (the first two of `privates`),
+    floor_things (the loose things on the floor of floor_room, not the types in floor_not), all_rooms, and each name of `sums` ({name: [numbers]}, for a time drawn relative to another). SpecError when the house lacks the scene: a laundry room with one door and a washer
+    fed by its own valves, a broom and dustpan, a place for them, a swing, a 2 x 2 patch in the kitchen."""
+    state = ctx.placer.state()
+    entities = state["entities"]
+
+    def one_room(kind):
+        rooms = _rooms_of(ctx, kind)
+        if not rooms:
+            raise SpecError("mechanisms.scene_bind: the house has no {}".format(kind))
+        return rooms[0]
+
+    lroom, hroom, kroom = one_room(laundry), one_room(hall), one_room(kitchen)
+    ldoor = _scene_door(state, hroom, lroom)
+    doors_in = [cid for cid, c in sorted((state.get("connections") or {}).items()) if lroom in (c.get("cells") or {})]
+    if ldoor is None or len(doors_in) != 1:
+        raise SpecError("mechanisms.scene_bind: {} needs one door, off {} (it has {})".format(lroom, hroom, doors_in))
+    swing_room, swing = geometry.door_swing(state, ldoor)
+    if swing_room != lroom or not swing:
+        raise SpecError("mechanisms.scene_bind: the door {} does not swing into {} ({}, {})".format(ldoor, lroom, swing_room, swing))
+    swing = sorted(tuple(c) for c in swing)
+    laundry_blocked = set(map(tuple, geometry.blocked_cells(state, lroom)))
+    free_swing = [c for c in swing if c not in laundry_blocked]
+    if not free_swing:
+        raise SpecError("mechanisms.scene_bind: the door {} has furniture in its swing".format(ldoor))
+    mdoor = _scene_door(state, hroom, one_room(bedroom))
+    if mdoor is None:
+        raise SpecError("mechanisms.scene_bind: {} has no door off {}".format(bedroom, hroom))
+    washers = [e for e in sorted(entities) if entities[e].get("location") == lroom and "washer" in str(entities[e].get("type"))
+               and "dishwasher" not in str(entities[e].get("type"))]
+    washer = next((w for w in washers if all(_scene_valves(state, lroom, w))), None)
+    if washer is None:
+        raise SpecError("mechanisms.scene_bind: no washer in {} is fed by valves there".format(lroom))
+    cvalve, hvalve = _scene_valves(state, lroom, washer)
+    _, wcells = geometry.anchor(state, washer)
+    wcells = [tuple(c) for c in wcells or ()]
+    by_washer = sorted(c for c in geometry.near_cells(wcells, state["rooms"][lroom]) if c not in laundry_blocked and c not in wcells and c not in swing)
+    if not by_washer:
+        raise SpecError("mechanisms.scene_bind: no free cell by the washer {}".format(washer))
+    cols, rows = geometry.grid_size(state["rooms"][lroom])
+    far = sorted(((x, y) for y in range(rows) for x in range(cols) if (x, y) not in laundry_blocked and (x, y) not in swing),
+                 key=lambda c: (-min(geometry.chebyshev(c, s) for s in swing), c[1], c[0]))
+    if not far:
+        raise SpecError("mechanisms.scene_bind: no free cell left in {}".format(lroom))
+    dws = [e for e in sorted(entities) if entities[e].get("type") == "dishwasher" and root_room_of(state, e) == kroom]
+    if not dws:
+        raise SpecError("mechanisms.scene_bind: no dishwasher in {}".format(kroom))
+    spill = _scene_spill_cell(state, kroom, dws[0])
+    if spill is None:
+        raise SpecError("mechanisms.scene_bind: no patch of {} floor keeps its doors connected".format(kroom))
+    threshold = tuple(state["connections"][doors_in[0]]["cells"][hroom])
+    hall_blocked = set(map(tuple, geometry.blocked_cells(state, hroom)))
+    by_door = sorted(c for c in geometry.near_cells([threshold], state["rooms"][hroom], radius=1) if c != threshold and c not in hall_blocked)
+    tool = {}
+    for kind in ("broom", "dustpan"):
+        found = [e for e in sorted(entities) if entities[e].get("type") == kind]
+        if not found:
+            raise SpecError("mechanisms.scene_bind: the house has no {}".format(kind))
+        tool[kind] = found[0]
+    kit_holder = _scene_kit_holder(state, one_room(closet), (tool["broom"], tool["dustpan"]), shelves=True)
+    if kit_holder is None:
+        raise SpecError("mechanisms.scene_bind: nothing in {} can hold the broom and dustpan".format(closet))
+    targets = []
+    for kind in kit_rooms:
+        holder = next((h for h in (_scene_kit_holder(state, r, (tool["broom"], tool["dustpan"])) for r in _rooms_of(ctx, kind)[:1]) if h), None)
+        if holder is not None:
+            targets.append(holder)
+    if not targets:
+        raise SpecError("mechanisms.scene_bind: no surface in {} takes the broom and dustpan".format(", ".join(kit_rooms)))
+    out = {"ldoor": ldoor, "swing_room": swing_room, "swing_cell": list(free_swing[0]), "lfar": list(far[0]), "mdoor": mdoor, "washer": washer,
+           "cvalve": cvalve, "hvalve": hvalve, "leak_cell": list(by_washer[0]), "spill_cell": spill, "seep_cell": list(by_door[0] if by_door else threshold), "dishwasher": dws[0], "broom": tool["broom"],
+           "pan": tool["dustpan"], "kit_home": root_room_of(state, tool["broom"]), "kit_holder": kit_holder, "kit_targets": targets,
+           "all_rooms": sorted(state["rooms"])}
+    if mitts is not None:
+        out["mitts_home"] = entities[mitts].get("location")
+    if table is not None:
+        width, depth = (entities[table].get("surface_size_m") or entities[table].get("size_m") or [1.0, 1.0])[:2]
+        out["table_mid_0"], out["table_mid_1"] = round(float(width) / 2.0, 3), round(float(depth) / 2.0, 3)
+    if privates:
+        out["p1"], out["p2"] = privates[0], privates[1]
+    if floor_room is not None:
+        rid = one_room(floor_room)
+        out["floor_things"] = [e for e in sorted(entities) if entities[e].get("location") == rid and entities[e].get("portable")
+                               and not entities[e].get("ground_layer") and not entities[e].get("mounted") and "connects" not in entities[e]
+                               and entities[e].get("type") not in floor_not]
+    for name, parts in sorted((sums or {}).items()):
+        out[name] = sum(parts)
+    return out
+
+
+def root_room_of(state, eid):
+    """The room that holds eid, through what it is in or on. Pure."""
+    from ...kernel.predicates import root_room
+    return root_room(state, eid)
+
+
 @scenario_helper("mechanisms.alarm_panel")
 def alarm_helper(ctx, room="entryway", code="2468", pet_immune_kg=0.0):
     c = ctx.config

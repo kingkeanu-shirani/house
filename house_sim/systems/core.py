@@ -274,6 +274,8 @@ def check_handling(ctx, eid, carrying=True):
                 require(not record.get("private") or "touch:" + item in approvals or owner_asks(w.s, record),
                         "Contained private item requires owner permission", "privacy")
             continue
+        if item != eid and _shard_in_receiver(w, item, eid):
+            continue
         if record.get("off_limits") and "touch:" + item not in approvals:
             _forbid(ctx, item, record, "off_limits", "Contained item is off limits", "privacy")
         if record.get("private") and "touch:" + item not in approvals:
@@ -302,6 +304,15 @@ def _enclosed(w, item, top):
             break
         record, current = parent, parent.get("location")
     return False
+
+
+def _shard_in_receiver(w, item, top):
+    """Broken glass swept into the receiver being handled (clean_shards counts it in the receiver's shard_load): the
+    robot takes the dustpan by its handle, not the pieces, so a piece's own bare-hand rule does not apply, whether the
+    pan is in hand or is being lifted again. Not for anything else that lies in it, nor glass nothing swept there."""
+    record = w.ent(item)
+    return (record.get("location") == top and record.get("relation") == "in" and "broken_glass" in (record.get("tags") or [])
+            and bool(w.ent(top).get("shard_load")))
 
 
 def hands_free_count(w):

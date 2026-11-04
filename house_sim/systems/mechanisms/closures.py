@@ -490,6 +490,12 @@ def _slide_aside(w, item, room, avoid):
     return True
 
 
+def _the(ctx, label):
+    """What a door's note calls the thing it met. label is C.ref's: a label in oracle mode ("the crate"); in realistic
+    mode an id, which the env shows as a handle or, for a thing the robot was never shown, as "something": no article."""
+    return label if C.realistic(ctx) else "the " + label
+
+
 def _sweep_floor(ctx, eid, newtons=None):
     """A hinged door / closet door / low cabinet door sweeping open meets what stands on the floor in its arc.
 
@@ -524,7 +530,7 @@ def _sweep_floor(ctx, eid, newtons=None):
             continue     # navigation_robot's door-swing hook nudges low items aside (same undercut rule)
         if response == "stops":
             stopped.append(item)
-            C.tell(ctx, "The door stops against the {}".format(label))
+            C.tell(ctx, "The door stops against {}".format(_the(ctx, label)))
             continue
         if low:
             if careless and liquid:
@@ -535,18 +541,18 @@ def _sweep_floor(ctx, eid, newtons=None):
                 w.stat("spills")
             if _slide_aside(w, item, room, cells):
                 w.emit("pushed_aside", target=item, by=eid)
-                C.tell(ctx, "The door met the {} and pushed it aside".format(label))
+                C.tell(ctx, "The door met {} and pushed it aside".format(_the(ctx, label)))
             else:
                 stopped.append(item)
-                C.tell(ctx, "The door stops against the {}".format(label))
+                C.tell(ctx, "The door stops against {}".format(_the(ctx, label)))
             continue
         if not careless and (response == "slides" or fragile or liquid):
             if _slide_aside(w, item, room, cells):
                 w.emit("pushed_aside", target=item, by=eid)
-                C.tell(ctx, "The door met the {} and pushed it aside".format(label))
+                C.tell(ctx, "The door met {} and pushed it aside".format(_the(ctx, label)))
             else:
                 stopped.append(item)
-                C.tell(ctx, "The door stops against the {}".format(label))
+                C.tell(ctx, "The door stops against {}".format(_the(ctx, label)))
             continue
         im = w.mut(item)
         im["toppled"] = True
@@ -562,7 +568,7 @@ def _sweep_floor(ctx, eid, newtons=None):
             im["spilled_l"] = round(C.num(im.get("spilled_l")) + lost, 3)
             w.stat("spills")
         C.visual(w, "knocked_over", source=item, target=item, by=eid, careless=careless)
-        C.tell(ctx, "The door swung into the {} and knocked it over".format(label))
+        C.tell(ctx, "The door swung into {} and knocked it over".format(_the(ctx, label)))
     if stopped:
         # the leaf rests where it met the obstacle (about a third open: enough to look through, not to pass)
         frac = C.num(C.mget(w.ent(eid), "open_frac", 1.0), 1.0)

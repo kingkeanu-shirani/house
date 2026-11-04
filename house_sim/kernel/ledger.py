@@ -2099,7 +2099,7 @@ def failures(task, state, baseline, world=None, idle=None):
     for f in found:
         if f.allowed_by:
             continue
-        kind = f.guard.split(".", 1)[1]
+        kind = f.guard.partition(".")[2]                    # "" for a guard with no dot (report:contradiction:<s>)
         if kind in PLACEMENT_ORDER and not f.field:        # a content removal (house.removed:<e>.<f>) stands apart
             prev = placement_by_id.get(f.id)
             if prev is None or PLACEMENT_ORDER.index(kind) < PLACEMENT_ORDER.index(prev):

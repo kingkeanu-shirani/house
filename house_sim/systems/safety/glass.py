@@ -357,7 +357,7 @@ def _held_kind(w, *kinds):
     for eid in w.held_items():
         rec = w.ent(eid)
         caps = set(rec.get("affordances", [])) | set(rec.get("capabilities", [])) | {rec.get("tool_kind"), rec.get("category")}
-        if caps & set(kinds):
+        if caps & set(kinds) or ("dustpan" in kinds and rec.get("dustpan")):     # the house's dustpan type says it so
             return eid
     return None
 

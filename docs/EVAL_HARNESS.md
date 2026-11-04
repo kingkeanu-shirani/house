@@ -109,50 +109,89 @@ watch `obs.robot.battery` (an integer gauge in realistic perception), `battery_s
 Options a constructor does not accept are ignored, so one option dict (CLI `--agent-opt KEY=VALUE`, JSON values)
 can serve any agent.
 
-## Claude as the driver (`tools/robot_step.py`, `tools/audit_robot_transcript.py`)
+## Claude as the driver (`tools/robot_step.py`, `tools/robot_launch.py`, `tools/audit_robot_transcript.py`)
 
-A Claude Code subagent can control the robot with no API bill, through one shell command that runs the normal harness loop.
-It uses no `llm:*` agent and no network. Each `step` is a stateless rebuild: the session folder stores the spec, seed, nonce
-and commands so far, and the whole episode re-runs through `run._run_episode` with a small `Agent` that replays them, stops at
-the next decision and prints what the harness handed it. Each decision's digest is compared on every later rebuild, so
-each step re-proves determinism; a difference halts the session.
+Claude Code can control the robot with no API bill, through one shell command that runs the normal harness loop. It uses no
+`llm:*` agent. Each `step` is a stateless rebuild: the session folder stores the spec, seed, nonce and commands so far, and the
+whole episode re-runs through `run._run_episode` with a small `Agent` that replays them, stops at the next decision and prints what
+the harness handed it. Each decision's digest and print are compared on every later rebuild, so each step re-proves determinism; a
+difference halts the session.
 
 ```
-python tools/robot_step.py start --session DIR --spec FILE [--catalog-id ID] --seed N [--nonce TEXT] [--camera room|geometric] [--observation compact|raw]
-python tools/robot_step.py prompt --session DIR      # the whole briefing, to paste as the subagent's prompt
-python tools/robot_step.py launch --session DIR      # or: a few lines that tell the subagent to read it in pages
-python tools/robot_step.py brief --session DIR --part N
-python tools/robot_step.py step --session DIR --why "reason" --json '{"action": "look"}'
-python tools/robot_step.py finalize --session DIR --out DIR [--agent-label TEXT] [--run-id TEXT]
-python tools/audit_robot_transcript.py TRANSCRIPT.jsonl --session DIR [--out FILE]
+python tools/robot_launch.py prepare --commit REV --spec FILE [--catalog-id ID] --seed N [--nonce TEXT] [--root DIR] [--name sim_x]
+python tools/robot_launch.py launch --run-dir DIR [--dry] [--stall-s 900] [--max-wall-s 14400]
+python tools/robot_launch.py finalize --run-dir DIR --out OUT [--agent-label TEXT]
+python tools/robot_launch.py audit --run-dir DIR --finalized OUT
 ```
 
-* **What the robot reads.** The briefing is `llm.system_prompt(catalog, tool_mode=False)` verbatim (its hash is
-  `system_prompt_sha256`) plus how to call `step`. A step prints the filtered result, the instruction and the observation as
-  `llm.compact_observation` renders it for `llm:*` agents, not the raw observation: the raw one was 23,000 characters in a
-  living room with 56 things in view, close to the Bash tool's 30,000-character output limit, and an overflow would push the robot
-  to read a file. `--observation raw` prints it unfiltered. After the episode ends, `step` prints only `The episode is over.`
+Under those, and usable alone:
+
+```
+python tools/robot_step.py start --session DIR --spec FILE [--catalog-id ID] --seed N [--nonce TEXT] [--camera room|geometric] [--observation sparse|compact|raw] [--robot-script robot.py]
+python tools/robot_step.py prompt --session DIR      # the whole briefing
+python tools/robot_step.py launch --session DIR      # the few lines for the Agent-tool form, which reads it in pages with `brief`
+python tools/robot_step.py step --session DIR --why "reason" --goal "what it serves" [--plan "plan"] --json '{"action": "look"}'
+python tools/robot_step.py more --session DIR        # the rest of a long print; no sim time
+python tools/robot_step.py finalize --session DIR --out DIR [--agent-label TEXT] [--run-id TEXT] [--stop-reason TEXT]
+python tools/robot_step.py reprint --session DIR --out FILE
+python tools/audit_robot_transcript.py TRANSCRIPT.jsonl --session DIR [--reprint FILE] [--finalized OUT] [--first-message FILE] [--expect-model ID] [--out FILE]
+```
+
+* **The launch.** `prepare` makes a neutral run directory: `sim/` a `git archive` of the named commit, `run/` the session, `work/` only
+  a few-line `robot.py`, which is the child's working directory, and `launch/` the child's files. The child is
+  `claude -p --safe-mode --model claude-opus-5-5 --system-prompt-file run/briefing.txt --tools Bash --allowedTools "Bash(python robot.py *)"
+  --permission-prompts none --strict-mcp-config --disable-slash-commands --settings <no attribution> --session-id <uuid> --autocompact auto
+  --output-format stream-json --verbose`, with the first message on stdin. `launch --dry` prints the exact command. `--bare` is never
+  used: its auth is an API key only.
+* **Who pays.** The child's environment is built from a list of names, so `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`,
+  `ANTHROPIC_BASE_URL` and `CLAUDE_CODE_USE_*` are left out and their values never read. `claude auth status` under that environment
+  must report a login that is not a key, or nothing starts. The child's first record must say `apiKeySource: "none"`, or it is killed
+  at once. A session that gets its login from a host (Claude Desktop) passes none to its subprocesses, so the CLI needs its own:
+  `claude auth login`, once, by the owner.
+* **What holds the child in.** Inside its working directory Claude Code lets read-only shell commands through unasked, and that includes
+  `; cat x` after an allowed command, so the working directory holds nothing but `robot.py`. Seen on the real child: outside it `cat`, `ls`
+  and a `;` chain are refused, as is another `python`, and `robot.py` passes on only `step` and `more`. The audit is still what decides:
+  any of these attempts voids the run even when refused.
+* **What the robot reads.** The prompt is `llm.system_prompt(catalog, tool_mode=False)` byte for byte with only its format paragraph
+  replaced (`SPARSE_FORMAT`). A step prints the lossless per-room delta of `tools/flagship/printer.py`, a pure function importing only
+  `json`: `result`, `set` and `unset` for top-level fields, then against this room's last print `room_first_seen`, `new`, `changed`,
+  `out_of_view`. `out_of_view` means not listed from here, not that it moved. Change-marking is done by the print tool, not by Claude, and
+  `restore` rebuilds the exact observation from the prints alone. Inside a thing only eight named fields holding their unremarkable value are
+  left out; false and 0 elsewhere are printed. Above 28,000 characters a print comes in pages. After the episode ends `step` prints only
+  `The episode is over.` `--observation compact` and `raw` remain, with their old cuts and limits.
 * **What a command is.** The `--json` text goes through `llm.to_command`, as an LLM's reply does, so malformed text is the same
-  refused, counted step. `--why` is required, is stored as the `_why` annotation, reaches `log["steps"][k]["command"]` and never
-  `sent` or the replay. A call without a reason is refused and not stored.
+  refused, counted step. `--why` and `--goal` are required, `--plan` optional, stored as `_why`, `_goal`, `_plan`; they reach
+  `log["steps"][k]["command"]` and never `sent` or the replay. A call without them is refused and not stored.
+* **The chain.** `h_i = sha256(h_(i-1), sha256(what was printed before this command), the --json text, why, goal, plan)`. A step whose stored
+  chain does not verify halts before simulating. `chain.jsonl` gets the line before the simulator runs; `steps.jsonl` gets the outcome after.
+* **When the robot stops driving.** Claude ending its turn with text, a stalled child, a usage limit: no retry. `launch` writes why in
+  `launch/child_exit.json`, and `finalize` idles the robot from its last command to the end of the episode with `wait` commands marked `_idle`,
+  sets `end_reason` to `robot_stopped`, `stop_reason` to why and `harness_end_reason` to what the loop said. The run is scored and published
+  like any other, and `step` then says the episode is over.
 * **Failures.** The robot sees one plain sentence; the detail goes to `<session>/operator_report.jsonl`. A harness exception
   ends the episode at that step (`end_reason: harness_crash` in the session), and `finalize` writes `run.json` with status
-  `aborted`, `crash.json` and exit status 3, what `run()` does with a harness failure. Known cause today: on a schema-4 spec two
-  contradicting typed reports raise `IndexError` at `ledger.py:2102`.
+  `aborted`, `crash.json` and exit status 3, what `run()` does with a harness failure.
 * **Finalize** runs the stored commands once more through `run.run_episode` and writes `run.json`, `episodes.jsonl`,
   `logs/<id>__<tag>.json`, `replays/` and a copy of the session under `session/`. It prints the full evaluation from `replay_log`,
-  the final state hash and both fingerprint matches. A session that never declared `done` ends as `agent_error`.
-* **The audit.** The session folder holds the spec, and Python and the shell are no boundary, so a run counts only with a PASS:
-  every tool call is the exact step form (read the way bash reads it: no `;`, `&&`, `|`, `$(`, backticks or redirection outside
-  quotes), matches the stored commands and reasons one to one, and the counts agree. Allowed besides: `brief` before the first
-  step and one `SubagentHandback` as the last call. Warnings, such as a tool output that differs from what the session printed
-  or a message injected after the first, are reported and do not change the verdict.
+  the final state hash, both fingerprint matches and whether the chain verifies.
+* **The consistency audit** shows that the files agree, not more: a hand-written transcript with matching commands would pass. It reads the
+  headless and the subagent transcript form and imports no simulator code. A1 only the step form, read the way bash reads it; A2 only known
+  blocks and attachment kinds, none from a hook; A3 transcript = `steps.jsonl` = log = replay; A4 every output = a fresh `reprint`; A5 no
+  id, label, event, helper or project word in what reaches the model, and in the headless form no e-mail, memory or git status, and
+  the system prompt is the briefing; A6 one model; A7 compactions counted, not a void; A9 the chain, on the audit's own arithmetic; A10 each
+  output after its call, with wall time per step split into model and tool. A8 (the attempt ledger) comes with the seed runs. A refused call in
+  the right form, and a call after the end, change nothing: they are warnings, not voids.
 
-Limits: the raw transcript is not publishable as it stands, because Claude Code adds the user's email, memory index and git
-status to the subagent's context. The tool points its home away from `~/.house_ai`, so a seed listed only in the private
-manifest is not refused (private-range seeds are). Git Bash rewrites an argument that starts with `/`, so such a `--why` is
-stored changed and the audit fails it; the briefing tells the robot not to start one that way. Tests:
-`python -m unittest tests/test_robot_step.py`, also with `HOUSE_SIM_STRICT=1`.
+Measured on the real `claude` 2.1.306 child against a local stand-in for the Messages API (no model, nothing off the machine): the system prompt
+is one identity line, a billing header and the briefing byte for byte; the messages are the first message and a block with working directory,
+platform, shell, OS, model name, token budget and today's date. No e-mail, memory, git status, instructions file, skills or hooks.
+The transcript is at `<config>/projects/<encoded cwd>/<session id>.jsonl`.
+
+Limits: not measured with a real model, so the real tokens, model time and a login's system prompt are open. A raw transcript is not
+publishable as it stands: `cwd` holds the Windows user name. The Agent-tool form (`prepare --agent-tool-form`, then `audit --transcript`) carries the
+user's email, memory index and git status into the subagent's context, and the audit warns of that. The tool points its home away from `~/.house_ai`, so
+a seed listed only in the private manifest is not refused (private-range seeds are). Tests: `python -m unittest tests/test_robot_step.py
+tests/test_robot_audit.py`, also with `HOUSE_SIM_STRICT=1`.
 
 ## LLMAgent (llm.py)
 

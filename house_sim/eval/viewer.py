@@ -1562,20 +1562,27 @@ def _spec_status(spec, verify_spec):
 
 
 def _live_env(episode, warnings, trace=True):
+    from ..kernel import timeline
     from ..kernel.engine import HouseEnv, actions_fingerprint
-    from ..kernel.world import World, clone
+    from ..kernel.world import World, WriterLog, clone
     # observe_on_step=True like the harness and HouseEnv.replay: some actions read the known map that observing builds
     env = HouseEnv(episode["initial"], episode["task"], episode["seed"], trace=trace, observe_on_step=True,
                    perception=episode["perception"], camera=episode.get("camera"))
     env.raw_results = True     # like the task runner: step results keep the raw message and the evaluation
     if episode.get("start_state") is not None:
+        # the start of HouseEnv.replay, step for step (kernel/engine.py): a re-run that starts differently shows another
+        # robot's view (prior knowledge) and another ledger (the writer log) with the same commands and the same state
         env.world = World(clone(episode["start_state"]), env.registry)
+        env.writes = WriterLog()       # rebuilt by the re-run
+        env.world.track(env.writes)
         env._camera_view = None
+        timeline.start(env)
+        env._sync_instruction()
         if env.realism is not None:
             from ..kernel.realism import Realism
             env.realism = Realism(env)
-            if hasattr(env, "_note_view"):
-                env._note_view()       # what the cameras saw at the start, as HouseEnv.replay does ...
+            env._note_view()           # what the cameras saw at the start ...
+            env._start_mind()          # ... the Mind against this Realism (prior knowledge's handles and grants) ...
             env.observe()              # ... and the observation reset() returned (the handles it issued)
         if episode.get("baseline") is not None:
             env._baseline = episode["baseline"]
