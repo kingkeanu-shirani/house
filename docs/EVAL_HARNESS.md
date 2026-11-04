@@ -109,6 +109,51 @@ watch `obs.robot.battery` (an integer gauge in realistic perception), `battery_s
 Options a constructor does not accept are ignored, so one option dict (CLI `--agent-opt KEY=VALUE`, JSON values)
 can serve any agent.
 
+## Claude as the driver (`tools/robot_step.py`, `tools/audit_robot_transcript.py`)
+
+A Claude Code subagent can control the robot with no API bill, through one shell command that runs the normal harness loop.
+It uses no `llm:*` agent and no network. Each `step` is a stateless rebuild: the session folder stores the spec, seed, nonce
+and commands so far, and the whole episode re-runs through `run._run_episode` with a small `Agent` that replays them, stops at
+the next decision and prints what the harness handed it. Each decision's digest is compared on every later rebuild, so
+each step re-proves determinism; a difference halts the session.
+
+```
+python tools/robot_step.py start --session DIR --spec FILE [--catalog-id ID] --seed N [--nonce TEXT] [--camera room|geometric] [--observation compact|raw]
+python tools/robot_step.py prompt --session DIR      # the whole briefing, to paste as the subagent's prompt
+python tools/robot_step.py launch --session DIR      # or: a few lines that tell the subagent to read it in pages
+python tools/robot_step.py brief --session DIR --part N
+python tools/robot_step.py step --session DIR --why "reason" --json '{"action": "look"}'
+python tools/robot_step.py finalize --session DIR --out DIR [--agent-label TEXT] [--run-id TEXT]
+python tools/audit_robot_transcript.py TRANSCRIPT.jsonl --session DIR [--out FILE]
+```
+
+* **What the robot reads.** The briefing is `llm.system_prompt(catalog, tool_mode=False)` verbatim (its hash is
+  `system_prompt_sha256`) plus how to call `step`. A step prints the filtered result, the instruction and the observation as
+  `llm.compact_observation` renders it for `llm:*` agents, not the raw observation: the raw one was 23,000 characters in a
+  living room with 56 things in view, close to the Bash tool's 30,000-character output limit, and an overflow would push the robot
+  to read a file. `--observation raw` prints it unfiltered. After the episode ends, `step` prints only `The episode is over.`
+* **What a command is.** The `--json` text goes through `llm.to_command`, as an LLM's reply does, so malformed text is the same
+  refused, counted step. `--why` is required, is stored as the `_why` annotation, reaches `log["steps"][k]["command"]` and never
+  `sent` or the replay. A call without a reason is refused and not stored.
+* **Failures.** The robot sees one plain sentence; the detail goes to `<session>/operator_report.jsonl`. A harness exception
+  ends the episode at that step (`end_reason: harness_crash` in the session), and `finalize` writes `run.json` with status
+  `aborted`, `crash.json` and exit status 3, what `run()` does with a harness failure. Known cause today: on a schema-4 spec two
+  contradicting typed reports raise `IndexError` at `ledger.py:2102`.
+* **Finalize** runs the stored commands once more through `run.run_episode` and writes `run.json`, `episodes.jsonl`,
+  `logs/<id>__<tag>.json`, `replays/` and a copy of the session under `session/`. It prints the full evaluation from `replay_log`,
+  the final state hash and both fingerprint matches. A session that never declared `done` ends as `agent_error`.
+* **The audit.** The session folder holds the spec, and Python and the shell are no boundary, so a run counts only with a PASS:
+  every tool call is the exact step form (read the way bash reads it: no `;`, `&&`, `|`, `$(`, backticks or redirection outside
+  quotes), matches the stored commands and reasons one to one, and the counts agree. Allowed besides: `brief` before the first
+  step and one `SubagentHandback` as the last call. Warnings, such as a tool output that differs from what the session printed
+  or a message injected after the first, are reported and do not change the verdict.
+
+Limits: the raw transcript is not publishable as it stands, because Claude Code adds the user's email, memory index and git
+status to the subagent's context. The tool points its home away from `~/.house_ai`, so a seed listed only in the private
+manifest is not refused (private-range seeds are). Git Bash rewrites an argument that starts with `/`, so such a `--why` is
+stored changed and the audit fails it; the briefing tells the robot not to start one that way. Tests:
+`python -m unittest tests/test_robot_step.py`, also with `HOUSE_SIM_STRICT=1`.
+
 ## LLMAgent (llm.py)
 
 Each step is one **stateless** request: a static system prompt plus one user turn. Nothing earlier is ever replayed
