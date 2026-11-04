@@ -4559,7 +4559,13 @@
    "{p1}": {
     "to": [
      "off_floor:master_bedroom_1",
-     "off_floor:office_1"
+     "off_floor:office_1",
+     "within:upper_cabinet_1",
+     "within:upper_cabinet_2",
+     "within:upper_cabinet_3",
+     "within:upper_cabinet_4",
+     "within:upper_cabinet_5",
+     "within:upper_cabinet_6"
     ]
    },
    "{p2}": {
@@ -4568,7 +4574,12 @@
      "off_floor:office_1",
      "within:cabinet_1",
      "within:upper_cabinet_1",
-     "within:wall_shelf_1"
+     "within:wall_shelf_1",
+     "within:upper_cabinet_2",
+     "within:upper_cabinet_3",
+     "within:upper_cabinet_4",
+     "within:upper_cabinet_5",
+     "within:upper_cabinet_6"
     ]
    },
    "{dish}": {
