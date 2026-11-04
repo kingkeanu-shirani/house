@@ -1804,3 +1804,49 @@ state field and no type data, so generated houses keep their digests; these move
 * `viewer._live_env` starts like `HouseEnv.replay`: a new writer log tracked on the re-run's world, `timeline.start`,
   `_sync_instruction` and, under realistic perception, `_note_view`, `_start_mind` and `observe`. Before, a
   prior-knowledge episode lost its handles and grants on the page, and the ledger read an empty writer log.
+
+**Flagship fixes, round 2 (after the pilot's review; tests/test_flagship_fixes.py).** These move `fingerprint()`.
+Nothing here is specific to the episode. Where a generated house or a schema-2 or 3 spec can see a change, it is named.
+* `push_handle extent` on a part-open door or cabinet door going wider (`closures.widen`, `SWEEPING_KINDS`) makes the same
+  contact as opening it: `apply_open`'s sweep, whoever stands in the arc, a firm push tips what a firm push tips, and
+  a leaf already past the stop is not pulled back. It answers "It stays 35% open" or "Moved it to N% open" from what really
+  happened. Before, it set the opening with no check at any force, through a 40 kg box.
+* `open_angle_deg` follows the leaf (`paths._mirror_leaf`): push and pull through a handle now run the open verb's own
+  door-swing contact (hook `mechanisms.opened`, `paths._door_contact`, low things nudged aside), a move to a smaller opening
+  mirrors it (new hook `mechanisms.leaf_moved`), and a shut door has no such field. Its stop against furniture is at most
+  the opening the leaf has. The field is class `process` in `data/verify/watch_fields.json`: `open` and `open_frac` are what
+  the ledger judges a door by.
+* `inspect`'s `swing_blockers` under realistic perception is a list only for an arc the robot can look over (in the swing
+  room, in light, room camera), or when it does see something there; otherwise it reads "not visible from here", the same
+  with or without a thing it cannot see. Before, `[]` from the hallway read as "nothing there". A shut door's
+  `open_angle_deg` reads 0.
+* `go_to` meeting a door it cannot pass stops there, like the locked door: "Stopped at <door> in <room>: it opened only about
+  N cm" after opening it, "it is open only about N cm" when it already stood so, and the walk, the open and `door_stops`
+  stand. Before, the nested `move` was refused and the whole step rolled back, so the words described a door that was shut
+  again, from wherever the robot started, for 1 s. The rule is `closures.narrow_gap_cm`, which `_before_move` also uses; its
+  own refusal names a door the robot cannot see as "The door to <room>", not "The something".
+* `go_to` that falls (or gets stuck) on the way stops there: "Stopped in <room>: the robot fell (<cause>); recover first".
+  Before, the next leg's refusal rolled back the fall and told a standing robot it had fallen, or the last leg said "Arrived
+  at" of a robot lying on the floor. A last leg that stopped short answers "Stopped in <room> (<incident>)". As for every
+  motion verb and the locked door, `ok` is true: the command ran, and the message says how far.
+* `clean_shards method=vacuum` takes the glass into the held vacuum's own bin (`glass._vacuum_bin`, else the vacuum itself)
+  unless a destination is named; a receiver in or part of what the robot holds is in hand (`glass._in_hand`); a large piece
+  still cuts the hose, and the answer now says so. A held trash bag (`liner` or `waste_kind: bag`) is the bag the refusal
+  asks for. `core._shard_in_receiver` reads a receiver that is a part of the thing handled.
+* `appliances_cooking.cook.heat_context`, the fall-through "air" mode, with nothing in the location chain above
+  `OPEN_AIR_CAP_C` by `internal_temp_c`: `top_c`, `bottom_c` and `air_c` are at most that cap (100 C), below `BROWN_START_C` and
+  at the drying threshold. Food out of every heat source no longer browns or dries against its own surface temperature, so a
+  dish lifted out at 190 C stays the colour it was. Before, it burnt on the counter at about the pace of the oven. Browning and
+  burn thresholds are unchanged, and so is every appliance mode: in a hot shut oven it still burns, with the oven on or off, and
+  a pan on safety's stand-in burner (no `ac_kind`, so also the air mode) still chars. The food's own temperature is not touched
+  and stays hot (about 175 C at t = 660 in the flagship; neither the counter nor the fridge cools it in that time).
+* The ledger (schema 4 only): `Ledger.no_worse_than_idle`, a writer other than the robot is not charged for a condition
+  number no worse than the idle house's at the bracketing checkpoints; `Ledger.above_idle`, the same for a room's soil and wet
+  cells. The robot's own writes are charged as before. A charge now means worse than no robot, where it used to mean
+  different from no robot, so stopping a flood is no longer water damage and the no-robot run carries no damage charge.
+* `data/verify/watch_fields.json`: `water_damage` and `wrinkled` (`worse: up`, `tol` 0.02), `residue` and `residue.*` (`tol`
+  0.02). Measured on a robot that only waits, against its own idle rollout, on 27 wait grids at t = 660: up to +0.0081 water
+  damage, +0.0066 stain, +0.0002 wrinkle, from 30 s and 300 s periodic systems ticking at another phase and rounding per tick.
+  A flood the robot lets loose is well past it (tests: `RobotThatWorsensAFloorTests`). `worse: up` because they are numbers:
+  one already above zero at the start was free to rise under `worse: true`, so this one change can add a charge, for a
+  garment a dryer wrinkles further.

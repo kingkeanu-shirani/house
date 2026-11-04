@@ -417,10 +417,19 @@ def push_handle(ctx):
         _open_to(ctx, eid, rec, 1.0 if extent is None else extent, force, "push")
         _hold(ctx, eid, ctx.args["hold_s"])
         return "Pushed {} open to {:.0f}%".format(eid, 100 * C.num(C.mget(w.ent(eid), "open_frac", 1.0), 1.0))
-    # already open: push toward shut (or to a smaller opening)
+    # already open: push toward shut (or to another opening)
     target_extent = 0.0 if extent is None else extent
     if target_extent > 0.0:
+        was = C.num(C.mget(rec, "open_frac", 1.0), 1.0)
+        if kind in K.SWEEPING_KINDS and target_extent > was:
+            # wider: the leaf sweeps on through its arc and meets what opening it would meet
+            now = K.widen(ctx, eid, target_extent, force)
+            _hold(ctx, eid, ctx.args["hold_s"])
+            if now <= was + 0.005:
+                return "It stays {:.0f}% open".format(100 * now)
+            return "Moved it to {:.0f}% open".format(100 * now)
         C.set_open(w, eid, target_extent)
+        run_hooks("mechanisms.leaf_moved", ctx, eid)
         _hold(ctx, eid, ctx.args["hold_s"])
         return "Moved it to {:.0f}% open".format(100 * target_extent)
     if ctx.args["hold_s"] > 0:

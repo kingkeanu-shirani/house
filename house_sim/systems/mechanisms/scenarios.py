@@ -1038,7 +1038,7 @@ def scene_bind_helper(ctx, laundry="laundry_room", hall="hallway", bedroom="mast
     ldoor (the only door into the laundry room, off the hallway), swing_room, swing_cell (a cell its leaf sweeps), lfar (a
     free cell far from the door, away from its swing), mdoor (hallway door of the master bedroom), washer, cvalve, hvalve
     (the shutoff valves that feed that washer), leak_cell (a free cell by the washer, outside the swing), spill_cell
-    (_scene_spill_cell), seep_cell (a free hallway cell beside the door's threshold), dishwasher (the kitchen's), broom, pan, kit_home (the room the broom starts in), kit_holder (the
+    (_scene_spill_cell), seep_cell (a free hallway cell beside the door's threshold), door_side (another one, kept dry: where a person stands at the door), dishwasher (the kitchen's), broom, pan, kit_home (the room the broom starts in), kit_holder (the
     closet shelving both tools can be remembered on), kit_targets (a surface with space for both in each kit room that has
     one), mitts_home (where the
     mitts given are), table_mid_0, table_mid_1 (the middle of the table's top, m), p1, p2 (the first two of `privates`),
@@ -1111,7 +1111,8 @@ def scene_bind_helper(ctx, laundry="laundry_room", hall="hallway", bedroom="mast
     if not targets:
         raise SpecError("mechanisms.scene_bind: no surface in {} takes the broom and dustpan".format(", ".join(kit_rooms)))
     out = {"ldoor": ldoor, "swing_room": swing_room, "swing_cell": list(free_swing[0]), "lfar": list(far[0]), "mdoor": mdoor, "washer": washer,
-           "cvalve": cvalve, "hvalve": hvalve, "leak_cell": list(by_washer[0]), "spill_cell": spill, "seep_cell": list(by_door[0] if by_door else threshold), "dishwasher": dws[0], "broom": tool["broom"],
+           "cvalve": cvalve, "hvalve": hvalve, "leak_cell": list(by_washer[0]), "spill_cell": spill, "seep_cell": list(by_door[0] if by_door else threshold),
+           "door_side": list(by_door[-1] if len(by_door) > 1 else threshold), "dishwasher": dws[0], "broom": tool["broom"],
            "pan": tool["dustpan"], "kit_home": root_room_of(state, tool["broom"]), "kit_holder": kit_holder, "kit_targets": targets,
            "all_rooms": sorted(state["rooms"])}
     if mitts is not None:
@@ -1129,6 +1130,82 @@ def scene_bind_helper(ctx, laundry="laundry_room", hall="hallway", bedroom="mast
     for name, parts in sorted((sums or {}).items()):
         out[name] = sum(parts)
     return out
+
+
+@scenario_helper("mechanisms.scene_roles")
+def scene_roles_helper(ctx, table, dishwasher, glass, dishes, floor_things, guests=(), kitchen="kitchen", bedroom="master_bedroom"):
+    """Names for what a scripted plan handles in the flagship scene, read from the finished setup; draws nothing and changes
+    nothing. A role this house lacks is None (a plan naming it then stops there, and says so).
+
+    toy_a (the floor thing nearest the robot), toy_b (nearest that), toys_rest; roll, roll_home; cloth, cloth_home (the first
+    kitchen microfiber cloth and where it lies); ksink; dish_a, dish_b, dish_c (`dishes`, the one furthest from the first two
+    last); plate_a..d, glass_a..d (the dinner plates and drinking glasses in the dishwasher); shelf_glass_a, shelf_glass_b,
+    shelf (clean glasses outside the machine, not `glass`, and what holds them); shelf_plate (a clean plate outside it); private_spot (the surface in the bedroom
+    nearest its door); chair (the chair nearest where one reaches the table from the kitchen); spot_0..spot_7 (places on the table, four on each half on
+    both axes, for the plates first), spot_mid (the middle of its top); guest_1, guest_2.. (`guests`, for a predicate and an envelope to name)."""
+    state = ctx.placer.state()
+    entities = state["entities"]
+    kroom = _rooms_of(ctx, kitchen)[0]
+    robot = tuple((state.get("robot") or {}).get("pos") or (0, 0))
+
+    def here(eid):
+        return tuple(entities[eid].get("pos") or robot)
+
+    def in_kitchen(kind):
+        return [e for e in sorted(entities) if entities[e].get("type") == kind and root_room_of(state, e) == kroom]
+
+    def first(items):
+        return items[0] if items else None
+
+    def within_machine(eid):
+        return is_within_entity(state, eid, dishwasher)
+
+    toys, order, at = list(floor_things), [], robot
+    while toys:
+        toys.sort(key=lambda e: (geometry.chebyshev(here(e), at), e))
+        order.append(toys.pop(0))
+        at = here(order[-1])
+    roll, cloth = first(in_kitchen("paper_towel_roll")), first(in_kitchen("microfiber_cloth"))
+    out = {"toy_a": first(order), "toy_b": first(order[1:]), "toys_rest": order[2:], "roll": roll, "roll_home": entities[roll].get("location") if roll else None,
+           "cloth": cloth, "cloth_home": entities[cloth].get("location") if cloth else None, "ksink": first(in_kitchen("kitchen_sink"))}
+    together = sorted(dishes, key=lambda e: (sum(1 for o in dishes if entities[o].get("location") == entities[e].get("location")) == 1, e))
+    for name, eid in zip(("dish_a", "dish_b", "dish_c"), together + [None] * 3):
+        out[name] = eid
+    plates = [e for e in in_kitchen("dinner_plate") if within_machine(e)]
+    glasses = [e for e in in_kitchen("drinking_glass") if within_machine(e)]
+    shelf = [e for e in in_kitchen("drinking_glass") if not within_machine(e) and e != glass]
+    for prefix, items in (("plate", plates), ("glass", glasses)):
+        for name, eid in zip("abcd", items + [None] * 4):
+            out["{}_{}".format(prefix, name)] = eid
+    out["shelf_glass_a"], out["shelf_glass_b"] = (shelf + [None, None])[:2]
+    out["shelf"] = entities[shelf[0]].get("location") if shelf else None
+    out["shelf_plate"] = first([e for e in in_kitchen("dinner_plate") if not within_machine(e)])
+    broom = _rooms_of(ctx, bedroom)[0]
+    door = next((tuple(c["cells"][broom]) for c in (state.get("connections") or {}).values() if broom in (c.get("cells") or {})), (0, 0))
+    surfaces = [e for e in sorted(entities) if entities[e].get("location") == broom and entities[e].get("type") in ("nightstand", "dresser") and entities[e].get("pos")]
+    out["private_spot"] = first(sorted(surfaces, key=lambda e: (geometry.chebyshev(here(e), door), e)))
+    droom = entities[table].get("location")
+    entrance = next((tuple(c["cells"][droom]) for c in (state.get("connections") or {}).values() if droom in (c.get("cells") or {}) and kroom in (c.get("cells") or {})), (0, 0))
+    _, foot = geometry.anchor(state, table)
+    blocked = set(map(tuple, geometry.blocked_cells(state, droom)))
+    sides = sorted((c for c in geometry.near_cells([tuple(f) for f in foot or ()], state["rooms"][droom]) if c not in blocked), key=lambda c: (geometry.chebyshev(c, entrance), c))
+    stand = sides[0] if sides else entrance
+    chairs = [e for e in sorted(entities) if entities[e].get("type") == "chair" and entities[e].get("location") == droom and entities[e].get("pos")]
+    out["chair"] = first(sorted(chairs, key=lambda e: (geometry.chebyshev(here(e), stand), e)))
+    width, depth = (entities[table].get("surface_size_m") or entities[table].get("size_m") or [1.0, 1.0])[:2]
+    spots = [(0.11, 0.17), (0.72, 0.17), (0.11, 0.61), (0.72, 0.61), (0.31, 0.17), (0.58, 0.17), (0.31, 0.61), (0.58, 0.61)]
+    for index, (fx, fy) in enumerate(spots):
+        out["spot_{}".format(index)] = [round(float(width) * fx, 2), round(float(depth) * fy, 2)]
+    out["spot_mid"] = [round(float(width) * 0.42, 2), round(float(depth) * 0.33, 2)]
+    for index, person in enumerate(guests):
+        out["guest_{}".format(index + 1)] = person
+    return out
+
+
+def is_within_entity(state, eid, ancestor):
+    """Whether eid lies in or on ancestor, through what holds it. Pure."""
+    from ...kernel.predicates import is_within
+    return is_within(state, eid, ancestor)
 
 
 def root_room_of(state, eid):

@@ -1,15 +1,21 @@
 """Start, audit and finalize a Claude run of the robot as a headless Claude Code child (docs/EVAL_HARNESS.md, "Claude as the
 driver"; DESIGN 3.2). Stdlib only. Commands, all from the checkout:
 
-    python tools/robot_launch.py prepare --commit REV --spec FILE [--catalog-id ID] --seed N [--nonce TEXT] [--root DIR] [--name sim_x]
+    python tools/robot_launch.py prepare --commit REV --spec FILE [--catalog-id ID] --seed N [--nonce TEXT] [--root DIR] [--name sim_x] [--agent-tool-form]
     python tools/robot_launch.py launch --run-dir DIR [--dry] [--stall-s 900] [--max-wall-s 14400]
-    python tools/robot_launch.py audit --run-dir DIR [--finalized OUT]
-    python tools/robot_launch.py finalize --run-dir DIR --out OUT [--agent-label TEXT]
+    python tools/robot_launch.py audit --run-dir DIR [--transcript FILE] [--finalized OUT]
+    python tools/robot_launch.py finalize --run-dir DIR --out OUT [--agent-label TEXT] [--stop-reason TEXT]
 
 `prepare` makes a neutral run directory: a frozen `git archive` of the named commit in sim/, the session in run/, and work/ with
 only a few-line robot.py, the child's working directory. So the robot sees `python robot.py step ...`, no spec path, no project word,
 and edits in the checkout cannot move the code under a run. `--spec` is read from the frozen tree when the path exists there. `launch` starts the child there and waits;
 `--dry` prints the exact command, the environment's names and what would be checked, and starts nothing.
+
+The Agent-tool form (`prepare --agent-tool-form`; RULINGS: the launch while `claude auth login` fails here). No child: the parent gives a subagent the few
+lines prepare wrote to launch/agent_prompt.txt, and nothing else. A subagent's shell starts in its parent's folder and goes back there after every call, so it cannot
+stand in work/. Its shell can reach robot.py through ~/ as one simple command, `python ~/robot_run/sim_x/work/robot.py step ...`, which names neither the user nor the
+tree. That line and the briefing, whose short form is the same on every attempt, are all it gets; the run directory must be under the home folder. prepare runs the
+form through Git Bash from another working directory and refuses if the words do not reach the page, or if the texts name the home folder, the user, the run directory or the spec.
 
 The child's environment is built from CHILD_ENV, a list of names, plus FIXED_ENV. Nothing else from this process reaches it, so
 ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL and CLAUDE_CODE_USE_* are left out by not being named, and their
@@ -26,6 +32,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -63,7 +70,7 @@ ROBOT_PY = '''"""The robot's one command."""
 import os, runpy, sys
 top = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 tool = os.path.join(top, "sim", "tools", "robot_step.py")
-verb = sys.argv[1:2] if sys.argv[1:2] in (["step"], ["more"]) else ["step", "--refused"]
+verb = sys.argv[1:2] if sys.argv[1:2] in (["step"], ["more"], ["brief"]) else ["step", "--refused"]
 sys.argv = [tool] + verb + sys.argv[2:] + ["--session", os.path.join(top, "run")]
 runpy.run_path(tool, run_name="__main__")
 '''
@@ -131,11 +138,61 @@ def run_tool(run_dir, *args):
     return subprocess.run([sys.executable, str(Path(run_dir) / "sim" / "tools" / "robot_step.py")] + list(args), capture_output=True, text=True, encoding="utf-8", env=env, cwd=str(run_dir))
 
 
+def agent_tool_reach(run_dir):
+    """How a subagent's shell reaches robot.py from any working directory, naming neither the user nor the tree."""
+    try:
+        relative = run_dir.relative_to(Path.home().resolve())
+    except ValueError:
+        raise LaunchError("the Agent-tool form reaches robot.py through ~/: the run directory must be under the home folder ({} is not)".format(run_dir))
+    reach = "~/" + (relative / WORK / "robot.py").as_posix()
+    if not re.fullmatch(r"[A-Za-z0-9_./~-]+", reach):
+        raise LaunchError("the Agent-tool form's path must be one plain shell word: {}".format(reach))
+    return reach
+
+
+def git_bash():
+    """The Git Bash a Bash tool would use on this machine, or None."""
+    names = [os.environ.get("CLAUDE_CODE_GIT_BASH_PATH"), r"C:\Program Files\Git\bin\bash.exe", r"C:\Program Files (x86)\Git\bin\bash.exe"] if os.name == "nt" else [shutil.which("bash")]
+    for name in names:
+        if name and Path(name).is_file():
+            return name
+    return shutil.which("bash") if os.name == "nt" and "git" in str(shutil.which("bash")).lower() else None
+
+
+def check_reach(run_dir, reach):
+    """The form, as the robot will type it, through a real shell in another working directory. -> "ok" or why it was not run."""
+    bash = git_bash()
+    if bash is None:
+        return "not run: no Git Bash here"
+    done = subprocess.run([bash, "-c", "python {} brief --part 1".format(reach)], capture_output=True, text=True, encoding="utf-8", cwd=str(run_dir.parent))
+    pages = json.loads((run_dir / "run" / "briefing_pages.json").read_text(encoding="utf-8"))
+    if done.returncode != 0 or done.stdout.strip() != pages[0].strip():
+        raise LaunchError("the Agent-tool form does not reach robot.py from another folder: status {}: {}".format(done.returncode, (done.stderr or done.stdout)[:300]))
+    return "ok"
+
+
+def revealing_in(run_dir, spec_path, session):
+    """What the robot reads must name nothing of who or where. -> [(file, what)] found."""
+    home = Path.home().resolve()
+    words = {"the home folder": [str(home), home.as_posix()], "the run directory": [str(run_dir), run_dir.as_posix()], "the spec path": [str(spec_path), Path(spec_path).as_posix()],
+             "the catalog id": [session["catalog_id"]], "the nonce": [session["episode_nonce"]]}
+    patterns = {what: re.compile("|".join(re.escape(word) for word in texts), re.IGNORECASE) for what, texts in words.items()}
+    user = os.environ.get("USERNAME") or os.environ.get("USER")
+    if user and len(user) >= 3:
+        patterns["the user name"] = re.compile(r"\b{}\b".format(re.escape(user)), re.IGNORECASE)
+    found = []
+    for path in (run_dir / "launch" / "agent_prompt.txt", run_dir / "run" / "briefing.txt", run_dir / "run" / "briefing_pages.json", run_dir / "run" / "first_message.txt"):
+        text = path.read_text(encoding="utf-8")
+        found.extend((path.name, what) for what, pattern in patterns.items() if pattern.search(text))
+    return found
+
+
 def cmd_prepare(args):
     name = args.name or "sim_" + secrets.token_hex(3)
     run_dir = (Path(args.root) if args.root else DEFAULT_ROOT).resolve() / name
     if run_dir.exists():
         raise LaunchError("the run directory exists already: a run is never restarted in place: {}".format(run_dir))
+    reach = agent_tool_reach(run_dir) if args.agent_tool_form else None
     run_dir.mkdir(parents=True)
     sim = run_dir / "sim"
     commit, overlay = freeze_tree(args.commit, sim, args.overlay or ())
@@ -144,9 +201,9 @@ def cmd_prepare(args):
     spec_path = in_tree if in_tree is not None and in_tree.is_file() else spec.resolve()
     (run_dir / WORK).mkdir()
     (run_dir / WORK / "robot.py").write_text(ROBOT_PY, encoding="utf-8")
-    start = ["start", "--session", str(run_dir / "run"), "--spec", str(spec_path), "--seed", str(args.seed)]
-    if not args.agent_tool_form:
-        start += ["--robot-script", "robot.py"]     # the fallback's subagent has another working directory, so it gets the long form
+    start = ["start", "--session", str(run_dir / "run"), "--spec", str(spec_path), "--seed", str(args.seed), "--robot-script", "robot.py"]
+    if reach:
+        start += ["--reach", reach]                 # a subagent has another working directory
     if args.catalog_id:
         start += ["--catalog-id", args.catalog_id]
     if args.nonce:
@@ -161,10 +218,23 @@ def cmd_prepare(args):
         message = message.rstrip("\n") + "\n\n" + args.first_message_suffix + "\n"
     with open(launch / "first_message.txt", "w", encoding="utf-8", newline="\n") as handle:
         handle.write(message)
-    meta = {"format": "house-robot-launch-v1", "commit": commit, "overlay": overlay, "from_commit_alone": not overlay, "spec": str(spec_path), "spec_inside_commit": spec_path == in_tree,
+    form = "agent_tool" if reach else "headless"
+    meta = {"format": "house-robot-launch-v1", "form": form, "commit": commit, "overlay": overlay, "from_commit_alone": not overlay, "spec": str(spec_path), "spec_inside_commit": spec_path == in_tree,
             "seed": args.seed, "model": MODEL, "session_id": str(uuid.uuid4()), "autocompact": AUTOCOMPACT, "first_message_suffix": args.first_message_suffix, "created_utc": _now()}
     _write_json(launch / "run_meta.json", meta)
-    return {"run_dir": run_dir.as_posix(), "commit": commit, "from_commit_alone": not overlay, "session_id": meta["session_id"]}
+    out = {"run_dir": run_dir.as_posix(), "form": form, "commit": commit, "from_commit_alone": not overlay, "session_id": meta["session_id"]}
+    if reach:
+        said = run_tool(run_dir, "launch", "--session", str(run_dir / "run"))
+        if said.returncode != 0:
+            raise LaunchError("the prompt could not be written: {}".format(said.stderr[-1000:]))
+        with open(launch / "agent_prompt.txt", "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(said.stdout.rstrip("\n") + "\n")
+        session = json.loads((run_dir / "run" / "session.json").read_text(encoding="utf-8"))
+        found = revealing_in(run_dir, spec_path, session)
+        if found:
+            raise LaunchError("what the robot reads names something it must not: {}".format(found))
+        out.update(agent_prompt=(launch / "agent_prompt.txt").as_posix(), typed_form="python " + reach, reach_check=check_reach(run_dir, reach), prompt_sha256=session["prompt_sha256"])
+    return out
 
 
 def _load_meta(run_dir):
@@ -276,6 +346,8 @@ def init_gate(record):
 def cmd_launch(args):
     run_dir = Path(args.run_dir).resolve()
     meta = _load_meta(run_dir)
+    if meta.get("form") == "agent_tool":
+        raise LaunchError("this run directory was prepared for the Agent-tool form: give a subagent launch/agent_prompt.txt; a child would be held to the wrong form")
     env = child_env()
     executable = shutil.which("claude", path=env.get("PATH")) or "claude"
     command = child_command(run_dir, meta, executable)
@@ -319,8 +391,11 @@ def cmd_audit(args):
         raise LaunchError("the reprint failed: {}".format(done.stderr[-1000:]))
     command = [sys.executable, str(run_dir / "sim" / "tools" / "audit_robot_transcript.py"), str(transcript), "--session", str(run_dir / "run"), "--reprint", str(reprint),
                "--expect-model", meta["model"], "--out", str(run_dir / "launch" / "audit.json")]
-    if not args.transcript:                 # the fallback's subagent reads the launch text, not this file
+    agent_prompt = run_dir / "launch" / "agent_prompt.txt"
+    if not args.transcript:
         command += ["--first-message", str(run_dir / "launch" / "first_message.txt")]
+    elif agent_prompt.is_file():            # a subagent's first message is the launch text
+        command += ["--first-message", str(agent_prompt)]
     if args.finalized:
         command += ["--finalized", str(Path(args.finalized).resolve())]
     audited = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", env=dict(child_env(), PYTHONIOENCODING="utf-8"))
@@ -334,10 +409,11 @@ def cmd_finalize(args):
     meta = _load_meta(run_dir)
     path = run_dir / "launch" / "child_exit.json"
     info = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
-    label = args.agent_label or "Claude ({}) through Claude Code, headless".format(meta["model"])
+    label = args.agent_label or "Claude ({}) through Claude Code, {}".format(meta["model"], "Agent tool" if meta.get("form") == "agent_tool" else "headless")
     finalize = ["finalize", "--session", str(run_dir / "run"), "--out", str(Path(args.out).resolve()), "--agent-label", label, "--run-id", "robot_" + run_dir.name]
-    if info.get("stop_reason"):
-        finalize += ["--stop-reason", info["stop_reason"]]
+    stop_reason = args.stop_reason or info.get("stop_reason")   # the Agent-tool form has no child to read it from: the parent says why
+    if stop_reason:
+        finalize += ["--stop-reason", stop_reason]
     done = run_tool(run_dir, *finalize)
     if done.returncode not in (0, 3) or not done.stdout.strip():
         raise LaunchError("finalize failed: {}".format(done.stderr[-1000:]))
@@ -357,7 +433,7 @@ def _parser():
     prepare.add_argument("--name")
     prepare.add_argument("--overlay", nargs="*", help="working-tree files copied over the frozen tree: a throwaway check only")
     prepare.add_argument("--first-message-suffix", help="text after the first message: a throwaway check only")
-    prepare.add_argument("--agent-tool-form", action="store_true", help="the fallback: the session takes the long step form a subagent can call from anywhere")
+    prepare.add_argument("--agent-tool-form", action="store_true", help="for a subagent: it types python ~/.../work/robot.py, which works from any folder; prepare writes the lines to give it to launch/agent_prompt.txt")
     launch = sub.add_parser("launch")
     launch.add_argument("--run-dir", required=True)
     launch.add_argument("--dry", action="store_true")
@@ -366,11 +442,12 @@ def _parser():
     audit = sub.add_parser("audit")
     audit.add_argument("--run-dir", required=True)
     audit.add_argument("--finalized")
-    audit.add_argument("--transcript", help="the fallback: a subagent's transcript, instead of launch/transcript.jsonl")
+    audit.add_argument("--transcript", help="the Agent-tool form: a subagent's transcript, instead of launch/transcript.jsonl")
     finalize = sub.add_parser("finalize")
     finalize.add_argument("--run-dir", required=True)
     finalize.add_argument("--out", required=True)
     finalize.add_argument("--agent-label")
+    finalize.add_argument("--stop-reason", help="the Agent-tool form: why the robot stopped before the episode ended")
     return parser
 
 

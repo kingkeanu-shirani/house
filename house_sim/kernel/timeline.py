@@ -979,7 +979,8 @@ def describe_notice(record):
                         "until": "?dict", "interrupt_on": "?list"},
         energy=0.0, duration=lambda ctx: 0.0 if (ctx.data.get("wait") or {}).get("met") else float(ctx.args["seconds"]),
         category="control", stopped_ok=True, idle=True, power_off_ok=True,
-        doc="Let time pass; until=observable condition, interrupt_on=[urgent, doorbell, addressed, ...] ends it early. "
+        doc="Let time pass; until=observable condition, interrupt_on=[urgent, doorbell, addressed, ...] ends it early, "
+            "at the next 30 s boundary after what it heard, so listen in short waits when seconds matter. "
             "Appliances, people, pets and weather keep running; pass interrupt_on=[\"urgent\"] for unattended waits.")
 def wait(ctx):
     seconds = ctx.args["seconds"]

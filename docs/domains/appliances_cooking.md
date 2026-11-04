@@ -223,8 +223,9 @@ Sub-models:
   plate heaters,
   slow/rice/pressure cookers, mixer, coffee maker and espresso boiler, timers ringing (10 min), dishwasher cooling
   and drying of washed items, grill grate and propane, fallback air (smoke, odour, gas decay by ventilation).
-* **Food**: every food item that is hot or inside an active heater gets `cook.step_food` (browning, moisture,
-  doneness labels, danger-zone seconds, visible cues).
+* **Food**: every food item that is hot or inside an active heater gets `cook.step_food` (moisture, doneness labels,
+  danger-zone seconds, visible cues). Browning needs heat around it: out in the open air, with nothing above 100 C in its
+  location chain, the surface reads at most 100 C, so a lifted dish stops browning and drying while the food itself stays hot.
 
 -----------------------------------------------------------------------------------------------
 

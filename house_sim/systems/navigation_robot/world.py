@@ -107,6 +107,7 @@ def _observe(env, w, obs):
                            "landings": copy.deepcopy(el.get("landings")), "inside": car == rid}
 
 
+NOT_VISIBLE = "not visible from here"
 SOIL_SHOWN = 0.05          # less on the feet than this is nothing to speak of
 SOIL_WORDS = ((0.2, "traces"), (0.5, "soiled"))
 
@@ -142,12 +143,20 @@ def _inspect(w, eid, rec, details, ctx):
     if rec.get("connects") and rec.get("category") in ("door", "gate") and geometry.door_swing(state, eid)[0] is not None:
         # hinged doors and gates only: an overhead garage door or a sliding door has no leaf sweep or opening angle
         from . import paths
-        _, blockers, agents = paths.swing_blockers(state, eid)
+        swing_room, blockers, agents = paths.swing_blockers(state, eid)
+        whole_arc = True
         if real:
+            here = state["robot"]["room"]
             blockers = [b for b in blockers if C.perceives(ctx.env, state, b)]
-            agents = [a for a in agents if (state.get("people", {}).get(a) or state.get("pets", {}).get(a) or {}).get("location") == state["robot"]["room"]]
-        details["swing_blockers"] = blockers + agents
-        details["open_angle_deg"] = rec.get("open_angle_deg", 90.0 if rec.get("open") else 0.0)
+            agents = [a for a in agents if (state.get("people", {}).get(a) or state.get("pets", {}).get(a) or {}).get("location") == here]
+            # an empty list says "nothing there": only for an arc the robot can look over (in the swing room, in light,
+            # with the room camera). From anywhere else "nothing seen" is not "nothing there": it says so, in the same words
+            # with or without a thing it cannot see
+            whole_arc = swing_room == here and not C.geometric(state) and \
+                (C.light_level(state, here) >= 0.2 or C.robot_has_light(state))
+        details["swing_blockers"] = blockers + agents if whole_arc or blockers or agents else NOT_VISIBLE
+        # a shut door has no opening angle, whatever the leaf last stopped at
+        details["open_angle_deg"] = rec.get("open_angle_deg", 90.0) if rec.get("open") else 0.0
     if rec.get("connects") and rec.get("category") in ("door", "gate"):
         if "latched" in rec:
             details["latched"] = rec.get("latched")

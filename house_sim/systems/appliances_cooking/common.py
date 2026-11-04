@@ -981,7 +981,7 @@ def front_edge_distance(state, eid):
     sw, sd = surface_dims(parent)
     iw, idp = geometry.footprint_m(rec)
     front = sd - (num(spos[1]) + idp)
-    if parent.get("category") == "counter" and not parent.get("island"):
+    if (parent.get("category") == "counter" and not parent.get("island")) or parent.get("ac_kind") == "range":
         return max(0.0, front)
     return max(0.0, min(front, num(spos[1]), num(spos[0]), sw - (num(spos[0]) + iw)))
 

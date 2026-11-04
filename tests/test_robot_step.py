@@ -214,8 +214,8 @@ class TestReferenceEpisode(Base):
         form = json.loads((self.a["folder"] / "session.json").read_text(encoding="utf-8"))["step_form"]
         long_form = '{} "{}" step --session "{}"'.format(form["python"], form["script"], form["session"])
         more_form = long_form.replace(" step --session", " more --session")
-        # byte for byte, with only the format paragraph replaced
-        self.assertEqual(briefing, base.replace(L.JSON_FORMAT, robot.SPARSE_FORMAT.format(step=long_form, more=more_form)))
+        # byte for byte, with only the format paragraph and the first sentence, which is not true of this form, replaced
+        self.assertEqual(briefing, base.replace(L.JSON_FORMAT, robot.SPARSE_FORMAT.format(step=long_form, more=more_form)).replace(robot.HARNESS_TURN_SENTENCE, robot.SPARSE_TURN_SENTENCE))
         self.assertNotIn(L.JSON_FORMAT, briefing)
         self.assertIn(long_form, briefing)
         for wording in ("What is listed depends on where you stand.", "`out_of_view` means not listed from here, not that it moved.",
@@ -564,6 +564,9 @@ class TestChainAndReprint(Base):
         self.assertEqual(session["chain_genesis"], audit.chain_genesis(session))
         lines = [json.loads(line) for line in (folder / "chain.jsonl").read_text(encoding="utf-8").splitlines()]
         self.assertEqual([line["h"] for line in lines], [s["h"] for s in steps])
+        # the field says which print came before in the order served, and does not claim that the model had read it (SV-07)
+        self.assertEqual(lines[0]["prior_print_sha256"], robot.sha256_text(first))
+        self.assertNotIn("seen_sha256", lines[0])
         path = folder / "steps.jsonl"
         path.write_text(path.read_text(encoding="utf-8").replace('"why": "b"', '"why": "a better reason"'), encoding="utf-8")
         with mock.patch.object(robot, "rebuild", side_effect=AssertionError("simulated")):
@@ -754,6 +757,172 @@ class TestLauncher(Base):
         self.assertEqual(done.stdout.strip(), robot.NOTHING_MORE_TEXT)
 
 
+class TestPromptWords(unittest.TestCase):
+    """SV-07 and SV-24: what the briefing says, without a session."""
+
+    FORM = {"python": "python", "script": "robot.py", "session": None}
+
+    def briefing(self, **form):
+        session = {"observation": "sparse", "step_form": dict(self.FORM, **form)}
+        return robot.briefing_text(L.system_prompt([], tool_mode=False), session)
+
+    def test_any_other_tool_or_command_voids_the_run_and_a_parallel_call_is_not_one(self):
+        self.assertTrue(robot.SPARSE_FORMAT.endswith("Any other tool or command voids the run."), robot.SPARSE_FORMAT[-80:])
+        self.assertNotIn("Anything else", robot.SPARSE_FORMAT)
+        self.assertIn("One call per turn, wait for its output.", robot.SPARSE_FORMAT)
+
+    def test_absent_is_explained(self):
+        self.assertIn("`_absent`", robot.SPARSE_FORMAT)
+        self.assertIn("An entity field left out is false, null or empty, or looks dry, room temperature, clean.", robot.SPARSE_FORMAT)
+
+    def test_the_first_sentence_is_true_of_this_form(self):
+        text = self.briefing()
+        self.assertEqual(L.system_prompt([], tool_mode=False).count(robot.HARNESS_TURN_SENTENCE), 1)
+        self.assertNotIn("your memory note", text.split("How the world works")[0])
+        self.assertIn(robot.SPARSE_TURN_SENTENCE, text)
+        self.assertIn("You answer with exactly ONE command per turn.", text)
+
+    def test_the_briefing_is_the_same_for_every_attempt_wherever_its_folder_is(self):
+        self.assertEqual(self.briefing(), self.briefing(reach="~/robot_run/sim_one/work/robot.py"))
+        self.assertEqual(self.briefing(reach="~/robot_run/sim_one/work/robot.py"), self.briefing(reach="~/robot_run/sim_two/work/robot.py"))
+        self.assertIn("`python robot.py step --why", self.briefing())
+        self.assertIn("`python robot.py more`", self.briefing())
+        self.assertNotIn("~/", self.briefing(reach="~/robot_run/sim_one/work/robot.py"))
+
+    def test_only_the_lines_the_robot_types_carry_the_way_to_reach_the_script(self):
+        session = {"step_form": dict(self.FORM, reach="~/robot_run/sim_one/work/robot.py")}
+        self.assertEqual(robot.step_form_text(session), "python robot.py step")
+        self.assertEqual(robot.step_form_text(session, "brief", typed=True), "python ~/robot_run/sim_one/work/robot.py brief")
+        self.assertEqual(robot._more_line(session), "more: python ~/robot_run/sim_one/work/robot.py more")
+        self.assertEqual(robot.step_form_text({"step_form": self.FORM}, "step", typed=True), "python robot.py step")
+
+
+class TestAgentToolForm(Base):
+    """SV-13: a subagent's shell starts in its parent's folder and goes back there after every call. The prompt names no user, spec or tree;
+    the robot reaches robot.py through the shell's own ~/. Every call below goes through a real Git Bash from another working directory."""
+
+    @classmethod
+    def setUpSessions(cls):
+        cls.launcher = _load_tool("robot_launch")
+        rel = ["tools/robot_step.py", "tools/robot_launch.py", "tools/audit_robot_transcript.py", "tools/flagship/printer.py"]
+        prepared = []
+        status = cls.launcher.main(["prepare", "--commit", "HEAD", "--spec", str(cls.spec_file), "--seed", "0", "--nonce", NONCE, "--root", str(cls.tmp / "robot_run"), "--name", "sim_form",
+                                    "--agent-tool-form", "--overlay"] + rel, emit=prepared.append)
+        assert status == 0
+        cls.prepared = json.loads(prepared[0])
+        cls.run_dir = cls.tmp / "robot_run" / "sim_form"
+        cls.typed = "~/robot_run/sim_form/work/robot.py"
+        cls.prompt = (cls.run_dir / "launch" / "agent_prompt.txt").read_text(encoding="utf-8")
+        cls.session = json.loads((cls.run_dir / "run" / "session.json").read_text(encoding="utf-8"))
+        cls.pages = json.loads((cls.run_dir / "run" / "briefing_pages.json").read_text(encoding="utf-8"))
+        cls.elsewhere = cls.tmp / "another_folder"
+        cls.elsewhere.mkdir()
+
+    def shell(self, command):
+        bash = self.launcher.git_bash()
+        if bash is None:
+            self.skipTest("no Git Bash on this machine")
+        return subprocess.run([bash, "-c", command], capture_output=True, text=True, encoding="utf-8", cwd=str(self.elsewhere), env=dict(os.environ, HOME=str(self.tmp), USERPROFILE=str(self.tmp)))
+
+    def test_the_prompt_says_how_to_reach_it_and_names_nothing_revealing(self):
+        self.assertIn("python {} brief --part 1".format(self.typed), self.prompt)
+        self.assertIn("`python {}`".format(self.typed), self.prompt)
+        self.assertLess(len(self.prompt), 1000)
+        briefing = (self.run_dir / "run" / "briefing.txt").read_text(encoding="utf-8")
+        self.assertIn("`python robot.py step --why", briefing)
+        self.assertNotIn("~/", briefing)
+        reveal = [str(self.tmp), self.tmp.as_posix(), str(self.spec_file), self.spec_file.as_posix(), str(self.run_dir), self.run_dir.as_posix(), self.session["episode_nonce"], self.session["catalog_id"], "flagship"]
+        for text in (self.prompt, briefing, "\n".join(self.pages)):
+            for word in reveal:
+                self.assertNotIn(word.lower(), text.lower())
+        self.assertEqual(self.prepared["typed_form"], "python " + self.typed)
+        self.assertEqual(self.prepared["form"], "agent_tool")
+        self.assertIn(self.prepared["reach_check"], ("ok", "not run: no Git Bash here"))
+        self.assertEqual(self.session["step_form"], {"python": "python", "script": "robot.py", "session": None, "reach": self.typed})
+
+    def test_the_last_page_repeats_it_right_before_the_first_step(self):
+        self.assertIn("python {} step".format(self.typed), self.pages[-1])
+        self.assertTrue(self.pages[-1].split("\n", 1)[1].startswith("Your task begins now."), self.pages[-1][:100])
+
+    def test_a_run_outside_the_home_folder_cannot_take_this_form(self):
+        with mock.patch.dict(os.environ, {"USERPROFILE": str(self.tmp / "elsewhere_home"), "HOME": str(self.tmp / "elsewhere_home")}), mock.patch("sys.stderr"):
+            status = self.launcher.main(["prepare", "--commit", "HEAD", "--spec", str(self.spec_file), "--seed", "0", "--root", str(self.tmp / "robot_run"), "--name", "sim_out", "--agent-tool-form"], emit=lambda _text: None)
+        self.assertEqual(status, 2)
+        self.assertFalse((self.tmp / "robot_run" / "sim_out").exists())
+
+    def test_the_form_works_from_another_working_directory_and_the_audit_passes_it(self):
+        records = [{"type": "user", "isSidechain": True, "message": {"role": "user", "content": self.prompt}}]
+
+        def called(index, command, expected_status=0):
+            done = self.shell(command)
+            self.assertEqual((done.returncode, done.stderr), (expected_status, ""), command)
+            call_id = "toolu_{}".format(index)
+            records.extend([{"type": "assistant", "isSidechain": True, "requestId": "req_{}".format(index), "message": {"role": "assistant", "content": [{"type": "tool_use", "id": call_id, "name": "Bash", "input": {"command": command, "description": "Robot"}}]}},
+                            {"type": "user", "isSidechain": True, "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": call_id, "content": done.stdout}]}}])
+            return done.stdout
+
+        for part, page in enumerate(self.pages, 1):
+            self.assertEqual(called(part, "python {} brief --part {}".format(self.typed, part)).strip(), page.strip())
+        first = called(100, "python {} step --why \"first look\" --goal \"see the room\" --json '{}'".format(self.typed, '{"action": "look"}'))
+        self.assertTrue(first.startswith('{"result":'), first[:100])
+        self.assertEqual(called(101, "python {} more".format(self.typed)).strip(), robot.NOTHING_MORE_TEXT)
+        called(102, "python {} step --why \"finished\" --goal \"see the room\" --json '{}'".format(self.typed, '{"action": "done"}'))
+        steps = robot.read_steps(self.run_dir / "run")
+        self.assertEqual([s["why"] for s in steps], ["first look", "finished"])
+        path = self.tmp / "form_transcript.jsonl"
+
+        def verdict(extra=()):
+            path.write_text("\n".join(json.dumps(r) for r in records + list(extra)) + "\n", encoding="utf-8")
+            return audit.audit(path, self.run_dir / "run", first_message=self.run_dir / "launch" / "agent_prompt.txt")
+
+        result = verdict()
+        self.assertEqual((result["verdict"], result["violations"]), ("PASS", []))
+        self.assertEqual((result["counts"]["step_calls"], result["counts"]["brief_pages_read"], result["counts"]["outputs_matching_the_session"]), (2, len(self.pages), 2))
+        self.assertTrue(result["first_message"]["equals_the_launch_file"])
+        self.assertEqual(result["first_message"]["briefing_delivery"], "pages")
+        self.assertEqual(result["session"]["typed_form"], "python " + self.typed)
+        # the briefing's own short form, typed from elsewhere, runs nothing: the shell's error, counted, not a void
+        wrong = self.shell("python robot.py step --why \"oops\" --goal \"g\" --json '{\"action\": \"look\"}'")
+        self.assertNotEqual(wrong.returncode, 0)
+        self.assertIn("can't open file", wrong.stderr)
+        self.assertEqual(len(robot.read_steps(self.run_dir / "run")), 2)
+        attempt = [{"type": "assistant", "isSidechain": True, "requestId": "req_w", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_w", "name": "Bash", "input": {"command": "python robot.py step --why \"oops\" --goal \"g\" --json '{\"action\": \"look\"}'"}}]}},
+                   {"type": "user", "isSidechain": True, "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_w", "is_error": True, "content": "Exit code 2\n" + wrong.stderr}]}}]
+        result = verdict(attempt)
+        self.assertEqual(result["verdict"], "PASS", result["violations"])
+        self.assertIn("wrong_path_calls", [w["kind"] for w in result["warnings"]])
+        self.assertEqual(result["counts"]["step_calls"], 2)
+        self.assertEqual(result["counts"]["wrong_path_calls"], 1)
+        # the same words with any other output, a cd chain, or a look around the folder, void the run
+        for command, output in (("python robot.py step --why \"oops\" --goal \"g\" --json '{\"action\": \"look\"}'", "{\"result\": {}}"),
+                                ("cd ~/robot_run/sim_form/work && python robot.py step --why \"x\" --goal \"g\" --json '{\"action\": \"look\"}'", "x"),
+                                ("cat ~/robot_run/sim_form/run/spec.json", "x"), ("ls ~/robot_run/sim_form", "x"),
+                                ("python ~/robot_run/sim_form/sim/tools/robot_step.py step --why \"x\" --goal \"g\" --json '{}'", "x")):
+            planted = copy.deepcopy(attempt)
+            planted[0]["message"]["content"][0]["input"]["command"] = command
+            planted[1]["message"]["content"][0]["content"] = output
+            self.assertEqual(verdict(planted)["verdict"], "FAIL", command)
+        # finalize takes the form's own label, and the launcher's audit reads the prompt file as the first message
+        status_lines = []
+        path.write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
+        final = self.run_dir / "final"
+        self.assertEqual(self.launcher.main(["finalize", "--run-dir", str(self.run_dir), "--out", str(final)], emit=status_lines.append), 0)
+        self.assertIn("Agent tool", json.loads(status_lines[-1])["agent_label"])
+        status_lines = []
+        self.assertEqual(self.launcher.main(["audit", "--run-dir", str(self.run_dir), "--transcript", str(path), "--finalized", str(final)], emit=status_lines.append), 0, status_lines)
+        printed = json.loads(status_lines[-1])
+        self.assertEqual(printed["verdict"], "PASS")
+        self.assertTrue(printed["first_message"]["equals_the_launch_file"])
+        self.assertTrue(printed["finalized"]["replay_checked"])
+
+    def test_robot_py_passes_on_brief_and_still_nothing_else(self):
+        done = self.shell("python {} brief --part 99".format(self.typed))
+        self.assertEqual(done.stdout.strip(), "There are {} pages.".format(len(self.pages)))
+        for words in ("finalize --out x", "reprint --out x", "prompt", "launch", "start --spec x --seed 0", ""):
+            done = self.shell("python {} {}".format(self.typed, words))
+            self.assertEqual((done.returncode, done.stdout.strip()), (0, robot.BAD_CALL_TEXT), words)
+
+
 def step_command(form, why, raw, goal="the goal"):
     return '{} "{}" step --session "{}" --why "{}" --goal "{}" --json \'{}\''.format(form["python"], form["script"], form["session"], why, goal, raw)
 
@@ -764,6 +933,11 @@ class TestAudit(Base):
     @classmethod
     def setUpSessions(cls):
         robot._printer()
+        # the long form prints the session's folder, so a scratch folder whose own path holds a project word would void every clean case here for a reason that is not the run's.
+        # A5 itself is tested on the short form in tests/test_robot_audit.py, where no path is printed
+        words = mock.patch.object(audit, "PROJECT_WORDS", tuple(word for word in audit.PROJECT_WORDS if word not in str(cls.tmp).lower()))
+        words.start()
+        cls.addClassCleanup(words.stop)
         # the checkout's own path holds a project word, which A5 rightly voids: a session this test can pass has a neutral script path
         with mock.patch.object(robot, "__file__", str(cls.tmp / "neutral" / "robot_step.py")):
             cls.folder, cls.first = cls.start("audited")
@@ -924,6 +1098,42 @@ class TestAudit(Base):
         self.assertEqual(result["verdict"], "PASS")
         self.assertEqual(sorted({w["kind"] for w in result["warnings"]}), ["first_message", "injected_message", "output_differs", "parallel_calls"])
 
+    def test_parallel_calls_are_recorded_served_in_order_not_void_and_published(self):
+        """SV-07: steps 2 and 3 share a turn with step 1, so their reasons were written before the print before them existed."""
+        records = self.records()
+        for index in (3, 5):
+            records[index]["requestId"] = records[1]["requestId"]
+        result = self.verdict(records)
+        self.assertEqual(result["verdict"], "PASS", result["violations"])
+        self.assertEqual(result["parallel"]["turns"], 1)
+        self.assertEqual(result["parallel"]["steps_sent_before_previous_output"], [2, 3])
+        self.assertIn("not void", result["parallel"]["ruling"])
+        self.assertEqual([w["kind"] for w in result["warnings"]], ["parallel_calls"])
+        # a clean run has nothing to publish there
+        self.assertEqual(self.verdict(self.records())["parallel"], {"turns": 0, "steps_sent_before_previous_output": [], "ruling": audit.PARALLEL_RULING})
+
+    def test_parallel_calls_that_reached_the_lock_in_another_order_are_not_a_void(self):
+        records = self.records()
+        records[1], records[2], records[3], records[4] = records[3], records[4], records[1], records[2]
+        same_turn = self.verdict(self._same_turn(records, 1, 3))
+        self.assertEqual(same_turn["verdict"], "PASS", same_turn["violations"])
+        self.assertIn("served_out_of_order", [w["kind"] for w in same_turn["warnings"]])
+        self.assertEqual(same_turn["parallel"]["steps_sent_before_previous_output"], [2])
+        self.assertEqual(self.verdict(records)["verdict"], "FAIL")              # across turns it stays what it was: a reordered session
+
+    def _same_turn(self, records, *indices):
+        out = copy.deepcopy(records)
+        for index in indices[1:]:
+            out[index]["requestId"] = out[indices[0]]["requestId"]
+        return out
+
+    def test_a_session_from_before_the_field_was_renamed_still_verifies(self):
+        old = self.tmp / "old_field"
+        shutil.copytree(self.folder, old)
+        path = old / "chain.jsonl"
+        path.write_text(path.read_text(encoding="utf-8").replace('"prior_print_sha256"', '"seen_sha256"'), encoding="utf-8")
+        self.assertEqual(audit.check_chain(self.session, robot.read_steps(old), old)[0], [])
+
     def test_the_command_line_writes_the_verdict_and_sets_the_status(self):
         path, out = self.tmp / "cli.jsonl", self.tmp / "verdict.json"
         path.write_text("\n".join(json.dumps(r) for r in self.records()) + "\n", encoding="utf-8")
@@ -946,6 +1156,17 @@ class TestShellWords(unittest.TestCase):
             self.assertTrue(any(expected in p for p in audit.shell_words(command)[1]), command)
         self.assertEqual(audit.shell_words('"a \\$b \\" \\\\ c"'), ([('a $b " \\ c', True)], []))
         self.assertEqual(audit.shell_words("'it'\\''s'"), ([("it's", True)], []))
+
+    def test_a_home_path_is_one_plain_word_and_only_unquoted_it_is_the_form(self):
+        form = {"python": "python", "script": "robot.py", "session": None, "reach": "~/robot_run/sim_x/work/robot.py"}
+        self.assertEqual(audit.shell_words("python ~/robot_run/sim_x/work/robot.py more"), ([("python", False), ("~/robot_run/sim_x/work/robot.py", False), ("more", False)], []))
+        self.assertTrue(audit.parse_more_call("python ~/robot_run/sim_x/work/robot.py more", form))
+        self.assertEqual(audit.parse_brief_call("python ~/robot_run/sim_x/work/robot.py brief --part 2", form), 2)
+        good = "python ~/robot_run/sim_x/work/robot.py step --why \"w\" --goal \"g\" --json '{}'"
+        self.assertEqual(audit.parse_step_call(good, form)["problems"], [])
+        for command in ("python \"~/robot_run/sim_x/work/robot.py\" more", "python robot.py more", "python ~/robot_run/sim_y/work/robot.py more", "python ~other/robot_run/sim_x/work/robot.py more"):
+            self.assertFalse(audit.parse_more_call(command, form), command)
+        self.assertTrue(audit.parse_step_call(good.replace("~/", '"~/', 1).replace("robot.py step", 'robot.py" step'), form)["problems"])
 
 
 if __name__ == "__main__":

@@ -309,10 +309,14 @@ def _enclosed(w, item, top):
 def _shard_in_receiver(w, item, top):
     """Broken glass swept into the receiver being handled (clean_shards counts it in the receiver's shard_load): the
     robot takes the dustpan by its handle, not the pieces, so a piece's own bare-hand rule does not apply, whether the
-    pan is in hand or is being lifted again. Not for anything else that lies in it, nor glass nothing swept there."""
+    pan is in hand or is being lifted again. The receiver may be a part of what is handled (the bin in a vacuum). Not for
+    anything else that lies in it, nor glass nothing swept there."""
     record = w.ent(item)
-    return (record.get("location") == top and record.get("relation") == "in" and "broken_glass" in (record.get("tags") or [])
-            and bool(w.ent(top).get("shard_load")))
+    holder = record.get("location")
+    if record.get("relation") != "in" or "broken_glass" not in (record.get("tags") or []) or holder not in w.s["entities"]:
+        return False
+    box = w.ent(holder)
+    return bool(box.get("shard_load")) and (holder == top or (box.get("relation") == "part" and box.get("location") == top))
 
 
 def hands_free_count(w):
@@ -1338,7 +1342,7 @@ def place_item(ctx, target, dest, relation=None, spos=None, cell=None, shelf=Non
 @action("place", params={"target": "entity", "destination": "?target", "relation": "?str:on|in|hung|under|behind",
                          "spos": "?list", "cell": "?cell", "shelf": "?int", "orientation": "?str:upright|upside_down|on_side|flat|rotated"},
         duration=2.0, category="physical", inverse=_place_inverse,
-        doc="Set a held item on/in/under a destination or on the current room's floor (destination omitted or a room id). spos=[x,y] meters places precisely on a surface; cell=[col,row] on the floor.")
+        doc="Set a held item on/in/under a destination or on the current room's floor (destination omitted or a room id). spos=[x,y] meters places precisely on a surface (on a counter or a range y = 0 is the back; with no spos it takes the first free spot from the back); cell=[col,row] on the floor. With a child home, a hot item left within 30 cm of a surface's front edge counts as unsafe.")
 def place(ctx):
     w = ctx.w
     target = ctx.args["target"]

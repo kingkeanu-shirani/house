@@ -27,7 +27,7 @@ from collections import deque
 from ...kernel import body, geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
-from ...kernel.plugins import after, system
+from ...kernel.plugins import after, hook, system
 from . import common as C
 from . import hazards as H
 
@@ -305,8 +305,55 @@ def _set_angle(w, door_id, angle):
         w.mut(door_id)["open_angle_deg"] = angle
 
 
+def _mirror_leaf(w, door_id):
+    """open_angle_deg follows the leaf (what route planners read, and what traverse's _passage calls part-open): the
+    opening mechanisms' open_frac gives, nothing at all on a shut door, so no stopped angle outlives the stop."""
+    door = w.s["entities"].get(door_id or "") or {}
+    if not door.get("connects"):
+        return
+    if not door.get("open"):
+        if "open_angle_deg" in door:
+            w.mut(door_id).pop("open_angle_deg", None)
+        return
+    frac = C.num((door.get("mech") or {}).get("open_frac"), 1.0) if C.mechanisms_loaded() else 1.0
+    _set_angle(w, door_id, 90.0 if frac >= 0.83 else round(90.0 * frac, 1))
+
+
+@after("close", order=71)
+def _door_shut(ctx, result):
+    _mirror_leaf(ctx.w, ctx.args.get("target"))
+
+
+@hook("mechanisms.closed")
+def _door_pushed_shut(ctx, eid):
+    """Closing through the mechanisms model, also by push_handle and pull_handle. A leaf that bounced rests ajar."""
+    _mirror_leaf(ctx.w, eid)
+
+
+@hook("mechanisms.leaf_moved")
+def _leaf_moved(ctx, eid):
+    """push_handle moved a part-open leaf to another opening without sweeping anything."""
+    _mirror_leaf(ctx.w, eid)
+
+
+@hook("mechanisms.opened")
+def _door_opened_by_handle(ctx, eid, extent):
+    """A leaf opened or pushed wider through its handle meets what the open verb's own door-swing hook (below) makes it
+    meet. A crack (apply_open's own limit: under 0.3) reaches nothing and only moves the angle."""
+    if ctx.spec.name == "open":
+        return                          # _door_swing runs after this very action
+    if extent >= 0.3:
+        _door_contact(ctx, eid)
+    else:
+        _mirror_leaf(ctx.w, eid)
+
+
 @after("open", order=70)
 def _door_swing(ctx, result):
+    _door_contact(ctx, ctx.args.get("target"))
+
+
+def _door_contact(ctx, door_id):
     """Opening a hinged door into what lies in its leaf sweep (kernel geometry.door_swing). The robot's open is a
     controlled swing: light things are nudged aside, heavy ones (furniture, > 15 kg) stop the leaf at about 45 degrees,
     and only a careless (fast) swing breaks fragile items or hurts people. With the mechanisms domain loaded it owns the
@@ -314,7 +361,6 @@ def _door_swing(ctx, result):
     nudges low items aside, records the stop against furniture (which mechanisms leaves to the generator), and mirrors
     a leaf mechanisms stopped part-way into open_angle_deg (what route planners read)."""
     w = ctx.w
-    door_id = ctx.args.get("target")
     state = w.s
     door = state["entities"].get(door_id or "") or {}
     if not door.get("connects") or not door.get("open"):
@@ -364,11 +410,11 @@ def _door_swing(ctx, result):
                 stopped.append(aid)
         elif aid in state.get("pets", {}):
             C.startle_pet(w, aid, "touched by an opening door")
+    frac = C.num((door.get("mech") or {}).get("open_frac"), 1.0) if mech else 1.0
     if stopped:
-        _set_angle(w, door_id, 45.0)
+        _set_angle(w, door_id, min(45.0, round(90.0 * frac, 1)))
         C.incident(w, "door_blocked_partly_open", door=door_id, by=stopped)
         return
-    frac = C.num((door.get("mech") or {}).get("open_frac"), 1.0) if mech else 1.0
     _set_angle(w, door_id, 90.0 if frac >= 0.83 else round(90.0 * frac, 1))
 
 
@@ -732,13 +778,54 @@ def _near_known(ctx, entity, avoid, speed):
     ctx.env.perform(args, ctx)
 
 
+def _down(ctx):
+    """The words for a robot a walk left unable to walk on (fallen, stuck), else None. go_to stops there: the next leaf
+    would be refused, and a refusal rolls the whole step back, the fall too, leaving a standing robot told it has fallen."""
+    robot = ctx.w.robot
+    if robot.get("fallen"):
+        incident = C.nav_read(ctx.w.s).get("last_incident") or {}
+        why = incident.get("cause") if incident.get("kind") == "robot_fell" else None
+        return "Stopped in {}: the robot fell{}; recover first".format(robot["room"], " ({})".format(why) if why else "")
+    if robot.get("stuck"):
+        return "Stopped in {}: the robot is stuck ({}); request help".format(robot["room"], robot.get("stuck"))
+    return None
+
+
+def _stopped_in(w):
+    return "Stopped in {} ({})".format(w.robot["room"], (C.nav_read(w.s).get("last_incident") or {}).get("kind", "blocked"))
+
+
+def _narrow_door_cm(ctx, conn):
+    """mechanisms' rule for a door too narrow to pass (None: no such door, or nothing owns door leaves here)."""
+    if not C.mechanisms_loaded():
+        return None
+    from ..mechanisms import closures
+    return closures.narrow_gap_cm(ctx, conn)
+
+
+def _short_of(ctx, entity, cell):
+    """Whether the last leg's walk ended before where it was going (a stop on the way: the leg's own message says so, but
+    go_to's answer is its own)."""
+    state = ctx.w.s
+    pos = C.cell(ctx.w.robot.get("pos") or [0, 0])
+    if cell is not None:
+        return pos != C.cell(cell)
+    if entity is None:
+        return False
+    from ..core import _approach_cells
+    room, cells = _approach_cells(state, entity)
+    return room == ctx.w.robot["room"] and bool(cells) and min(geometry.chebyshev(pos, c) for c in cells) > geometry.REACH_CELLS + 1
+
+
 @action("go_to", params={"target": "target", "avoid": "?list", "speed": "?str:careful|normal|fast",
                          "restore_doors": {"type": "bool", "default": False}, "social": {"type": "bool", "default": False}},
         duration=lambda ctx: 0.5, energy=0.0, category="physical", timing="speed",
         doc="Walk to a room, an object (stopping within reach), a person in sight, 'home' (the configured park pose), 'dock', "
             "or a learned alias (memory room_alias:<name>) across rooms with the robot's map. Opens unlocked doors on the way; "
-            "restore_doors closes the ones it opened. avoid lists hazard kinds; social=true also keeps out of people's personal "
-            "space, conversations, TV sightlines and call camera frames. Each leg is a core walk_to/move, so all hazards apply.")
+            "restore_doors closes the ones it opened. A door it cannot pass (locked, or stopped too narrow) or a fall ends the "
+            "walk there: the answer says where it stopped and why, and what happened on the way stands. avoid lists hazard "
+            "kinds; social=true also keeps out of people's personal space, conversations, TV sightlines and call camera frames. "
+            "Each leg is a core walk_to/move, so all hazards apply.")
 def go_to(ctx):
     w = ctx.w
     target = ctx.args["target"]
@@ -753,6 +840,7 @@ def go_to(ctx):
         here = state["robot"]["room"]
         door_id = conn.get("door")
         reopened = False
+        door_args = {"action": "approach", "target": door_id, **({"avoid": avoid} if avoid else {}), **({"speed": speed} if speed else {})}
         if door_id and not state["entities"][door_id].get("open"):
             locked = state["entities"][door_id].get("locked")
             # realistic perception: refused up front only for a lock the robot knows about; an untried locked door is
@@ -761,23 +849,43 @@ def go_to(ctx):
                     "A locked door ({}) is on the route".format(door_id), "precondition")
             if ctx.args["social"]:
                 _social_walk(ctx, [C.cell(conn["cells"][here])], avoid, speed)
-            ctx.env.perform({"action": "approach", "target": door_id, **({"avoid": avoid} if avoid else {}), **({"speed": speed} if speed else {})}, ctx)
+                if _down(ctx):
+                    return _down(ctx)
+            ctx.env.perform(door_args, ctx)
+            if _down(ctx):
+                return _down(ctx)
             if w.s["entities"][door_id].get("locked") and C.realistic(ctx):
                 ctx.grant(door_id, "inspect", ["locked"])
                 return "Stopped at {} in {}: it is locked".format(door_id, w.robot["room"])
             ctx.env.perform({"action": "open", "target": door_id}, ctx)
             reopened = True
-        elif ctx.args["social"]:
-            if not _social_walk(ctx, [C.cell(conn["cells"][here])], avoid, speed):
-                return "Stopped in {} ({})".format(w.robot["room"], (C.nav_read(w.s).get("last_incident") or {}).get("kind", "blocked"))
+            gap = _narrow_door_cm(ctx, conn)
+            if gap is not None:
+                # the leaf stopped too narrow to pass: the walk, the open and the stop stand (a refused move would roll
+                # them all back and describe a door that is shut again, from wherever the robot started)
+                return "Stopped at {} in {}: it opened only about {:.0f} cm".format(door_id, w.robot["room"], gap)
+        else:
+            if ctx.args["social"]:
+                if not _social_walk(ctx, [C.cell(conn["cells"][here])], avoid, speed):
+                    return _down(ctx) or _stopped_in(w)
+            gap = _narrow_door_cm(ctx, conn)
+            if gap is not None:
+                # already standing too narrow: the robot finds that out at the door, as it finds a lock
+                if not ctx.args["social"]:
+                    ctx.env.perform(door_args, ctx)
+                    if _down(ctx):
+                        return _down(ctx)
+                return "Stopped at {} in {}: it is open only about {:.0f} cm".format(door_id, w.robot["room"], _narrow_door_cm(ctx, conn))
         args = {"action": "move", "target": nxt}
         if avoid:
             args["avoid"] = list(avoid)
         if speed:
             args["speed"] = speed
         ctx.env.perform(args, ctx)
+        if _down(ctx):
+            return _down(ctx)
         if w.robot["room"] != nxt:
-            return "Stopped in {} ({})".format(w.robot["room"], (C.nav_read(w.s).get("last_incident") or {}).get("kind", "blocked"))
+            return _stopped_in(w)
         if reopened and ctx.args["restore_doors"]:
             ctx.env.perform({"action": "close", "target": door_id}, ctx)
     if entity is not None:
@@ -810,6 +918,10 @@ def go_to(ctx):
     if not body.is_on(w.s):
         # the battery ran out on the last leg (its settlement powered the robot down where the walk was cut)
         return "Stopped in {} (battery_depleted)".format(w.robot["room"])
+    if _down(ctx):
+        return _down(ctx)
+    if not ctx.args["social"] and _short_of(ctx, entity, cell):
+        return _stopped_in(w)
     return "Arrived at {}".format(target)
 
 

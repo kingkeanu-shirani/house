@@ -33,6 +33,7 @@ from . import percept as P
 ALPHA = 1.4e-7
 K_DRY = 15000.0
 BROWN_START_C = 120.0
+OPEN_AIR_CAP_C = 100.0      # the most a food's own surface counts for out of any heat source (below browning, at drying)
 
 PROFILES = {
     "poultry": {"cls": "meat", "done_c": 74.0, "over_c": 82.0, "safe_c": 74.0, "brown_k": 24000.0, "moist0": 0.7, "fat": 0.3, "release": True},
@@ -217,6 +218,11 @@ def heat_context(state, eid):
         t = C.num(vrec.get("temperature_c"), surf) if vessel else surf
         ctx.update(mode="moist_heat", top_c=min(t, 100.0), bottom_c=min(t, 100.0), air_c=t, humid=True)
         return ctx
+    # in the open nothing feeds it: its own heat does not brown or dry it any further, however hot it still is. A heat source
+    # this model has no mode for still does (safety's stand-in burner, by internal_temp_c as the kernel's thermal system reads it)
+    if not any(C.num((ents.get(pid) or {}).get("internal_temp_c"), 0.0) > OPEN_AIR_CAP_C for pid in chain):
+        open_air = min(surf, OPEN_AIR_CAP_C)
+        ctx.update(top_c=open_air, bottom_c=open_air, air_c=open_air)
     return ctx
 
 

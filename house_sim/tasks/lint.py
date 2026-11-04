@@ -690,8 +690,8 @@ def selector_problem(selector, scope, mode="selector", dynamic=None, index=None)
     bare = VAR.sub("x", selector)
     if "{" in bare or "}" in bare:
         return ("{!r}: a malformed placeholder (write {{name}})".format(selector), "error")
-    allowed = {"selector": ledger.SELECTOR_PREFIXES, "to": ("within:", "room:"), "room": ("room:",), "id": ()}[mode]
-    prefix = next((p for p in ledger.SELECTOR_PREFIXES if selector.startswith(p)), None)
+    allowed = {"selector": ledger.SELECTOR_PREFIXES, "to": ("within:", "room:", "off_floor:"), "room": ("room:",), "id": ()}[mode]
+    prefix = next((p for p in ledger.SELECTOR_PREFIXES + ("off_floor:",) if selector.startswith(p)), None)
     if prefix is None:
         if VAR.fullmatch(selector):
             return None
@@ -703,7 +703,7 @@ def selector_problem(selector, scope, mode="selector", dynamic=None, index=None)
     arg = selector[len(prefix):]
     if not arg:
         return ("{!r} names nothing".format(selector), "error")
-    if prefix in ("within:", "room:"):
+    if prefix in ("within:", "room:", "off_floor:"):
         if VAR.fullmatch(arg):
             return None
         if placeholders(arg) or not ID_RE.match(arg):
@@ -782,7 +782,7 @@ def _literal_ids(value, mode):
         return [i for v in value for i in _literal_ids(v, mode)]
     if not isinstance(value, str) or placeholders(value) or (mode == "to" and value in ledger.SCOPE_WORDS):
         return []
-    for prefix in ("within:", "room:"):
+    for prefix in ("within:", "room:", "off_floor:"):
         if value.startswith(prefix):
             value = value[len(prefix):]
             break

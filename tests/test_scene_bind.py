@@ -108,6 +108,17 @@ class SceneBind(unittest.TestCase):
             self.assertEqual(b["t_x"], 7)
             self.assertEqual(config["entities"][b["mitts"]].get("location"), b["mitts_home"], seed)
 
+    def test_door_side_is_a_dry_cell_beside_the_laundry_door(self):
+        """Where a person stands to deal with the door: beside its threshold in the hallway, and not the cell the seep wets (Avery slipped there)."""
+        for seed, (config, b) in self.built.items():
+            state = view(config)
+            threshold = next(tuple(c["cells"]["hallway_1"]) for c in config["connections"].values() if c.get("door") == b["ldoor"])
+            side = tuple(b["door_side"])
+            self.assertNotEqual(side, tuple(b["seep_cell"]), seed)
+            self.assertNotEqual(side, threshold, seed)
+            self.assertLessEqual(geometry.chebyshev(side, threshold), 1, seed)
+            self.assertNotIn(side, set(map(tuple, geometry.blocked_cells(state, "hallway_1"))), seed)
+
     def test_pure(self):
         seed = SEEDS[0]
         config, first = build(seed)

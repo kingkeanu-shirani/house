@@ -359,7 +359,30 @@ def _held_kind(w, *kinds):
         caps = set(rec.get("affordances", [])) | set(rec.get("capabilities", [])) | {rec.get("tool_kind"), rec.get("category")}
         if caps & set(kinds) or ("dustpan" in kinds and rec.get("dustpan")):     # the house's dustpan type says it so
             return eid
+        if "bag" in kinds and (rec.get("liner") or rec.get("waste_kind") == "bag"):     # a trash bag says so its own way
+            return eid
     return None
+
+
+def _vacuum_bin(w, vacuum):
+    """Where a vacuum puts what it picks up: the bin installed in it, else the vacuum itself."""
+    for child in w.children(vacuum):
+        if w.ent(child).get("part_type") == "vacuum_bin":
+            return child
+    return vacuum
+
+
+def _in_hand(w, eid):
+    """A thing the robot holds, or a thing in or part of what it holds (a vacuum's bin): within reach wherever it is."""
+    held = set(w.held_items())
+    ents = w.s["entities"]
+    seen = set()
+    while eid in ents and eid not in seen:
+        if eid in held:
+            return True
+        seen.add(eid)
+        eid = ents[eid].get("location")
+    return False
 
 
 def _damp_pickup(w):
@@ -379,8 +402,8 @@ def _damp_pickup(w):
                                 "destination": "?entity"},
         duration=lambda ctx: ctx.data.get("seconds", 10.0), energy=0.03, noise=0.2, category="physical",
         doc="Collect broken glass on the floor around the robot (radius m): pick (gloved, large pieces), sweep (broom + "
-            "dustpan), damp_wipe (damp paper towel/tape for slivers, crouched), vacuum. Shards go into the held "
-            "dustpan/box/bag or destination container.")
+            "dustpan), damp_wipe (damp paper towel/tape for slivers, crouched), vacuum (into its own bin; large pieces can cut "
+            "its hose). Shards go into the held dustpan/box/bag or destination container.")
 def clean_shards(ctx):
     w = ctx.w
     state = w.s
@@ -415,12 +438,13 @@ def clean_shards(ctx):
     else:
         tool = _held_kind(w, "vacuum", "vacuum_cleaner")
         require(tool is not None, "Hold a vacuum", "capability")
+        receiver = receiver or _vacuum_bin(w, tool)
         sizes = ("large", "small", "sliver")
     if receiver is None:
         receiver = _held_kind(w, "dustpan", "box", "bag", "container")
     require(receiver is not None and receiver in state["entities"], "Hold a dustpan, box or bag to collect the glass (or name destination)",
             "capability")
-    if receiver not in w.held_items():
+    if not _in_hand(w, receiver):
         ctx.obj(receiver, touch=True)
     pos = tuple(robot.get("pos") or (0, 0))
     floor_mat = state["rooms"][rid].get("floor_material", "tile")
@@ -479,6 +503,7 @@ def clean_shards(ctx):
         dmg["glass_cut_hose"] = max(float(dmg.get("glass_cut_hose", 0.0)), 0.6)
         tm["damage"] = dmg
         C.harm(w, "vacuumed_large_glass", stat="damage", tool=tool)
+        ctx.note("A large piece rattled through and cut the vacuum's hose")
     # realistic: how long it takes follows the glass in view, so the duration cannot count unseen slivers
     counted = seen_collected if realistic else len(collected)
     ctx.data["seconds"] = 8.0 + 2.0 * counted + (6.0 if method == "damp_wipe" else 0.0)

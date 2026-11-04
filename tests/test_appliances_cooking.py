@@ -2060,6 +2060,14 @@ class HandlingStatusTests(unittest.TestCase):
         ok(env2, "place", "dish", "counter_1", spos=[1.0, 0.0])
         self.assertNotIn("hot_item_within_child_reach", harms(env2))
 
+    def test_a_range_top_is_wall_placed_like_a_counter(self):
+        # the docstring's convention: y = 0 is the back. A dish set on the range without a position lands there, not at "the edge"
+        rec = {"entities": {"dish": {"location": "range_1", "relation": "on", "spos": [0.0, 0.0], "size_m": [0.3, 0.22, 0.08]},
+                            "range_1": {"ac_kind": "range", "surface_size_m": [0.76, 0.6]}}}
+        self.assertAlmostEqual(AC.front_edge_distance(rec, "dish"), 0.38)
+        rec["entities"]["dish"]["spos"] = [0.0, 0.3]
+        self.assertAlmostEqual(AC.front_edge_distance(rec, "dish"), 0.08)
+
     def test_carrying_hot_item_past_person_needs_warning(self):
         kit, oven = self.hot_dish_kit(material="steel", fragile=False, label="roasting pan")
         kit.person("resident_1", "kitchen", pos=[6, 6])

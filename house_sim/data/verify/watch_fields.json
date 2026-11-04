@@ -57,6 +57,9 @@
       "class": "setting",
       "tol": 0.05
     },
+    "open_angle_deg": {
+      "class": "process"
+    },
     "locked": {
       "class": "setting"
     },
@@ -211,7 +214,8 @@
     },
     "wrinkled": {
       "class": "condition",
-      "worse": "true"
+      "worse": "up",
+      "tol": 0.02
     },
     "faded": {
       "class": "condition",
@@ -1586,7 +1590,8 @@
     },
     "water_damage": {
       "class": "condition",
-      "worse": "true"
+      "worse": "up",
+      "tol": 0.02
     },
     "water_marks": {
       "class": "condition",
@@ -1898,12 +1903,12 @@
     "residue": {
       "class": "condition",
       "worse": "up",
-      "tol": 0.001
+      "tol": 0.02
     },
     "residue.*": {
       "class": "condition",
       "worse": "up",
-      "tol": 0.001
+      "tol": 0.02
     },
     "holes": {
       "class": "condition",

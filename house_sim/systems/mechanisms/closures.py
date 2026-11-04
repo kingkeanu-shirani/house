@@ -358,6 +358,25 @@ def apply_open(ctx, eid, extent=1.0, force="normal", via="open", held_back=False
     run_hooks("mechanisms.opened", ctx, eid, extent)
 
 
+# what sweeps the floor in front of it as it swings (apply_open's _sweep_floor) and so can be stopped part-way
+SWEEPING_KINDS = C.DOOR_KINDS | {"closet_hinged", "closet_bifold", "cabinet_door", "glass_front_cabinet"}
+
+
+def widen(ctx, eid, extent, force="normal"):
+    """A part-open leaf pushed wider (push_handle extent): the same contact as opening it (apply_open: its sweep, whoever
+    stands in the arc), so what stops an opening door stops this one and a firm push tips what a firm push tips. A leaf
+    already past the stop rests where it was: nothing pulls it back. Returns the opening it reached (0..1)."""
+    w = ctx.w
+    was = C.num(C.mget(w.ent(eid), "open_frac", 1.0), 1.0)
+    apply_open(ctx, eid, extent, force, "push")
+    now = C.num(C.mget(w.ent(eid), "open_frac", 1.0), 1.0)
+    if now < was:
+        C.set_open(w, eid, was)
+        run_hooks("mechanisms.leaf_moved", ctx, eid)
+        now = was
+    return now
+
+
 def _items_on_lid_fall(ctx, eid):
     w = ctx.w
     room, cells = geometry.anchor(w.s, eid)
@@ -1147,6 +1166,23 @@ def _after_close(ctx, result):
     apply_close(ctx, eid, "normal", "close", obstacles=ctx.data.get("mech_obstacles") or ())
 
 
+def narrow_gap_cm(ctx, conn):
+    """How far (cm) a connection's door stands open when the robot and what it carries do not fit through, else None
+    (no door, a shut one, or room enough). As the robot judges it: to 5 cm under realistic perception. This is the rule
+    a core move is refused by (_before_move); go_to reads it to stop at such a door instead of being refused from afar."""
+    from ..core import held_width
+    w = ctx.w
+    door = w.s["entities"].get(conn.get("door") or "")
+    if not door or not door.get("open") or "mech" not in door:
+        return None
+    frac = C.num(C.mget(door, "open_frac", 1.0), 1.0)
+    clear = C.num(conn.get("width_m"), 0.9) * frac
+    need = max(held_width(w), C.num(w.s["robot"].get("width_m"), 0.5))
+    if clear + 1e-9 >= need:
+        return None
+    return C.approx(clear * 100, 5.0) if C.realistic(ctx) else clear * 100
+
+
 @before("move", order=30)
 def _before_move(ctx):
     """A door opened only a crack (or a half-open bypass panel) narrows the passage."""
@@ -1154,22 +1190,21 @@ def _before_move(ctx):
     state = w.s
     dest = ctx.args.get("target")
     here = state["robot"]["room"]
-    from ..core import connection_between, held_width
+    from ..core import connection_between
     cid = connection_between(w, here, dest) if dest in state["rooms"] else None
     if cid is None:
         return
     conn = state["connections"][cid]
-    door = state["entities"].get(conn.get("door") or "")
-    if not door or not door.get("open") or "mech" not in door:
+    gap = narrow_gap_cm(ctx, conn)
+    if gap is None:
         return
-    frac = C.num(C.mget(door, "open_frac", 1.0), 1.0)
-    clear = C.num(conn.get("width_m"), 0.9) * frac
-    need = max(held_width(w), C.num(state["robot"].get("width_m"), 0.5))
+    door_id = conn.get("door")
     if C.realistic(ctx):
-        # the gap as the camera judges it (to 5 cm), the door by handle
-        require(clear + 1e-9 >= need, "The {} is open only about {:.0f} cm; open it wider to pass".format(
-            conn.get("door"), C.approx(clear * 100, 5.0)), "precondition")
-    require(clear + 1e-9 >= need, "The {} is open only {:.0f} cm; open it wider to pass".format(door.get("label", "door"), clear * 100), "precondition")
+        # the gap as the camera judges it (to 5 cm), the door by handle when the robot can see it: the id of a door out of
+        # view would come out as "something", so then it is the door to that room
+        door_name = door_id if ctx.visible(door_id) else "door to {}".format(dest)
+        raise ActionError("The {} is open only about {:.0f} cm; open it wider to pass".format(door_name, gap), "precondition")
+    raise ActionError("The {} is open only {:.0f} cm; open it wider to pass".format(state["entities"][door_id].get("label", "door"), gap), "precondition")
 
 
 @after("move", order=30)

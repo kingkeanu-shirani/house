@@ -12,7 +12,6 @@
   "dinner_out": 1,
   "table_wiped": 2,
   "plates_set": 2,
-  "glasses_set": 2,
   "private_away": 1,
   "floor_clear": 1,
   "dishes_loaded": 1,
@@ -31,8 +30,7 @@
    "dinner_safe",
    "dinner_out",
    "table_wiped",
-   "plates_set",
-   "glasses_set"
+   "plates_set"
   ],
   "P2": [
    "private_away",
@@ -75,7 +73,7 @@
   "t_hiss": "t_burst + d_hiss, guarded",
   "t_call": [
    200,
-   400
+   360
   ],
   "t_eta": [
    300,
@@ -115,7 +113,7 @@
   ]
  },
  "world_rules": {
-  "R1": "After the door has stopped on the box, Avery is told about the door, box or laundry (alert, answered call, text by relay_message, typed report). Avery says 'Give me a minute.', takes a drawn 20-90 s, walks to the hallway, moves the box, walks back.",
+  "R1": "After the door has stopped on the box and while it still rests on it (open, under half way), Avery is told about the door or the box (alert, answered call, text by relay_message, typed report). Being in the laundry room when the message is sent does not count, and neither does naming the room. Avery says 'Give me a minute.', takes a drawn 20-90 s, walks to the door, opens it to the box if it was shut again meanwhile, moves the box, walks back.",
   "R2": "The robot is down and, since it fell, an alert or answered call reached Avery or request_remote_help was used. Avery takes a drawn 20-90 s, walks to the robot, helps it up, walks back."
  },
  "truth_map": {}

@@ -8,9 +8,10 @@ TRANSCRIPT is either Claude Code form: a headless child's <config>/projects/<cwd
 commands would pass. Any violation of these makes the verdict FAIL (a void run):
 
 A1 Only the command. Every tool call is a Bash call whose command is exactly the session's form, read the way bash reads it: `python
-   robot.py step --why "..." --goal "..." [--plan "..."] --json '...'` (or the long form with the script and --session), one simple command, with no
-   other tool, no other shell command, no `run_in_background` and nothing the shell would act on: `;`, `&&`, `||`, `|`, `&`, backticks, `$(` or `$NAME`,
-   redirection, a line break or a comment. A `;` inside quotes is plain text; a `$(` inside double quotes is not.
+   robot.py step --why "..." --goal "..." [--plan "..."] --json '...'` (a session with --reach: `python ~/path/robot.py step ...`, the one path, unquoted;
+   or the long form with the script and --session), one simple command, with no other tool, no other shell command, no `run_in_background` and nothing
+   the shell would act on: `;`, `&&`, `||`, `|`, `&`, backticks, `$(` or `$NAME`, redirection, a line break or a comment. A `;` inside quotes is plain
+   text; a `$(` inside double quotes is not.
 A2 Only known blocks. Message blocks are text, thinking, tool_use, tool_result. Attachment kinds that reach the model are on a list. A hook
    record that reaches the model voids the run; one that does not is counted and warned about.
 A3 Same commands. Transcript, steps.jsonl, and with --finalized the log's commands and the replay's actions, in order. Commands the operator's
@@ -29,10 +30,14 @@ A7 (compaction) is counted and published, never a void. A8 (the attempt ledger) 
 Allowed and counted, because neither can tell the robot anything the briefing does not: `brief` before the first step (a parent cannot paste
 110,000 characters), `more` (the rest of a long print, compared with what was stored), and for the subagent form a single SubagentHandback as the
 very last tool call. A call in the right form that the tool refused and did not store ("Malformed step call", "could not be processed", or a call
-after the episode ended) changes nothing and prints nothing else: it is counted and warned about, not void.
+after the episode ended) changes nothing and prints nothing else: it is counted and warned about, not void. So is a call that names the session's script
+in the briefing's short form, or with the home path quoted, and that the shell could not start ("can't open file"): nothing ran and nothing was stored.
 
 Warnings do not change the verdict: a tool output that is not what the session printed, with no --reprint to settle it; several calls in one turn;
-messages injected after the first. Uses only the standard library and imports no simulator code. Exit status: 0 PASS, 1 FAIL, 2 the inputs cannot be read.
+messages injected after the first. The ruling on several step calls in one turn, written before any run it could apply to: recorded, served one at a time
+in order, not void, and published. `parallel` lists the steps sent before the previous output existed, the only ones whose reason cannot rest on the print
+before them; `prior_print_sha256` in chain.jsonl only names which print came before. Calls of one turn that reached the session's lock in another order
+are read in the order served. Uses only the standard library and imports no simulator code. Exit status: 0 PASS, 1 FAIL, 2 the inputs cannot be read.
 """
 import argparse
 import base64
@@ -47,8 +52,10 @@ from pathlib import Path
 HANDBACK_TOOL = "SubagentHandback"
 HANDBACK_REMINDER = "<system-reminder>\nYour final report is delivered through SubagentHandback"   # Claude Code's own, on every subagent
 BASH_KEYS = {"command", "description", "timeout"}
-BARE_WORD = re.compile(r"[A-Za-z0-9_./:+-]")
+BARE_WORD = re.compile(r"[A-Za-z0-9_./:+~-]")   # ~ names the home folder, and a head must still equal the session's form word for word
 MESSAGE_BLOCKS = ("text", "thinking", "redacted_thinking", "tool_use", "tool_result")
+PARALLEL_RULING = "recorded, served one at a time in order, not void, and published"
+NO_SCRIPT_TEXT = "can't open file"      # Python's own words when the shell's working directory does not hold the script
 # seen in a real headless transcript: what Claude Code itself adds, with no user content in it
 HEADLESS_ATTACHMENTS = ("environment", "model", "total_tokens_reminder", "date", "session_context", "remote_session_change", "prompt_snapshot")
 # seen only in a subagent's transcript: this is the priming the headless form exists to remove
@@ -138,10 +145,29 @@ def shell_words(command):
 
 
 def form_head(form, verb):
-    head = [form["python"], form["script"], verb]
+    """The words every call of this session starts with: what the robot types."""
+    head = [form["python"], form.get("reach") or form["script"], verb]
     if form.get("session"):
         head += ["--session", form["session"]]
     return head
+
+
+def head_matches(words, form, verb, exact=False):
+    """Do the words start with the session's form (exact: are they just that)? A home path in quotes is a path the shell does not expand."""
+    head = form_head(form, verb)
+    texts = [w[0] for w in words]
+    if texts[:len(head)] != head or (exact and len(texts) != len(head)):
+        return False
+    return not (str(head[1]).startswith("~") and words[1][1])
+
+
+def failed_to_start(command, form, output):
+    """A call of this session's script that the shell could not start: the briefing's short form typed from another folder, or a home path in quotes.
+    Nothing ran and the session stored nothing."""
+    if NO_SCRIPT_TEXT not in str(output):
+        return False
+    words, problems = shell_words(str(command).strip())
+    return not problems and len(words) > 2 and words[0][0] == form["python"] and words[1][0] in (form["script"], form.get("reach"))
 
 
 def parse_step_call(command, form, chained=True):
@@ -150,8 +176,7 @@ def parse_step_call(command, form, chained=True):
     words, problems = shell_words(str(command).strip())
     out = {"why": None, "goal": None, "plan": None, "json": None, "problems": problems, "shell_ok": not problems, "head_ok": False}
     head = form_head(form, "step")
-    texts = [w[0] for w in words]
-    if texts[:len(head)] != head:
+    if not head_matches(words, form, "step"):
         problems.append("not exactly the step form")
         return out
     out["head_ok"] = True
@@ -180,7 +205,7 @@ def parse_step_call(command, form, chained=True):
 
 def parse_more_call(command, form):
     words, problems = shell_words(str(command).strip())
-    return not problems and [w[0] for w in words] == form_head(form, "more")
+    return not problems and head_matches(words, form, "more", exact=True)
 
 
 def parse_brief_call(command, form):
@@ -188,9 +213,50 @@ def parse_brief_call(command, form):
     words, problems = shell_words(str(command).strip())
     texts = [w[0] for w in words]
     head = form_head(form, "brief") + ["--part"]
-    if problems or len(words) != len(head) + 1 or texts[:len(head)] != head:
+    if problems or len(words) != len(head) + 1 or texts[:len(head)] != head or not head_matches(words, form, "brief"):
         return None
     return int(texts[-1]) if texts[-1].isdigit() else None
+
+
+def in_served_order(step_calls, steps):
+    """The step calls with those of one turn in the order the session served them, when they are the same calls: a parallel call can reach the
+    session's lock before the one written ahead of it. -> (calls, turns that were reordered)."""
+    out, reordered, start = list(step_calls), 0, 0
+
+    def key(why, goal, plan, raw):
+        return json.dumps([why, goal, plan or None, raw])
+
+    while start < len(out):
+        end, turn = start + 1, out[start]["call"]["turn"]
+        while turn is not None and end < len(out) and out[end]["call"]["turn"] == turn:
+            end += 1
+        if end - start > 1 and end <= len(steps):
+            stored = [key(s.get("why"), s.get("goal"), s.get("plan"), s.get("json")) for s in steps[start:end]]
+            made = [key(m["why"], m["goal"], m["plan"], m["json"]) for m in out[start:end]]
+            if made != stored and sorted(made) == sorted(stored):
+                remaining = list(zip(made, out[start:end]))
+                ordered = []
+                for wanted in stored:
+                    found = next(item for item in remaining if item[0] == wanted)
+                    remaining.remove(found)
+                    ordered.append(found[1])
+                out[start:end] = ordered
+                reordered += 1
+        start = end
+    return out, reordered
+
+
+def parallel_steps(step_calls, steps):
+    """-> (turns with more than one step call, the numbers of the steps sent before the previous output existed: all but the first of each turn)."""
+    turns, later, previous, counted = 0, [], None, None
+    for index, made in enumerate(step_calls):
+        turn = made["call"]["turn"]
+        if turn is not None and turn == previous:
+            later.append(steps[index].get("n") if index < len(steps) else index + 1)
+            if counted != turn:
+                turns, counted = turns + 1, turn
+        previous = turn
+    return turns, later
 
 
 def read_transcript(path):
@@ -310,7 +376,7 @@ def check_chain(session, steps, session_dir):
         line = by_h.get(step.get("h"))
         if line is None:
             problems.append("step {} has no line in chain.jsonl".format(step.get("n")))
-        elif line.get("seen_sha256") != sha256_text(printed) or line.get("prev") != head:
+        elif (line.get("prior_print_sha256") or line.get("seen_sha256")) != sha256_text(printed) or line.get("prev") != head:     # seen_sha256: the field's name in the pilot
             problems.append("step {}: chain.jsonl commits to something else".format(step.get("n")))
         head, printed = expected, step.get("output")
     done = {step.get("h") for step in steps}
@@ -468,7 +534,7 @@ def audit(transcript, session_dir, reprint=None, finalized=None, first_message=N
     if not records:
         violate("empty_transcript", "the transcript has no records")
     # A1
-    step_calls, handbacks, brief_calls, more_calls, refused = [], [], [], [], []
+    step_calls, handbacks, brief_calls, more_calls, refused, wrong_path = [], [], [], [], [], []
     stored = len(steps)
     for position, call in enumerate(calls):
         name, command = call["name"], call["input"].get("command")
@@ -483,6 +549,9 @@ def audit(transcript, session_dir, reprint=None, finalized=None, first_message=N
         odd_keys = sorted(set(call["input"]) - BASH_KEYS)
         if odd_keys:
             violate("bash_options", "Bash options other than the step form's: {}".format(odd_keys), call)
+        if failed_to_start(command, form, (results.get(call["id"]) or {}).get("text", "")):
+            wrong_path.append(call)             # nothing ran and nothing was stored; A3 counts what was stored
+            continue
         part = parse_brief_call(command, form)
         if part is not None:
             if step_calls:
@@ -506,6 +575,11 @@ def audit(transcript, session_dir, reprint=None, finalized=None, first_message=N
             step_calls.append({"call": call, "why": parsed["why"], "goal": parsed["goal"], "plan": parsed["plan"], "json": parsed["json"]})
     if refused:
         warn("refused_calls", "{} call(s) in the right form that the tool refused or that came after the end; nothing stored".format(len(refused)))
+    if wrong_path:
+        warn("wrong_path_calls", "{} call(s) of the script that the shell could not start from its working directory; nothing ran".format(len(wrong_path)))
+    step_calls, reordered_turns = in_served_order(step_calls, steps)
+    if reordered_turns:
+        warn("served_out_of_order", "{} turn(s) whose step calls reached the session in another order than they were written".format(reordered_turns))
     # A2
     for number, record in records:
         if record.get("type") in ("user", "assistant"):
@@ -622,12 +696,9 @@ def audit(transcript, session_dir, reprint=None, finalized=None, first_message=N
             pages_read.add(made["part"])
         else:
             warn("output_differs", "brief --part {}: the robot's tool output is not the stored page".format(made["part"]))
-    turns = {}
-    for made in step_calls:
-        turns[made["call"]["turn"]] = turns.get(made["call"]["turn"], 0) + 1
-    parallel = sum(1 for turn, count in turns.items() if turn is not None and count > 1)
+    parallel, sent_early = parallel_steps(step_calls, steps)
     if parallel:
-        warn("parallel_calls", "{} turn(s) sent more than one step call".format(parallel))
+        warn("parallel_calls", "{} turn(s) sent more than one step call; step(s) {} were sent before the previous output existed: {}".format(parallel, sent_early, PARALLEL_RULING))
     for number, text in user_texts[1:]:
         if text.startswith(HANDBACK_REMINDER):
             continue
@@ -713,17 +784,18 @@ def audit(transcript, session_dir, reprint=None, finalized=None, first_message=N
     digest = hashlib.sha256(Path(transcript).read_bytes()).hexdigest()
     usage = [(record.get("message") or {}).get("usage") or {} for _n, record in records if record.get("type") == "assistant"]
     return {"verdict": "FAIL" if violations else "PASS", "kind": "consistency audit", "form": "subagent" if subagent else "headless",
-            "counts": {"tool_calls": len(calls), "step_calls": len(step_calls), "stored_commands": len(steps), "handbacks": len(handbacks), "refused_calls": len(refused), "more_calls": len(more_calls),
-                       "brief_calls": len(brief_calls), "brief_pages_read": len(pages_read), "brief_pages": len(pages),
+            "counts": {"tool_calls": len(calls), "step_calls": len(step_calls), "stored_commands": len(steps), "handbacks": len(handbacks), "refused_calls": len(refused), "wrong_path_calls": len(wrong_path),
+                       "more_calls": len(more_calls), "brief_calls": len(brief_calls), "brief_pages_read": len(pages_read), "brief_pages": len(pages),
                        "outputs_matching_the_session": matched, "violations": len(violations), "warnings": len(warnings)},
             "violations": violations, "warnings": warnings,
+            "parallel": {"turns": parallel, "steps_sent_before_previous_output": sent_early, "ruling": PARALLEL_RULING},
             "first_message": {"verbatim": first, "chars": len(first_user), "chars_beyond_briefing_and_start": extra_chars, "equals_the_launch_file": first_exact,
                               "briefing_delivery": "system_prompt" if system_verbatim else ("pages" if by_pages else ("first_message" if first and all(first.values()) else "unproven"))},
             "priming": {"attachment_kinds": prime["kinds"], "system_prompt_is_the_briefing": system_verbatim, "system_chars_besides_the_briefing": extra_system, "personal_found": personal_found, "hook_records": prime["hooks"]},
             "models": models, "compactions": compactions, "chain": chain_summary, "reprint": reprint_summary, "finalized": finalized_summary, "timing": times,
             "output_tokens_reported": sum(int(item.get("output_tokens") or 0) for item in usage),
             "transcript": {"file": Path(transcript).name, "sha256": digest, "records": len(records)},
-            "session": {"catalog_id": session.get("catalog_id"), "episode_over": bool(steps and steps[-1].get("over")),
+            "session": {"catalog_id": session.get("catalog_id"), "episode_over": bool(steps and steps[-1].get("over")), "typed_form": "{} {}".format(form["python"], form.get("reach") or form["script"]),
                         "system_prompt_sha256": session.get("system_prompt_sha256"), "prompt_sha256": session.get("prompt_sha256")}}
 
 

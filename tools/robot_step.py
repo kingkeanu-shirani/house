@@ -3,7 +3,7 @@ the driver"). Operator commands and the robot's commands:
 
     python tools/robot_step.py start --session DIR --spec FILE [--catalog-id ID] --seed N [--nonce TEXT]
                                      [--camera room|geometric] [--observation sparse|compact|raw]
-                                     [--robot-script robot.py]                                 (operator)
+                                     [--robot-script robot.py [--reach ~/path/robot.py]]       (operator)
     python tools/robot_step.py prompt --session DIR                                            (operator)
     python tools/robot_step.py launch --session DIR                                            (operator)
     python tools/robot_step.py brief --session DIR --part N                                    (the robot, before its first step)
@@ -30,22 +30,26 @@ and `_plan` annotations: they reach the log and never the simulator. The robot n
 budgets, seed, nonce, spec path or true ids; any failure in the tool or the simulator reaches it as one plain sentence, and
 the detail goes to <session>/operator_report.jsonl.
 
-The hash chain: h_i = sha256(h_(i-1), sha256(what was printed before this command), the --json text, why, goal, plan), with h_0
-from the session's hashes. A step refuses before simulating if the stored chain does not verify. chain.jsonl gets the line
-before the simulator runs, so a reason exists before its outcome and is committed to what had been seen; steps.jsonl gets the
-outcome afterwards.
+The hash chain: h_i = sha256(h_(i-1), sha256(the print before this command, in the order served), the --json text, why, goal,
+plan), with h_0 from the session's hashes. A step refuses before simulating if the stored chain does not verify. chain.jsonl gets
+the line before the simulator runs, so a reason exists before its outcome; steps.jsonl gets the outcome afterwards. Its
+`prior_print_sha256` names the print that came before in that order. It does not say the model had read it: calls sent in one
+turn were written before the earlier outputs existed, and only the transcript shows that. The ruling on them: recorded, served
+one at a time in order (session_lock), not void, and published (the audit's `parallel`, which lists the steps concerned).
 
 How the briefing reaches the robot: `prompt` prints it, about 97,000 characters (the harness's prompt lists 425 actions). A
 headless child reads it as its system prompt (tools/robot_launch.py) and first_message.txt as its first message. A parent
-using the Agent tool can paste it, or, far cheaper for the parent, give it the few lines `launch` prints: they tell the robot
-to read the same text in pages with `brief`, each below the Bash tool's output limit. A page holds only what `prompt` and
-`start` print, and `brief` touches no episode state.
+using the Agent tool gives it the few lines `launch` prints: they tell the robot to read the same text in pages with `brief`,
+each below the Bash tool's output limit. A page holds only what `prompt` and `start` print, and `brief` touches no episode state.
 
 THE SESSION FOLDER HOLDS THE SPEC, SEED AND NONCE. The robot is only ever told the step command form (`prompt` and `launch`
 print exactly that); it must never be given anything else from the folder. Python and the shell are no boundary, so
 tools/audit_robot_transcript.py enforces the rest: every tool call of the robot must be this step command (or `more`, or
 `brief` before the first step), one to one with the stored commands, or the run is void. Give the session folder a neutral
-name: the robot sees it in the long form. With --robot-script the form is `python robot.py step ...` and the path stays hidden.
+name. With --robot-script the briefing's form is `python robot.py step ...`, the same for every attempt, and the path stays
+hidden. A subagent's shell starts in its parent's folder and goes back there after every call, so with --reach it types the script
+as `python ~/robot_run/sim_x/work/robot.py ...` instead: the one simple command the audit then accepts. `launch`, the last page and
+the `more:` line say so; the briefing itself does not change. Without --robot-script the form is the long one, with its paths.
 
 A session the robot stopped driving (it ended its turn with text, the child stalled, a usage limit) is not retried: `finalize`
 idles the robot from its last command to the end of the episode with `wait` commands marked `_idle`, sets `end_reason` to
@@ -102,7 +106,7 @@ The robot takes commands through one shell command, nothing else. Run it with yo
 - --json is the one JSON object described under Command format above, inside single quotes. Write an apostrophe inside it as \\u0027. It is the only command for this turn. "note" is not used here: your own conversation is your memory.
 - Each call prints RESULT (ok, message and category of the command), the INSTRUCTION and the new OBSERVATION as JSON. A refused or malformed command costs a step like any other.
 - {{"action": "done"}} ends the episode. After that the command only says that the episode is over: do not call it again; stop and give a one-line closing remark.
-- Use no other tool and run no other command: no reading or searching files, no other programs, no second command chained to this one, no two calls in one turn. Anything other than this command voids the run."""
+- Use one call per turn. No reading or searching files, no other programs, no second command chained to this one. Any other tool or command voids the run."""
 
 # llm.JSON_FORMAT's replacement in the sparse prompt: DESIGN revision 2's 3.3 paragraph, with three sentences added because a robot
 # cannot use the print without them (marked below). {step} and {more} are the command forms.
@@ -117,8 +121,12 @@ SPARSE_FORMAT = ("How you act: the robot takes commands through one shell comman
                  "What is listed depends on where you stand. `out_of_view` means not listed from here, not that it moved. "
                  "The world may have changed since you were last shown something. "
                  "An entity field left out is false, null or empty, or looks dry, room temperature, clean. "
+                 "`_absent` names fields this thing's record does not hold: they tell you nothing about it. "         # added: SV-24
                  "If a print ends with a line starting more:, run `{more}` for the rest; it takes no time. "         # added: the long print
-                 "{{\"action\": \"done\"}} ends the episode. Use no other tool and no other command. Anything else voids the run.")
+                 "{{\"action\": \"done\"}} ends the episode. Any other tool or command voids the run.")                # SV-07: a parallel call is neither
+# The harness's first sentence is not true of the sparse form, where nothing is repeated (SV-24): the only other sentence replaced.
+HARNESS_TURN_SENTENCE = "Each turn you receive the resident's instruction, your memory note, your most recent steps with their results, and the robot's current observation."
+SPARSE_TURN_SENTENCE = "You receive the resident's instruction and the robot's first observation once; after that each command's output gives its result and what changed, and your own conversation is your memory."
 
 
 LAUNCH = """You control a household service robot in a simulated home, through one shell command. Your complete instructions, your task and the robot's first observation are in {pages} pages. Read them now with your Bash tool, one call per turn, starting with:
@@ -126,6 +134,12 @@ LAUNCH = """You control a household service robot in a simulated home, through o
 {form} --part 1
 
 Then --part 2 and so on up to --part {pages}, and follow them. Use no other tool and run no other command: the Bash calls these pages describe are the only calls of this run."""
+LAUNCH_REACH = """You control a household service robot in a simulated home, through one shell command. Your complete instructions, your task and the robot's first observation are in {pages} pages. Read them now with your Bash tool, one call per turn, starting with:
+
+{form} --part 1
+
+Then --part 2 and so on up to --part {pages}, and follow them. The pages write the command as `python robot.py`. Your shell starts in another folder and goes back there after every call, so always type it as `{typed}`, exactly so, with no quotes around that path and no cd. Use no other tool and run no other command: the Bash calls these pages describe are the only calls of this run."""
+LAST_PAGE_REACH = "Your task begins now. Type every command as `{form} ...`: your shell starts in another folder.\n"
 
 
 class ToolRefusal(Exception):
@@ -458,6 +472,10 @@ def cmd_start(args):
                "step_form": ({"python": "python", "script": args.robot_script, "session": None} if args.robot_script else
                              {"python": "python", "script": Path(__file__).resolve().as_posix(), "session": folder.as_posix()}),
                "created_utc": _now()}
+    if args.reach:
+        if not args.robot_script:
+            raise OperatorError("--reach says how to reach the short form: it needs --robot-script")
+        session["step_form"]["reach"] = args.reach
     first = rebuild(session, spec, [], [])
     if not first.at_decision:
         detail = first.crash or first.error or (first.record or {}).get("end_reason")
@@ -476,16 +494,19 @@ def cmd_start(args):
     first_message = text if session["observation"] != "sparse" else "INSTRUCTION: {}\nOBSERVATION:\n{}".format(agent.instruction, text)
     _write_text(folder / "first_message.txt", first_message + "\n")
     _write_text(folder / "briefing.txt", prompt + "\n")
-    _write_text(folder / "briefing_pages.json", json.dumps(paginate(prompt, first_message), ensure_ascii=False, indent=0))
+    last_page = "Your task begins now.\n" if not args.reach else LAST_PAGE_REACH.format(form=step_form_text(session, "step", typed=True))
+    _write_text(folder / "briefing_pages.json", json.dumps(paginate(prompt, first_message, last_page=last_page), ensure_ascii=False, indent=0))
     if session["observation"] != "sparse" and len(text) > BASH_OUTPUT_LIMIT:
         print("warning: this observation has {} characters, above the Bash tool's output limit".format(len(text)), file=sys.stderr)
     return text
 
 
-def step_form_text(session, verb="step"):
+def step_form_text(session, verb="step", typed=False):
+    """The command form. The briefing holds the short form, the same on every attempt; typed: what the robot types, which with --reach
+    names the script through the shell's ~/."""
     form = session["step_form"]
     if form.get("session") is None:
-        return "{} {} {}".format(form["python"], form["script"], verb)
+        return "{} {} {}".format(form["python"], form.get("reach") if typed and form.get("reach") else form["script"], verb)
     return '{} "{}" {} --session "{}"'.format(form["python"], form["script"], verb, form["session"])
 
 
@@ -495,17 +516,17 @@ def system_prompt_of(catalog):
 
 
 def briefing_text(base, session):
-    """The whole briefing. Sparse: the harness's prompt byte for byte with only its format paragraph replaced. Compact and raw:
-    the harness's prompt, then how to call the command."""
+    """The whole briefing. Sparse: the harness's prompt byte for byte with only its format paragraph and its one stale sentence
+    replaced. Compact and raw: the harness's prompt, then how to call the command."""
     if session.get("observation") != "sparse":
         return base + INTERFACE.format(form=step_form_text(session))
     from house_sim.eval.llm import JSON_FORMAT
-    if base.count(JSON_FORMAT) != 1:
-        raise OperatorError("the harness's prompt no longer holds its format paragraph once")
-    return base.replace(JSON_FORMAT, SPARSE_FORMAT.format(step=step_form_text(session), more=step_form_text(session, "more")))
+    if base.count(JSON_FORMAT) != 1 or base.count(HARNESS_TURN_SENTENCE) != 1:
+        raise OperatorError("the harness's prompt no longer holds its format paragraph and its first sentence once")
+    return base.replace(JSON_FORMAT, SPARSE_FORMAT.format(step=step_form_text(session), more=step_form_text(session, "more"))).replace(HARNESS_TURN_SENTENCE, SPARSE_TURN_SENTENCE)
 
 
-def paginate(briefing, start, limit=PAGE_CHARS):
+def paginate(briefing, start, limit=PAGE_CHARS, last_page="Your task begins now.\n"):
     """The briefing in whole lines per page, then the task and first observation on a page of their own."""
     pages, current, size = [], [], 0
     for line in briefing.split("\n"):
@@ -515,7 +536,7 @@ def paginate(briefing, start, limit=PAGE_CHARS):
         current.append(line)
         size += len(line) + 1
     pages.append("\n".join(current))
-    pages.append("Your task begins now.\n" + start)
+    pages.append(last_page + start)
     return ["PAGE {} of {}\n{}".format(index + 1, len(pages), page) for index, page in enumerate(pages)]
 
 
@@ -535,6 +556,8 @@ def cmd_launch(args):
     except ToolRefusal as exc:
         raise OperatorError(str(exc))
     pages = json.loads((folder / "briefing_pages.json").read_text(encoding="utf-8"))
+    if session["step_form"].get("reach"):
+        return LAUNCH_REACH.format(pages=len(pages), form=step_form_text(session, "brief", typed=True), typed="{} {}".format(session["step_form"]["python"], session["step_form"]["reach"]))
     return LAUNCH.format(pages=len(pages), form=step_form_text(session, "brief"))
 
 
@@ -572,7 +595,7 @@ def _stored_prints(session, steps, first_print):
 
 
 def _more_line(session):
-    return "more: " + step_form_text(session, "more")
+    return "more: " + step_form_text(session, "more", typed=True)
 
 
 def cmd_step(session_path, why, raw, goal=None, plan=None):
@@ -593,7 +616,7 @@ def cmd_step(session_path, why, raw, goal=None, plan=None):
         if problem:
             return _halt(folder, n, "the hash chain does not verify: " + problem, command)
         h = chain_hash(head, seen, raw, why, goal, plan)
-        intent = {"n": n, "prev": head, "seen_sha256": sha256_text(seen), "json": raw, "why": why, "goal": goal, "plan": plan or None, "h": h, "utc": _now()}
+        intent = {"n": n, "prev": head, "prior_print_sha256": sha256_text(seen), "json": raw, "why": why, "goal": goal, "plan": plan or None, "h": h, "utc": _now()}
         _append_line(folder / "chain.jsonl", intent)    # before the simulator runs: the reason exists before its outcome
         started = time.perf_counter()
         commands = [s["command"] for s in steps] + [command]
@@ -813,6 +836,7 @@ def _build_parser():
     start.add_argument("--camera", choices=("room", "geometric"))
     start.add_argument("--observation", choices=("sparse", "compact", "raw"), default="sparse")
     start.add_argument("--robot-script")
+    start.add_argument("--reach")
     step = sub.add_parser("step")
     step.add_argument("--session")
     step.add_argument("--why")
