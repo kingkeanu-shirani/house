@@ -1458,7 +1458,7 @@ def _probe_echo(seed, camera):
                                          ("wait", {"seconds": 1, "until": {"path": "entities.{}.open".format(handle),
                                                                           "op": "eq", "value": True}})):
                         ok, category, message, dt = _agent_step(env, action, **args)
-                        reply.append((action, ok, category, message.replace(handle, "<H>"), dt))
+                        reply.append((action, ok, category, re.sub(r'"numbers": \[[\d, ]*\], ', "", message.replace(handle, "<H>")), dt))     # a report's number counts the reports before it
                     runs[role] = reply
     for left, right in zip(runs.get("with", []), runs.get("without", [])):
         if left != right:
