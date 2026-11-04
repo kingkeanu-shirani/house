@@ -135,6 +135,17 @@ def floor_thing(cell, label="spray bottle", **props):
     return out
 
 
+class AvoidArgumentTests(unittest.TestCase):
+    def test_a_place_in_avoid_is_refused_as_an_argument_and_is_not_an_internal_error(self):
+        from house_sim.kernel.actions import ActionSpec
+        from house_sim.kernel.errors import ActionError
+        action = ActionSpec("probe", lambda ctx: None, {"avoid": "?list"}, 1.0, 0.0, 0.0, "core", True, None, False, "", False)
+        self.assertEqual(action.validate({"avoid": ["wet", "sharp"]}), {"avoid": ["wet", "sharp"]})
+        with self.assertRaises(ActionError) as caught:
+            action.validate({"avoid": [[1, 0]]})
+        self.assertIn("hazard kinds", str(caught.exception))
+
+
 class HazardListingTests(unittest.TestCase):
     """ORDER (review I11) and PUDDLE (review L4): obs.grid.hazards listed the sources of one cell in spawn order, and an
     unidentified puddle's hazard kind named its liquid (chlorine bleach 'wet', detergent 'slip')."""

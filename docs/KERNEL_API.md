@@ -1850,3 +1850,4 @@ Nothing here is specific to the episode. Where a generated house or a schema-2 o
   A flood the robot lets loose is well past it (tests: `RobotThatWorsensAFloorTests`). `worse: up` because they are numbers:
   one already above zero at the start was free to rise under `worse: true`, so this one change can add a charge, for a
   garment a dryer wrinkles further.
+- `ActionSpec` refuses a non-word entry in an `avoid` list as an argument error; a cell there used to crash `hazards.fresh_margins` as an internal error.

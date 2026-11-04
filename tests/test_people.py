@@ -2426,6 +2426,17 @@ class Tier1AdoptionTests(unittest.TestCase):
         self.assertIn("interrupted: doorbell", result["message"])
         self.assertLess(env.world.s["time_s"] - t0, 120)
 
+    def test_the_doorbell_is_not_heard_once_nobody_is_left_at_the_door(self):
+        ops = [{"op": "helper", "name": "people.visitor", "args": {"kind": "expected_guest", "at_s": 20}}]
+        env, b, r = build(ops, residents=[{"id": "resident_1", "role": "adult", "label": "Jordan", "age": 45}],
+                          start="2026-10-09T17:30:00")
+        ok(self, env, "wait", seconds=600, interrupt_on=["doorbell"])
+        heard = lambda: [s for s in env.observe().get("sounds", []) if s.get("kind") == "doorbell"]
+        self.assertTrue(heard())
+        for p in env.world.s["people"].values():
+            p["at_door"] = None
+        self.assertEqual(heard(), [])
+
     def test_knocks_falls_and_phones_post_notices(self):
         ops = self.HERE + [{"op": "event", "at_s": 20, "effect": "people.fall", "args": {"person": "resident_1"}}]
         env, b, r = build(ops)

@@ -211,6 +211,8 @@ class ActionSpec:
             require(type(value) is bool, "{} must be true or false".format(key), "argument")
         elif kind == "list":
             require(isinstance(value, list), "{} must be a list".format(key), "argument")
+            if key == "avoid":      # hazard kinds are words; a cell here crashed the planner as an internal error
+                require(all(isinstance(kind_name, str) for kind_name in value), "avoid lists hazard kinds as words, such as wet or sharp, not places", "argument")
         elif kind == "dict":
             require(isinstance(value, dict), "{} must be an object".format(key), "argument")
         elif kind == "cell":

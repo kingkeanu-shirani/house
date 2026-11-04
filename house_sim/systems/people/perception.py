@@ -184,7 +184,8 @@ def sounds(env, w, obs):
     out = []
     log = C.plog_read(state)
     rang = log.get("doorbell_s")
-    if rang is not None and 0 <= now - float(rang) <= 90 and not state["rooms"].get(room, {}).get("outdoor"):
+    waiting = any(C.present(v) and v.get("at_door") for v in state.get("people", {}).values())     # nobody left at the door: nothing rings
+    if rang is not None and waiting and 0 <= now - float(rang) <= 90 and not state["rooms"].get(room, {}).get("outdoor"):
         out.append({"kind": "doorbell", "source_hint": "front door", "loudness": 0.8})
     ring = log.get("ringing")
     if ring and 0 <= now - float(ring.get("time_s", -1e9)) <= 30:
