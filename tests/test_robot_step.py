@@ -1082,6 +1082,11 @@ class TestAudit(Base):
         self.assertViolation(short + self.records()[1:] + reading, "brief_after_step")
         died = self.turn(200, "Bash", {"command": self.records()[1]["message"]["content"][0]["input"]["command"]}, "Exit code 4")
         self.assertEqual(self.verdict(short + reading + died + self.records()[1:])["verdict"], "PASS")
+        broken = self.records()[1]["message"]["content"][0]["input"]["command"] + " it's"
+        unparsed = self.turn(201, "Bash", {"command": broken}, "Exit code 2\n/usr/bin/bash: eval: line 1: unexpected EOF while looking for matching `\"'")
+        self.assertEqual(self.verdict(short + reading + unparsed + self.records()[1:])["verdict"], "PASS")
+        ran_something = self.turn(202, "Bash", {"command": broken}, "Exit code 2\nsomething ran")
+        self.assertViolation(short + reading + ran_something + self.records()[1:], "not_step_form")
         reset = [{"type": "system", "subtype": "compact_boundary"}]
         result = self.verdict(short + reading + self.records()[1:] + reset + reading[:2])
         self.assertEqual((result["verdict"], result["compactions"]), ("PASS", 1))

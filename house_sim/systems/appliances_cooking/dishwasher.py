@@ -390,6 +390,7 @@ def _unload_body(ctx):
     state = w.s
     target = ctx.args["target"]
     rec = ctx.obj(target, touch=True, grasp=True)
+    require(rec.get("type") not in ("dishwasher_rack_bottom", "dishwasher_rack_top", "dishwasher_utensil_basket"), "Name the thing to take out of it, not the rack", "precondition")
     parent = state["entities"].get(rec.get("location")) or {}
     tool = ctx.args.get("tool")
     if rec.get("stuck"):
