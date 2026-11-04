@@ -1080,6 +1080,9 @@ class TestAudit(Base):
         self.assertEqual((result["counts"]["brief_calls"], result["counts"]["brief_pages_read"]), (len(pages), len(pages)))
         self.assertEqual(result["first_message"]["briefing_delivery"], "pages")
         self.assertViolation(short + self.records()[1:] + reading, "brief_after_step")
+        reset = [{"type": "system", "subtype": "compact_boundary"}]
+        result = self.verdict(short + reading + self.records()[1:] + reset + reading[:2])
+        self.assertEqual((result["verdict"], result["compactions"]), ("PASS", 1))
         self.assertEqual(call("brief", "--session", self.folder, "--part", 99), (0, "There are {} pages.".format(len(pages))))
         joined = "\n".join(pages)
         self.assertIn(self.first, joined)

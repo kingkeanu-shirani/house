@@ -1041,7 +1041,7 @@ def scene_bind_helper(ctx, laundry="laundry_room", hall="hallway", bedroom="mast
     (_scene_spill_cell), seep_cell (a free hallway cell beside the door's threshold), door_side (another one, kept dry: where a person stands at the door), dishwasher (the kitchen's), broom, pan, kit_home (the room the broom starts in), kit_holder (the
     closet shelving both tools can be remembered on), kit_targets (a surface with space for both in each kit room that has
     one), mitts_home (where the
-    mitts given are), table_mid_0, table_mid_1 (the middle of the table's top, m), p1, p2 (the first two of `privates`),
+    mitts given are), table_mid_0, table_mid_1 (the middle of the table's top, m), place_mid_0, place_mid_1 (a plate's corner with its middle there), p1, p2 (the first two of `privates`),
     floor_things (the loose things on the floor of floor_room, not the types in floor_not), all_rooms, and each name of `sums` ({name: [numbers]}, for a time drawn relative to another). SpecError when the house lacks the scene: a laundry room with one door and a washer
     fed by its own valves, a broom and dustpan, a place for them, a swing, a 2 x 2 patch in the kitchen."""
     state = ctx.placer.state()
@@ -1120,6 +1120,10 @@ def scene_bind_helper(ctx, laundry="laundry_room", hall="hallway", bedroom="mast
     if table is not None:
         width, depth = (entities[table].get("surface_size_m") or entities[table].get("size_m") or [1.0, 1.0])[:2]
         out["table_mid_0"], out["table_mid_1"] = round(float(width) / 2.0, 3), round(float(depth) / 2.0, 3)
+        plates = sorted(eid for eid, record in entities.items() if record.get("type") == "dinner_plate")
+        if plates:      # spos is a thing's corner: a plate is on the far half when its middle is
+            plate_w, plate_d = geometry.footprint_m(entities[plates[0]])[:2]
+            out["place_mid_0"], out["place_mid_1"] = round(float(width - plate_w) / 2.0, 3), round(float(depth - plate_d) / 2.0, 3)
     if privates:
         out["p1"], out["p2"] = privates[0], privates[1]
     if floor_room is not None:

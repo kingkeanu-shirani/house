@@ -681,7 +681,10 @@
      "open:{dishwasher}",
      "close:{dishwasher}",
      "load:{dishwasher}"
-    ]
+    ],
+    "where_said": {
+     "oven_mitts": "In the drawer by the stove, unless Hayden has run off with them again. Hayden's in their room, Bedroom 2."
+    }
    }
   },
   {
@@ -721,6 +724,29 @@
     "room": "kitchen_1"
    },
    "kind": "c5_hayden_walks"
+  },
+  {
+   "op": "event",
+   "when": {
+    "all": [
+     {
+      "path": "time_s",
+      "op": "gte",
+      "value": "{t_mitts}"
+     },
+     {
+      "path": "entities.{mitts}.location",
+      "op": "eq",
+      "value": "{mitts_home}"
+     }
+    ]
+   },
+   "effect": "people.say",
+   "args": {
+    "person": "child_1",
+    "text": "I'm borrowing the oven mitts for my puppet show. They'll be in my room, Bedroom 2."
+   },
+   "kind": "c5_hayden_says"
   },
   {
    "op": "event",
@@ -4212,7 +4238,7 @@
        "check": {
         "path": "spos.0",
         "op": "lt",
-        "value": "{table_mid_0}"
+        "value": "{place_mid_0}"
        }
       }
      },
@@ -4228,7 +4254,7 @@
        "check": {
         "path": "spos.0",
         "op": "gte",
-        "value": "{table_mid_0}"
+        "value": "{place_mid_0}"
        }
       }
      },
@@ -4244,7 +4270,7 @@
        "check": {
         "path": "spos.1",
         "op": "lt",
-        "value": "{table_mid_1}"
+        "value": "{place_mid_1}"
        }
       }
      },
@@ -4260,7 +4286,7 @@
        "check": {
         "path": "spos.1",
         "op": "gte",
-        "value": "{table_mid_1}"
+        "value": "{place_mid_1}"
        }
       }
      }
@@ -4614,7 +4640,8 @@
    ]
   },
   "damage": [
-   "type:microfiber_cloth"
+   "type:microfiber_cloth",
+   "type:sponge"
   ],
   "soil": [
    "floor_laundry_room_1",

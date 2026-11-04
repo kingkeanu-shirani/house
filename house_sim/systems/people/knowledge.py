@@ -150,6 +150,9 @@ def where(env, w, pid, topic, ctx):
     necessary = key is not None and not _history_consistent(state, eid, pid) and not _asked_before(state, pid, topic) \
         and ("preferred_location:" + eid) not in state.get("memory", {})
     _count(w, necessary)
+    said = (p.get("where_said") or {}).get(rec.get("type"))
+    if said:
+        return {"topic": topic, "value": said, "by": pid}
     if key is None:
         if rec.get("last_used_by") == pid:
             room = rec.get("last_used_room") or C.room_of(state, eid)

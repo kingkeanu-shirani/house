@@ -506,6 +506,10 @@ def check_finalized(steps, out_dir):
     return problems, summary
 
 
+def is_compaction(record):
+    return (record.get("type") == "system" and record.get("subtype") == "compact_boundary") or bool(record.get("isCompactSummary"))
+
+
 def is_subagent_form(records):
     return any(record.get("isSidechain") or record.get("agentId") for _n, record in records if record.get("type") in ("user", "assistant"))
 
@@ -535,6 +539,7 @@ def audit(transcript, session_dir, reprint=None, finalized=None, first_message=N
         violate("empty_transcript", "the transcript has no records")
     # A1
     step_calls, handbacks, brief_calls, more_calls, refused, wrong_path = [], [], [], [], [], []
+    compacted_at = min((n for n, record in records if is_compaction(record)), default=None)   # the pages are fixed text: re-reading them after a reset tells nothing new
     stored = len(steps)
     for position, call in enumerate(calls):
         name, command = call["name"], call["input"].get("command")
@@ -554,8 +559,8 @@ def audit(transcript, session_dir, reprint=None, finalized=None, first_message=N
             continue
         part = parse_brief_call(command, form)
         if part is not None:
-            if step_calls:
-                violate("brief_after_step", "a brief call after the first step", call)
+            if step_calls and (compacted_at is None or call["line"] < compacted_at):
+                violate("brief_after_step", "a brief call after the first step, with no context reset before it", call)
             brief_calls.append({"call": call, "part": part})
             continue
         if parse_more_call(command, form):
@@ -765,7 +770,7 @@ def audit(transcript, session_dir, reprint=None, finalized=None, first_message=N
     if synthetic:
         warn("synthetic_message", "messages Claude Code wrote itself, not a model: {}".format(synthetic))
     # A7
-    compactions = sum(1 for _n, record in records if (record.get("type") == "system" and record.get("subtype") == "compact_boundary") or record.get("isCompactSummary"))
+    compactions = sum(1 for _n, record in records if is_compaction(record))
     # A9
     chain_summary = None
     if chained:
