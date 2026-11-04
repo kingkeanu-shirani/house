@@ -29,7 +29,7 @@ A7 (compaction) is counted and published, never a void. A8 (the attempt ledger) 
 
 Allowed and counted, because neither can tell the robot anything the briefing does not: `brief` before the first step (a parent cannot paste
 110,000 characters), `more` (the rest of a long print, compared with what was stored), and for the subagent form a single SubagentHandback as the
-very last tool call. A call in the right form that the tool refused and did not store ("Malformed step call", "could not be processed", or a call
+very last tool call. A call in the right form that the tool refused and did not store ("Malformed step call", "could not be processed", a process that died and printed only its exit code, or a call
 after the episode ended) changes nothing and prints nothing else: it is counted and warned about, not void. So is a call that names the session's script
 in the briefing's short form, or with the home path quoted, and that the shell could not start ("can't open file"): nothing ran and nothing was stored.
 
@@ -61,6 +61,7 @@ HEADLESS_ATTACHMENTS = ("environment", "model", "total_tokens_reminder", "date",
 # seen only in a subagent's transcript: this is the priming the headless form exists to remove
 SUBAGENT_ATTACHMENTS = ("instructions", "skill_listing", "deferred_tools_delta", "agent_listing_delta", "mcp_instructions_delta", "credential_org")
 REFUSED_OUTPUTS = ("Malformed step call:", "The command could not be processed.", "There is no such session.")
+DIED_OUTPUT = re.compile(r"Exit code \d+\Z")
 OVER_TEXT = "The episode is over."
 NOTHING_MORE_TEXT = "Nothing more to print."
 PROJECT_WORDS = ("flagship", "home reset", "home_reset", "ten-minute", "noumenax")
@@ -568,8 +569,8 @@ def audit(transcript, session_dir, reprint=None, finalized=None, first_message=N
             continue
         parsed = parse_step_call(command, form, chained)
         output = (results.get(call["id"]) or {}).get("text", "").strip()
-        if parsed["shell_ok"] and parsed["head_ok"] and output.startswith(REFUSED_OUTPUTS):
-            refused.append(call)                # the tool said no and stored nothing: nothing happened and nothing was shown
+        if parsed["shell_ok"] and parsed["head_ok"] and (output.startswith(REFUSED_OUTPUTS) or DIED_OUTPUT.match(output)):
+            refused.append(call)                # the tool said no, or its process died, and stored nothing: nothing happened and nothing was shown
             continue
         if not parsed["problems"] and len(step_calls) >= stored and output == OVER_TEXT:
             refused.append(call)                # a call after the episode ended

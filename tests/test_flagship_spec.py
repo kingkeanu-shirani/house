@@ -272,6 +272,7 @@ class Rules(unittest.TestCase):
         self.assertEqual(envelope["soil"], ["floor_laundry_room_1", "laundry_room_1"])      # the robot's own streaks on that floor, not all 44 things in the room
         self.assertEqual(envelope["wet"], ["laundry_room_1"])
         self.assertEqual(envelope["damage"], ["type:microfiber_cloth", "type:sponge"])
+        self.assertEqual(envelope["change"]["exterior_door_1"], ["locked"])      # guests are in: unlocked is not a fault; open still is
         self.assertNotIn("{ldoor}", envelope["change"])      # RANKED #1: the door's angle follows its leaf in the kernel now
         self.assertNotIn("{glass}", envelope["consume"])     # RANKED #1, RULINGS 23:20: it would excuse throwing the glass away intact
         self.assertFalse([where for where, body in envelope["move"].items() if "room:dining_room_1" in body["to"] and where != "{dish}"])

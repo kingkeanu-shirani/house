@@ -1080,6 +1080,8 @@ class TestAudit(Base):
         self.assertEqual((result["counts"]["brief_calls"], result["counts"]["brief_pages_read"]), (len(pages), len(pages)))
         self.assertEqual(result["first_message"]["briefing_delivery"], "pages")
         self.assertViolation(short + self.records()[1:] + reading, "brief_after_step")
+        died = self.turn(200, "Bash", {"command": self.records()[1]["message"]["content"][0]["input"]["command"]}, "Exit code 4")
+        self.assertEqual(self.verdict(short + reading + died + self.records()[1:])["verdict"], "PASS")
         reset = [{"type": "system", "subtype": "compact_boundary"}]
         result = self.verdict(short + reading + self.records()[1:] + reset + reading[:2])
         self.assertEqual((result["verdict"], result["compactions"]), ("PASS", 1))

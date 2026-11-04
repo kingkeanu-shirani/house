@@ -4598,6 +4598,9 @@
    }
   },
   "change": {
+   "exterior_door_1": [
+    "locked"
+   ],
    "{oven}": [
     "settings.mode"
    ],
