@@ -1064,6 +1064,17 @@ class TestAudit(Base):
         path.write_text("", encoding="utf-8")
         self.assertEqual(audit.audit(path, self.folder)["verdict"], "FAIL")
 
+    def test_a_step_call_the_permission_check_denied_never_ran(self):
+        records = self.records()
+        command = records[1]["message"]["content"][0]["input"]["command"]
+        denied_text = "Permission for this tool use was denied. It requires approval, and this session has no approval surface."
+        denied = self.turn(300, "Bash", {"command": command + " don't, won't; stop"}, denied_text)
+        result = self.verdict(records[:1] + denied + records[1:])
+        self.assertEqual(result["verdict"], "PASS", result)
+        self.assertEqual(result["counts"]["refused_calls"], 1)
+        other = self.turn(301, "Bash", {"command": "cat house_notes.txt"}, denied_text)
+        self.assertEqual(self.verdict(records[:1] + other + records[1:])["verdict"], "FAIL")
+
     def test_a_briefing_read_in_pages_passes_and_a_late_page_fails(self):
         pages = json.loads((self.folder / "briefing_pages.json").read_text(encoding="utf-8"))
         self.assertGreater(len(pages), 1)

@@ -57,7 +57,10 @@ MESSAGE_BLOCKS = ("text", "thinking", "redacted_thinking", "tool_use", "tool_res
 PARALLEL_RULING = "recorded, served one at a time in order, not void, and published"
 NO_SCRIPT_TEXT = "can't open file"      # Python's own words when the shell's working directory does not hold the script
 # seen in a real headless transcript: what Claude Code itself adds, with no user content in it
-HEADLESS_ATTACHMENTS = ("environment", "model", "total_tokens_reminder", "date", "session_context", "remote_session_change", "prompt_snapshot")
+HEADLESS_ATTACHMENTS = ("environment", "model", "total_tokens_reminder", "date", "session_context", "remote_session_change", "prompt_snapshot", "credential_org", "silent_turn_reminder")
+SILENT_TURN_TEXT = "The user hasn't heard from you in a while. As you continue, keep them updated when there's something to tell \u2014 a finding, a change of plan."
+CARRIED_BY_THE_LOGIN = ("e-mail address", "user context")      # Claude Code tells any logged-in session whose e-mail it is; the subagent form carries more and is allowed with a warning
+PERMISSION_DENIED = "Permission for this tool use was denied."     # Claude Code's own check stopped the call: it never ran
 # seen only in a subagent's transcript: this is the priming the headless form exists to remove
 SUBAGENT_ATTACHMENTS = ("instructions", "skill_listing", "deferred_tools_delta", "agent_listing_delta", "mcp_instructions_delta", "credential_org")
 REFUSED_OUTPUTS = ("Malformed step call:", "The command could not be processed.", "There is no such session.")
@@ -570,6 +573,9 @@ def audit(transcript, session_dir, reprint=None, finalized=None, first_message=N
             continue
         parsed = parse_step_call(command, form, chained)
         output = (results.get(call["id"]) or {}).get("text", "").strip()
+        if parsed["head_ok"] and output.startswith(PERMISSION_DENIED):
+            refused.append(call)                # the permission check stopped it, so nothing ran; if it did store a step, A3 finds the extra command
+            continue
         if parsed["head_ok"] and "\n" not in str(command).strip() and UNPARSED_OUTPUT.match(output):
             refused.append(call)                # an unbalanced quote on one line: bash parses the whole line first, so nothing ran
             continue
@@ -608,8 +614,13 @@ def audit(transcript, session_dir, reprint=None, finalized=None, first_message=N
             warn("unknown_attachment", "{} attachment(s) of kind {}, none reaching the model".format(count, name))
     if not subagent:
         for name in SUBAGENT_ATTACHMENTS:
-            if name in prime["kinds"]:
+            if name in prime["kinds"] and name not in HEADLESS_ATTACHMENTS:
                 violate("priming_attachment", "a {} attachment in the headless form".format(name))
+        for name, text in prime["texts"]:
+            if name == "silent_turn_reminder" and (SILENT_TURN_TEXT not in text or len(text) - len(SILENT_TURN_TEXT) > 200):    # the sentence and its wrapper, nothing else
+                violate("priming_attachment", "a silent_turn_reminder with other words")
+        if prime["kinds"].get("silent_turn_reminder"):
+            warn("silent_turn_reminder", "{} generic reminder(s) from Claude Code to keep the user updated reached the model".format(prime["kinds"]["silent_turn_reminder"]))
     if prime["hooks"]["rendered"]:
         violate("hook_reached_model", "{} hook record(s) reach the model".format(prime["hooks"]["rendered"]))
     if prime["hooks"]["silent"]:
@@ -737,7 +748,11 @@ def audit(transcript, session_dir, reprint=None, finalized=None, first_message=N
                 personal_found.setdefault(name, []).append(where)
     if not subagent:
         for name, where in sorted(personal_found.items()):
+            if name in CARRIED_BY_THE_LOGIN and set(where) <= {"session_context", "request"}:
+                continue
             violate("priming_personal", "{} in {}".format(name, sorted(set(where))))
+        if any(name in personal_found for name in CARRIED_BY_THE_LOGIN):
+            warn("headless_priming", "Claude Code's session context carries the logged-in owner's e-mail; no memory index and no git status")
         if not system_verbatim:
             violate("system_prompt", "the system prompt recorded in the transcript is not the session's briefing")
         if extra_system is not None and extra_system > IDENTITY_CHARS:
