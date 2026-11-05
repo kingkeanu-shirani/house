@@ -478,6 +478,7 @@ def cmd_start(args):
                "episode_nonce": nonce, "episode": episode, "camera": args.camera, "observation": args.observation,
                "spec_hash": spec_hash(spec), "versions": run.versions(), "python": sys.version.split()[0], "time_limit_s": (spec.get("budget") or {}).get("time_s"), "step_limit": (spec.get("budget") or {}).get("steps"),
                "settled": bool(args.spec and (Path(args.spec).resolve().parent / "objectives.json").is_file()),
+               "briefing_note": briefing_note_of(args.spec),
                "env": {key: os.environ.get(key) for key in OUTCOME_ENV},
                "step_form": ({"python": "python", "script": args.robot_script, "session": None} if args.robot_script else
                              {"python": "python", "script": Path(__file__).resolve().as_posix(), "session": folder.as_posix()}),
@@ -525,8 +526,28 @@ def system_prompt_of(catalog):
     return system_prompt(catalog, tool_mode=False, doc_chars=None)      # whole docs: a rule cut from a doc reaches no robot
 
 
+NOTE_AFTER = "- Change nothing beyond what the task needs, and leave things as you found them.\n"
+
+
+def briefing_note_of(spec_path):
+    """A task's own words for its briefing, from briefing_note.txt beside its spec. None for every other task, whose briefing stays the harness's."""
+    path = Path(spec_path).resolve().parent / "briefing_note.txt" if spec_path else None
+    return path.read_text(encoding="utf-8").strip() if path is not None and path.is_file() else None
+
+
 def briefing_text(base, session):
-    """The whole briefing. Sparse: the harness's prompt byte for byte with only its format paragraph and its three stale phrases
+    """The whole briefing, with the task's own note (if any) after the last norm."""
+    text = _harness_briefing(base, session)
+    note = session.get("briefing_note")
+    if note:
+        if text.count(NOTE_AFTER) != 1:
+            raise OperatorError("the harness's prompt no longer holds the norm a task's note follows once")
+        text = text.replace(NOTE_AFTER, NOTE_AFTER + note + "\n")
+    return text
+
+
+def _harness_briefing(base, session):
+    """Sparse: the harness's prompt byte for byte with only its format paragraph and its three stale phrases
     replaced. Compact and raw: the harness's prompt, then how to call the command."""
     if session.get("observation") != "sparse":
         return base + INTERFACE.format(form=step_form_text(session))
