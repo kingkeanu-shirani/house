@@ -261,7 +261,7 @@
     "doc": "Fields outdoor_plants writes onto any entity (outdoor floors and walkways, ash containers, anything tied down or blown over): how hot ash in a can is needs a thermometer; a tipped-over thing is obvious; de-icer chemistry, concrete age, snow density, roots left in paving cracks, UV exposure hours, holding-force ratings and bundle verdicts are simulation bookkeeping.",
     "glance": ["tipped"],
     "measure": {"ash_c": "thermometer"},
-    "hidden": ["secured.rating_n", "deicer", "cured_days", "spalling_risk", "snow_density", "crack_roots", "uv_h", "bundle.kg", "bundle.compliant"]
+    "hidden": ["secured.rating_n", "deicer", "cured_days", "spalling_risk", "snow_density", "crack_roots", "uv_h", "bundle.kg", "bundle.compliant", "mess_kind", "mess_amount"]
   },
   "looks_like": {
     "granule_bag": {"descriptor": "bag of granules", "resolve": "read", "kind": "bag of granules", "label_fields": ["label_text"], "size_m": [0.3, 0.12, 0.4],

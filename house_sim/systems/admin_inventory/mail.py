@@ -10,7 +10,7 @@ from ...kernel.plugins import after, before, hook
 from ..core import subtree_mass
 from .common import (address_matches, admin_facts, authority, household, mass_text, need_tool, requester,
                      require_readable, resolve_name, slug, units_metric, visual_event)
-from .hardening import writing
+from .hardening import derived_window_address_ok, writing
 from .perceive import count_seen, dumps, order_ids, privacy_violation, was_read
 
 # USPS retail rates effective July 2025 (cents). Households in other regions override household.postage.
@@ -198,6 +198,7 @@ def address_envelope(ctx):
     m = w.mut(target)
     m["to_text"] = ctx.args["to"].strip()
     m["addressed"] = True
+    m.pop("_address_from_window", None)
     if ctx.args.get("sender"):
         m["from_text"] = ctx.args["sender"].strip()
     m["label_text"] = m["to_text"]
@@ -239,7 +240,13 @@ def ready_to_send(w, eid):
         return False, "not mail"
     if not rec.get("sealed"):
         return False, "unsealed"
-    if not (rec.get("addressed") or rec.get("window_address_ok")):
+    if rec.get("_address_from_window"):
+        # the address it has is the letter's, showing through the window: a letter taken back out takes it along (an
+        # empty window envelope went out to the address of the letter it once held)
+        addressed = derived_window_address_ok(w.s, eid) is True
+    else:
+        addressed = rec.get("addressed") or rec.get("window_address_ok")
+    if not addressed:
         return False, "no address"
     if rec.get("stamp_position") not in (None, "top_right") and rec.get("postage_cents", 0):
         return False, "stamps not in the upper-right corner"
@@ -275,6 +282,7 @@ def _window_address(ctx, result):
     if ok:
         m["addressed"] = True
         m["to_text"] = rec.get("address_block") or m.get("to_text")
+        m["_address_from_window"] = True
 
 
 # ----------------------------------------------------------------------

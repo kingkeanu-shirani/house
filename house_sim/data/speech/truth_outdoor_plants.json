@@ -1,0 +1,88 @@
+{
+ "about": "outdoor_plants' truth mappings for claims about its state (kernel/speech.py truth(); VERIFY_HARDENING 13.1-13.3, 13.6; WP-D outdoor_plants). Words from house_sim/data/vocab/outdoor_plants.json and the living words of core.json (needs_water, dry_soil, pests, overgrown; wilted, clogged and overflowing are the kernel's truth.json: see the handoff's requests for the fields this domain's records hold). Conditions read the thing's own record, hidden fields included. A plant's record says whether it has an issue through the fields of plants.plant_status and its leaf counts; the last row of a list (a plant's or a lawn's field that never holds) makes a sound thing false, not unknown, wherever its own field is absent or null. needs_water, overwatered, dry_soil: the status plant_status derives from the root-zone water against the species' band. dead_leaves, yellowing: the leaf counts. disease: leaf spots or the diseased flag. root_bound, frost_damage, sunscald, leggy, bolting: the plant's own flags and its symptoms. leaning: over 15 degrees. weeds: a bed's weeds, cracks in paving, a lawn's weed patches. thin_patches: a lawn's bare patches or a thin one. mole_hills, grubs, mushrooms: the hidden issues of a lawn (the kinds helpers.lawn lays). overgrown: a lawn whose mean height is over 90 mm, a hedge over 2 m. icy: ice over 0.1 of a surface. snow_covered: more than 1 cm. blown_over: blown away or lying on its side. acts: fertilize, rake, mow, prune are said of this domain's verbs when the lexicon has them; water is the kernel's.",
+ "issues": {
+  "needs_water": [
+   {"field": "_op_status.needs_water", "op": "is_true"}
+  ],
+  "dry_soil": [
+   {"field": "_op_status.moisture", "op": "eq", "value": "dry"}
+  ],
+  "overwatered": [
+   {"field": "_op_status.moisture", "op": "eq", "value": "wet"},
+   {"field": "_op_status.overwatered", "op": "is_true"}
+  ],
+  "pests": [
+   {"field": "pests.severity", "op": "gt", "value": 0},
+   {"field": "health", "op": "lt", "value": -1}
+  ],
+  "yellowing": [
+   {"field": "leaves.yellowing", "op": "gt", "value": 0}
+  ],
+  "dead_leaves": [
+   {"field": "leaves.dead", "op": "gt", "value": 0}
+  ],
+  "disease": [
+   {"field": "leaf_spots", "op": "gt", "value": 0},
+   {"field": "diseased", "op": "is_true"}
+  ],
+  "root_bound": [
+   {"field": "root_bound", "op": "is_true"},
+   {"field": "_op_status.root_bound", "op": "is_true"},
+   {"field": "health", "op": "lt", "value": -1}
+  ],
+  "frost_damage": [
+   {"field": "symptoms", "op": "contains", "value": "cold-damaged dark leaves"},
+   {"field": "health", "op": "lt", "value": -1}
+  ],
+  "sunscald": [
+   {"field": "symptoms", "op": "contains", "value": "bleached scorched patches"},
+   {"field": "_op_status.sunscald", "op": "is_true"},
+   {"field": "health", "op": "lt", "value": -1}
+  ],
+  "leggy": [
+   {"field": "symptoms", "op": "contains", "value": "leggy pale growth"},
+   {"field": "health", "op": "lt", "value": -1}
+  ],
+  "bolting": [
+   {"field": "symptoms", "op": "contains", "value": "heat-stressed bolting"},
+   {"field": "health", "op": "lt", "value": -1}
+  ],
+  "leaning": [
+   {"field": "lean_deg", "op": "gt", "value": 15.0}
+  ],
+  "weeds": [
+   {"field": "_op_status.weeds", "op": "gt", "value": 0},
+   {"field": "crack_weeds", "op": "gt", "value": 0}
+  ],
+  "thin_patches": [
+   {"field": "summary.brown_patches", "op": "gt", "value": 0},
+   {"field": "summary.thin_patches", "op": "gt", "value": 0}
+  ],
+  "mole_hills": [
+   {"field": "_issue_kinds", "op": "contains", "value": "mole_hill"},
+   {"field": "summary.patches", "op": "lt", "value": 0}
+  ],
+  "grubs": [
+   {"field": "_issue_kinds", "op": "contains", "value": "grub_damage"},
+   {"field": "summary.patches", "op": "lt", "value": 0}
+  ],
+  "mushrooms": [
+   {"field": "_issue_kinds", "op": "contains", "value": "mushroom"},
+   {"field": "summary.patches", "op": "lt", "value": 0}
+  ],
+  "overgrown": [
+   {"field": "summary.mean_height_mm", "op": "gt", "value": 90.0},
+   {"field": "profile.height_m", "op": "gt", "value": 2.0}
+  ],
+  "icy": [
+   {"field": "ice", "op": "gt", "value": 0.1}
+  ],
+  "snow_covered": [
+   {"field": "snow_cm", "op": "gt", "value": 1.0}
+  ],
+  "blown_over": [
+   {"field": "blown_away", "op": "is_true"},
+   {"field": "tipped", "op": "is_true"}
+  ]
+ }
+}

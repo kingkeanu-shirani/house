@@ -316,6 +316,11 @@ def _inspect_devices(w, eid, rec, details, ctx):
         details["outputs"] = {info.get("label", p): "{:.0f} W".format(C.num(info.get("source_w"), 0)) for p, info in sorted(rec["ports"].items())}
         if real:
             percept.passthrough(details, "outputs")
+    if real and close and rec.get("charge_port") and percept.resolved(ctx, eid):
+        # the port is seen on a close look: what inspecting a look-alike phone resolves (USB-C or Lightning); before, the
+        # inspect that resolved the group showed nothing that told its members apart
+        details["charge_port"] = ((rec.get("ports") or {}).get("charge") or {}).get("label") or rec["charge_port"]
+        percept.passthrough(details, "charge_port")
     if rec.get("rechargeable") and "battery_level" in rec:
         if real:
             details.update(percept.battery_view(rec, C.num(rec.get("battery_level"), 0)))   # screen % or LED bucket

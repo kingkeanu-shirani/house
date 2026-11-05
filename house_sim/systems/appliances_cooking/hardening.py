@@ -29,9 +29,12 @@
   listener to one of them ("come and look at the stove") is a warning inverted (WP4's house.warning_inverted).
 * **Settings skills** (10.3): range settings (`settings.temp`, `settings.temp_c`, `settings.power`, `settings.delay_h`,
   `settings.time_s`, ... whose options are a {min, max} range), a gas burner's `burner.lit` (ignite / knob off),
-  and a timer's `timers` (set_timer). This domain's damaging acts (a freezer's evaporator chipped with an ice pick
-  once it is off and open, a nonstick pan scratched by a metal tool freeing food, an empty pan left on high) each
-  need a multi-step setting no single settings step expresses, so B14's damaged probe has none of them.
+  and a timer's `timers` (set_timer). The damaging acts that one plan step can carry out where the house holds what
+  they need are settings skills of their condition fields for B14's damaged probe: `motor_overheated` (a blender stalled
+  on a frozen load), `wand.milk_residue` (milk steamed with the wand neither purged nor wiped), `coating_scratched` (a
+  metal tool freeing what is in a nonstick pan), `arc_damaged` (a metal thing run in a microwave). The others need a
+  longer setting no such step expresses (a freezer's evaporator chipped once it is off and thawed, an empty pan left on
+  high until it warps, racks through a self-clean); a wrong plan shows those guards live (7.6).
 """
 from ...kernel.plugins import HOOKS, derived_field, hook, settings_skill
 from ...kernel.predicates import MISSING
@@ -373,6 +376,86 @@ def timer_steps(state, eid):
 
 
 register_range_settings(range_setting_types(RANGE_SETTINGS))
+
+
+# ----------------------------------------------------------------------------------------------
+# damaging verbs (B14's damaged probe: a domain's settings skill for a condition field, WP6). Each is offered only where
+# the house already holds what the act needs, and is one plan step (a skill may fetch first)
+
+def _room_items(state, eid):
+    """What can be carried in eid's room, not inside anything closed, in id order."""
+    ents = state.get("entities") or {}
+    room = C.room_of(state, eid)
+    out = []
+    for other in sorted(ents):
+        rec = ents[other]
+        if other == eid or not isinstance(rec, dict) or not rec.get("portable") or C.room_of(state, other) != room:
+            continue
+        if any((ents.get(p) or {}).get("openable") and not (ents.get(p) or {}).get("open") for p in C.parent_chain(state, other)):
+            continue
+        out.append(other)
+    return out
+
+
+@settings_skill("motor_overheated", types=("blender",))
+def motor_overheated_steps(state, eid):
+    """A blender run on frozen fruit with too little liquid stalls in an air pocket; half a minute of that burns the
+    motor."""
+    from . import countertop
+    rec = _record(state, eid)
+    jar = countertop._resolve_blender(state, eid)[2] if rec else None
+    if not jar or rec.get("motor_overheated"):
+        return []
+    liquid_l, solids_l, frozen, _temp = countertop._jar_load(state, jar)
+    total = liquid_l + solids_l
+    if total <= 0 or solids_l <= 0 or liquid_l / total >= 0.3 or frozen / solids_l <= 0.5:
+        return []
+    return [(True, {"skill": "use", "action": "blend", "target": eid, "seconds": 60, "speed": "high"})]
+
+
+@settings_skill("wand.milk_residue", types=("espresso_machine",))
+def wand_residue_steps(state, eid):
+    """Milk left to dry on a steam wand: steamed with the wand neither purged nor wiped, on a machine that is ready."""
+    rec = _record(state, eid)
+    wand = rec.get("wand") or {}
+    if not rec.get("on") or not (rec.get("espresso") or {}).get("ready") or wand.get("clogged"):
+        return []
+    for other in _room_items(state, eid):
+        item = _record(state, other)
+        if C.num(item.get("liquid_l")) > 0.05 and "milk" in str(item.get("liquid") or ""):
+            value = C.rnd(C.num(wand.get("milk_residue")) + 1.0, 2)
+            return [(value, {"skill": "appliances_cooking.steam_unwiped", "pitcher": other, "machine": eid})]
+    return []
+
+
+@settings_skill("coating_scratched")
+def coating_scratched_steps(state, eid):
+    """A nonstick pan scratched by a metal tool freeing what is in it (unload with the tool)."""
+    rec = _record(state, eid)
+    if rec.get("coating") != "nonstick" or rec.get("coating_scratched"):
+        return []
+    inside = sorted(c for c in C.children(state, eid) if _record(state, c).get("portable"))
+    if not inside:
+        return []
+    for other in _room_items(state, eid):
+        item = _record(state, other)
+        if other not in inside and C.is_metal(item) and (item.get("tool_kind") or item.get("category") in ("kitchen_tool", "utensil")):
+            return [(True, {"skill": "use", "action": "unload", "target": inside[0], "tool": other})]
+    return []
+
+
+@settings_skill("arc_damaged")
+def arc_damaged_steps(state, eid):
+    """A metal thing run in a microwave arcs: three seconds of it mark the thing."""
+    rec = _record(state, eid)
+    if rec.get("arc_damaged") or not rec.get("portable") or C.is_food(rec) or C.microwave_verdict(rec)[0]:
+        return []
+    room = C.room_of(state, eid)
+    for other in sorted(state.get("entities") or {}):
+        if _record(state, other).get("ac_kind") == "microwave" and C.room_of(state, other) == room:
+            return [(True, {"skill": "appliances_cooking.reheat_in_microwave", "item": eid, "microwave": other, "seconds": 10,
+                            "stand_s": 0})]
+    return []
 
 
 # ----------------------------------------------------------------------------------------------

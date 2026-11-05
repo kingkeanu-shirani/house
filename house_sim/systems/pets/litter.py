@@ -19,12 +19,14 @@ from ...kernel.plugins import after, hook, system
 from ...kernel.predicates import root_room
 from ..core import add_soil, release_from_hands
 from . import common as C
+from . import hardening as H
 
 CLUMP_LITTER_KG = 0.045
 STOOL_LITTER_KG = 0.010
 CLUMP_WASTE_KG = 0.03
 STOOL_KG = 0.03
 TARGET_DEPTH = (5.0, 7.0)
+WASH_L = 15.0               # litres a box wash draws at the tap
 UNSAFE_SUBSTRATE = ("cedar", "pine")
 
 
@@ -147,9 +149,17 @@ def take_bag(ctx, dest_id):
     return dest_id, "bag"
 
 
-def add_waste(w, bag, kind, grams, count=1, source=None, stream_override=None):
+def add_waste(w, bag, kind, grams, count=1, source=None, stream_override=None, parcel_g=None):
+    """Waste goes into a bag or bin. source: the entity it came from (a pile, a litter box, a liner, a cage): its origin
+    and the flow's source (hardening); leftovers (kind food_scraps, no source) are no pet waste. parcel_g: the pet waste
+    in it when grams counts litter too."""
     state = w.s
     rec = w.ent(bag)
+    flow_g = grams if parcel_g is None else parcel_g
+    origin = H.origin_of(source) if source is not None else None
+    if origin is not None:
+        H.log_flow(w, flow_g, _flow_source(state, source), H.destination_key(bag, rec), origin)
+        H.log_item_flow(w, source, H.destination_key(bag, rec))
     if rec.get("toilet") or rec.get("category") == "toilet":
         m = w.mut(bag)
         if kind in ("litter_clumps", "cat_feces", "litter"):
@@ -159,6 +169,7 @@ def add_waste(w, bag, kind, grams, count=1, source=None, stream_override=None):
         else:
             m["waste_g"] = round(C.num(rec.get("waste_g")) + grams, 1)
         return
+    H.record_waste(w, bag, flow_g, origin)
     m = w.mut(bag)
     contents = dict(m.get("contents") or {})
     contents[kind] = int(contents.get(kind, 0)) + count
@@ -183,6 +194,14 @@ def add_waste(w, bag, kind, grams, count=1, source=None, stream_override=None):
         streams = set(contents)
         m["waste_stream"] = "compost" if streams <= {"herbivore_bedding"} and compost_allowed(state) else "trash"
         m["waste_kind"] = "herbivore_bedding" if m["waste_stream"] == "compost" else "pet_waste"
+
+
+def _flow_source(state, source):
+    """The location key a waste flow comes from: where a pile lies, a holder itself (a box, a liner, a cage)."""
+    rec = state["entities"].get(source) or {}
+    if H.is_pile(rec):
+        return H.place_key(state, rec)
+    return ("entity", source)
 
 
 def bag_odor(rec, value):
@@ -265,7 +284,8 @@ def bag_waste(ctx):
             tm["slots"] = slots
         if ctx.holding(target):
             release_from_hands(w, target)
-        add_waste(w, bag, "soiled_liner" if rec.get("category") == "cage_liner" else "soiled_bedding", 30.0 + 200.0 * soil)
+        add_waste(w, bag, "soiled_liner" if rec.get("category") == "cage_liner" else "soiled_bedding", 30.0 + 200.0 * soil,
+                  source=target, parcel_g=200.0 * soil)
         w.destroy(target)
         ctx.data["seconds"] = 10.0
         C.log(w, "liner_bagged", item=target, bag=bag)
@@ -337,9 +357,11 @@ def scoop_litter(ctx):
     m["last_scooped_s"] = C.now(state)
     grams = got_clumps * (CLUMP_WASTE_KG + CLUMP_LITTER_KG) * 1000 + stools * (STOOL_KG + STOOL_LITTER_KG) * 1000
     if got_clumps:
-        add_waste(w, bag, "litter_clumps", got_clumps * (CLUMP_WASTE_KG + CLUMP_LITTER_KG) * 1000, count=got_clumps)
+        add_waste(w, bag, "litter_clumps", got_clumps * (CLUMP_WASTE_KG + CLUMP_LITTER_KG) * 1000, count=got_clumps, source=box,
+                  parcel_g=got_clumps * CLUMP_WASTE_KG * 1000)
     if stools:
-        add_waste(w, bag, "cat_feces", stools * (STOOL_KG + STOOL_LITTER_KG) * 1000, count=stools)
+        add_waste(w, bag, "cat_feces", stools * (STOOL_KG + STOOL_LITTER_KG) * 1000, count=stools, source=box,
+                  parcel_g=stools * STOOL_KG * 1000)
     ctx.data["seconds"] = 20.0 + 4.0 * (got_clumps + stools) + (30.0 if thorough else 0.0)
     w.sec("facts").setdefault("inspected", {})[box] = state["time_s"]
     notes = []
@@ -505,7 +527,8 @@ def change_litter(ctx):
             cap = C.num(brec.get("capacity_l"), 0.8)
             require(cap >= kg * 0.95 + 1.0, "That bag is too small for all that litter; use a trash bag or the bin" if C.realistic(ctx) else
                     "That bag is too small for {:.0f} kg of litter; use a trash bag or the bin".format(kg), "capacity")
-        add_waste(w, bag, "litter", kg * 1000.0 + (int(rec.get("clumps", 0)) + int(rec.get("_buried", 0))) * 30.0 + int(rec.get("feces", 0)) * 30.0)
+        waste = (int(rec.get("clumps", 0)) + int(rec.get("_buried", 0))) * 30.0 + int(rec.get("feces", 0)) * 30.0
+        add_waste(w, bag, "litter", kg * 1000.0 + waste, source=box, parcel_g=waste)
         m = w.mut(box)
         m.update(litter_kg=0.0, clumps=0, feces=0, _buried=0, depth_cm=0.0, litter_mix=[], odor=C.odor_with({}, "litter", 0.3), wet_clumped=False, clumped_kg=0.0)
         m["emptied_s"] = C.now(state)
@@ -546,6 +569,7 @@ def change_litter(ctx):
         m["wet"] = 1.0
         m["washed_s"] = C.now(state)
         m["washed_with"] = kind
+        H.count_water(w, WASH_L)        # the house water meter (VERIFY_HARDENING 6.8)
         ctx.data["seconds"] = 120.0
         C.log(w, "box_washed", box=box, cleaner=kind, residue=residue)
         notes = ""
@@ -603,7 +627,7 @@ def _cage_step(ctx, cage, rec, step):
         litres = C.num(sub.get("depth_cm")) * C.num(rec.get("area_m2"), 0.35) * 10.0
         kept_l = 1.0 if keep else 0.0
         add_waste(w, bag, "herbivore_bedding" if sub.get("kind") in ("paper", "aspen", "hay") else "soiled_bedding",
-                  max(0.0, litres - kept_l) * 60.0, count=1)
+                  max(0.0, litres - kept_l) * 60.0, count=1, source=cage, parcel_g=H.bedding_grams(rec))
         stash = C.num(rec.get("_stash_g"))
         m = w.mut(cage)
         sub["depth_cm"] = round(kept_l / (C.num(rec.get("area_m2"), 0.35) * 10.0), 2)
@@ -698,7 +722,7 @@ def litter_tick(w, dt, tick):
         rec = state["entities"][eid]
         changes = _box_changes(rec, dt)
         if changes:
-            w.mut(eid).update(changes)
+            w.mut(eid, cause=eid).update(changes)
 
 
 @hook("part_removed")

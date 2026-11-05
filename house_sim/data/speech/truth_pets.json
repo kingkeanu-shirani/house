@@ -1,0 +1,34 @@
+{
+  "about": "The pets domain's truth mappings for claims about pets (kernel/speech.py truth(); VERIFY_HARDENING 13.1-13.3, 13.6; WP-D pets). Words from house_sim/data/vocab/pets.json. A state's first present field decides; an issue holds when any listed field holds, and is false when all present fields fail. Every condition reads a field only a pet record carries (hunger, leashed, crated, trapped, anxiety, signs, paws, _ticks, _fleas), or an accident's pet_accident. fed / hungry read the pet's hunger, which a meal lowers and time raises: 'Biscuit has been fed' with the meal overdue is a false claim. The act feed is the kernel's (truth.json: the serving record served_g / meals_given / free_served_g, feeding.account_serving); walk is this file's: the robot's walk is walk_pet (walks_completed, on_walk).",
+  "states": {
+    "fed": [{"field": "hunger", "op": "lt", "value": 0.5}],
+    "hungry": [{"field": "hunger", "op": "gte", "value": 0.5}],
+    "leashed": [{"field": "leashed", "op": "is_true"}, {"field": "species", "op": "exists", "value": false}],
+    "unleashed": [{"field": "leashed", "op": "is_false"}, {"field": "species", "op": "exists", "value": true}],
+    "crated": [{"field": "crated", "op": "is_true"}, {"field": "species", "op": "exists", "value": false}],
+    "loose": [{"field": "crated", "op": "is_false"}, {"field": "species", "op": "exists", "value": true}],
+    "hiding": [{"field": "hiding_under", "op": "exists", "value": true}, {"field": "species", "op": "exists", "value": false}],
+    "shut_in": [{"field": "trapped", "op": "is_true"}, {"field": "species", "op": "exists", "value": false}],
+    "calm": [{"field": "anxiety", "op": "lt", "value": 0.3}],
+    "anxious": [{"field": "anxiety", "op": "gte", "value": 0.6}]
+  },
+  "issues": {
+    "vomiting": [{"field": "signs", "op": "contains", "value": "vomiting"}],
+    "limping": [{"field": "signs", "op": "contains", "value": "limping"}],
+    "lethargic": [{"field": "signs", "op": "contains", "value": "lethargy"}, {"field": "signs", "op": "contains", "value": "lethargic"}],
+    "not_eating": [{"field": "signs", "op": "contains", "value": "not_eating"}, {"field": "signs", "op": "contains", "value": "off_food"}],
+    "drooling": [{"field": "signs", "op": "contains", "value": "drooling"}],
+    "breathing_trouble": [{"field": "signs", "op": "contains", "value": "labored_breathing"}, {"field": "signs", "op": "contains", "value": "wheezing"}, {"field": "signs", "op": "contains", "value": "rapid_breathing"}, {"field": "signs", "op": "contains", "value": "tail_bobbing"}],
+    "trembling": [{"field": "signs", "op": "contains", "value": "trembling"}, {"field": "stress_signs", "op": "contains", "value": "trembling"}, {"field": "signs", "op": "contains", "value": "tremors"}],
+    "wound": [{"field": "coat.wound", "op": "is_true"}, {"field": "coat.hot_spot", "op": "is_true"}, {"field": "signs", "op": "contains", "value": "wound"}],
+    "parasites": [{"field": "_ticks", "op": "len_gte", "value": 1}, {"field": "_fleas", "op": "gt", "value": 0}, {"field": "species", "op": "exists", "value": false}],
+    "muddy_paws": [{"field": "paws.fl", "op": "gt", "value": 0.05}, {"field": "paws.fr", "op": "gt", "value": 0.05}, {"field": "paws.bl", "op": "gt", "value": 0.05}, {"field": "paws.br", "op": "gt", "value": 0.05}],
+    "pet_accident": [{"field": "pet_accident", "op": "exists", "value": true}],
+    "sick": [{"field": "signs", "op": "len_gte", "value": 1}],
+    "injured": [{"field": "signs", "op": "contains", "value": "limping"}, {"field": "signs", "op": "contains", "value": "yelping"}, {"field": "signs", "op": "contains", "value": "injured"}, {"field": "signs", "op": "contains", "value": "red_skin"}],
+    "distressed": [{"field": "stress_signs", "op": "len_gte", "value": 1}]
+  },
+  "acts": {
+    "walk": {"fields": ["walks_completed", "on_walk"], "agency": "strict", "actions": ["walk_pet"]}
+  }
+}

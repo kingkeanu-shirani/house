@@ -133,7 +133,7 @@ def skim(ctx, pid, tool_id, select, destination, depth):
     if net_kg > 0.001:
         if dest_ok:
             from . import garden
-            garden.debris_into(ctx, {"kind": "pool_leaves", "kg": net_kg, "green": False}, destination, label="wet leaves from the pool")
+            garden.debris_into(ctx, {"kind": "pool_leaves", "kg": net_kg, "green": False}, destination, label="wet leaves from the pool", src=("entity", pid))
         else:
             rid = C.room_of(w, pid)
             floor = "floor_" + rid
@@ -142,6 +142,7 @@ def skim(ctx, pid, tool_id, select, destination, depth):
                 add_soil(w, floor, "leaves", min(1.0, net_kg / 2.0))
             m["_dumped_on_deck_kg"] = round(float(m.get("_dumped_on_deck_kg", 0.0)) + net_kg, 3)
             C.stat(w, "net_dumped_on_deck")
+            C.flow(w, net_kg, ("entity", pid), C.mess_key(w.s, rid))
     for t in caught:
         tm = w.mut(t)
         if dest_ok and w.ent(destination).get("container"):
@@ -238,7 +239,7 @@ def slow_pool(w, periods):
     days = C.SLOW_S * periods / C.DAY
     vx, vy = C.wind_vector(w)
     wind = float(C.weather(w).get("wind_mps", 2.0))
-    for pid in C.find_types(w, ["pool"]):
+    for pid in C.each_caused(w, C.find_types(w, ["pool"])):
         pool = w.s["entities"][pid]
         size = pool.get("size_m") or [5.0, 3.0]
         cols, rows = max(1, int(math.ceil(float(size[0])))), max(1, int(math.ceil(float(size[1]))))

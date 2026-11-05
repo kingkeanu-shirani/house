@@ -341,7 +341,7 @@ def _apply_period(w, tid, force=False):
     per = s.get(key) or {}
     if not force and rec.get("active_period") == key:
         return
-    m = w.mut(tid)
+    m = w.mut(tid, cause=tid)        # a schedule's change follows from the thermostat itself (6.2)
     m["active_period"] = key
     for part, field in (("heat", "heat_setpoint"), ("cool", "cool_setpoint")):
         if part in per and m["settings"].get(field) != per[part]:
@@ -368,10 +368,11 @@ def thermostat_tick(w, tid, room_temp, sun_bias=0.0):
         if rec.get("call") != "idle" or rec.get("display") != "":
             m = w.mut(tid)
             m["call"], m["display"], m["reading_c"] = "idle", "", None
+            m.pop("readings", None)
         return "idle"
     hold = s.get("hold", "none")
     if hold == "temporary" and rec.get("hold_until_s") is not None and w.s.get("time_s", 0.0) >= C.num(rec.get("hold_until_s")):
-        m = w.mut(tid)
+        m = w.mut(tid, cause=tid)
         m["settings"]["hold"] = "none"
         m["hold_until_s"] = None
         m["hold_until"] = None
@@ -420,6 +421,8 @@ def thermostat_tick(w, tid, room_temp, sun_bias=0.0):
     if rec.get("call") != call or rec.get("display") != display or C.num(rec.get("reading_c"), -99) != round(reading, 1):
         m = w.mut(tid)
         m["call"], m["display"], m["reading_c"] = call, display, round(reading, 1)
+        # the digits as a structured reading of the room's air, in the display's units (VERIFY_HARDENING 15.2)
+        m["readings"] = [{"subject": C.room_of(w.s, tid), "quantity": "temperature", "value": shown, "unit": units}]
     return call
 
 
@@ -525,7 +528,7 @@ def system_tick(w, sid, calls, dt, out_t):
             info["elec_w"] *= 1.3
             C.hazard(w, "condenser_blocked_s", dt)
             if C.num(C.section(w.s).get("hazards", {}).get("condenser_blocked_s")) > 600 and not rec.get("compressor_damaged"):
-                mm = w.mut(sid)
+                mm = w.mut(sid, cause=A.hvac_causes(w, sid))
                 mm["compressor_damaged"] = True
                 robot = A.robot_hvac(w, sid)        # the robot covered the outdoor unit or set the cooling (attribution)
                 C.charge(w, "damage", robot)
@@ -537,7 +540,7 @@ def system_tick(w, sid, calls, dt, out_t):
 
 def _set_fault(w, sid, fault):
     if w.ent(sid).get("fault") != fault:
-        w.mut(sid)["fault"] = fault
+        w.mut(sid, cause=A.hvac_causes(w, sid))["fault"] = fault
         C.log(w, "hvac_fault", target=sid, fault=fault)
 
 

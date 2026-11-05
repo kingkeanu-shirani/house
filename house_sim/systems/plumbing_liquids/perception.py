@@ -27,7 +27,7 @@ hardscape), plumbing_liquids.sprayed_person, plumbing_liquids.food_zone (dirty/m
 import copy
 
 from ...kernel import dialogue, geometry
-from ...kernel.plugins import answerer, inspector, invariant, observer
+from ...kernel.plugins import answerer, hook, inspector, invariant, observer
 from ...kernel.realism import TOUCH
 from . import common as C
 from . import fixtures as F
@@ -137,6 +137,13 @@ def water_sounds(env, w, obs):
             entries.append({"kind": kind, "source_hint": _room_label(state, other), "loudness": round(loud * 0.4, 3)})
     if entries:
         obs.setdefault("sounds", []).extend(entries)
+
+
+@hook("visible_veto")
+def lodged_out_of_sight(state, eid, entity):
+    """A thing a plunger pushed into the trap (toilets.plunge: relation "drain") is out of sight in every perception
+    mode, with or without cleaning, which hides what is tipped down a drain the same way."""
+    return True if entity.get("lodged_in_drain") and entity.get("relation") == "drain" else None
 
 
 @inspector("plumbing_liquids.details", order=120)

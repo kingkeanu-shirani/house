@@ -243,7 +243,7 @@ def plunge(ctx):
                 c["depth_m"] = C.rnd(C.num(c.get("depth_m"), 0.1) + 0.4, 2)
                 if obj in w.s["entities"]:
                     om = w.mut(obj)
-                    om["relation"] = "part"
+                    om["relation"] = "drain"        # down the trap: out of sight and reach, lost (house.lost reads it)
                     om["lodged_in_drain"] = True
                 notes.append("the object was pushed deeper into the trap")
             m["_clog"] = c

@@ -142,7 +142,7 @@ def _safety(w, eid, rid, dt):
     for other, d, front in near:
         if not ((front and d <= 0.3) or d == 0.0):
             continue
-        om = w.mut(other)
+        om = w.mut(other, cause=eid)
         om["_heat_exposure_s"] = C.rnd(C.num(om.get("_heat_exposure_s")) + dt, 1)
         mine = robot or C.robot_arranged(w, other)
         if om["_heat_exposure_s"] >= limit * 0.5 and not om.get("scorched"):
@@ -176,7 +176,7 @@ def _safety(w, eid, rid, dt):
             m = w.mut(eid)
             m["cord_heat_s"] = C.rnd(C.num(rec.get("cord_heat_s")) + dt, 1)
             if m["cord_heat_s"] >= 900.0 and not out.get("overheated"):
-                w.mut(rec["outlet"])["overheated"] = True
+                w.mut(rec["outlet"], cause=eid)["overheated"] = True
                 C.charge(w, "electrical_hazard", robot)
                 C.log(w, "extension_cord_overheated", target=rec["outlet"], load_w=rec.get("power_w"), by=C.by_word(robot))
     if rec.get("cord_under_rug"):

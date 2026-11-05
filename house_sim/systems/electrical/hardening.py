@@ -17,7 +17,7 @@ electrical", 23.3; docs/domains/electrical.md section 16).
                   over it later never showed and one taken off it kept `under_rug` (cords.live_hazards recomputes them
                   from the cord's cells as the room is now; the trip / fire-risk invariants read the same).
   settings        settings skills (10.3: B14's changed / damaged probes and the inverses of setting changes): plugging
-                  and unplugging, a clock's 12 / 24-hour display, and the damaging verbs -- a cord pulled by the cord
+                  and unplugging, a clock's 12 / 24-hour display and first alarm, and the damaging verbs -- a cord pulled by the cord
                   (strain relief), a one-way plug forced in reversed (bent prong), a cord coiled tight (kinked), a cable
                   yanked by its cable (damaged) -- through the skill electrical.set_field (battery covers: admin
                   inventory's generic cover_open skill).
@@ -314,6 +314,17 @@ def clock_format_steps(state, eid):
     return [(value, _step(eid, "clock.format_24h", value))]
 
 
+@settings_skill("alarms.alarm_1")
+def alarm_steps(state, eid):
+    """Switch a clock's first alarm on or off (set_time mode=alarm enabled=...): the alarm's whole record is the watched
+    field (the ledger flattens one level), so the probe's value is that record with `enabled` turned over."""
+    alarm = (_record(state, eid).get("alarms") or {}).get("alarm_1")
+    if not isinstance(alarm, dict):
+        return []
+    value = dict(alarm, enabled=not bool(alarm.get("enabled")))
+    return [(value, _step(eid, "alarms.alarm_1", value))]
+
+
 @skill("electrical.set_field")
 def set_field(r, target, field, value):
     """The battery's settings probe (10.3) for electrical's settings and damaging verbs. Privileged routing (P11)."""
@@ -348,5 +359,8 @@ def set_field(r, target, field, value):
     elif field == "clock.format_24h":
         S.approach(r, target)
         r.do("set_time", target=target, format="24h" if value else "12h")
+    elif field == "alarms.alarm_1":
+        S.approach(r, target)
+        r.do("set_time", target=target, mode="alarm", alarm="alarm_1", enabled=bool(value.get("enabled")))
     else:
         raise PlanError("electrical.set_field: no probe for {}".format(field))

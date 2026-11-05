@@ -1,7 +1,8 @@
 """WP-D plumbing_liquids (VERIFY_HARDENING 6.2-6.11, 8.2, 10.3, 13; package WP-D plumbing_liquids): the liquid mess
-kinds and their flows, the house water meter, causes for the time systems' writes, the derived coiled / drained
-fields, settings skills, field classes, truth mappings, and the phase-1 close-out breakage row 7 (electrical gear is
-water sensitive to this domain's drips and spills).
+kinds and their flows (other domains' reported parcels included), the house water meter, causes for the time systems'
+writes, the derived coiled / drained fields, settings skills and damaging verbs, hazard zones, the drain relation, field
+classes, truth mappings, the twin-sweep regressions (unfamiliar twins and look-alikes in every verb) and the phase-1
+close-out breakage row 7 (electrical gear is water sensitive to this domain's drips and spills).
 
 Run isolated:   HOUSE_SIM_DOMAINS=core,plumbing_liquids python -m unittest tests/test_plumbing_liquids_hardening.py
 Strict journal: HOUSE_SIM_STRICT=1 python -m unittest tests/test_plumbing_liquids_hardening.py
@@ -213,6 +214,66 @@ class FlowAndBalanceTests(unittest.TestCase):
         ok(self, e.step("pour", "bleach", "fern", amount_l=0.2))
         self.assertIn("house.wrong_sink:liquid:chemical", mess_labels(e))
 
+    def test_a_flow_carries_the_origin_of_what_it_moves(self):
+        e = holding_bucket(self, mop_house())
+        ok(self, e.step("empty", "bucket", "wc"))
+        entry = [f for f in e.world.s["logs"]["mess_flows"] if f.get("op") == "flow"][0]
+        self.assertEqual(entry["origin"], "mop_water:bucket")
+        self.assertEqual(mess_labels(e), [])        # parcels report none: one kind, one balance, whatever the flow says
+
+    def test_a_bread_box_is_no_sink_it_runs_out_and_the_kind_stays_mop_water(self):
+        """The review's cheat on T-151f6733397156-01: 0.3 l of bleach mop water "into" the bread box (which opens at the
+        front and holds no liquid), the rest down the toilet."""
+        m = mop_house()
+        m.add("counter", "counter", "bath", pos=[2, 2], size_m=[1.0, 0.6, 0.9])
+        m.add("breadbox", "generic_item", "counter", spos=[0.0, 0.0], label="bread box", category="kitchen_storage",
+              container=True, openable=True, open=True, watertight=False, capacity_l=12.0, size_m=[0.4, 0.3, 0.2],
+              mass_kg=1.5, material="wood")
+        e = holding_bucket(self, m)
+        ok(self, e.step("pour", "bucket", "breadbox", amount_l=0.3))
+        ok(self, e.step("approach", "wc"))
+        ok(self, e.step("empty", "bucket", "wc"))
+        found = H.parcels(e.world.s)[H.MOP]
+        self.assertAlmostEqual(sum(a for _, _, a in found), 0.3, 2)
+        self.assertIn("house.mess_relocated:liquid:mop_water", mess_labels(e))
+
+    def test_a_cloth_wrung_where_it_belongs_is_no_mess_a_bin_is_out_of_place(self):
+        """A dirty dishcloth over the kitchen sink is what the sink is for; a cloth's water was never a measured parcel
+        (the first version logged it as a mop-water flow from the cloth into a wrong sink)."""
+        m = Mini()
+        m.kitchen_sink()
+        m.add("trash", "generic_item", "kitchen", pos=[2, 1], label="kitchen trash can", category="waste_container",
+              waste_stream="trash", accepts_items=True, container=True, capacity_l=50.0, size_m=[0.4, 0.35, 0.65], mass_kg=3.0)
+        m.add("cloth", "generic_item", "kitchen", pos=[3, 2], label="dish cloth", category="cloth", material="cotton",
+              wetness=0.9, soil_load=0.5, size_m=[0.3, 0.3, 0.01], mass_kg=0.05, absorb_capacity_l=0.3)
+        e = m.env(room="kitchen", pos=[3, 1])
+        ok(self, e.step("crouch"))
+        ok(self, e.step("pick_up", "cloth"))
+        ok(self, e.step("stand"))
+        ok(self, e.step("wring", "cloth", destination="ksink"))
+        self.assertEqual(flows(e), [])
+        self.assertEqual(mess_labels(e), [])
+        e.world.s["entities"]["cloth"]["wetness"] = 0.9
+        ok(self, e.step("approach", "trash"))
+        ok(self, e.step("wring", "cloth", destination="trash"))
+        self.assertIn(H.MOP, [f[0] for f in flows(e)])
+        self.assertIn("house.wrong_sink:liquid:mop_water", mess_labels(e))
+
+    def test_a_textile_holding_spill_liquid_is_logged_by_its_owner_not_twice(self):
+        m = mop_house()
+        m.add("cloth", "generic_item", "bath", pos=[1, 2], label="floor cloth", category="cloth", material="cotton", wetness=0.9,
+              soil_load=0.5, size_m=[0.3, 0.3, 0.01], mass_kg=0.05, absorb_capacity_l=0.3, _spill={"l": {H.MOP + "|": 0.2}, "ref_l": 0.0})
+        m.c["entities"].pop("bucket")
+        e = m.env(room="bath", pos=[1, 1])
+        ok(self, e.step("crouch"))
+        ok(self, e.step("pick_up", "cloth"))
+        ok(self, e.step("stand"))
+        ok(self, e.step("wring", "cloth", destination="wc"))
+        mine = [f for f in flows(e) if f[1] == "entity:cloth" and f[2] == "entity:wc"]
+        self.assertLessEqual(len(mine), 1)
+        if plugins.HOOKS.get("mess_parcels"):       # textiles_laundry loaded: its wring hook logs it, once
+            self.assertEqual(len(mine), 1)
+
     def test_a_pre_existing_leak_logs_no_flow(self):
         m = Mini()
         m.add("pipe", "water_pipe", "basement", pos=[3, 0], mounted=True, mount_height_m=2.1,
@@ -223,7 +284,115 @@ class FlowAndBalanceTests(unittest.TestCase):
         self.assertEqual(flows(e), [])
 
 
+class DrainRelationTests(unittest.TestCase):
+    def test_an_object_plunged_into_the_trap_is_lost_out_of_sight_and_reach(self):
+        """6.4 house.lost reads the drain relation. It was relation "part": still seen in the bowl, "Detach it first", and
+        only house.moved."""
+        m = Mini()
+        m.add("wc", "toilet", "bath", pos=[2, 0], open=True,
+              _clog={"kind": "object", "amount": 0.9, "object": "ring", "object_visible": True, "depth_m": 0.1})
+        m.add("ring", "generic_item", "wc", relation="in", label="gold ring", category="jewelry", size_m=[0.02, 0.02, 0.01],
+              mass_kg=0.01, material="gold")
+        m.add("plunger", "flange_plunger", "bath", pos=[1, 1])
+        e = m.env(room="bath", pos=[2, 1], perception="realistic")
+        h = e.realism.handles.handle
+        ring = h("ring")
+        ok(self, e.step("crouch"))
+        ok(self, e.step("pick_up", h("plunger")))
+        ok(self, e.step("stand"))
+        ok(self, e.step("plunge", h("wc"), strokes=5))
+        self.assertEqual(ent(e, "ring")["relation"], "drain")
+        self.assertIn("house.lost:ring", labels(e))
+        self.assertNotIn(ring, str(e.observe()))
+        ok(self, e.step("crouch"))
+        got = e.step("pick_up", ring)
+        self.assertFalse(got["ok"])
+        self.assertEqual(got["message"], "That is not visible here")
+
+
+class ReportedParcelTests(unittest.TestCase):
+    """textiles_laundry's request: the liquid measures add what other domains report (the mess_parcels hook), so soaking
+    a spill up in a towel is a relocation an envelope can allow, not an unexplained disappearance."""
+
+    def setUp(self):
+        self.before = list(plugins.HOOKS.get("mess_parcels") or ())
+
+    def tearDown(self):
+        plugins.HOOKS["mess_parcels"] = self.before
+
+    def stand_in(self, litres):
+        def hook(state, kind):
+            soaked = kind == H.SPILL and "spill_1" not in state["entities"]
+            return [(("entity", "towel"), "jug_1", litres)] if soaked else []
+        plugins.HOOKS["mess_parcels"] = self.before + [(999, "test.parcels", hook)]
+
+    def test_a_reported_parcel_is_measured_and_its_origin_goes(self):
+        self.stand_in(0.4)
+        found = H.parcels({"rooms": {}, "entities": {}})
+        self.assertIn((("entity", "towel"), None, 0.4), found[H.SPILL])
+        self.assertEqual(found[H.MOP], [])
+
+    def test_soaking_a_spill_into_a_towel_is_relocated_and_an_envelope_can_allow_it(self):
+        m = Mini()
+        m.add("spill_1", "generic_item", "kitchen", pos=[2, 2], category="spill", liquid="water", liquid_l=0.4, portable=False)
+        m.add("towel", "generic_item", "kitchen", pos=[1, 1], label="towel", category="towel", size_m=[0.5, 0.3, 0.02], mass_kg=0.3)
+        e = m.env(room="kitchen", pos=[1, 2])
+        e.world.s["entities"].pop("spill_1")         # the mop-up, by whatever verb
+        self.assertIn("house.mess_unaccounted:liquid:spill", mess_labels(e))
+        self.stand_in(0.4)
+        self.assertIn("house.mess_relocated:liquid:spill", mess_labels(e))
+        self.assertEqual(mess_labels(e, hardened({"mess": {H.SPILL: {"allow_at": ["towel"]}}})), [])
+
+    def test_a_dirty_spill_records_its_kind_for_what_soaks_it_up(self):
+        m = Mini()
+        m.add("bucket", "utility_bucket", "kitchen", pos=[2, 1], liquid="dirty_water", liquid_l=2.0, _mix={"dirty_water": 2.0})
+        e = m.env(room="kitchen", pos=[2, 2])
+        ok(self, e.step("crouch"))
+        ok(self, e.step("pick_up", "bucket"))
+        ok(self, e.step("stand"))
+        ok(self, e.step("empty", "bucket", "kitchen"))
+        sid = spills(e)[0]
+        self.assertEqual(ent(e, sid)[C.MESS_KIND], H.MOP)
+        m = Mini()
+        m.add("jug", "water_pitcher", "kitchen", pos=[2, 1], liquid="water", liquid_l=1.0, _mix={"water": 1.0})
+        e = m.env(room="kitchen", pos=[2, 2])
+        ok(self, e.step("crouch"))
+        ok(self, e.step("pick_up", "jug"))
+        ok(self, e.step("stand"))
+        ok(self, e.step("empty", "jug", "kitchen"))
+        self.assertNotIn(C.MESS_KIND, ent(e, spills(e)[0]))      # a plain spill records nothing
+
+    def test_a_towel_really_soaking_up_a_spill_when_both_domains_are_loaded(self):
+        if "absorb" not in plugins.ACTIONS or not self.before:
+            self.skipTest("cleaning and textiles_laundry not loaded")
+        m = Mini()
+        m.add("spill_1", "spill", "kitchen", pos=[2, 2], liquid="water", liquid_l=0.3)
+        m.add("towel", "bath_towel", "kitchen", pos=[2, 1])
+        e = m.env(room="kitchen", pos=[2, 1])
+        ok(self, e.step("crouch"))
+        ok(self, e.step("pick_up", "towel"))
+        ok(self, e.step("absorb", "spill_1", tool="towel"))
+        left = H.parcels(e.world.s)[H.SPILL]
+        self.assertTrue(any(loc == ("entity", "towel") for loc, _, _ in left), left)
+        self.assertIn("house.mess_in_transit:liquid:spill", mess_labels(e))     # the wet towel still in hand
+        self.assertEqual(mess_labels(e, hardened({"mess": {H.SPILL: {"transit_ok": ["towel"]}}})), [])
+
+
 class MeterTests(unittest.TestCase):
+    def test_a_tap_left_running_is_water_waste_and_a_sink_of_washing_water_is_not(self):
+        m = Mini()
+        m.kitchen_sink()
+        e = m.env(room="kitchen", pos=[3, 1])
+        ok(self, e.step("turn_on_water", "ksink", flow=1.0))
+        wait(self, e, 60)
+        ok(self, e.step("turn_off_water", "ksink"))
+        self.assertLess(C.house_meter_l(e.world.s), 10.0)
+        self.assertNotIn("house.waste:water", labels(e))
+        ok(self, e.step("turn_on_water", "ksink", flow=1.0))
+        wait(self, e, 1800)
+        self.assertIn("house.waste:water", labels(e))
+        self.assertGreater(C.house_meter_l(e.world.s), 10.0)
+
     def test_the_house_meter_counts_this_domains_draws_and_other_domains_counted_ones(self):
         path = ledger.data("resources")["meters"]["water"]["path"]
         self.assertEqual(path, "plumbing.meter.l")
@@ -331,6 +500,98 @@ class SettingsSkillTests(unittest.TestCase):
         self.assertEqual((steps[0][0], steps[0][1]["action"]), (0.0, "turn_off_water"))
 
 
+class DamagingVerbTests(unittest.TestCase):
+    """B14's damaged probe: a settings skill for a condition field whose step really does the damage."""
+
+    def run_step(self, e, step):
+        from house_sim.tasks.runner import run_plan
+        run_plan(e, [step], {})
+
+    def test_a_firm_close_crushes_a_compression_washer(self):
+        m = Mini()
+        m.bath_sink()
+        m.kitchen_sink()
+        e = m.env(room="bath", pos=[0, 1])
+        self.assertEqual(plugins.settings_steps(e.world.s, "ksink", "damage.washer_crushed"), [])   # a single lever
+        value, step = plugins.settings_steps(e.world.s, "bsink", "damage.washer_crushed")[0]
+        self.assertEqual(ledger.field_class("bathroom_sink", "damage.washer_crushed"), "condition")
+        self.run_step(e, step)
+        self.assertEqual(ent(e, "bsink")["damage"]["washer_crushed"], value)
+        self.assertEqual(plugins.settings_steps(e.world.s, "bsink", "damage.washer_crushed"), [])
+
+    def test_forcing_a_seized_valve_snaps_it(self):
+        m = Mini()
+        m.add("main", "main_shutoff_valve", "basement", pos=[3, 0], mounted=True, mount_height_m=0.6, _seized=True)
+        m.add("free", "main_shutoff_valve", "basement", pos=[4, 0], mounted=True, mount_height_m=0.6)
+        e = m.env(room="basement", pos=[3, 1])
+        self.assertEqual(plugins.settings_steps(e.world.s, "free", "broken"), [])
+        value, step = plugins.settings_steps(e.world.s, "main", "broken")[0]
+        self.run_step(e, step)
+        self.assertIs(ent(e, "main").get("broken"), value)
+
+    def test_a_hose_threaded_at_an_angle_or_with_a_wrench(self):
+        for field, value in (("cross_threaded", True), ("coupling_washer_crushed", True)):
+            m = yard(attached=False, nozzle=False)
+            e = m.env(room="yard", pos=[1, 1])
+            options = plugins.settings_steps(e.world.s, "hose", field)
+            self.assertEqual(options[0][0], value)
+            self.run_step(e, options[0][1])
+            self.assertIs(ent(e, "hose").get(field), value)
+            self.assertEqual(plugins.settings_steps(e.world.s, "hose", field), [])       # attached now
+
+    def test_a_tray_straight_from_the_freezer_cracks(self):
+        from house_sim.systems.plumbing_liquids.ice import fresh_from_cold
+        m = Mini()
+        m.add("tray", "ice_cube_tray", "kitchen", pos=[2, 1], ice_g=200.0, ice_cubes=14, frozen_frac=1.0, temperature_c=-18.0)
+        e = m.env(room="kitchen", pos=[2, 2])
+        self.assertTrue(fresh_from_cold(ent(e, "tray")))
+        value, step = plugins.settings_steps(e.world.s, "tray", "cracked")[0]
+        self.run_step(e, step)
+        self.assertIs(ent(e, "tray").get("cracked"), value)
+
+
+class HazardZoneTests(unittest.TestCase):
+    def zones(self, e):
+        return {z["id"]: z for z in H.water_hazard_zones(e.world.s)}
+
+    def test_a_wet_floor_and_dropped_ice_are_hazards_as_the_thing_itself_never_a_room(self):
+        m = Mini()
+        m.add("wet", "generic_item", "kitchen", pos=[1, 1], category="spill", liquid="water", liquid_l=0.4, portable=False)
+        m.add("drops", "generic_item", "kitchen", pos=[2, 1], category="spill", liquid="water", liquid_l=0.01, portable=False)
+        m.add("cubes", "generic_item", "kitchen", pos=[1, 2], category="ice_cubes", ice_g=100.0)
+        e = m.env(room="kitchen", pos=[3, 3])
+        zones = self.zones(e)
+        self.assertEqual(sorted(zones), ["ice:cubes", "spill:wet"])
+        self.assertEqual(zones["spill:wet"], {"id": "spill:wet", "room": None, "subjects": ["wet"]})
+
+    def test_a_running_scalding_tap_and_a_hot_vessel_are_hazards_while_they_last(self):
+        from house_sim.kernel import speech
+        m = Mini()
+        m.kitchen_sink()
+        m.add("pot", "water_pitcher", "kitchen", pos=[2, 1], liquid="water", liquid_l=1.0, _mix={"water": 1.0}, temperature_c=80.0)
+        e = m.env(room="kitchen", pos=[3, 1])
+        wait(self, e, 2)
+        self.assertIn("hot:pot", self.zones(e))
+        ok(self, e.step("turn_on_water", "ksink", temp="hot", flow=1.0))
+        e.world.s["entities"]["ksink"]["outlet_temp_c"] = 62.0          # a heater set too high
+        self.assertIn("scald:ksink", self.zones(e))
+        ok(self, e.step("turn_off_water", "ksink"))
+        self.assertNotIn("scald:ksink", self.zones(e))
+        self.assertIn("hot:pot", [z["id"] for z in speech.hazard_zones(e.world.s)])
+
+    def test_coming_to_look_at_the_spill_invites_and_the_room_is_not_named(self):
+        from house_sim.kernel import speech
+        m = Mini()
+        m.add("wet", "generic_item", "kitchen", pos=[1, 1], category="spill", liquid="water", liquid_l=0.4, portable=False)
+        m.add("mug", "water_carafe", "kitchen", pos=[3, 1])
+        e = m.env(room="kitchen", pos=[3, 3])
+        state = e.world.s
+        invite = {"kind": "directive", "act": "approach", "subject": "wet", "subject_kind": "entity"}
+        self.assertEqual(speech.zones_invited(state, invite), ["spill:wet"])
+        self.assertEqual(speech.zones_invited(state, dict(invite, subject="mug")), [])
+        self.assertEqual(speech.zones_invited(state, dict(invite, subject="kitchen", subject_kind="room")), [])
+
+
 class FieldClassTests(unittest.TestCase):
     def test_every_property_of_the_domains_types_is_classified(self):
         from house_sim.tasks import lint
@@ -348,6 +609,18 @@ class FieldClassTests(unittest.TestCase):
         self.assertEqual(ledger.field_spec("utility_bucket", "liquid_l")["guard"], "mess")
         self.assertEqual(ledger.field_class("water_pitcher", "liquid_l"), "content")
         self.assertEqual(ledger.field_class("shutoff_valve", "settings.position"), "setting")
+        self.assertEqual(ledger.field_class("shutoff_valve", "valve_open"), "process")       # follows the position
+        self.assertEqual(ledger.field_class("kitchen_sink", "settings.mix"), "process")      # any use moves it
+        self.assertEqual(ledger.field_class("kitchen_sink", "settings.flow"), "setting")
+        self.assertEqual(ledger.field_class("garden_hose", "liquid_l"), "process")           # draining consumes nothing
+        self.assertEqual(ledger.field_spec("utility_bucket", "soil.dirt")["guard"], "soiled")  # one label: not "damaged"
+
+    def test_a_soiled_bucket_is_soiled_and_not_also_damaged(self):
+        e = holding_bucket(self, mop_house())
+        ok(self, e.step("empty", "bucket", "wc"))            # the dirty water leaves a film on the bucket's wall
+        got = labels(e)
+        self.assertIn("house.soiled:bucket", got)
+        self.assertFalse([x for x in got if x.startswith("house.damaged:bucket")], got)
 
 
 class TruthTests(unittest.TestCase):
@@ -434,8 +707,97 @@ class UnfamiliarTests(unittest.TestCase):
     def test_every_verb_answers_an_unfamiliar_hose_nozzle_or_plunger_like_any_unfamiliar_thing(self):
         for verb, held in (("disconnect_hose", False), ("drain", False), ("flush", False), ("turn_on_water", False),
                            ("turn_off_water", True), ("spray", True), ("plunge", True)):
-            seen = {self.outcomes(kind, verb, held) for kind in ("garden_hose", "hose_nozzle", "cup_plunger", "mug")}
+            seen = {self.outcomes(kind, verb, held) for kind in ("garden_hose", "hose_nozzle", "cup_plunger", "water_carafe")}
             self.assertEqual(len(seen), 1, (verb, seen))
+
+
+class LookAlikeTests(unittest.TestCase):
+    """The twin sweep of every verb x every entity parameter (scratch sweep.py lookalike, 78 groups): the one tell left was
+    fill on the spray_bottle group: "That cannot hold water" for an unread cleaner's bottle, "It is already filled" or
+    "Hold the container under the tap" for a blank one."""
+
+    def answers(self, kind, held):
+        m = Mini()
+        m.kitchen_sink()
+        m.add("table", "dining_table", "kitchen", pos=[3, 2])
+        m.add("thing", kind, "table", spos=[0.0, 0.0])
+        e = m.env(room="kitchen", pos=[3, 1], perception="realistic")
+        h = e.realism.handles.handle
+        if held:
+            ok(self, e.step("pick_up", h("thing")))
+        r = e.step("fill", h("thing"), source=h("ksink"))
+        return (r["ok"], r["category"], r["message"]), e, h
+
+    def test_filling_an_unread_spray_bottle_answers_every_member_alike(self):
+        kinds = [k for k in ("spray_bottle", "trigger_bottle", "glass_cleaner", "degreaser", "all_purpose_cleaner")
+                 if Mini().reg.known(k)]
+        if len(kinds) < 3:
+            self.skipTest("cleaning not loaded")
+        for held in (False, True):
+            seen = {self.answers(kind, held)[0] for kind in kinds}
+            self.assertEqual(len(seen), 1, (held, seen))
+            self.assertEqual(seen.pop()[1], "precondition")
+
+    def test_once_read_the_bottle_answers_for_itself(self):
+        if not Mini().reg.known("glass_cleaner"):
+            self.skipTest("cleaning not loaded")
+        _, e, h = self.answers("glass_cleaner", True)
+        ok(self, e.step("read", h("thing")))
+        r = e.step("fill", h("thing"), source=h("ksink"))
+        self.assertEqual((r["ok"], r["message"]), (False, "That cannot hold water"))
+        # a blank bottle has nothing to read and stays unresolved, but reading told what there is to tell
+        m = Mini()
+        m.kitchen_sink()
+        m.add("bottle", "spray_bottle", "kitchen", pos=[3, 1], liquid_l=0.1, _mix={"water": 0.1})
+        e = m.env(room="kitchen", pos=[3, 2], perception="realistic")
+        h = e.realism.handles.handle
+        ok(self, e.step("crouch"))
+        ok(self, e.step("pick_up", h("bottle")))
+        ok(self, e.step("stand"))
+        self.assertEqual(e.step("fill", h("bottle"), source=h("ksink"))["category"], "precondition")
+        self.assertAlmostEqual(ent(e, "bottle")["liquid_l"], 0.1, 3)
+        ok(self, e.step("read", h("bottle")))
+        ok(self, e.step("fill", h("bottle"), source=h("ksink"), amount_l=0.3))
+        self.assertGreater(ent(e, "bottle")["liquid_l"], 0.3)
+
+    def pour_into(self, kind, verb="pour"):
+        m = Mini()
+        m.add("table", "dining_table", "kitchen", pos=[3, 2])
+        m.add("thing", kind, "table", spos=[0.0, 0.0])
+        m.add("jug", "water_carafe", "table", spos=[0.3, 0.0], liquid="water", liquid_l=0.2, _mix={"water": 0.2})
+        e = m.env(room="kitchen", pos=[3, 1], perception="realistic")
+        h = e.realism.handles.handle
+        ok(self, e.step("pick_up", h("jug")))
+        r = e.step(verb, h("jug"), h("thing"))
+        return r["ok"], r["category"], r["message"].replace(h("thing"), "<thing>").replace(h("jug"), "<jug>")
+
+    def test_pouring_into_an_unread_spray_bottle_answers_every_member_alike(self):
+        kinds = [k for k in ("spray_bottle", "trigger_bottle", "glass_cleaner", "degreaser") if Mini().reg.known(k)]
+        if len(kinds) < 3:
+            self.skipTest("cleaning not loaded")
+        for verb in ("pour", "empty"):
+            seen = {self.pour_into(kind, verb) for kind in kinds}
+            self.assertEqual(len(seen), 1, (verb, seen))
+
+    def test_water_over_an_unresolved_cell_or_level_names_no_damage(self):
+        """Electrical's ingress raises "X was damaged" for a NiMH cell or a digital level, none for an alkaline cell or
+        a spirit level: the note told them apart. The damage itself is recorded."""
+        for kinds in (("aa_battery", "nimh_aa_battery"), ("spirit_level", "digital_level")):
+            if not all(Mini().reg.known(k) for k in kinds):
+                self.skipTest("electrical / tools not loaded")
+            self.assertEqual(len({self.pour_into(kind) for kind in kinds}), 1, kinds)
+
+    def test_a_group_of_real_vessels_is_not_refused(self):
+        self.assertFalse(H.group_mixes_vessels("no_such_group"))
+        m = Mini()
+        m.kitchen_sink()
+        m.add("jug", "water_pitcher", "kitchen", pos=[3, 1], liquid_l=0.0)
+        e = m.env(room="kitchen", pos=[3, 2], perception="realistic")
+        h = e.realism.handles.handle
+        ok(self, e.step("crouch"))
+        ok(self, e.step("pick_up", h("jug")))
+        ok(self, e.step("stand"))
+        ok(self, e.step("fill", h("jug"), source=h("ksink"), amount_l=0.5))
 
 
 def ent_record(m, eid):

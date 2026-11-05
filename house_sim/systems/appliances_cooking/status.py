@@ -418,6 +418,7 @@ def _details_seen(w, eid, rec, out, ctx):
         if therm:
             # a dial thermometer read through the door/window, at its own marks (5 C on an oven dial)
             view["oven_thermometer_c"] = P.dial_reading(ctx, eid, "internal_temp_c", C.num(rec.get("internal_temp_c")), therm[1])
+            view["reading"] = instrument_reading(eid, view["oven_thermometer_c"], "internal_temp_c", therm[0])
         if see_in:
             racks = []
             for c in C.children(state, eid):
@@ -489,6 +490,7 @@ def _details_seen(w, eid, rec, out, ctx):
             # an oven dial's 5 C)
             view["thermometer_c"] = P.dial_reading(ctx, eid, "internal_temp_c", C.num(rec.get("internal_temp_c")), therm[1])
             ctx.grant(eid, "measure", ["internal_temp_c"])
+            view["reading"] = instrument_reading(eid, view["thermometer_c"], "internal_temp_c", therm[0])
         out["cold"] = view
     if kind == "microwave":
         view = {"power": settings.get("power"), "state": (rec.get("appliance") or {}).get("state"), "sparks": rec.get("arcing")}
@@ -507,6 +509,7 @@ def _details_seen(w, eid, rec, out, ctx):
         if rec.get("lid_thermometer_c") is not None and legible(eid, "lid_thermometer_c"):
             view["thermometer_c"] = rec.get("lid_thermometer_c")       # the lid dial, read off
             ctx.grant(eid, "read", ["lid_thermometer_c"])
+            view["reading"] = instrument_reading(eid, view["thermometer_c"], "lid_thermometer_c")
         if g.get("fuel") == "charcoal" and rec.get("open"):
             view["coals"] = ("glowing, ash-grey" if g.get("ready") else "lit, still black at the edges" if g.get("coals_lit")
                              else "unlit" if C.num(g.get("coals_kg")) > 0 else "none")
@@ -576,10 +579,38 @@ def dial_text(state, eid):
     return "{} C".format(int(round(temp / step) * step))
 
 
+def instrument_reading(subject, value, field=None, instrument=None):
+    """A temperature read off an instrument as the structured result tasks/perceive.py indexes as measure-level evidence
+    (VERIFY_HARDENING 15.2): of subject's field when it is known what the instrument measures."""
+    out = {"subject": subject, "quantity": "temperature", "value": float(value), "unit": "C",
+           "instrument": instrument or subject}
+    if field:
+        out["field"] = field
+    return out
+
+
+def dial_reading(state, eid, text):
+    """The reading behind a dial's text: the compartment around the dial and its internal_temp_c, else the dial's own
+    face."""
+    for pid in C.parent_chain(state, eid):
+        if (state["entities"].get(pid) or {}).get("internal_temp_c") is not None:
+            return instrument_reading(pid, text.split()[0], "internal_temp_c", eid)
+    return instrument_reading(eid, text.split()[0])
+
+
+def panel_reading(eid, text):
+    """A fridge's or freezer's panel ("4 C", blank without power) as a reading of its own compartment."""
+    try:
+        return instrument_reading(eid, str(text).split()[0], "internal_temp_c")
+    except (IndexError, ValueError):
+        return None
+
+
 @before("read", order=60)
 def _dial_before_read(ctx):
     """Reading an oven or fridge thermometer shows its surroundings' temperature (the stored dial text is refreshed
-    first; it is never updated while nobody looks)."""
+    first; it is never updated while nobody looks), with the structured reading beside the text (15.2); a fridge's or
+    freezer's panel likewise."""
     w = ctx.w
     target = ctx.args.get("target")
     rec = w.s["entities"].get(target) or {}
@@ -587,6 +618,13 @@ def _dial_before_read(ctx):
         text = dial_text(w.s, target)
         if rec.get("display") != text:
             w.mut(target)["display"] = text
+        reading = dial_reading(w.s, target, text)
+    elif rec.get("ac_kind") in ("fridge", "freezer"):
+        reading = panel_reading(target, rec.get("display"))
+    else:
+        return
+    if rec.get("reading") != reading:
+        w.mut(target)["reading"] = reading
 
 
 # ----------------------------------------------------------------------------------------------

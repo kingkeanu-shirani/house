@@ -88,7 +88,8 @@ def _cage_opened(ctx, result):
     fan = _fan_on(state, rid)
     window = _open_window(state, rid)
     if (fan or window) and flighty:
-        _bird_out(w, bird, cage, rid, fan, window, robot=True)
+        with w.writing("volition", "pets.bird_out"):        # it flew; the harm below stays the robot's by its own judgment
+            _bird_out(w, bird, cage, rid, fan, window, robot=True)
         C.tell(ctx, "{} panicked and flew out of the cage".format(pet.get("label", bird)))
 
 
@@ -134,7 +135,7 @@ def cages_idle(w):
     return not C.sindex(w.s, "cages", _is_cage)
 
 
-@system("pets.cages", order=134, max_dt=30.0, idle=cages_idle)
+@system("pets.cages", order=134, max_dt=30.0, idle=cages_idle, writer="volition")
 def cages_tick(w, dt, tick):
     state = w.s
     C.bind_world(w)

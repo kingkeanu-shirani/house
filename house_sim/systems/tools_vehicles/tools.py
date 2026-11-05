@@ -212,22 +212,27 @@ def _tool_settle(w, node, ctx):
             w.mut(node)["_stowed"] = new
 
 
-def _judge_outline(w, eid, rec, board):
+def outline_at(rec, board):
+    """(outline id or None, is it this tool's outline) of a tool resting on a pegboard, from where it rests (a read)."""
     spos = rec.get("spos")
     if spos is None:
-        return
+        return None, False
     iw, idp = geometry.footprint_m(rec)
     cx, cy = float(spos[0]) + iw / 2.0, float(spos[1]) + idp / 2.0
-    hit, ok = None, False
     for oid, outline in sorted(board["outlines"].items()):
         x, y = outline.get("spos", [0, 0])
         ow, oh = outline.get("size", [0.1, 0.1])
         if x - 1e-9 <= cx <= x + ow + 1e-9 and y - 1e-9 <= cy <= y + oh + 1e-9:
-            hit = oid
             kinds = outline.get("tool_kind")
             kinds = kinds if isinstance(kinds, list) else [kinds]
-            ok = rec.get("tool_kind") in kinds or rec.get("type") in kinds
-            break
+            return oid, rec.get("tool_kind") in kinds or rec.get("type") in kinds
+    return None, False
+
+
+def _judge_outline(w, eid, rec, board):
+    if rec.get("spos") is None:
+        return
+    hit, ok = outline_at(rec, board)
     m = w.mut(eid)
     m["on_outline"] = hit
     m["outline_ok"] = bool(ok) if hit else False
@@ -481,7 +486,7 @@ def tool_exposure(w, dt, tick):
             continue
         outdoors = rec.get("location") != "robot" and _outdoors(w, eid)
         if raining and outdoors and wet < 0.9:
-            m = w.mut(eid)
+            m = w.mut(eid, cause=eid)     # the rain on what lies out in it: the robot's only if it left it there (6.2)
             m["wetness"] = 0.95
             wet = 0.95
             if rec.get("power_tool") and not rec.get("water_damaged"):
@@ -499,12 +504,12 @@ def tool_exposure(w, dt, tick):
             rate = 1.0 / (3 * 3600.0) if not outdoors else (1.0 / 3600.0 if not raining else 0.0)
             if rec.get("location") in w.s["entities"] and (w.ent(rec["location"]).get("openable") and not w.ent(rec["location"]).get("open")):
                 rate *= 0.1           # enclosed in a closed toolbox: barely dries
-            m = w.mut(eid)
+            m = w.mut(eid, cause=eid)
             m["wetness"] = C.rnd(max(0.0, wet - dt * rate))
             if str(rec.get("material", "")) in RUSTING and not rec.get("stainless") and float(rec.get("oil_film", 0.0)) < 0.3 and wet > 0.2:
                 _add_rust(w, eid, dt)
         if rec.get("power_tool") and wet > 0.3 and C.battery_item(w, eid) and not rec.get("broken"):
-            m = m or w.mut(eid)
+            m = m or w.mut(eid, cause=eid)
             m["broken"] = True
             m["water_damaged"] = True
             C.add_damage(m, "water_damage", 1.0)
@@ -580,43 +585,20 @@ def _lube_product(rec):
     return None
 
 
-def _lube_unidentified(ctx, tool_id=None):
-    """Realistic perception: a held thing the robot cannot tell apart yet (an unread bottle of a look-alike group) is
-    refused with the one generic message when its group mixes things that lubricate and things that do not, so the
-    refusal never depends on which member it really is (kernel v2.9 ctx.refuse_unidentified). A group of lubricants
-    only (the aerosol cans) is used unread."""
-    if not ctx.realistic:
-        return
-    realism = getattr(ctx.env, "realism", None)
-    if realism is None:
-        return
-    from ...kernel import actions as kactions
-    candidates = [tool_id] if tool_id else list(C.held(ctx))
-    for eid in candidates:
-        if eid not in ctx.w.s["entities"] or not ctx.unresolved(eid):
-            continue
-        group = kactions.lookalike_group(realism, ctx.w.s, ctx.w.ent(eid))
-        members = kactions.group_member_types(realism, group) if group else ()
-        registry = realism.env.registry
-        kinds = {bool(_lube_product(dict(registry.resolve(t), type=t))) for t in members}
-        if len(kinds) > 1:
-            ctx.refuse_unidentified(eid)
-
-
 def approved_lubes(w):
     hh = C.household(w)
     approved = hh.get("approved_lubricants")
     return list(approved) if approved else list(APPROVED_DEFAULT)
 
 
-def _drip_catch(w, cell):
+def _drip_catch(w, cell, ctx=None):
     room = C.robot_room(w)
     for eid in sorted(w.children(room)):
         rec = w.ent(eid)
         if rec.get("pos") and (rec.get("category") in ("cover", "rag") or rec.get("absorbent") or rec.get("tool_kind") in ("cotton_rag", "microfiber_cloth", "drying_towel") or "cover" in (rec.get("tags") or [])):
             if geometry.chebyshev(tuple(rec["pos"]), tuple(cell)) <= 1:
                 return eid
-    for h in w.held_items():
+    for h in C.known_held(w, ctx):
         rec = w.ent(h)
         if rec.get("absorbent") or rec.get("tool_kind") in ("cotton_rag", "microfiber_cloth", "drying_towel") or rec.get("category") == "rag":
             return h
@@ -633,7 +615,6 @@ def lubricate(ctx):
     w = ctx.w
     eid = ctx.args["target"]
     rec = ctx.obj(eid, touch=True)
-    _lube_unidentified(ctx, ctx.args.get("tool"))
     tool = C.resolve_tool(ctx, ctx.args.get("tool"), lambda r: bool(_lube_product(r)), "Hold a lubricant or oil")
     trec = w.ent(tool)
     product = _lube_product(trec)
@@ -734,7 +715,7 @@ def _drip(ctx, eid, notes, liquid="motor_oil"):
     w = ctx.w
     room, cells = C.anchor_cells(w, eid)
     cell = cells[0] if cells else C.robot_cell(w)
-    catch = _drip_catch(w, cell)
+    catch = _drip_catch(w, cell, ctx)
     from ..core import add_soil
     if catch:
         add_soil(w, catch, "grease", 0.2)
@@ -742,7 +723,8 @@ def _drip(ctx, eid, notes, liquid="motor_oil"):
         return
     add_soil(w, eid, "stain_oil", 0.15)
     if room in w.s["rooms"]:
-        ctx.spill(DRIP_L, liquid, at=(room, [int(cell[0]), int(cell[1])]), source=eid, cause="drip_off")
+        spill = ctx.spill(DRIP_L, liquid, at=(room, [int(cell[0]), int(cell[1])]), source=eid, cause="drip_off")
+        C.log_spill(w, liquid, DRIP_L, eid, spill)
     C.log(w, "lubricant_drip", target=eid, cell=list(cell))
     notes.append("excess lubricant dripped on the floor (slippery stain) and ran down the face")
 
@@ -770,7 +752,7 @@ def hinge_system(w, dt, tick):
             continue
         hinge = rec["_hinge"]
         if t - float(hinge["lubed_at"]) > float(hinge.get("lasts_s", 1e12)) and float(hinge.get("squeak", 0.0)) < float(hinge.get("base_squeak", 0.8)):
-            m = w.mut(eid)["_hinge"]
+            m = w.mut(eid, cause=eid)["_hinge"]
             m["squeak"] = C.rnd(float(hinge.get("base_squeak", 0.8)))
             m["lubed_at"] = None
             C.log(w, "squeak_returned", target=eid)
@@ -896,7 +878,7 @@ def drill(ctx):
 def inspect_wall(w, eid, record, details, ctx):
     if eid not in w.s["entities"] or "_studs_m" not in record:
         return
-    finder = next((h for h in w.held_items() if w.ent(h).get("tool_kind") == "stud_finder" and w.ent(h).get("on")), None)
+    finder = next((h for h in C.known_held(w, ctx) if w.ent(h).get("tool_kind") == "stud_finder" and w.ent(h).get("on")), None)
     if not C.realistic(ctx):
         details["holes"] = copy.deepcopy(C.hole_list(record))     # realistic: the surfaces inspector's holes_seen view
     if not finder:
@@ -911,6 +893,10 @@ def inspect_wall(w, eid, record, details, ctx):
     details["studs_m"] = [round(float(s) + shift, digits) for s in record.get("_studs_m") or []]
     details["wall_material"] = wall_material(record)
     C.mark_perceived(ctx, details, "studs_m")              # the finder's own reading (its miscalibration included)
+    if C.realistic(ctx):
+        # structured readings for the evidence index (VERIFY_HARDENING 15.2)
+        details["readings"] = [{"subject": eid, "quantity": "length", "value": v, "unit": "m", "what": "stud offset"} for v in details["studs_m"]]
+        C.mark_perceived(ctx, details, "readings")
     if record.get("_hidden_services"):
         details["live_ac_warning_m"] = [round(float(s["offset_m"]), 2) for s in record["_hidden_services"] if s.get("kind") == "wire"]
         C.mark_perceived(ctx, details, "live_ac_warning_m")
@@ -943,7 +929,7 @@ def hammer(ctx):
     trec = w.ent(tool)
     mode = ctx.args.get("mode") or "drive"
     if mode == "drive":
-        hw = ctx.args.get("hardware") or next((h for h in w.held_items() if w.ent(h).get("needs_hammer")), None)
+        hw = ctx.args.get("hardware") or next((h for h in C.known_held(w, ctx) if w.ent(h).get("needs_hammer")), None)
         require(hw and ctx.holding(hw), "Hold the nail or nail-in hook in the other hand", "precondition")
         require(trec.get("tool_kind") != "rubber_mallet", "A rubber mallet will not drive a nail", "capability")
         from .hanging import mount_hardware
@@ -989,9 +975,9 @@ def _is_sharpener(rec):
 def _cut_db(ctx):
     """A powered saw is loud (dB at 1 m by kind); a knife, scissors or a pencil sharpener is not (None)."""
     tool = ctx.args.get("tool")
-    rec = ctx.w.s["entities"].get(tool) if tool else None
-    if rec is None:
-        rec = next((ctx.w.ent(h) for h in ctx.w.held_items() if ctx.w.ent(h).get("power_tool")), None)
+    rec = ctx.w.s["entities"].get(tool) if tool and not C.must_identify(ctx, tool) else None
+    if rec is None and not tool:
+        rec = next((ctx.w.ent(h) for h in C.known_held(ctx.w, ctx) if ctx.w.ent(h).get("power_tool")), None)
     if rec is None or not rec.get("power_tool"):
         return None
     return SAW_DB.get(rec.get("tool_kind") or rec.get("type"), 90.0)
@@ -1081,11 +1067,13 @@ def _shavings(w, sharpener, ml):
     """Shavings collect as a debris entity inside the sharpener's reservoir (pick it up and bin it with core verbs)."""
     existing = next((c for c in w.children(sharpener) if w.ent(c).get("shavings")), None)
     if existing is None:
+        # debris with its grams on the record (core.mess_parcel): ambient where it is made, flows when it is moved (6.5)
         existing = w.spawn("generic_item", sharpener, label="pencil shavings", category="debris", shavings=True, material="wood",
-                           mass_kg=0.001, size_m=[0.03, 0.02, 0.01], volume_l=0.0, waste_stream="trash", relation="in")
+                           mass_kg=0.001, size_m=[0.03, 0.02, 0.01], volume_l=0.0, waste_stream="trash", relation="in", mess_kind="debris", mess_amount=1.0)
     m = w.mut(existing)
     m["volume_l"] = C.rnd(float(m.get("volume_l", 0.0)) + ml / 1000.0, 5)
     m["mass_kg"] = C.rnd(float(m.get("mass_kg", 0.0)) + ml * 0.0002, 5)
+    m["mess_amount"] = C.rnd(m["mass_kg"] * 1000.0, 3)
     return existing
 
 

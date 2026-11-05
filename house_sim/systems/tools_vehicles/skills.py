@@ -11,6 +11,7 @@ import json
 from ...kernel import geometry
 from ...kernel.plugins import skill
 from ...tasks import skills as base
+from . import common as C
 from . import fasteners as F
 
 
@@ -530,13 +531,30 @@ def free_hands(r, n=1, keep=()):
         set_down(r, eid)
 
 
+def _resolve(r, *eids):
+    """Identify first (realistic perception; hardening.identify_params): a look-alike member about to be used is inspected,
+    and read when inspecting leaves it unresolved. No-op in oracle mode, for things already known and for an unfamiliar
+    thing (nothing tells a robot what that is)."""
+    realism = getattr(r.env, "realism", None)
+    if realism is None:
+        return
+    for eid in list(eids) + [part for eid in eids for part in C.fitted_parts(r.state, eid)]:
+        rec = r.state["entities"].get(eid) if isinstance(eid, str) else None
+        if rec is None or rec.get("novel") or not realism.unresolved(eid) or not C.confusable(realism, r.state, eid):
+            continue
+        r.do("inspect", target=eid)
+        if realism.unresolved(eid):
+            r.do("read", target=eid)
+
+
 def ensure_holding(r, eid, keep=()):
-    if eid in _held(r):
-        return eid
-    rec = r.state["entities"][eid]
-    need = 2 if (rec.get("two_handed") or max((rec.get("size_m") or [0.1])[:2]) > 0.7) else 1
-    free_hands(r, need, keep=keep)
-    return fetch(r, eid)
+    if eid not in _held(r):
+        rec = r.state["entities"][eid]
+        need = 2 if (rec.get("two_handed") or max((rec.get("size_m") or [0.1])[:2]) > 0.7) else 1
+        free_hands(r, need, keep=keep)
+        fetch(r, eid)
+    _resolve(r, eid)
+    return eid
 
 
 def _container_of(r, eid):
@@ -589,6 +607,18 @@ def return_tools(r, tools, home=None):
         if dest and r.state["entities"].get(dest, {}).get("openable") and r.state["entities"][dest].get("open"):
             approach(r, dest)
             r.do("close", target=dest)
+
+
+@skill("tools_vehicles.operate")
+def operate(r, target, verb, tool=None, **args):
+    """Carry out one verb of this domain on a target: the settings skills' step (hardening.py; battery probes). The tool
+    comes to hand first, the target's container is opened, and the robot goes to it."""
+    if tool:
+        get_tool(r, tool)
+        args["tool"] = tool
+    _open_path_to(r, target)
+    approach(r, target)
+    return r.do(verb, target=target, **args)
 
 
 @skill("tools_vehicles.tighten")

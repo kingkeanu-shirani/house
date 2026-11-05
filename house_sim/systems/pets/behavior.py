@@ -185,13 +185,14 @@ def escape(w, pid, rid, via=None, robot=None):
         C.refresh_robot_marks(w)
         came_from = via if via in w.s["rooms"] else left_room      # on_enter_room passes the room it came from
         robot = C.robot_acting(w) or C.robot_way(w.s, via, rooms=(came_from, rid))
-    m = w.pet_m(pid)
-    m["escaped"] = True
-    m["escaped_via"] = via
-    m["location"] = rid
-    if rid in w.s["rooms"]:
-        m["pos"] = C.free_cell_near(w.s, rid, None, ignore=(pid,))
-    m["activity"] = "running_off"
+    with w.writing("volition", "pets.escape"):       # the pet's own act; pet_escape below is judged by who left the way
+        m = w.pet_m(pid)
+        m["escaped"] = True
+        m["escaped_via"] = via
+        m["location"] = rid
+        if rid in w.s["rooms"]:
+            m["pos"] = C.free_cell_near(w.s, rid, None, ignore=(pid,))
+        m["activity"] = "running_off"
     C.harm(w, "escape", stat="pet_escape", robot=robot, pet=pid, room=rid, via=via)
     # the bolt is seen where the pet ran out (the door it used, else where it stood): geometric camera only
     if isinstance(via, str) and via in w.s["entities"]:
@@ -709,7 +710,8 @@ def spawn_dog_waste(w, pid, rid):
     state = w.s
     pet = state["pets"][pid]
     eid = w.new_id("dog_waste")
-    rec = w.reg.make("dog_waste", rid, label="dog poop", source_pet=pid, laid_s=C.now(state))
+    # _laid_at: the pile lies where the dog laid it (a pet's own act: hardening.pet_waste_parcels)
+    rec = w.reg.make("dog_waste", rid, label="dog poop", source_pet=pid, laid_s=C.now(state), _laid_at=rid)
     rec["pos"] = C.free_cell_near(state, rid, tuple(pet.get("pos") or (0, 0)))
     w.create(eid, rec)
     C.log(w, "pooped", pet=pid, room=rid, item=eid)
@@ -1160,7 +1162,7 @@ def agents_idle(w):
     return True
 
 
-@system("pets.agents", order=140, max_dt=30.0, idle=agents_idle)
+@system("pets.agents", order=140, max_dt=30.0, idle=agents_idle, writer="volition")
 def pets_tick(w, dt, tick):
     state = w.s
     if not state.get("pets"):
@@ -1217,6 +1219,8 @@ def _pets_follow_robot(ctx, result):
         return
     cid = ctx.data.get("connection")
     conn = state["connections"].get(cid) or {}
+    from . import handling
+    handling.carried_along(w)
     for pid in C.pet_ids(state):
         pet = state["pets"][pid]
         if pet.get("location") != before or pet.get("escaped"):
@@ -1232,7 +1236,8 @@ def _pets_follow_robot(ctx, result):
         if follow <= 0.0 or not C.conn_open(state, conn, pet):
             continue
         if follow >= 0.5 or ctx.rng.random() < follow:
-            relocate(w, pid, here, near=cell, why="followed the robot")
+            with w.writing("volition", "pets.follow"):      # its own choice (6.2): no house.agent_moved
+                relocate(w, pid, here, near=cell, why="followed the robot")
             if not state["pets"][pid].get("escaped"):
                 C.tell(ctx, "{} followed you into the {}".format(pet.get("label", pid), state["rooms"][here].get("label", here)))
 
@@ -1358,10 +1363,11 @@ def _door_opened(ctx, result):
                 (wants == "out" and not C.is_outdoor(state, here) and C.is_outdoor(state, there))
         reach = 3 if pet.get("foreign") else 6
         if going and dist <= reach and not (stay and C.behavior(pet, "wait_trained") >= 0.5) and not blocked:
-            relocate(w, pid, there, near=(conn.get("cells") or {}).get(there), why="went through the opened door")
-            m = w.pet_m(pid)
-            m.pop("wants", None)
-            m["activity"] = "exploring" if C.is_outdoor(state, there) else "resting"
+            with w.writing("volition", "pets.door"):        # it wanted through and went (6.2)
+                relocate(w, pid, there, near=(conn.get("cells") or {}).get(there), why="went through the opened door")
+                m = w.pet_m(pid)
+                m.pop("wants", None)
+                m["activity"] = "exploring" if C.is_outdoor(state, there) else "resting"
             C.tell(ctx, "{} trots through the {}".format(pet.get("label", pid), rec.get("label", "door")))
 
 
@@ -1544,8 +1550,9 @@ def _yield_path(ctx, room, start, goals, avoid=()):
                              key=lambda c: (geometry.chebyshev(c, here), c[1], c[0]))
             spot = list(options[0]) if options else None
         if spot:
-            m = w.pet_m(pid)
-            m["pos"] = [spot[0], spot[1]]
+            with w.writing("volition", "pets.step_aside"):
+                m = w.pet_m(pid)
+                m["pos"] = [spot[0], spot[1]]
             C.log(w, "stepped_aside", pet=pid)
 
 

@@ -42,6 +42,8 @@ ENV_UA = {"hallway": 0.35, "coat_closet": 0.25, "linen_closet": 0.25, "utility_c
 ROOF_GAIN = {"attic": 0.12, "shed": 0.08, "garage": 0.03}
 RAIN_PUDDLE_L = 0.25     # rain driven in through an open window: wet sill below this, a floor puddle (spill) above
 GROUND_C = 12.0
+# what the ledger compares among the fields a central system's substep writes (the flow readings are process fields)
+HVAC_CHARGED = frozenset(("fault", "limit_trips", "heat_exchanger_stressed", "duct_dust"))
 CORE_ROOMS_DEFAULT = 600.0
 
 
@@ -63,9 +65,10 @@ def _gain_candidate(rec):
 
 
 @C.per_step_index("climate.power")
-@C.index_reads("power_w", "standby_w", "climate_kind")
+@C.index_reads("power_w", "standby_w", "climate_kind", "category", "_load_w")
 def _power_candidate(rec):
-    return "power_w" in rec or "standby_w" in rec or bool(rec.get("climate_kind"))
+    return "power_w" in rec or "standby_w" in rec or "_load_w" in rec or rec.get("category") == "light" or \
+        bool(rec.get("climate_kind"))
 
 
 @C.per_step_index("climate.cover")
@@ -134,7 +137,7 @@ def _scan_static(w, state):
             out["kind_ids"].append(eid)
     for eid in C.static_ids(w, "climate.power", _power_candidate):
         rec = ents.get(eid)
-        if rec is not None and not rec.get("climate_kind") and (rec.get("power_w") is not None or rec.get("standby_w") is not None)                 and rmap.get(eid) is not None:
+        if rec is not None and not rec.get("climate_kind") and _metered(rec) and rmap.get(eid) is not None:
             out["power"].append(eid)
     for eid in C.static_ids(w, "climate.glare", _glare_candidate):
         rec = ents.get(eid)
@@ -148,6 +151,13 @@ def _scan_static(w, state):
         if rec is not None and rec.get("shade_watch") and rmap.get(eid) is not None:
             out["shade_watch"].append(eid)
     return out
+
+
+def _metered(rec):
+    """Another domain's thing climate.meter books: it has a rated or standby draw, it is a light (a fixture's draw is
+    its bulb, with or without a rating on the fixture), or a charger under load (electrical's ``_load_w``)."""
+    return rec.get("power_w") is not None or rec.get("standby_w") is not None or rec.get("category") == "light" or \
+        rec.get("_load_w") is not None
 
 
 def scan(state_or_w):
@@ -283,7 +293,7 @@ def _connection_flow(state, conn, dt_c=0.0):
 # ---------------------------------------------------------------------------------------------
 # the system
 
-@system("climate.house", order=44, max_dt=30.0)
+@system("climate.house", order=44, max_dt=30.0, writer="physical")
 def climate_system(w, dt, tick):
     state = w.s
     if not state.get("rooms"):
@@ -465,7 +475,8 @@ def _ducted(w, dt, sc, sid, info, out, tcalls):
         elif wrapped:
             C.hazard(w, "hvac_filter_wrapped_s", dt, robot=A.robot_hvac(w, sid))
     if any(rec.get(k) != v for k, v in changes.items()):
-        w.mut(sid).update(changes)
+        # what the ledger compares cites what it follows from (6.2); the flow readings are process fields
+        w.mut(sid, cause=A.hvac_causes(w, sid) if HVAC_CHARGED.intersection(changes) else None).update(changes)
     total_w = sum(v[0] for v in weights.values())
     fid = ((rec.get("slots") or {}).get("filter") or {}).get("item")
     eff_filter = 0.0
@@ -504,7 +515,7 @@ def _ducted(w, dt, sc, sid, info, out, tcalls):
         if fid and fid in state["entities"] and not state["entities"][fid].get("shrink_wrapped"):
             pm = sum(C.num((state["rooms"].get(rid) or {}).get("pm25"), 8.0) for rid in out["room_flow"]) / max(1, len(out["room_flow"]))
             rate = dt / (90 * 86400.0) * (pm + 10.0) / 25.0 * ratio
-            fm = w.mut(fid)
+            fm = w.mut(fid, cause=sid)
             fm["dirtiness"] = round(min(1.0, C.num(fm.get("dirtiness")) + rate), 6)
     else:
         for r in regs:
@@ -512,10 +523,10 @@ def _ducted(w, dt, sc, sid, info, out, tcalls):
             if rr.get("blowing") or C.num(rr.get("airflow_mps")) != 0.0:
                 w.mut(r).update({"airflow_mps": 0.0, "blowing": False})
     for r in regs:
-        _vent_issues(w, r, weights[r][1])
+        _vent_issues(w, r, weights[r][1], sc)
     for g in sc["kind"].get("return_grille", []):
         if _register_system(state, state["entities"][g], None) in (None, sid):
-            _vent_issues(w, g, _register_blocked(state, sc, g, state["entities"][g], sc["room"].get(g)))
+            _vent_issues(w, g, _register_blocked(state, sc, g, state["entities"][g], sc["room"].get(g)), sc)
 
 
 def _closed_rooms(state, sc):
@@ -543,7 +554,23 @@ def _register_blocked(state, sc, r, rr, rid):
     return False
 
 
-def _vent_issues(w, r, blocked):
+def _vent_blockers(state, sc, r, rr):
+    """What covers a register or return: the thing it is under or behind, or what stands on its floor cell (the cause a
+    write of its blocked flag cites); the vent itself besides."""
+    out = [r]
+    if rr.get("relation") in ("under", "behind"):
+        if rr.get("location") in state["entities"]:
+            out.append(rr["location"])
+        return out
+    rid = rr.get("location")
+    if rid in state["rooms"] and rr.get("pos") and rr.get("register_kind") != "ceiling":
+        blockers, rugs = _floor_cover(state, sc, rid)
+        cell = tuple(rr["pos"])
+        out.extend(c for c in (blockers.get(cell), rugs.get(cell)) if c and c != r)
+    return out
+
+
+def _vent_issues(w, r, blocked, sc=None):
     rr = w.ent(r)
     issues = []
     damper = C.num((rr.get("settings") or {}).get("damper"), 1.0) if C.kind(rr) == "register" else 1.0
@@ -562,11 +589,11 @@ def _vent_issues(w, r, blocked):
     matches = isinstance(rep, dict) and "issues" in rep and sorted(rep.get("issues") or []) == issues
     if bool(rr.get("report_matches")) != matches:
         w.mut(r)["report_matches"] = matches
-    blocker = None
-    if blocked:
-        blocker = rr.get("location") if rr.get("relation") in ("under", "behind") else "furniture_or_rug"
     if rr.get("vent_issues") != issues or rr.get("blocked") != bool(blocked):
-        w.mut(r).update({"vent_issues": issues, "blocked": bool(blocked)})
+        cause = None
+        if rr.get("blocked") != bool(blocked):
+            cause = _vent_blockers(w.s, sc, r, rr) if sc is not None else r
+        w.mut(r, cause=cause).update({"vent_issues": issues, "blocked": bool(blocked)})
 
 
 def _radiators(w, dt, sc, sid, info, out):
@@ -720,9 +747,12 @@ def _devices_step(w, dt, sc):
         text = "{}% RH  {}°{}".format(rh_pct, shown_t, units)
         hrec = state["entities"][eid]
         if hrec.get("display") != text or hrec.get("rh_pct") != rh_pct:
-            # the same digits as numbers (read-tier): what reading the instrument gives, at its 1 % / 0.1 degree resolution
+            # the same digits as numbers (read-tier): what reading the instrument gives, at its 1 % / 0.1 degree resolution,
+            # and as structured readings of the room's air (VERIFY_HARDENING 15.2: reading it is evidence for a report)
             m = w.mut(eid)
             m["display"], m["rh_pct"], m["temp_display"] = text, rh_pct, shown_t
+            m["readings"] = [{"subject": rid, "quantity": "humidity", "value": rh_pct, "unit": "percent"},
+                             {"subject": rid, "quantity": "temperature", "value": shown_t, "unit": units}]
     return out
 
 
@@ -1076,7 +1106,7 @@ def _effects_step(w, dt, sc, az, alt):
                         # the sill catches the first splashes; past ~0.25 L water runs onto the floor (a puddle): the
                         # robot's spill when it opened the window (attribution), else the household's
                         robot = C.robot_enabled(w, wid)
-                        moisture._wet_cell(w, rid, wrec.get("pos"))
+                        moisture._wet_cell(w, rid, wrec.get("pos"), cause=(wid,))
                         C.charge(w, "spills", robot)
                         C.log(w, "rain_ingress", window=wid, by=C.by_word(robot))
                         C.visual(w, "water_on_floor", wid, room=rid, at=list(wrec.get("pos") or [0, 0]), z=0.02, size_m=0.4)
@@ -1099,7 +1129,8 @@ def _effects_step(w, dt, sc, az, alt):
                 if child and C.num(room.get("floor"), 0) >= 1 and height > 0.1:
                     C.hazard(w, "child_window_fall_risk_s", dt, stat="safety_violations", robot=C.robot_enabled(w, wid))
             if changes:
-                w.mut(wid).update(changes)
+                # rain coming in follows from the window standing open (6.2); condensation is a process field
+                w.mut(wid, cause=wid if "rain_in_l" in changes else None).update(changes)
     if any_open_conditioned and cooling_or_heating:
         C.tracker(w, "hvac_with_open_windows_s", dt)
     for rid in sorted(rooms):
@@ -1112,6 +1143,7 @@ def _effects_step(w, dt, sc, az, alt):
             secs = C.hazard(w, "pipe_freeze_s:" + rid, dt, robot=robot)
             if secs >= 7200.0 and not room.get("pipe_burst"):
                 w.room_m(rid)["pipe_burst"] = True
+                w.cause("rooms:" + rid, *A.room_causes(w, rid))
                 C.charge(w, "damage", robot)
                 C.charge(w, "flood", robot)
                 C.log(w, "pipe_burst", room=rid, by=C.by_word(robot))
@@ -1164,6 +1196,7 @@ def _pet_escape(w, pid, rid, wid):
         m["location"] = outdoor[0]
         m["pos"] = None
         m["pos"] = geometry.free_floor_cell(state, outdoor[0], clearance=False, reachable=False) or [0, 0]
+    w.cause("pets:" + pid, wid)
     robot = C.robot_enabled(w, wid)       # the robot opened the window or pushed its screen out (attribution)
     C.charge(w, "pet_escape", robot)
     C.log(w, "pet_escaped", pet=pid, window=wid, by=C.by_word(robot))
@@ -1347,7 +1380,7 @@ def slow_idle(w):
     return not w.s.get("rooms") or not _wet_tanks(w)
 
 
-@system("climate.slow", order=46, max_dt=SLOW_PERIOD_S, period=SLOW_PERIOD_S, idle=slow_idle)
+@system("climate.slow", order=46, max_dt=SLOW_PERIOD_S, period=SLOW_PERIOD_S, idle=slow_idle, writer="physical")
 def climate_slow(w, dt, tick):
     """Slow processes, once per 300 s with the accumulated dt: standing water in humidifier tanks ages and grows
     bacteria (~0.1/day, biofilm doubling; closed-form per call, so any dt up to the period is exact enough)."""
@@ -1361,6 +1394,7 @@ def climate_slow(w, dt, tick):
 
 
 METER_PERIOD_S = 120.0
+LIGHT_W = 12.0          # a lit fixture without a rating or known bulbs (the same 12 W its heat gain counts)
 LEDGER_KEYS = ("kwh", "gas_kwh", "cost_usd", "peak_kwh")
 
 
@@ -1391,11 +1425,13 @@ def meter_idle(w):
     return True
 
 
-@system("climate.meter", order=45, max_dt=METER_PERIOD_S, period=METER_PERIOD_S, idle=meter_idle)
+@system("climate.meter", order=45, max_dt=METER_PERIOD_S, period=METER_PERIOD_S, idle=meter_idle, writer="physical")
 def climate_meter(w, dt, tick):
-    """Energy ledger for every other domain's metered device (``power_w`` when active else ``standby_w``; zero when
-    unplugged, unpowered or its switched strip / smart plug is off). Device state is sampled once per 120 s and
-    booked for the whole accumulated dt at the current tariff (standby and appliance draws change on minute scales)."""
+    """Energy ledger for every other domain's metered device (``power_w`` when active else ``standby_w``, a charger's
+    ``_load_w`` on top, a lit light its bulbs; zero when unplugged, unpowered or its switched strip / smart plug is
+    off). Device state is sampled once per 120 s and booked for the whole accumulated dt at the current tariff (standby
+    and appliance draws change on minute scales). Appliances_cooking books its burners and ovens itself: they carry
+    neither power_w nor standby_w."""
     state = w.s
     if not state.get("rooms"):
         return
@@ -1407,7 +1443,7 @@ def climate_meter(w, dt, tick):
     by = {}
     for eid in static["power"]:
         rec = state["entities"].get(eid)
-        if rec is None or (rec.get("power_w") is None and rec.get("standby_w") is None):
+        if rec is None or not _metered(rec):
             continue
         watts = _other_draw(w, eid, rec)
         if watts > 0:
@@ -1432,17 +1468,27 @@ def _supply_switched_off(state, rec):
     return False
 
 
+def _light_draw(rec):
+    """A lit light's draw (W): its installed bulbs' (electrical's ``_bulb_w``), else its rating, else the fixture default
+    its heat gain uses, dimmed as electrical's power.draw_w dims it."""
+    if rec.get("burnt_out"):
+        return 0.0
+    watts = C.num(rec.get("_bulb_w"), C.num(rec.get("power_w"), LIGHT_W))
+    return watts * max(0.2, C.num(rec.get("dim_level"), 1.0))
+
+
 def _other_draw(w, eid, rec):
     if rec.get("plug_required") and not rec.get("plugged_in"):
         return 0.0
     if not physics.is_powered(w, eid) or _supply_switched_off(w.s, rec):
         return 0.0
+    load = C.num(rec.get("_load_w"), 0.0)      # what a charger delivers on top of its own idle draw (electrical)
     machine = rec.get("appliance")
     active = rec.get("running") or rec.get("heating") or (isinstance(machine, dict) and machine.get("state") == "running")
     if rec.get("category") == "light":
-        active = bool(rec.get("lit", rec.get("on")))
-    elif not active and rec.get("on") and rec.get("power_state", "on") not in ("off", "rest", "standby"):
+        return load + (_light_draw(rec) if rec.get("lit", rec.get("on")) else C.num(rec.get("standby_w"), 0.0))
+    if not active and rec.get("on") and rec.get("power_state", "on") not in ("off", "rest", "standby"):
         active = not isinstance(machine, dict)
     if active:
-        return C.num(rec.get("power_w"), 0.0)
-    return C.num(rec.get("standby_w"), 0.0)
+        return load + C.num(rec.get("power_w"), 0.0)
+    return load + C.num(rec.get("standby_w"), 0.0)

@@ -1,5 +1,5 @@
 {
- "about": "Field classes of the electrical domain's types for the house ledger (VERIFY_HARDENING 6.3, lint L-WATCH; WP-D electrical). 'fields' classifies every property name of house_sim/data/types/electrical.json and every field electrical's verbs, hooks and systems write onto its own types: ratings, kinds, wiring and printed text are identity; what the robot sets (switches, plugs and how they sit, cord routes and coils, settings, clocks and alarms, pairing, cable ends, slots, covers) is setting; what electrical derives from those every refresh (energized, live, powered, lit levels, displays, charging, link and boot states, alarm LEDs and states, readings) is process -- the setting that caused it is what the ledger compares -- except a lamp's lit, which the kernel's light allowance keeps a setting; damage and faults (scorched, tripped, burnt out, bent plugs, strained cords, kinks, leaks, ESD, corruption, cracked screens, water inside, a cord's walkway / rug / water / heat hazards) are condition with the worse direction; counters, test records and timestamps are bookkeeping. 'types' overrides a name where it means something else: a cell's condition word is wear (process; its leak is `leaking`), and the core light types electrical lights take its burnt_out / dim_level / flicker. water_sensitive: electrical gear whose electronics liquid reaches (physical.electrical_gear) and that no IP or weather rating protects -- so the kernel's ledger.water_sensitive is the one water-sensitivity predicate for electrical gear (phase-1 closeout_breakages row 6). Fields electrical writes onto other domains' entities are classified by the kernel's watch_fields.json (requests in catalog/analysis/phase2/handoff_WP-D_electrical.md).",
+ "about": "Field classes of the electrical domain's types for the house ledger (VERIFY_HARDENING 6.3, lint L-WATCH; WP-D electrical). 'fields' classifies every property name of house_sim/data/types/electrical.json and every field electrical's verbs, hooks and systems write onto its own types: ratings, kinds, wiring and printed text are identity; what the robot sets (switches, plugs and how they sit, cord routes and coils, settings, clocks and alarms, pairing, cable ends, slots, covers) is setting; what electrical derives from those every refresh (energized, live, powered, lit levels, displays, charging, link and boot states, alarm LEDs and states, readings) is process -- the setting that caused it is what the ledger compares -- except a lamp's lit, which the kernel's light allowance keeps a setting; damage and faults (scorched, tripped, burnt out, bent plugs, strained cords, kinks, leaks, ESD, corruption, cracked screens, water inside, a cord's walkway / rug / water / heat hazards) are condition with the worse direction; counters, test records and timestamps are bookkeeping. 'types' overrides a name where it means something else: a cell's condition word is wear (process; its leak is `leaking`), and the core light types electrical lights take its burnt_out / dim_level / flicker. water_sensitive: electrical gear whose electronics liquid reaches (physical.electrical_gear) and that no IP or weather rating protects -- so the kernel's ledger.water_sensitive is the one water-sensitivity predicate for electrical gear (phase-1 closeout_breakages row 6). Fields electrical writes onto other domains' entities are classified by the kernel's watch_fields.json (requests in catalog/analysis/phase2/handoff_WP-D_electrical.md). A generic_item is what electrical's scenes build other domains' loads from (a space heater, a kettle), so it takes the cord's derived fields and the damage electrical writes on any load.",
  "fields": {
   "+affordances": "identity",
   "accepts_items": "identity",
@@ -158,6 +158,7 @@
    "class": "condition",
    "worse": "true"
   },
+  "fill_l": "bookkeeping",
   "fixed_temperature": "identity",
   "flexible": "identity",
   "flicker": "process",
@@ -234,6 +235,7 @@
   "lit": "setting",
   "live": "process",
   "load_a": "process",
+  "load_kg": "bookkeeping",
   "locked": "setting",
   "lost_in_outage": "bookkeeping",
   "loudness_db": "process",
@@ -491,6 +493,48 @@
   },
   "d_battery": {
    "condition": "process"
+  },
+  "generic_item": {
+   "cord_cells": "process",
+   "cord_length_used_m": "process",
+   "dim_level": "process",
+   "flicker": "process",
+   "kinked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "water_ingress": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "fried": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "burnt_out": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "thermal_runaway": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "battery_swollen": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "data_lost": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "job_interrupted": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "pin_damage": {
+    "class": "condition",
+    "worse": "true"
+   }
   },
   "lamp": {
    "burnt_out": {

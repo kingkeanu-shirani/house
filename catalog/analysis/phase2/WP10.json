@@ -1,0 +1,26 @@
+{
+ "id": "WP10",
+ "status_note": "written before the final runs; see the structured result and the handoff's Results for the figures",
+ "landed": [
+  "G11 in tools/orchestration/tier1_gate.py: every schema-4 spec at the full level (battery, must-pass, audits, held-out, private with the split key), HARDENED is the only pass, 'not run (no split key)' as INFO without the key, a new id must declare schema 4, compare recomputes it; records from before G11 stay complete",
+  "evidence reuse (tools/evidence_replay.py, components.json), release gating (record --release, --hardened-limit), the rolling run with its replay-miss audit (tier1_gate.py rolling), publish, cost and review reports",
+  "tools/battery_review.py: mechanical checks, signing rules, blind review, default-fix rule, review budget, spot-checks; docs/REVIEW.md; catalog/review files",
+  "tools/harden_audit.py: R0 as-if audit and --cost calibration",
+  "house_sim/eval: schema-4 episode start and end (idle counterfactual cache, perceive.enable, finish, agent rule with the seed's branch diff set), verified_specs takes HARDENED, the manifest in the evaluation mode with its drop rate, stratified draw, chance-corrected column",
+  "run_check.py on schema 4: --level, the verdict and level_passes from the evidence record, mismatch and verify --rerun at the entry's level",
+  "gate-tool carry-over: REV 1, 2, 3, 4, 8, 9 and VER2's two new findings, test_gate_tool in an isolated copy",
+  "tests/test_review_tools.py, test_review_cheats.py (+ data), test_critique_cases.py; CarryOverGateTests, HardenedStageTests, RunCheckHardenedTests, CloseOutGapTests"
+ ],
+ "requests": [
+  "WP1 / WP4 (house_sim/kernel/ledger.py failures, kernel/reports.py guards): ledger.failures raises IndexError on the content guard's label report:contradiction:<n>: `kind = f.guard.split(\".\", 1)[1]` at ledger.py:2102 assumes a dotted guard, reports.guards labels contradictions without one. Any schema-4 episode whose reports contradict each other crashes evaluate() (B12 contradict would be a harness error, so such a spec could never be HARDENED). Repro: tests/data/review_cheats/lens_c.json T-70a9e6a7a83f64-01 (state raised in caught_as_if.json). Fix: split(\".\", 1)[-1], or a house.* label",
+  "WP5 (verify.py): WP6's requests are still open: record['guess'], record['randomisation']['b5a_discordant_failure_share'] and audit_values, best_constant_share (the leaderboard's chance correction and G11's public row read it), battery / mustpass / private harness_errors and lint rows, private_mustpass, protect_live, builds['budget'|'expected'|'cpu_s'], heldout_rates",
+  "WP5 (verify.py): set record['dormant_exemptions'] (escapes.price reads it, nothing writes it): tools/battery_review.exemption_states has the rule",
+  "WP5 (verify.py): optional, write evidence.run_fingerprint, the footprint and the branch diff set into the record; the gate computes the first two after each full run and the harness recomputes the third",
+  "main session (house_sim/audit.py report, house_sim/eval/dataset.py evidence_status): a schema-4 record is DONE and in the dataset only with verdict HARDENED at its fingerprint (splits.hardened_problem has the rule); both read implementation_hash today, so a schema-4 record reads as stale",
+  "main session (gate_policy): commit a gate-change signature for this package's record; gate_policy/README.md: one line for the allowlist's new spec mode \"hardened\" and for G11",
+  "main session (setup.py): package_data for house_sim/data/verify/components.json (the data/verify/*.json glob already requested covers it)",
+  "WP8 (docs): document G11, tools/battery_review.py, evidence_replay.py, harden_audit.py, eval/run.py's episode_start / episode_end, splits' new functions; EVAL_HARNESS.md still lists WP10's harness part as not landed",
+  "WP12 (migration): tests/data/review_cheats/caught_as_if.json lists the review cheats still passing as-if (state pending): each needs its spec's declaration (said, answers, timing, a destination role)",
+  "WP-D textiles_laundry or WP12: T-ba18cc4b56e89d-01 has no jeans in the dryer on the five gate seeds any more, so the review's cheats there bind nothing (state no_scene): rewrite them with the migration"
+ ]
+}

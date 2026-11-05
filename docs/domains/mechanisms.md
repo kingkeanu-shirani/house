@@ -8,7 +8,7 @@ and fixtures are operated with: knobs, dials, valves, switches (incl. 3-way), bu
 hold), touchscreens, levers, handles, trigger sprayers and pumps.
 
 Code: `house_sim/systems/mechanisms/` (package). Types: `house_sim/data/types/mechanisms.json` (72 types).
-Tests: `tests/test_mechanisms.py` (221 tests, 18 of them for the tier-1 adoption in `Tier1PhysicsAdoptionTests`,
+Tests: `tests/test_mechanisms_hardening.py` (verification hardening, section 21) and `tests/test_mechanisms.py` (221 tests, 18 of them for the tier-1 adoption in `Tier1PhysicsAdoptionTests`,
 `Tier1BodyAdoptionTests`, `Tier1CameraAdoptionTests`, `Tier1SweepAdoptionTests`, 27 for the stabilisation phase 1 in
 `Phase1StabiliseTests` and `Phase1FinishTests`, sections 18 and 19; pass isolated
 (`HOUSE_SIM_DOMAINS=core,mechanisms`), strict, with all 16 domains loaded, and with the furniture_tip, hang, wind and rain
@@ -32,6 +32,7 @@ body; v3.1 sweep): section 16.
 | `dispense.py` | `squeeze_trigger`, `pump` (cone coverage and overspray, pump priming/locks, Boyle-law inflation) |
 | `garage.py` | overhead door opener state machine, photo eyes, auto-reverse, constant-pressure override, manual release |
 | `petdoor.py`, `switches.py`, `diagnosis.py` | pet-door modes; 3-way switches and reach rules (bypass closets, lazy susans); hidden causes, resistance profiles and visual clues |
+| `hardening.py` | verification hardening (section 21): derived fields, settings skills and damaging verbs, hazard zones |
 | `world.py` | systems `mechanisms.tick` (every substep) and `mechanisms.slow` (period 300 s) with their exact idle probes (`tick_idle`, `slow_idle`); the spring-closer driver (section 3a); `episode_start` hook; observers; inspector; invariants; answerers and their dialogue routes (`mechanisms.code`, `mechanisms.key_location`); perturbation events; doorstop props |
 | `scenarios.py`, `build.py`, `skills.py`, `furnish.py` | scenario helpers, config builders, reference skills (camera-aware routing, section 16), furnishers (generation 2: per-piece anchoring, the connected tier's smart lock) |
 
@@ -271,7 +272,7 @@ genuinely harmful outcomes:
 | upper cabinet door (>= 1.2 m) swinging into a standing person directly in front of it (the strip under the door; not beside it, not a seated person or a child shorter than the door's height); drop-down oven/dishwasher door into someone in front | same contact rule as doors: `collisions` only when careless (fast, firm, yank) or the person is vulnerable, + `burns` from a hot oven door | `door_bumps` (startled) |
 | door/closet/low-cabinet door sweeping into a floor item (taller than the 2 cm door undercut; items under 15 cm are only shoved, and with navigation_robot loaded its door-swing hook nudges those instead) | only a careless swing (fast speed, firm or yank force): tall/fragile items topple, fragile ones break (`breakages` + `damage`), open liquids slop (`spills`) | controlled swing (the robot's normal open): light items are pushed aside (`shifted`), tall narrow ones tip (`toppled`, `knocked_over`), fragile items and open liquids are eased aside; an item too heavy to push (> ~20 kg at normal force, ~40 kg firm; wheeled items roll) stops the door at 35 % |
 | clamshell case opened upright tips | | `knocked_over` (`mech.tipped_open`) |
-| stop-less drawer yanked out, tumbler opened face down, snap lid squeezed, liquids jerked | `spills` (contents on the floor / liquid lost) and `breakages` for fragile contents | |
+| stop-less drawer yanked out, tumbler opened face down, snap lid squeezed, liquids jerked | `spills` (contents on the floor; lost liquid lands as a real spill below the thing, `common.spill_out`, section 21) and `breakages` for fragile contents | |
 
 Non-global: `door_bumps`, `knocked_over`, `noise`, `sleep_disturbances`, `false_alarms`.
 
@@ -1127,3 +1128,81 @@ and now this one) reads `{"label_text": ""}` where an unfamiliar kettle is refus
 presence comes from the type (review I4; kernel); people's `read_aloud` refuses a blank label "nothing legible" while
 the thing is still unread, where a labelled member is read out (the read probe compares `read_aloud` only after
 `read`, which resolves the labelled members, so it does not see it).
+
+## 21. Verification hardening (VERIFY_HARDENING section 25 "WP-D mechanisms", 23.3)
+
+### 21.1 Latched fields (8.2)
+
+Schema-4 predicates read these through `@derived_field` recomputes (`hardening.py`); legacy specs read the records as
+before.
+
+| Field | Latched where | Recomputed from |
+|---|---|---|
+| `mech` | the derived sub-keys of a mechanism record: `coverage`, `gap_cm`, `overlap_now_cm`, `exposed_frac`, `privacy_ok`, `view_in` (coverings.refresh, after this domain's verbs), `clear_opening_m2`, `egress_ready` (windows.refresh), `test_held` (handles._test, the moment of the test), `propped_by` (the place hook), `clearance_m`, `hazards_in_reach` (the place hook) | the panels, the lift and tilt, the sash, the guard and the screen as they are; a test holds only while the closure is shut and would hold now (`closures.secure_now`); a wedge counts while it stands at the door (`common.prop_in_place`); the high chair's room as it is |
+| `covered` | coverings.sync_window, after a covering's verbs (window types only) | every covering of the window as it is now (a window with no covering keeps its own value) |
+| `props_open` | the place hook on a wedge | the door still names the wedge and it stands there |
+| `propping` | the place hook on a wedge | as `props_open` |
+
+### 21.2 What landed
+
+* **Field classes (6.3, L-WATCH).** `house_sim/data/verify/watch/mechanisms.json`: every property of the type data and
+  every field the domain's verbs and systems write (`python tools/field_census.py --unclassified --domain mechanisms`: 0,
+  was 29 names / 64 pairs). The ledger applies a domain's `fields` only to its own types and most closures this domain
+  works are the kernel's (`door`, `gate`, `window`, `drawer`, ...), so `types` repeats the `mech.*` fields that are not
+  settings for the 17 kernel and other-domain types with a mechanism kind (request to WP1: read `writes`, as manipulation
+  asked; the copies can go then). Mirrors of a setting are `process` (`bolt_throw`, `coverage`, `gap_cm`, `privacy_ok`,
+  `egress_ready`, `clear_opening_m2`: the panels, lift, sash and `locked` carry the label); `mech.kind` is bookkeeping
+  (`mut_mech` writes on first use what the type already infers). A door shoving a thing aside writes the hidden
+  `_pushed_aside` instead of `shifted` (kernel class: damage): it moved, it was not hurt.
+* **Writers and causes (6.2).** Both systems `writer="physical"`. Time-system writes cite what they follow from
+  (`common.caused`): a closer, a relock, wind, a garage run, a burner's gas and a touchscreen's timeout their own thing; a
+  draught the door and the open windows of its rooms; rain the window, also on the floor cell it wets; fabric heat the
+  fabric and the flames; the sun the window and its coverings, glare its windows. A pet's own bolt or slip and an agent's
+  run under a garage door are `volition` (`common.volition`); the `pet_escape` flag keeps its own attribution. Scripted
+  `event:mechanisms.*` effects are already volition (WP2).
+* **Mess (6.5).** This domain registers no mess kind (its liquids are plumbing's kinds, its soil and wetness the kernel's
+  guards). **World fix (P10):** a lid that pops or breaks free, a door swinging into an open cup and a jerked drawer used
+  to take the liquid out of the world (`liquid_l` down, a `spilled_l` counter up): `common.spill_out` lands it through the
+  kernel's `phys.liquids.deposit_below`, so it is a parcel `liquid:spill` measures and a mop can take up, or a film on the
+  table it stood on; `spills` counts once. What a verb drops out of a thing logs its flow when it is a mess parcel
+  (`common.fall_item`, core's `log_mess_move`). A sprayed or pumped product is consumption where it is used (the content
+  guard's `consume`, as plumbing's rule), not a flow; `applied` is a condition on this domain's own types.
+* **Meters (6.8).** A hose nozzle's squeeze and a flush handle draw on the house water meter (`common.count_water`:
+  plumbing's accounting, else the path resources.json names), unlit gas on the gas meter (`common.count_gas`, 2.5 kW or
+  `gas.kw`). The mixer tap's running flow stays plumbing's (its taps) and climate's energy ledger meters motors.
+* **Structured reading (15.2).** `pump` on an inflatable returns `{"result": text, "reading": {"subject", "quantity":
+  "pressure", "value", "unit": "kPa", "field": "inflatable.pressure_kpa"}}` (`perceive.index(env).readings`). No other
+  verb is an instrument: a blind's lift, a sash's height and a mixer's heat are seen or felt words.
+* **Settings skills and damaging verbs (10.3, B14; `hardening.py`).** Settings: `latched`, `child_lock`, `mech.panels`,
+  `mech.lift_frac`, `mech.tilt_deg`, `mech.cord_cleated`, `mech.open_frac`, `mech.hasp`, `pump.locked`, `trigger.nozzle`,
+  `mech.mode` (pet doors). Damage: `mech.strain` (forcing a hinged door the wrong way), `mech.jammed` (hauling a curtain
+  by its fabric), `mech.skew_cm` (a cord-lock blind's cord off vertical), `broken` (a firm push on a door's or cabinet's
+  pane). Steps run through the reference skills `mechanisms.operate(target, verb, **args)` and
+  `mechanisms.force_wrong_way(target)`.
+* **Truth mappings (13.3).** `data/speech/truth_mechanisms.json`: states `raised` (>= 95 %), `lowered` (<= 5 %); issues
+  `latch_misaligned`, `broken_latch`, `strike_misaligned`, `lock_jammed`, `sticking`, `off_track`, `rod_down`,
+  `cross_threaded`, `sensor_misaligned`, `cord_hazard`, `gas_unlit`. No record leaves the claim unknown.
+* **Hazard zones (13.5).** `@hook("hazard_zones")`: gas flowing unlit (the room) and a garage door coming down (the door
+  itself).
+* **Derived fields (8.2).** The table of 21.1. **World fixes:** a guard's change refreshes `egress_ready` at once (it
+  waited for the next sash move), and a wedge carried off by anything lets the door go (`common.prop_in_place`,
+  `common.release_prop`; it stayed `propped` for good when the wedge left by any verb but `pick_up`).
+* **Not applicable:** `hazard_created` types (no verb creates an entity; a fall's shards are the kernel's), zones and
+  passability (no agents of its own; pet doors in `ledger.passable` are a request to WP1).
+
+### 21.3 Phase-1 carry-over
+
+* closeout_breakages row 5: a test swing obeys the door's direction. A hinged door cannot swing toward its stop: a test
+  the wrong way moves nothing whatever the latch does, so it answers the same words, records nothing and teaches nothing
+  ("It doesn't move: this one opens by pushing from this side"); `lock_verified` and `secure_gate` test the way the door
+  swings (`skills._test_verb`).
+* closeout_breakages row 6: `dispense` and the rain on a sill ask `common.water_sensitive` (`ledger.water_sensitive`, plus
+  the categories this domain always treated so). A remote on a sill and gear under a sprayer are harmed as electronics are.
+* closeout_REV 6 (VER2 confirmed): `latch target=<it>` and `destination=<it>` answer an unfamiliar thing with the kernel's
+  one identify-first refusal before `Hold the padlock` (the kernel rewrites that word for an unfamiliar padlock alone).
+* The sweep of every verb (scratch `sweep.py`: 14 verbs and the four hooked core verbs, 94 commands, every entity parameter,
+  on the table and held, every registry look-alike group, then 31 unfamiliar twins) found two more tells, closed: `turn
+  setting=` and `move_lever setting=` named a thing's controls (a smart bulb's dimmer, a rice cooker's programs) before it
+  was resolved, now `ctx.refuse_unidentified`, and `pump destination=` told the absorbent member of the cleaning bottles
+  by "(it drips)", now said only of an identified thing (the dose lands by what the thing is). And a crash: `push_handle where=glass` raised
+  `UnboundLocalError` for everything of glass (a local import made `add_soil` local to the verb).

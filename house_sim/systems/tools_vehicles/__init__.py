@@ -20,7 +20,9 @@ from . import routes  # noqa: F401
 from . import scenarios  # noqa: F401
 from . import skills  # noqa: F401
 from . import furnish  # noqa: F401
+from . import hardening
 
 VERBS = ("tighten", "loosen", "lubricate", "drill", "hammer", "cut_with", "assemble", "disassemble", "paint", "caulk", "patch", "sand",
          "regrout", "pressure_wash", "seal_surface", "snake_drain", "adjust_flapper", "reset_disposal", "clear_jam", "bleed_radiator",
          "hang_decoration", "inflate", "jump_start", "change_tire", "scrape_ice", "drive_to", "connect_charger", "check_tire")
+hardening.register_verbs(VERBS)

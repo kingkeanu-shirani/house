@@ -229,16 +229,18 @@ def tick(w, dt, tick_):
     static index of overhead doors; nothing else is scanned unless a door is moving."""
     state = w.s
     ents = state["entities"]
-    _dashers_return(w)
+    with C.volition(w, "mechanisms.garage_dash"):
+        _dashers_return(w)
     moving = [d for d in C.ids(w, "overhead") if d in ents and isinstance(ents[d].get("mech"), dict)
               and ents[d]["mech"].get("state") in ("opening", "closing")]
     for door in moving:
         remaining = float(dt)
-        while remaining > 1e-9:
-            step = min(1.0, remaining)
-            remaining -= step
-            if not _travel(w, door, step):
-                break
+        with C.caused(w, door):
+            while remaining > 1e-9:
+                step = min(1.0, remaining)
+                remaining -= step
+                if not _travel(w, door, step):
+                    break
     if moving:
         for door in sorted({ents[e].get("door") for e in C.ids(w, "photo_eyes") if e in ents and ents[e].get("door")}):
             _refresh_eyes(w, door)
@@ -307,13 +309,14 @@ def _dashers(w, door, pos):
             spot = cells.get(room) or []
             if not spot:
                 continue
-            m = w.pet_m(aid) if group == "pets" else w.person_m(aid)
-            m["_dashed"] = True
-            m["_dash_from"] = [agent.get("location"), list(agent.get("pos") or [0, 0])]
-            m["_dash_until"] = state["time_s"] + 60.0
-            m["location"] = room
-            m["pos"] = list(spot[len(spot) // 2])
-            C.agent_moved(w, group, aid)
+            with C.volition(w, "mechanisms.garage_dash"):     # their own run under the door
+                m = w.pet_m(aid) if group == "pets" else w.person_m(aid)
+                m["_dashed"] = True
+                m["_dash_from"] = [agent.get("location"), list(agent.get("pos") or [0, 0])]
+                m["_dash_until"] = state["time_s"] + 60.0
+                m["location"] = room
+                m["pos"] = list(spot[len(spot) // 2])
+                C.agent_moved(w, group, aid)
             C.visual(w, "ran_under_door", source=door, size_m=0.5, agent=aid, door=door)
 
 

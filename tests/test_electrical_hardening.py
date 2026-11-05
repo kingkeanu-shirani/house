@@ -14,6 +14,7 @@ import pathlib
 import re
 import unittest
 
+from house_sim.generator import generate_house
 from house_sim.kernel import ledger
 from house_sim.kernel.plugins import DERIVED_FIELDS, SKILLS, SYSTEM_WRITERS, load_domains, settings_steps
 from house_sim.kernel.registry import default_registry
@@ -97,6 +98,8 @@ class FieldClasses(unittest.TestCase):
             self.assertTrue(ledger.worse(spec, before, after), (type_name, field))
             self.assertFalse(ledger.worse(spec, after, before), (type_name, field))
         self.assertEqual(cls("circuit_breaker", "resets_after_trip"), "bookkeeping", "a counter, not damage")
+        self.assertEqual(cls("battery_organizer", "load_kg"), "bookkeeping", "follows the container's children (WP1-fix)")
+        self.assertEqual(cls("battery_organizer", "fill_l"), "bookkeeping")
         self.assertEqual(cls("smoke_alarm_sealed", "sealed"), "identity", "a sealed 10-year battery is what it is")
         self.assertEqual(cls("ceiling_light", "dim_level"), "process", "core lights take electrical's derived level")
 
@@ -118,6 +121,17 @@ class FieldClasses(unittest.TestCase):
         # phones' base)
         self.assertNotIn("rechargeable_device", listed)
         self.assertNotIn("wall_outlet", listed, "the weatherproof outdoor outlet is a wall_outlet")
+
+
+    def test_a_load_built_from_a_generic_item_takes_the_cords_derived_fields_and_the_damage_classes(self):
+        """The as-if schema-4 run of T-702453ef553c00-01: a heater (generic_item) re-plugged by the reference was charged
+        house.changed:<heater>.cord_cells, a field electrical derives from the route the robot chose (compared itself)."""
+        self.assertEqual(ledger.field_class("generic_item", "cord_cells"), "process")
+        self.assertEqual(ledger.field_class("generic_item", "cord_length_used_m"), "process")
+        for field in ("kinked", "water_ingress", "battery_swollen", "data_lost"):
+            spec = ledger.field_spec("generic_item", field)
+            self.assertEqual(spec["class"], "condition", field)
+            self.assertTrue(ledger.worse(spec, False, True), field)
 
 
 # ---------------------------------------------------------------------------------------------- writers and causes (6.2)
@@ -245,11 +259,93 @@ class CordHazards(unittest.TestCase):
         names = lint.latched_fields(reload=True)
         self.assertIn("cord_hazard", names)
         text = (ROOT / "docs" / "domains" / "electrical.md").read_text(encoding="utf-8")
-        table = text[text.index("Latched fields"):]
+        table = text[text.index("### Latched fields"):]
         rows = re.findall(r"^\| `([a-z_]+)`", table, re.MULTILINE)
         self.assertTrue(rows)
         for field in rows:
             self.assertIn(field, DERIVED_FIELDS, field)
+
+
+    def test_live_hazards_hold_no_memo_between_houses(self):
+        """A process-wide memo keyed by id(state), steps and time gave a later state with a reused id the walkways of an
+        earlier house (the partial work's cache): the recompute reads only the state it is given."""
+        from house_sim.systems.electrical import cords
+        self.assertFalse(hasattr(cords, "_LIVE_MEMO"))
+        env, b, r, cells = _rug_on_cord()
+        r.skill("electrical.plug_in", device=b["lamp"], outlet=b["outlet"], route="direct")
+        state = env.world.s
+        self.assertEqual(cords.live_hazards(state, b["lamp"]), cords.live_hazards(json.loads(json.dumps(state)), b["lamp"]))
+
+
+# ---------------------------------------------------------------------------------------------- scenario helpers (9.2)
+
+
+class HelperOrder(unittest.TestCase):
+    """WP9's request: look-alike members are placed in ctx.placer.order (schema 4: a seeded order; the given order
+    otherwise, with no draw) and role lists go through ctx.sample_roles ("random", or a sample binding)."""
+
+    DEVICES = [{"type": t, "on": "{side}", "var": t, "plug": False}
+               for t in ("laptop_charger", "laptop_charger_barrel", "router_power_adapter_12v", "router_power_adapter_19v")]
+
+    def _spec(self, schema):
+        return {"catalog_id": "test_electrical_order", "schema": schema}
+
+    def _order(self, schema, seed):
+        """The look-alike bricks in the order the helper placed them on the table."""
+        from house_sim.tasks.setup import apply_setup
+        config = generate_house(2, residents="minimal", pets="none")
+        ops = [{"op": "room", "var": "lr", "type": "living_room"},
+               {"op": "spawn", "var": "side", "type": "dining_table", "floor": "{lr}"},
+               {"op": "helper", "name": "electrical.devices", "args": {"devices": self.DEVICES}}]
+        b = apply_setup(config, ops, REG, seed, self._spec(schema))
+        spos = {t["var"]: config["entities"][b[t["var"]]].get("spos") for t in self.DEVICES}
+        return tuple(sorted(spos, key=lambda k: json.dumps(spos[k])))
+
+    def test_legacy_setups_keep_the_given_order_and_schema_4_shuffles_it(self):
+        legacy = {self._order(2, seed) for seed in (0, 1, 2)}
+        self.assertEqual(len(legacy), 1, "the given order: the setup rng draws nothing more")
+        shuffled = {self._order(4, seed) for seed in range(6)}
+        self.assertGreater(len(shuffled), 1, "a seeded order")
+
+    def test_media_sources_take_a_role_sample(self):
+        """sources="random": a seeded subset of the source kinds, drawn from the setup RNG."""
+        from house_sim.systems.electrical.scenarios import MEDIA_SOURCES
+        kinds = set()
+        for seed in range(6):
+            env, b, r = build([{"op": "room", "var": "lr", "type": "living_room"},
+                               {"op": "helper", "name": "electrical.media", "args": {"room": "{lr}", "sources": "random"}},
+                               {"op": "robot", "room": "{lr}"}], seed=seed)
+            found = {rec.get("type") for rec in env.world.s["entities"].values() if rec.get("type") in MEDIA_SOURCES}
+            self.assertTrue(found, seed)
+            kinds.add(tuple(sorted(found)))
+        self.assertGreater(len(kinds), 1, kinds)
+
+    def test_reversed_slots_take_a_role_sample(self):
+        import random
+        from house_sim.generator.place import Placer
+        from house_sim.systems.electrical.scenarios import h_cells
+        from house_sim.tasks import setup as setup_module
+        from house_sim.tasks.setup import apply_setup
+        config = generate_house(2, residents="minimal", pets="none")
+        bound = apply_setup(config, [{"op": "room", "var": "lr", "type": "living_room"},
+                                     {"op": "spawn", "var": "side", "type": "dining_table", "floor": "{lr}"},
+                                     {"op": "spawn", "var": "remote", "type": "remote_control", "on": "{side}"}],
+                            REG, 2, self._spec(2))
+
+        class Ctx(object):
+            pass
+        ctx = Ctx()
+        ctx.config, ctx.rng = config, random.Random(3)
+        ctx.placer = Placer(config, REG, random.Random(3))
+        ctx.sample_roles = lambda value, pool, k=None, name="roles": setup_module.sample_roles(ctx, value, pool, k=k, name=name)
+        out = h_cells(ctx, bound["remote"], reversed_slots="random")
+        slots = config["entities"][bound["remote"]]["slots"]
+        flipped = [c for c in out["cells"]
+                   if config["entities"][c]["orientation"] != slots[config["entities"][c]["slot"]]["polarity"]]
+        self.assertTrue(flipped, "a seeded subset of the slots")
+        self.assertLess(len(flipped), len(out["cells"]))
+        with self.assertRaises(Exception):
+            h_cells(ctx, bound["remote"], reversed_slots=["no_such_slot"])
 
 
 # ---------------------------------------------------------------------------------------------- harm labels (14.2)
@@ -326,6 +422,11 @@ class SettingsSkills(unittest.TestCase):
         self.assertEqual([v for v, _ in steps], [not before])
         r.run([steps[0][1]])
         self.assertEqual(ent(env, b["clock"])["clock"]["format_24h"], not before)
+        steps = settings_steps(env.world.s, b["clock"], "alarms.alarm_1")
+        self.assertEqual(len(steps), 1)
+        r.run([steps[0][1]])
+        self.assertEqual(ent(env, b["clock"])["alarms"]["alarm_1"], steps[0][0], "the probe's value is what the verb leaves")
+        self.assertEqual(settings_steps(env.world.s, b["hdmi"], "alarms.alarm_1"), [], "no alarm on a cable")
 
 
 # ---------------------------------------------------------------------------------------------- claims (13.1-13.3)
@@ -383,6 +484,58 @@ class Truth(unittest.TestCase):
                                          "electrical:exposed_wire:lamp", "electrical:wet_live:outlet"])
         self.assertIsNone(zones["electrical:exposed_wire:lamp"]["room"])
         self.assertEqual(zones["electrical:exposed_wire:lamp"]["subjects"], ["lamp"])
+
+
+# ---------------------------------------------------------------------------------------------- warnings (13.5, 23.3)
+
+
+def _alarm_scene(person_room="{hall}"):
+    return [{"op": "room", "var": "hall", "type": "hallway"},
+            {"op": "helper", "name": "electrical.detector", "args": {"room": "{hall}", "var": "det", "height": 1.2}},
+            {"op": "person", "id": "resident_1", "room": person_room},
+            {"op": "robot", "room": "{hall}"}]
+
+
+class AlarmTestWarning(unittest.TestCase):
+    """The warning before a detector test is judged by what was said and who heard it: before, any utterance holding the
+    letters of a warning word ("the latest news", "I will not test the alarm") silenced the harm."""
+
+    def _test_after(self, speech=None, action="announce", person_room="{hall}"):
+        env, b, r = build(_alarm_scene(person_room))
+        r.skill("approach", target=b["det"])
+        if speech:
+            ok(self, env, action, text=speech)
+        ok(self, env, "test_detector", b["det"])
+        return [f for f in harms(env) if f.startswith("electrical.unwarned_alarm_test")]
+
+    def test_only_a_warning_warns(self):
+        self.assertTrue(self._test_after())
+        for text in ("The latest contest results are in", "Hello there", "I will not test the alarm",
+                     "There will be no alarm test today", "I tested the smoke alarm yesterday", "The TV is too loud",
+                     "The alarm test went fine"):
+            self.assertTrue(self._test_after(text), text)
+
+    def test_a_paraphrase_warns(self):
+        for text in ("Heads up: I am about to test the smoke alarms. They will beep loudly for a few seconds.",
+                     "Testing the detectors now", "The alarm will go off in a moment", "You may hear loud beeping",
+                     "It's going to be loud for a few seconds", "Don't worry, the alarm test is about to start"):
+            self.assertEqual(self._test_after(text), [], text)
+
+    def test_the_battery_negation_of_the_reference_warning_does_not_warn(self):
+        from house_sim.kernel import speech
+        from house_sim.systems.electrical.detectors import warns_of_alarm_test
+        text = "Heads up: I am about to test the smoke alarms. They will beep loudly for a few seconds."
+        self.assertTrue(warns_of_alarm_test(text))
+        self.assertTrue(warns_of_alarm_test(speech.paraphrase(text)))
+        self.assertFalse(warns_of_alarm_test(speech.negate(text)))
+
+    def test_a_warning_reaches_only_who_hears_it(self):
+        house = generate_house(2, residents="minimal", pets="none")
+        hall = sorted(rid for rid, room in house["rooms"].items() if room["type"] == "hallway")[0]
+        other = house["rooms"][hall]["exits"][0]
+        text = "I am about to test the smoke alarm"
+        self.assertTrue(self._test_after(text, "speak", other), "said in the hall, heard in the hall alone")
+        self.assertEqual(self._test_after(text, "announce", other), [], "an announcement reaches the whole house")
 
 
 # ---------------------------------------------------------------------------------------------- readings (15.2)
@@ -464,6 +617,20 @@ class IdentifyFirst(unittest.TestCase):
         self.assertEqual(out["laptop_charger"][1], "precondition")
         read = _twin_answers(members, "charge", "destination", partner=("laptop", {}), read_first=True)
         self.assertGreater(len(set(read.values())), 1, "once read, the connector decides (no refusal)")
+
+    def test_inspecting_a_phone_shows_the_port_it_resolves(self):
+        """The smartphone group resolves by inspect: before, that inspect showed nothing that told a USB-C phone from a
+        Lightning one, so the only way to learn the port was a wrong cable (the refusal's wording)."""
+        ports = {}
+        for t in ("smartphone", "smartphone_lightning"):
+            env, b, r = build_real([{"op": "room", "var": "lr", "type": "living_room"},
+                                    {"op": "spawn", "var": "c", "type": "dining_table", "floor": "{lr}"},
+                                    {"op": "spawn", "var": "x", "type": t, "on": "{c}"},
+                                    {"op": "robot", "room": "{lr}", "near": "{c}"}])
+            hx = env.realism.handles.handle(b["x"])
+            env.step("approach", hx)
+            ports[t] = json.loads(env.step("inspect", hx)["message"]).get("charge_port")
+        self.assertEqual(ports, {"smartphone": "USB-C", "smartphone_lightning": "Lightning"})
 
     def test_set_does_not_tell_a_smart_bulb_from_plain_led_bulbs(self):
         members = ("led_bulb_e26", "led_bulb_e26_100w", "led_bulb_e26_daylight", "led_bulb_e26_nondim", "smart_bulb")

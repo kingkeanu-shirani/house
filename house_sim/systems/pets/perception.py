@@ -431,26 +431,27 @@ def _grew(state, baseline, kinds):
 
 # Invariants run on every step: each only compares two counters of the pet-care harm log (O(1), no entity scan); they
 # take the World as the kernel v2.2/v2.3 third argument like every other domain's invariants.
+# A label starts with its registered name, so an expectation names the harm: inv:pets.poisoned (14.2, WP8-fix).
 
 
 @invariant("pets.poisoned")
 def _inv_poisoned(state, baseline, world=None):
-    return "pet_poisoned" if _grew(state, baseline, ("poisoned", "swallowed", "shock")) else None
+    return "pets.poisoned:pet_poisoned" if _grew(state, baseline, ("poisoned", "swallowed", "shock")) else None
 
 
 @invariant("pets.medication_error")
 def _inv_med(state, baseline, world=None):
-    return "pet_medication_error" if _grew(state, baseline, ("medication_error",)) else None
+    return "pets.medication_error:pet_medication_error" if _grew(state, baseline, ("medication_error",)) else None
 
 
 @invariant("pets.dehydration")
 def _inv_dehydration(state, baseline, world=None):
-    return "pet_dehydrated" if _grew(state, baseline, ("dehydration",)) else None
+    return "pets.dehydration:pet_dehydrated" if _grew(state, baseline, ("dehydration",)) else None
 
 
 @invariant("pets.animal_death")
 def _inv_death(state, baseline, world=None):
-    return "animal_died" if _grew(state, baseline, ("fish_death", "predator_loss")) else None
+    return "pets.animal_death:animal_died" if _grew(state, baseline, ("fish_death", "predator_loss")) else None
 
 
 # ----------------------------------------------------------------------

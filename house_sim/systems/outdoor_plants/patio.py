@@ -149,6 +149,8 @@ def remove_cover(w, cover_id, reason="lifted", careful=False):
             kind = target_kind(trec)
             if kind == "pool":
                 tm["debris_kg"] = round(float(tm.get("debris_kg", 0.0)) + debris, 3)
+                C.flow(w, debris, ("entity", cover_id), ("entity", target))
+                debris = 0.0
                 cont = tm.setdefault("contamination", {})
                 cont["cover_water_l"] = round(float(cont.get("cover_water_l", 0.0)) + pooled, 2)
                 C.stat(w, "pool_contamination_kg", round(debris + pooled * 0.002, 3))
@@ -173,6 +175,14 @@ def remove_cover(w, cover_id, reason="lifted", careful=False):
                     cm["pos"] = C.floor_cell_of(w, target)
                     C.stat(w, "items_knocked_down")
             C.set_status(w, target, tools_knocked=True)
+    if debris > 0.05:
+        # whatever lay on the cover ends on the ground where it was lifted (it went nowhere before)
+        rid = C.room_of(w, cover_id) or (C.room_of(w, target) if target else None)
+        floor = "floor_" + str(rid)
+        if floor in w.s["entities"]:
+            from ..core import add_soil
+            add_soil(w, floor, "leaves", min(1.0, debris / 2.0))
+            C.flow(w, debris, ("entity", cover_id), C.mess_key(w.s, rid))
     m["pooled_water_l"] = 0.0
     m["debris_kg"] = 0.0
     if pooled > 0.5:
@@ -301,7 +311,7 @@ def _tip_with_open(w, uid, gust, open_):
 def _before_open_umbrella(ctx):
     target = ctx.args.get("target")
     rec = ctx.w.s["entities"].get(target or "", {})
-    if C.is_type(rec, "patio_umbrella"):
+    if C.is_type(rec, "patio_umbrella") and not ctx.unfamiliar(target):
         require(not rec.get("strapped"), "Release the tie strap first (secure_outdoor method=release)", "precondition")
         require(umbrella_base_of(ctx.w, target) is not None, "Set the umbrella pole in a weighted base first", "safety")
         require(not rec.get("pole_bent"), "The umbrella pole is bent; do not open it", "safety")
@@ -338,7 +348,7 @@ def _after_close_umbrella(ctx, result):
 
 
 def slow_umbrellas(w):
-    for uid in C.find_types(w, ["patio_umbrella"]):
+    for uid in C.each_caused(w, C.find_types(w, ["patio_umbrella"])):
         rec = w.s["entities"][uid]
         if rec.get("open") and (rec.get("settings") or {}).get("lock") != "engaged" and not rec.get("collapsed"):
             m = w.mut(uid)
@@ -389,6 +399,22 @@ def cushion_placed(w, cid, seat_id):
         values["placed_on_wet"] = True
         C.stat(w, "cushion_on_wet_seat")
     C.set_status(w, cid, **values)
+
+
+def cushion_refresh(w, cid):
+    """A cushion's whole status from the current state (evaluation overlay, hardening.derived_status): on_seat and matched, which
+    hooks of place and pick_up write, follow where it is now."""
+    rec = w.s["entities"][cid]
+    seat = w.s["entities"].get(rec.get("location"))
+    if seat is not None and (C.is_type(seat, "chair") or seat.get("seat")):
+        fits = str(rec.get("fits", "chair_seat"))
+        want_kind, _, role = fits.partition("_")
+        same_role = [c for c in w.children(rec["location"]) if c != cid and w.s["entities"][c].get("category") == "cushion"
+                     and str(w.s["entities"][c].get("fits", "")).partition("_")[2] == role]
+        C.set_status(w, cid, on_seat=rec["location"], matched=want_kind == seat_kind(seat) and not same_role)
+    else:
+        C.set_status(w, cid, on_seat=None, matched=False)
+    cushion_status(w, cid)
 
 
 def cushion_status(w, cid):
@@ -442,6 +468,7 @@ def move_ash(ctx, source_id, dest_id, kg):
     combustible = (str(dest.get("material", "")) in C.COMBUSTIBLE or dest.get("waste_stream") in ("compost", "yard_waste", "recycling", "trash")
                    or C.is_type(dest, "compost_bin")) and not dest.get("noncombustible")
     dm = w.mut(dest_id)
+    C.flow(w, take, ("entity", source_id), ("entity", dest_id), kind=C.ASH)
     dm["ash_kg"] = round(float(dest.get("ash_kg", 0.0)) + take, 3)
     dm["ash_c"] = max(float(dest.get("ash_c", 0.0)), temp)
     C.mark_robot(w, dest_id, "ash")             # a later flare-up of this ash in the wind is the robot's
@@ -486,7 +513,7 @@ def fire_candidates(w):
 def slow_fire(w, periods):
     dt = C.SLOW_S * periods
     ambient = C.air_temp(w)
-    for eid in fire_candidates(w):
+    for eid in C.each_caused(w, fire_candidates(w)):
         rec = w.s["entities"][eid]
         if "_ember_c" not in rec and "ash_c" not in rec:
             continue
@@ -516,7 +543,7 @@ def inspect_patio(w, eid, record, details, ctx):
         details["ash_kg"] = round(float(record.get("ash_kg", 0.0)), 2)
         details["surface_temp_c"] = round(float(record.get("temperature_c", 21.0)), 1)
         where = ctx.args.get("where") if ctx is not None else None
-        probe = any(w.ent(h).get("tool_kind") in ("fire_poker", "probe_thermometer") for h in w.held_items())
+        probe = any(w.ent(h).get("tool_kind") in ("fire_poker", "probe_thermometer") and not (ctx is not None and ctx.unfamiliar(h)) for h in w.held_items())
         if where == "closely" and probe:
             details["ash_bed_core_c"] = round(ash_core_c(record), 1)
             details["glowing_embers"] = ash_core_c(record) > 120
@@ -562,11 +589,12 @@ def _sensed_pit(w, eid, record, details, ctx, probed):
     if not probed:
         return
     core = ash_core_c(record)
-    thermometer = any(w.ent(h).get("tool_kind") == "probe_thermometer" for h in w.held_items())
+    thermometer = any(w.ent(h).get("tool_kind") == "probe_thermometer" and not ctx.unfamiliar(h) for h in w.held_items())
     if thermometer:
         # whole-degree display (an int, so the kernel's visual-noise pass leaves the instrument reading alone)
         reading = ctx.percept_value(eid, "temperature_c", core, "measure")
         details["ash_bed_core_c"] = int(round(reading if isinstance(reading, (int, float)) else core))
+        details["readings"] = [{"subject": eid, "quantity": "temperature", "value": details["ash_bed_core_c"], "unit": "C", "field": "temperature_c"}]
     else:
         details.pop("ash_bed_core_c", None)
         details["ash_bed_feel"] = C.temp_feel(core)
@@ -739,6 +767,8 @@ def _before_pick_up_patio(ctx):
     target = ctx.args.get("target")
     w = ctx.w
     rec = w.s["entities"].get(target or "", {})
+    if ctx.unfamiliar(target):
+        return                          # an unfamiliar thing is lifted like a thing (no refusal by what it really is)
     if C.is_type(rec, "pool_cover") and rec.get("team_lift", True) and not C.adult_present(w, w.robot["room"]):
         raise ActionError("A pool cover needs two people to lift; ask an adult to help", "safety")
     if C.is_type(rec, "furniture_cover") and (rec.get("fastened") or rec.get("anchored")) and rec.get("covers"):

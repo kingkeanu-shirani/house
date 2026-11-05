@@ -19,5 +19,7 @@ See docs/domains/climate.md. Modules register on import:
   furnish     furnishers
   scenarios   scenario helpers (climate.*)
   skills      reference skills (climate.*)
+  hardening   verification-hardening prerequisites (VERIFY_HARDENING 23.3): identify-first guards, derived fields, the
+              reservoirs' mess flows, hazard zones, settings skills and damaging verbs
 """
-from . import common, attribution, sun, hvac, fans, heaters, moisture, airclean, comfort, routes, model, perception, furnish, scenarios, skills  # noqa: F401
+from . import common, attribution, sun, hvac, fans, heaters, moisture, airclean, comfort, routes, model, perception, furnish, scenarios, skills, hardening  # noqa: F401

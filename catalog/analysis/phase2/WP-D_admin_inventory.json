@@ -1,0 +1,89 @@
+{
+ "id": "WP-D_admin_inventory",
+ "landed": [
+  "Field classes: watch/admin_inventory.json classifies every property of the 132 types and every written field (field_census --unclassified --domain admin_inventory: 0; --check: 0, also on a fresh census of the 15 specs)",
+  "Refuse and flows: loose staples, spilled chad, jammed sheets, taken-out packing fill and peeled packaging, spent roll cores, wind litter, spilled dry goods, full cart bags flagged waste: true; waste_item flows created:<verb>, entity:<cart> -> ground, drain:<cart>; hazard_created tags on staples, clips, twist ties, blister packs",
+  "Writer classes and causes: both systems physical with causes; the mail carrier and residents' consumption volition; the truck, wind, exposure effects, printer engine, shredder cooling, peeling labels cite their cause",
+  "World fixes (P10): the truck's household.collected keeps a protected thing's loss after the cart is emptied; printers and shredders draw rated power only while working (power_state, standby_w at the episode start); a stand-in cart carries waste_bin; an emptied window envelope loses the address it got from its letter",
+  "Derived fields for all 11 latched goal fields with the docs' Latched fields table; settings skills (settings.depth_mm, cover_open, sealed, tape_sealed, fold_style, fastener) and damaging verbs (punch_holes, creased, corner_torn, shredded) through admin_inventory.operate",
+  "Truth mappings truth_admin_inventory.json, office hazard_zones hook, structured luggage-scale reading",
+  "Invariant labels renamed to <registered name>:<detail> (admin_inventory.protected_items:discarded:<id>, ...), so inv: patterns and protect_rules references can match them; the interrupted run's reason for keeping the old names did not hold",
+  "Phase-1 carry-over: perceive.unfamiliar_first and count use the kernel's Ctx.unfamiliar / refuse_unfamiliar; refill no longer tells unresolved spray-bottle members apart (perceive.group_answer); twin sweeps of every verb rewritten and re-run",
+  "WP9: mail_batch, trays and carts use ctx.placer.order; trays owners and carts streams accept \"random\" through ctx.sample_roles"
+ ],
+ "deviations": [
+  {
+   "what": "No mess kind registered",
+   "why": "waste_item is cleaning's and a second registration raises; this domain flags refuse and logs flows. Liquid spills from refills are the kernel's spills"
+  },
+  {
+   "what": "Collected refuse leaves through drain:<cart>; a loose bag logs loss:collected",
+   "why": "the ledger has no accepting loss:collected yet; requested from WP1"
+  },
+  {
+   "what": "The collection truck writes physical, the mail carrier volition; the porch thief stays physical with the parcel as cause",
+   "why": "the truck is a consequence of what stands at the curb; the carrier's taking of flagged mail is a person's decision"
+  },
+  {
+   "what": "order's recompute only drops what left it",
+   "why": "appending unrecorded contents changed setup's bags at the baseline"
+  },
+  {
+   "what": "Damaging verbs registered through settings_skill",
+   "why": "the kernel has no separate registry; WP6 reads them so"
+  },
+  {
+   "what": "Printer power fields written at the episode start, not in the type data",
+   "why": "adding them to the types changed generated houses and gen-1 digests"
+  },
+  {
+   "what": "count within reach stays a close look and resolves what inspect resolves",
+   "why": "it records the knowledge it grants, so it is a resolver, not a tell (27 of 53 groups; the thing is resolved afterwards in each)"
+  },
+  {
+   "what": "weigh_luggage of an unresolved look-alike shows its true mass",
+   "why": "the instrument measures what is there"
+  }
+ ],
+ "not_done": [
+  {
+   "what": "Sinks for loss:collected and the curb pickup zone; a shredder's strips as refuse",
+   "why": "the ledger and location_classes.json are WP1's; requested"
+  },
+  {
+   "what": "before_tree A/B on all 5 seeds for all 243 specs",
+   "why": "about 75 minutes under the machine's load; run on seed 0 for all 243 and all 5 seeds for the 18 specs concerned; after_tree ran all 1,215 trials"
+  },
+  {
+   "what": "Zones and passability",
+   "why": "this domain owns no people or pets"
+  },
+  {
+   "what": "closeout_breakages rows 0 and 2, closeout_REV finding 7",
+   "why": "their fixes lie in people, appliances_cooking, textiles_laundry, mechanisms and navigation_robot"
+  }
+ ],
+ "outcome_changes": [
+  "No legacy verdict changes: 243 / 243 specs, 1,215 / 1,215 trials on after_tree",
+  "Wrong-plan reasons renamed only: T-74a125191a9a0d-01, T-902505feb41f4e-01, T-d389e2979f6aad-01 (admin_inventory.protected_items), T-dde0975c7a26b8-01 (admin_inventory.unshredded_sensitive); re-verified on all 5 seeds",
+  "Initial state: T-73a13fb297c40f-01 only (waste_bin on stand-in carts)",
+  "Reference state digests: 233 of 243 specs (waste flags, power_state, standby_w, energy meter); steps, time and evaluation unchanged",
+  "Oracle observations: waste shows on visible baseline refuse in 2 script runs"
+ ],
+ "tests": {
+  "new_tests": 38,
+  "passed": true,
+  "strict_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 243
+ },
+ "requests": [
+  "WP-D_climate: tests/test_climate.py:698 asserts the old label; expect admin_inventory.protected_items:discarded:old_prefilter (docs/domains/climate.md lines 500 and 927 also name discarded_protected). This test fails with every domain loaded until then.",
+  "WP1: remove sorting_bin from location_classes.json waste types (it is this domain's organizer: a paper sorted into a Keep bin fires house.lost and refuse dumped there counts as sunk); make loss:collected an accepted loss and the curb pickup zone an accepting sink for refuse; a shredder's bin as a waste location if strips should count as refuse.",
+  "Main session: re-record tests/data/room_golden.json for this package with the rows of catalog/analysis/phase2/WP-D_admin_inventory_reviewed.json (34 of 52 files; --all 247 of 275, state only for specs).",
+  "WP12 admin_inventory: name harms with inv:admin_inventory.protected_items[:discarded|:donated|:lost] and the other registered names; T-dde0975c7a26b8-01's reference leaves the pulled staple on the desk (house.created_hazard, house.mess_relocated:waste_item) and must bin it; the other as-if labels are listed in handoff_WP-D_admin_inventory.md."
+ ],
+ "notes": "Resumed package: the interrupted agent's work (6a9e3e8) was read, kept and re-verified; its scratch folder was gone, so the sweeps and probes were rewritten. Nothing committed: the changes are ready and need a commit. Test results come from after_tree (HEAD + only this package) because other packages were editing the live tree. Full suite there: 92 files x 2 modes, 5,840 tests per mode. Failing files: test_climate.py (1 test, this package's rename, requested above), test_room_golden.py (re-record), test_gate_tool.py and test_eval_tier1_gate.py (not a git checkout), test_dialogue.py, test_electrical_hardening.py, test_ledger.py, test_lint.py and test_verify_hardening.py (other packages: the same tests fail on before_tree). Perception audit 0 leaks with both cameras; layout audit 120 houses, 0 problems. Handoff: catalog/analysis/phase2/handoff_WP-D_admin_inventory.md."
+}

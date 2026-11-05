@@ -15,6 +15,8 @@ usage:
   python tools/orchestration/tier1_gate.py signoff [PREV [ID]] [--package PKG] [--by NAME] [--out FILE]
   python tools/orchestration/tier1_gate.py policy        (the committed allowlist and second signatures, as the gate
                                                           reads them)
+  python tools/orchestration/tier1_gate.py rolling [--limit N] [--jobs N]   (22.7: the 14-day rolling full run)
+  python tools/orchestration/tier1_gate.py publish       (the gate's schema-4 records into reports/verification.jsonl)
 
 A package id with a colon (ADOPT:cleaning) is written with "_" in folder names (gate/ADOPT_cleaning,
 handoff_ADOPT_cleaning.md). On a shared tree (the adoption round) a package records on an isolated copy
@@ -48,6 +50,9 @@ gate summary; the exit status is 0 only for PASS.
        sweep_bench, geometric camera tools
   G10  scope: changed and untracked files (git) against the package's file list, its handoff and its gate folder;
        the gate's policy files (gate_policy/) are the main session's alone; FAIL when git is unavailable
+  G11  VERIFY_HARDENING 5.4 item 6, 22.6, 22.7, 22.9: every schema-4 spec at the full level (verify_spec(spec, "full",
+       cache=False): battery, must-pass, audits, held-out and, with the split key, the private stages), HARDENED at the
+       current fingerprint or carried by the replay tier; N/A while no spec is schema 4
 
 Comparison with the previous gate (TIER1_INTEGRATION 3.2-3.4): a verdict change (G2/G3) passes only when a reviewed
 row covers it (a row of the package's handoff table, gate/<ID>/reviewed.json or --reviewed FILE naming the catalog
@@ -147,6 +152,46 @@ Phase-1 close-out (K-GATE3: the four holes of catalog/analysis/phase1/finish_VER
   pinned to its source.
 * G1 also runs tools/py39_lint.py (the gate's own copy) over the tree.
 
+Phase-2 carry-over (P2-S4; catalog/analysis/phase1/closeout_REV.json, closeout_VER2.json; each with a regression test in
+tests/test_gate_tool.py, CarryOverGateTests):
+* Nothing under the source folders hides behind an ignore rule. G10 and TREE see every file under house_sim, tests,
+  tools and tasks whatever .gitignore, .git/info/exclude or a global excludes file says (a domain package in a
+  git-ignored folder was imported while every check was blind to it); only bytecode caches and the gate's own generated
+  files (GENERATED) are skipped. A hidden file fails G10 even inside the package's scope: git would never commit it.
+* An isolated copy's own .gitignore counts for nothing: every path of the base commit's listing is compared, new files
+  are judged by the base commit's .gitignore (from the project's object store), and TREE fingerprints the same way.
+* No check reads a bytecode file of the tree: every worker runs with PYTHONPYCACHEPREFIX on a fresh folder (a planted
+  unchecked-hash .pyc replaced the code every check ran while the .py files, G10 and TREE were unchanged), and a .pyc
+  outside a __pycache__ folder (importable without a source) is a hidden file.
+* A record of an isolated copy describes the commit it is judged against: G10 lists the files where the copy differs
+  from HEAD beside those where it differs from its base, and TREE fails a copy that lacks files of the commit the
+  comparison runs at (a stale base dropped every test and fix added since).
+* A new test that skips in a correctness run (G1 normal or strict) is a regression needing a signature (a failing test
+  whose timing switch was read at module level skipped everywhere and ran nowhere); the bound scan follows module-level
+  flags and helpers and fails a mark that reads the switch outside its own guard, or a registered bound without a mark.
+* tests/test_gate_tool.py runs in an isolated copy too (its policy-dependent cases read the copy's unchanged policy
+  files through a test-only source; a copy's own gate script still trusts nothing), so `isolate` + `record --root` can
+  pass G1.
+
+Verification hardening (WP10; docs/design/VERIFY_HARDENING.md 5, 12, 16, 19, 22.6-22.9; HardenedStageTests):
+* G11, the absolute rule beside G2-ABS: a spec is DONE only with a HARDENED record at the current fingerprint (or carried:
+  below). Each schema-4 spec runs verify_spec(spec, "full", cache=False) in its own worker: stages S0-S8, the battery and
+  must-pass batteries, the 200-build audits, the held-out seeds and the private stages. Their records stay in the gate's
+  evidence store (<gates root>/_hardened/evidence.jsonl, never in the tree); the record folder keeps hardened.json, one
+  public row per spec (verdict, gates, score, tier, cost, the private stages' family / outcome / label class, nothing
+  about their seeds or plans). A verdict other than HARDENED fails G11 unless a dated allowlist entry (kind "spec", mode
+  "hardened") excuses it; without the split key the private stages report "not run (no split key)" and the PENDING_GATE
+  specs are INFO, listed, never HARDENED (decision 10). A spec outside the frozen legacy list must declare schema 4.
+* Evidence reuse (22.7; tools/evidence_replay.py): a record whose spec is unchanged and whose fingerprint is the code's is
+  current; a simulation change replays the reference and the idle run and a record with identical digests is carried for
+  14 days from its last full run; an evaluator change makes stale the records that used the changed component; a
+  harness-only change costs nothing. Stale, new and edited specs run full. More than 10 % of the catalog stale by one
+  commit is a release: G11 fails until `record --release` (optionally in batches, --hardened-limit), so a routine commit
+  never pays for it and the rule is never waived. `rolling` is the 14-day rolling full run with its replay-miss audit.
+* Reports (INFO, 19.4, 22.6, 22.9): the HARDENED rate per (kind class, domain), legacy-verified and HARDENED as two numbers
+  until R4, the cost calibration against budget.json (tools/harden_audit.py cost report; a tier or stage more than 25 %
+  above plan is an alarm), the review budget per batch and the default-fix clusters (tools/battery_review.py).
+
 Stdlib only; Python 3.9+. No network. Worker processes import house_sim from --root.
 """
 import argparse
@@ -170,7 +215,11 @@ HERE = Path(__file__).resolve().parent
 DEFAULT_ROOT = HERE.parent.parent
 GATE_DIR = "catalog/analysis/tier1/gate"
 HANDOFF_DIR = "catalog/analysis/tier1"
-CHECKS = ("G0", "G1", "G1b", "G1c", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10")
+CHECKS = ("G0", "G1", "G1b", "G1c", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10", "G11")
+# a record from before WP10 lists these: G11 did not exist, so it is no narrowed record (a new record says CHECKS_FORMAT)
+LEGACY_CHECKS = CHECKS[:-1]
+CHECKS_FORMAT = 2
+HARDENED_DIR = "_hardened"      # <gates root>/_hardened/: the evidence store of G11 (evidence.jsonl) and rolling.jsonl
 RUNTIME_ENV = ("HOUSE_SIM_DOMAINS", "HOUSE_SIM_STRICT", "HOUSE_SIM_SAFE", "HOUSE_SIM_GOLDEN_ALL",
                "HOUSE_SIM_PERF_TESTS", "HOUSE_SIM_PERF_PLAN", "HOUSE_SIM_PERF_RECORD")
 # wall-clock bounds (K-GATE2, K-GATE3): relaxed in the correctness runs (G1, G1b, G8, the G9 test extras: the body runs,
@@ -193,12 +242,16 @@ SIGNOFF_DIR = POLICY_DIR + "/signoffs"
 # helper, ...) and the Python 3.9 lint it runs in G1. A record lists their blob hashes; one made by code that differs
 # from the committed code is no hand-over (a gate-tool package's needs the main session's "gate-change" signature)
 GATE_CODE_DIR = "tools/orchestration"
-GATE_CODE_EXTRA = ("tools/py39_lint.py",)
+GATE_CODE_EXTRA = ("tools/py39_lint.py", "tools/evidence_replay.py")
 GOLDEN_FILE = "tests/data/room_golden.json"
 # what a gate record's checks depend on (tree_fingerprint, FIX2): code, data, specs, tests, tools, docs and the CI files --
 # not the gate records, results and analysis reports written beside them
 FINGERPRINT_PATHS = ("house_sim", "tasks", "tests", "tools", "docs", ".github", "setup.py", "setup_project.py",
                      "house_env.py", "MANIFEST.in")
+# no ignore rule hides a file under these folders from G10 and TREE (closeout_REV 1, 2): only bytecode caches (no check
+# reads them: child_env's PYTHONPYCACHEPREFIX) and what the gate's own tools generate there
+SOURCE_DIRS = ("house_sim", "tasks", "tests", "tools")
+GENERATED = ("tools/orchestration/green_tests.json",)
 # the record's own statuses compare honours (the other checks it recomputes, with the allowlist and signatures as
 # committed now): FIX2
 OWN_STATUS = ("G0", "G1c", "G4", "G5", "G7", "G9", "G10")
@@ -496,12 +549,29 @@ def read_jsonl(path):
     return rows
 
 
+_PYCACHE = []
+
+
+def pycache_prefix():
+    """A fresh folder of this gate process for its workers' bytecode (removed at exit): with PYTHONPYCACHEPREFIX Python
+    neither reads nor writes the tree's __pycache__ folders, so a planted unchecked-hash .pyc is never run
+    (closeout_REV 3)."""
+    if not _PYCACHE:
+        import atexit
+        folder = tempfile.mkdtemp(prefix="house_ai_pyc_")
+        atexit.register(shutil.rmtree, folder, True)
+        _PYCACHE.append(folder)
+    return _PYCACHE[0]
+
+
 def child_env(root, extra=None):
-    """Environment for worker processes: no inherited runtime switches, utf-8 output, house_sim from root."""
+    """Environment for worker processes: no inherited runtime switches, utf-8 output, house_sim from root, bytecode
+    only from this run's own cache folder."""
     env = dict(os.environ)
     for key in RUNTIME_ENV:
         env.pop(key, None)
     env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONPYCACHEPREFIX"] = pycache_prefix()
     env["PYTHONPATH"] = str(root) + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
     if extra:
         env.update(extra)
@@ -1125,6 +1195,18 @@ def worker_trials(chunk_path, out_path):
                     raw = verify.run_trial(job["spec"], seed, chunk["perception"], camera=chunk["camera"], **kwargs)
                 else:
                     raw = verify.run_trial(job["spec"], seed, chunk["perception"], **kwargs)
+                reference = raw.get("reference")
+                if isinstance(reference, dict):
+                    # a schema-4 trial (verify.mode_trials) nests the reference; the gate's records keep their fields
+                    raw = dict(raw, reference_steps=reference.get("steps"), reference_time_s=reference.get("time_s"),
+                               perceivable=reference.get("perceivable"), reference_error=reference.get("error"),
+                               reference_failures=reference.get("failures"),
+                               wrong_fails=all(w.get("fails") for w in raw.get("wrong") or ()),
+                               wrong_ran=all(w.get("ran") for w in raw.get("wrong") or ()))
+                    for wrong in raw.get("wrong") or ():
+                        wrong.setdefault("reasons", sorted({str(label).split(":", 1)[0] for label in
+                                                            wrong.get("failures") or ()} |
+                                                           ({"goal"} if wrong.get("unmet") else set())))
                 trial = {k: raw[k] for k in TRIAL_KEYS if k in raw}
                 if takes_capture:
                     ref_env, idle_env, wrongs = capture.get("reference"), capture.get("idle"), capture.get("wrong") or []
@@ -1233,6 +1315,154 @@ def worker_unittest(out_path, *targets):
     if result.testsRun == 0 and not result.skipped:
         return 5
     return 0 if result.wasSuccessful() else 1
+
+
+_REPLAY = []
+
+
+def _evidence_replay():
+    """tools/evidence_replay.py (gate code: GATE_CODE_EXTRA; it decides what G11 re-runs), loaded once."""
+    return _beside(os.path.join("..", "evidence_replay.py"), "evidence_replay_for_gate", _REPLAY)
+
+
+def public_row(record, file=None, status=None):
+    """One spec's row of a record's hardened.json: what the gate may print (12.3): verdict, gates, score, cost, and of the
+    private stages only family, outcome and label class."""
+    private = record.get("private") or {}
+    battery = (record.get("battery") or {}).get("summary") or {}
+    return {"catalog_id": record.get("catalog_id"), "file": file, "spec_hash": record.get("spec_hash"),
+            "fingerprint": record.get("fingerprint"), "level": record.get("level"), "verdict": record.get("verdict"),
+            "gates": record.get("gates"), "score": (record.get("strength") or {}).get("score"), "status": status,
+            "tier": record.get("tier"), "cpu_s": record.get("cpu_s"), "cpu_by_stage": record.get("cpu_by_stage"),
+            "kind_class": (record.get("coverage") or {}).get("kind_class"), "split_key": bool(record.get("split_key")),
+            "private": {"ran": bool(private.get("ran")), "summary": private.get("summary")},
+            "battery": {k: battery.get(k) for k in ("passes", "unmet") if k in battery},
+            "last_full": (record.get("evidence") or {}).get("last_full"),
+            "best_constant_share": (record.get("randomisation") or {}).get("best_constant_share"),
+            "guess": (record.get("guess") or {}).get("rate"), "harness_errors": len(record.get("harness_errors") or ())}
+
+
+def worker_hardened(job_path, out_path):
+    """G11's worker. kind "full": verify_spec(spec, "full", cache=False) for each spec of the job, with its evidence block
+    (evidence_replay.stamp_evidence), one JSON line per spec; the split key, when this machine has one, is read by the
+    verifier (nothing is created). kind "replay": the run fingerprint of each spec. kind "plan": the statuses of the
+    stored records (evidence_replay.replay_status) given the changed files and the replays."""
+    job = read_json(job_path)
+    _quiet_imports(job["root"])
+    os.environ.setdefault("HOUSE_SIM_WORKER", "1")
+    from house_sim.kernel.plugins import load_domains
+    load_domains()
+    replay = _evidence_replay()
+    if job["kind"] == "plan":
+        from house_sim import audit
+        current = audit.fingerprint()
+        classes = replay.split_classes(job.get("changed") or ())
+        out = {}
+        for item in job["specs"]:
+            cid = item["spec"].get("catalog_id")
+            record = (job.get("records") or {}).get(cid)
+            if record is None:
+                out[cid] = {"status": "new", "why": "no stored record"}
+                continue
+            needs = classes.get("simulation") and not classes.get("evaluator") and replay.footprint_meets(
+                (record.get("evidence") or {}).get("footprint"), classes["simulation"])
+            given = (job.get("replays") or {}).get(cid)
+            if needs and given is None:
+                out[cid] = {"status": "replay"}
+                continue
+            out[cid] = replay.replay_status(record, item["spec"], current, job.get("today"), given,
+                                            job.get("changed") or (), classes)
+        write_json(out_path, {"current": current, "rows": out})
+        return
+    from house_sim.tasks import private, verify
+    with open(out_path, "w", encoding="utf-8", newline="\n") as stream:
+        for item in job["specs"]:
+            spec, started = item["spec"], time.perf_counter()
+            cid = spec.get("catalog_id")
+            if job["kind"] == "replay":
+                row = {"catalog_id": cid, "replay": replay.run_fingerprint(spec, item.get("seeds"))}
+            else:
+                try:
+                    row = verify.verify_spec(spec, "full", cache=False)
+                    row["evidence"] = replay.stamp_evidence(row, spec, today=job.get("today"))
+                    row["split_key"] = bool(private.available())
+                    row["date"] = job.get("today") or now_iso()[:10]
+                    row["gate_commit"] = job.get("commit")
+                except Exception as exc:                    # noqa: BLE001  (a harness error is a failed record: P4)
+                    row = {"catalog_id": cid, "spec_hash": None, "verdict": "FAIL", "gates": {"G7": False},
+                           "harness_errors": ["{}: {}".format(type(exc).__name__, str(exc)[:300])], "level": "full"}
+            row["gate_secs"] = round(time.perf_counter() - started, 1)
+            stream.write(json.dumps(row, sort_keys=True, default=str) + "\n")
+            stream.flush()
+
+
+def worker_hardened_report(job_path, out_path):
+    """G11's reports (INFO): the review queue and spot-check sample of tools/battery_review.py and the cost calibration of
+    tools/harden_audit.py, from the tree under test. A report that cannot be made says why; it decides nothing."""
+    job = read_json(job_path)
+    _quiet_imports(job["root"])
+    os.environ.setdefault("HOUSE_SIM_WORKER", "1")
+    from house_sim.kernel.plugins import load_domains
+    load_domains()
+    out = {}
+    try:
+        from tools import battery_review
+        queue = battery_review.review_queue(battery_review._queue_items())
+        rows = battery_review.read_rows(Path(job["root"]) / "catalog" / "review" / "exemptions.jsonl")
+        domains = {s.get("catalog_id"): battery_review.domain_of(f) for s, f in battery_review.load_specs()}
+        out["review"] = {"paused": queue["paused"], "default_fix": queue["default_fix"], "batches": queue["batches"],
+                         "spot_sample": len(battery_review.spot_sample(rows, lambda c: domains.get(c, "unknown"))),
+                         "routed_configs": sorted(c for c, v in battery_review.reviewer_configs(rows).items()
+                                                  if v["routed_to_owner"])}
+    except Exception as exc:                                 # noqa: BLE001
+        out["review_error"] = "{}: {}".format(type(exc).__name__, str(exc)[:200])
+    try:
+        from tools import harden_audit
+        out["calibration"] = harden_audit.cost_report(records=job.get("records") or [])
+    except Exception as exc:                                 # noqa: BLE001
+        out["calibration_error"] = "{}: {}".format(type(exc).__name__, str(exc)[:200])
+    write_json(out_path, out)
+
+
+def judge_hardened(rows, allow=None):
+    """G11's absolute rule over a record's rows ({"catalog_id", "verdict", "split_key", "status"}): (failing, excused,
+    pending, overdue). HARDENED is the only pass. PENDING_GATE on a machine without the split key is pending: "not run (no
+    split key)", listed, never HARDENED (decision 10). Anything else fails unless a dated allowlist entry (kind "spec", mode
+    "hardened") excuses it. A record carried past its staleness limit (overdue) waits for its re-run: listed, and dataset
+    releases wait (22.7)."""
+    failing, excused, pending, overdue = [], [], [], []
+    for row in rows:
+        cid, verdict = row.get("catalog_id"), row.get("verdict")
+        if row.get("status") == "overdue":
+            overdue.append(cid)
+        if verdict == "HARDENED":
+            continue
+        if verdict == "PENDING_GATE" and not row.get("split_key"):
+            pending.append(cid)
+        elif spec_allowed(allow, cid, 0, "hardened") is not None:
+            excused.append((cid, verdict))
+        else:
+            failing.append((cid, verdict, row.get("score"), sorted(g for g, v in (row.get("gates") or {}).items()
+                                                                   if v is False)))
+    return failing, excused, pending, overdue
+
+
+def describe_hardened(failing, n=12):
+    return short(["{} {} (score {}; gates failing {})".format(c, v, s, ",".join(g) or "none")
+                  for c, v, s, g in failing[:n]], 800)
+
+
+def hardened_strata(rows, total_rows=None):
+    """The HARDENED rate per (kind class, domain) (19.4): {"<kind>/<domain>": {"specs", "hardened", "rate"}}."""
+    out = {}
+    for row in rows:
+        domain = str(row.get("file") or "").split("__")[0] or "unknown"
+        cell = out.setdefault("{}/{}".format(row.get("kind_class") or "plain", domain), {"specs": 0, "hardened": 0})
+        cell["specs"] += 1
+        cell["hardened"] += row.get("verdict") == "HARDENED"
+    for cell in out.values():
+        cell["rate"] = round(cell["hardened"] / float(cell["specs"]), 3) if cell["specs"] else 0.0
+    return out
 
 
 def worker_gen1(root, out_path, part, parts):
@@ -1437,6 +1667,21 @@ def test_regressions(prev, cur, allow=None, signoff=None, checks=("G1", "G1b", "
                               "correctness run (counted as a skip: wall-clock bounds run relaxed, only their timing is "
                               "not asserted)")
     moved_ok = (lambda t: True) if perf_ok is None else (lambda t: t in perf_ok)
+    # a test the previous record did not have that skips in a full-domain correctness run ran nowhere (closeout_REV 8: a
+    # failing test whose timing switch is read at module level is no perf mark and skips); it needs a signature
+    known = {}
+    for r in (prev or {}).get("G1") or []:
+        if r.get("ids") is not None:
+            known[(r["file"], r["mode"])] = set(r["ids"])
+    if known:
+        for r in (cur or {}).get("G1") or []:
+            if r.get("mode") not in ("normal", "strict"):
+                continue
+            before = known.get((r["file"], r["mode"]), ())
+            for t in sorted((r.get("outcomes") or {}).get("skip", [])):
+                if t not in before:
+                    judge("G1", r.get("file"), r.get("mode"), t, "a new test that skips in a correctness run (it runs "
+                          "nowhere: a timing check belongs in wall_clock_bound, a real skip needs a signature)")
     for check in checks:
         a_rows, b_rows = (prev or {}).get(check) or [], (cur or {}).get(check)
         if not a_rows or not b_rows:
@@ -2160,6 +2405,19 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=Non
                 bad = True
                 lines.append("{} unregistered wall-clock bound(s) (perf marks the committed registry {} does not "
                              "list): {}".format(len(unregistered), PERF_REGISTRY, short(unregistered, 400)))
+            # closeout_REV 8, closeout_VER2: a mark that hides from the correctness runs, a registered bound without a
+            # mark (recomputed from the record's marks; the marks of a scan from before them carry no "problem")
+            hiding = _wallclock().mark_problems(bounds["marks"])
+            if hiding:
+                bad = True
+                lines.append("{} wall-clock bound(s) reading the switch outside their guard: {}".format(
+                    len(hiding), short(hiding, 400)))
+            without = [t for t in _wallclock().registered_without_mark(bounds["marks"], registry["bounds"])] \
+                if "problems" in bounds else []
+            if without:
+                bad = True
+                lines.append("{} registered wall-clock bound(s) without a perf mark in the record's tree: {}".format(
+                    len(without), short(without, 400)))
         elif explicit and new_style and "G1" in recorded:
             bad, perf_ok = True, set()
             lines.append("no wall-clock bound scan in this record (tests.json bounds; SKIP counts as FAIL)")
@@ -2227,6 +2485,36 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=Non
         add("GOLD", "FAIL" if unreviewed or unsigned else "PASS", lines)
     elif explicit and isinstance(cm.get("gate"), dict) and "G8" in recorded and ct.get("G8"):
         add("GOLD", "SKIP", ["no golden entries in this record (tests.json golden; SKIP counts as FAIL)"])
+    # G11 (WP10): the absolute rule recomputed with the allowlist as committed now
+    if cm.get("checks_format") and "G11" in recorded:
+        hardened = read_json(cur_dir / "hardened.json")
+        if not isinstance(hardened, dict):
+            add("G11", "SKIP", ["no hardened.json in this record (SKIP counts as FAIL)"])
+        elif not hardened.get("schema4"):
+            lines = ["no schema-4 spec in this record ({} legacy)".format(hardened.get("legacy"))]
+            bad = bool(hardened.get("undeclared"))
+            if bad:
+                lines.append("{} spec(s) outside the frozen legacy list do not declare schema 4: {}".format(
+                    len(hardened["undeclared"]), short(hardened["undeclared"], 300)))
+            add("G11", "FAIL" if bad else "N/A", lines)
+        else:
+            failing, excused, pending, overdue = judge_hardened(hardened.get("rows") or [], allow)
+            lines = ["{} schema-4 spec(s): {} HARDENED, {} pending, {} failing, {} allowlisted".format(
+                hardened.get("schema4"), sum(1 for r in hardened.get("rows") or () if r.get("verdict") == "HARDENED"),
+                len(pending), len(failing), len(excused))]
+            if failing:
+                lines.append("not HARDENED: " + describe_hardened(failing))
+            if pending:
+                lines.append("private stages not run (no split key): " + short(pending, 300))
+            if overdue:
+                lines.append("overdue (dataset releases wait): " + short(overdue, 300))
+            if hardened.get("not_run"):
+                lines.append("{} spec(s) not run (--hardened-limit)".format(len(hardened["not_run"])))
+            bad = bool(failing or hardened.get("not_run") or (hardened.get("release") and not (
+                hardened.get("ran") and set(hardened.get("stale") or ()) <= set(hardened.get("ran")))))
+            add("G11", "FAIL" if bad else ("INFO" if pending else "PASS"), lines)
+    elif cm.get("checks_format") and explicit and "G11" not in recorded:
+        add("G11", "N/R", ["G11 not recorded in this (partial) record"])
     # the gate code the record was made with (K-GATE3)
     status, lines = gate_check(cm.get("gate"), policy, signoff)
     add("GATE", status, lines)
@@ -2243,11 +2531,12 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=Non
     return sections, ok
 def record_incomplete(meta):
     """Why a record can never be a hand-over (some checks not recorded, the specs, the verification seeds or the
-    package's extras narrowed), or None."""
+    package's extras narrowed), or None. A record from before G11 (no checks_format) is complete with the checks of its
+    time."""
     meta = meta or {}
     recorded = meta.get("recorded") or list(CHECKS)
     why = []
-    if recorded != list(CHECKS):
+    if recorded != list(CHECKS) and (meta.get("checks_format") or recorded != list(LEGACY_CHECKS)):
         why.append("recorded " + ",".join(recorded))
     if meta.get("spec_files"):
         why.append("specs limited to " + meta["spec_files"])
@@ -2396,46 +2685,95 @@ def _git_blob_sha(path):
     return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()
 
 
-def isolated_changes(root):
-    """(changed, error) of an isolated copy (cmd_isolate): every file added, edited or deleted since the copy was made
-    from its base commit. The base is read from the project's own git object store (policy_root(): `git ls-tree` of
-    the manifest's base commit), never from the copy's manifest, whose file list the copy could rewrite to hide an
-    edit (FIX2). A base commit the project does not have fails the scope check."""
-    manifest = read_json(Path(root) / ISOLATE_MANIFEST)
-    if not isinstance(manifest, dict) or manifest.get("format") != ISOLATE_FORMAT:
-        return None, "not an isolated copy"
-    base = str(manifest.get("base") or "")
-    project = policy_root()
-    listing = subprocess.run(["git", "-C", str(project), "ls-tree", "-r", "-z", "--full-tree", base],
-                             capture_output=True) if base else None
+def _is_cache(rel):
+    """Bytecode caches no check reads (child_env), and a file the gate's own tools generate under the source folders."""
+    parts = rel.split("/")
+    return "__pycache__" in parts or rel in GENERATED or match_any(rel, TRANSIENT)
+
+
+def _in_source_dir(rel):
+    return rel.split("/")[0] in SOURCE_DIRS
+
+
+def _base_ignore_rules(base):
+    """The plain patterns of the .gitignore of a commit, read from the project's object store (never from a copy, whose
+    file its author can rewrite: closeout_REV 2)."""
+    show = subprocess.run(["git", "-C", str(policy_root()), "show", "{}:.gitignore".format(base)], capture_output=True)
+    if show.returncode != 0:
+        return []
+    rules = []
+    for line in show.stdout.decode("utf-8", "replace").splitlines():
+        line = line.strip()
+        if line and not line.startswith(("#", "!")):
+            rules.append(line)
+    return rules
+
+
+def _listing(rev):
+    """{path: blob id} of a commit of the project (git ls-tree), or None when it is no commit of the project."""
+    listing = subprocess.run(["git", "-C", str(policy_root()), "ls-tree", "-r", "-z", "--full-tree", rev],
+                             capture_output=True) if rev else None
     if listing is None or listing.returncode != 0:
-        return None, "the isolated copy's base commit {!r} is not a commit of the project {}".format(base, project)
-    rules = _ignore_rules(root)
-    committed = {}
+        return None
+    out = {}
     for item in listing.stdout.decode("utf-8", "replace").split("\0"):
         head, _, rel = item.partition("\t")
         parts = head.split()
-        if len(parts) == 3 and parts[1] == "blob" and rel and not _ignored(rel, rules):
-            committed[rel] = parts[2]
+        if len(parts) == 3 and parts[1] == "blob" and rel:
+            out[rel] = parts[2]
+    return out
+
+
+def _copy_blobs(root, committed, rules):
+    """{path: blob id} of an isolated copy as a git work tree of its base would see it: every tracked path whatever any
+    .gitignore says; a new file unless the base commit's own .gitignore ignores it outside the source folders. Bytecode
+    caches and generated files are skipped."""
     now = {}
     for folder, dirs, files in os.walk(str(root)):
         dirs[:] = sorted(d for d in dirs if d not in ISOLATE_SKIP_DIRS)
         for name in sorted(files):
             path = Path(folder) / name
             rel = path.relative_to(root).as_posix()
-            if rel == ISOLATE_MANIFEST or name.endswith(".pyc") or _ignored(rel, rules):
+            if rel == ISOLATE_MANIFEST or _is_cache(rel):
+                continue
+            if rel not in committed and not _in_source_dir(rel) and _ignored(rel, rules):
                 continue
             now[rel] = _git_blob_sha(path)
+    return now
+
+
+def isolated_changes(root):
+    """(changed, error) of an isolated copy (cmd_isolate): every file added, edited or deleted since the copy was made
+    from its base commit, and every file where it differs from the project's HEAD (a copy based on an older commit lacks
+    what was committed since: closeout_REV 4; a file the package changed and the main session then committed is in the
+    first set only, so it stays the package's). The base is read from the project's own git object store (policy_root():
+    `git ls-tree` of the manifest's base commit), never from the copy's manifest, whose file list the copy could rewrite
+    to hide an edit (FIX2), and no .gitignore of the copy counts (closeout_REV 2). A base commit the project does not have
+    fails the scope check."""
+    manifest = read_json(Path(root) / ISOLATE_MANIFEST)
+    if not isinstance(manifest, dict) or manifest.get("format") != ISOLATE_FORMAT:
+        return None, "not an isolated copy"
+    base = str(manifest.get("base") or "")
+    committed = _listing(base)
+    if committed is None:
+        return None, "the isolated copy's base commit {!r} is not a commit of the project {}".format(base, policy_root())
+    rules = _base_ignore_rules(base)
+    now = _copy_blobs(root, committed, rules)
     changed = {rel for rel, sha in now.items() if committed.get(rel) != sha} | {rel for rel in committed if rel not in now}
-    return sorted(f for f in changed if not match_any(f, TRANSIENT)), None
+    head = head_commit()
+    if head and not head.startswith(base) and not base.startswith(head):
+        tip = _listing(head) or {}
+        tip = {rel: sha for rel, sha in tip.items() if not _is_cache(rel)}
+        changed |= {rel for rel in set(committed) | set(tip)
+                    if rel in tip and now.get(rel) != tip[rel] or (rel not in tip and rel in committed and rel in now)}
+    return sorted(f for f in changed if not _is_cache(f)), None
 
 
 def tree_fingerprint(root):
-    """sha256 over the content of every file a gate record's checks depend on (FINGERPRINT_PATHS as git sees them: no
-    caches, ignored or transient files): the tree a check ran on (FIX2)."""
+    """sha256 over the content of every file a gate record's checks depend on (FINGERPRINT_PATHS: every file there, ignored
+    or not, except bytecode caches and generated files; closeout_REV 1, 2): the tree a check ran on (FIX2)."""
     import hashlib
     root = Path(root)
-    rules = _ignore_rules(root)
     digest = hashlib.sha256()
     for top in FINGERPRINT_PATHS:
         base = root / top
@@ -2449,7 +2787,7 @@ def tree_fingerprint(root):
                     path = Path(folder) / name
                     items.append((path.relative_to(root).as_posix(), path))
         for rel, path in items:
-            if rel.endswith(".pyc") or _ignored(rel, rules) or match_any(rel, TRANSIENT):
+            if _is_cache(rel):
                 continue
             try:
                 sha = _file_sha(path)
@@ -2457,6 +2795,47 @@ def tree_fingerprint(root):
                 sha = "unreadable"
             digest.update("{}\0{}\n".format(rel, sha).encode("utf-8"))
     return digest.hexdigest()
+
+
+def hidden_files(root):
+    """Files under the source folders that an ignore rule hides from git (.gitignore, .git/info/exclude, a global excludes
+    file) and that are no bytecode cache or generated file: code there is imported and run while git, and a G10 reading git
+    alone, see nothing (closeout_REV 1). In an isolated copy they are part of isolated_changes. [] without git."""
+    if (Path(root) / ISOLATE_MANIFEST).exists():
+        return []
+    res = subprocess.run(["git", "-C", str(root), "ls-files", "--others", "--ignored", "--exclude-standard", "--"] +
+                         list(SOURCE_DIRS), capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if res.returncode != 0:
+        return []
+    return sorted(f for f in (line.strip() for line in res.stdout.splitlines()) if f and not _is_cache(f))
+
+
+def stale_base(where):
+    """The files an isolated copy lacks against the commit the gate runs at: paths changed between its base and HEAD whose
+    copy differs from HEAD (closeout_REV 4). [] for a copy on HEAD, or when HEAD's change is the copy's own (a package's
+    files the main session committed)."""
+    manifest = read_json(Path(where) / ISOLATE_MANIFEST)
+    if not isinstance(manifest, dict):
+        return []
+    base, head = str(manifest.get("base") or ""), head_commit()
+    if not base or not head or head.startswith(base) or base.startswith(head):
+        return []
+    diff = subprocess.run(["git", "-C", str(policy_root()), "diff", "--name-only", base, head], capture_output=True,
+                          text=True, encoding="utf-8", errors="replace")
+    if diff.returncode != 0:
+        return []
+    tip = _listing(head) or {}
+    stale = []
+    for rel in (line.strip() for line in diff.stdout.splitlines()):
+        if not rel or _is_cache(rel):
+            continue
+        path = Path(where) / rel
+        if rel in tip:
+            if not path.is_file() or _git_blob_sha(path) != tip[rel]:
+                stale.append(rel)
+        elif path.is_file():
+            stale.append(rel)
+    return sorted(stale)
 
 
 def foreign_tree(where, root):
@@ -2499,6 +2878,11 @@ def tree_check(meta, root, any_tree=False):
     foreign = foreign_tree(where, root)
     if foreign:
         return {"check": "TREE", "status": "FAIL", "lines": [foreign]}, None
+    behind = stale_base(where)
+    if behind:
+        return {"check": "TREE", "status": "FAIL", "lines": [
+            "STALE BASE: the isolated copy {} lacks {} file(s) of the commit this runs at (its base is older: a record "
+            "there runs none of the tests and fixes added since): {}".format(where, len(behind), short(behind, 300))]}, None
     now = tree_fingerprint(where)
     stale = sorted(c for c, v in ((meta or {}).get("checks") or {}).items()
                    if isinstance(v, dict) and v.get("tree") != tree)
@@ -2589,6 +2973,7 @@ def scope_check(root, policy, gate_id, shared_tree=False):
     if files is None:
         return {"status": "FAIL", "note": "scope cannot be checked: {} (a gate record needs git or an isolated copy; "
                                           "SKIP counts as FAIL)".format(error)}
+    hidden = hidden_files(root)
     allowed = list(policy["files"])
     for pid in policy["packages"]:
         names = [pid] + packages()[pid]["aka"]
@@ -2615,8 +3000,11 @@ def scope_check(root, policy, gate_id, shared_tree=False):
         if is_policy:
             policy_files.append(f)
     historical = historical if attributed else []
-    status = "FAIL" if outside else "PASS"
+    status = "FAIL" if outside or hidden else "PASS"
     note = "{} changed file(s); {} outside the list of {}".format(len(files), len(outside), "+".join(policy["packages"]))
+    if hidden:
+        note += "; {} file(s) under the source folders hidden from git by an ignore rule (run by every check, seen by " \
+                "none: move them or un-ignore them): {}".format(len(hidden), ", ".join(hidden[:8]))
     if policy_files:
         note += "; {} of the gate's policy files changed (main session only: {})".format(len(policy_files), POLICY_DIR)
     if protected:
@@ -2629,7 +3017,7 @@ def scope_check(root, policy, gate_id, shared_tree=False):
         note += "; attributed to peers of sub-stage(s) {} that are not running (not a hand-over)".format(
             ", ".join(historical))
     return {"status": status, "note": note, "changed": files, "outside": outside, "attributed": attributed,
-            "protected": protected, "historical": historical}
+            "protected": protected, "historical": historical, "hidden": hidden}
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -2669,6 +3057,7 @@ class Gate:
         self.script = str(Path(__file__).resolve())
         self.started = time.perf_counter()
         self._allow = self._signoff = None
+        sys.pycache_prefix = pycache_prefix()   # this process imports house_sim for spec hashes: same rule as its workers
 
     @property
     def allow(self):
@@ -2753,6 +3142,8 @@ class Gate:
             write_json(path, plan)
             self._bounds = {"marks": marks, "plan": plan, "plan_path": str(path), "registry": registry["note"],
                             "unregistered": wc.unregistered(marks, registry["bounds"]),
+                            "problems": wc.mark_problems(marks),
+                            "without_mark": wc.registered_without_mark(marks, registry["bounds"]),
                             "registry_committed": registry["committed"]}
         return self._bounds
 
@@ -2866,6 +3257,12 @@ class Gate:
                     "tools/perception_audit.py", "6", "150", "--workers", "4", "--camera", "geometric", "--json",
                     str(audit / "g4_geometric.json")), self.env(), weight=4, est=90.0,
                     meta={"variant": "geometric", "json": str(audit / "g4_geometric.json")}))
+            if source_has(self.root, "tools/perception_audit.py", "--read-aloud-first"):
+                # the probe that reads aloud before it reads (closeout_breakages row 2; 0 leaks since WP-D people)
+                jobs.append(Job("G4 perception_audit read-aloud-first", "G4", self.py(
+                    "tools/perception_audit.py", "0", "0", "--read-aloud-first", "--json",
+                    str(audit / "g4_read_aloud.json")), self.env(), weight=1, est=60.0,
+                    meta={"variant": "read_aloud", "json": str(audit / "g4_read_aloud.json")}))
         if "G5" in self.selected:
             jobs.append(Job("G5 layout_audit", "G5", self.py("tools/layout_audit.py", "40", "--json",
                             str(audit / "g5_layout.json")), self.env(), weight=1, est=120.0,
@@ -2981,7 +3378,7 @@ class Gate:
         if any(c in self.selected for c in ("G1", "G1b", "G8")):
             bounds = self.bound_plan()
             self.data["tests"]["bounds"] = {"marks": bounds["marks"], "plan": bounds["plan"],
-                                            "registry": bounds["registry"]}
+                                            "registry": bounds["registry"], "problems": bounds["problems"]}
 
     def evaluate_tests(self, prev=None):
         """G1, G1b, G8: every test passes (absolute) except entries of the dated allowlist; a new failure against the
@@ -3023,10 +3420,13 @@ class Gate:
             unexplained, excused = unexplained_test_failures(g1, allow)
             files = len({r["file"] for r in g1})
             unregistered = bounds["unregistered"] if bounds else []
+            hiding = dict(bounds["problems"]) if bounds else {}
+            hiding.update({t: "registered without a perf mark" for t in (bounds["without_mark"] if bounds else [])})
             lint = self.data["tests"].get("py39") or {}
             lint_bad = bool(lint.get("count")) or lint.get("rc") not in (0,)
-            self.set("G1", "FAIL" if unexplained or not g1 or quiet_by.get("G1") or unregistered or lint_bad else "PASS",
-                     "{} test files x normal+strict: {} tests (normal), {} failing run(s){}{}{}{}{}{}".format(
+            self.set("G1", "FAIL" if unexplained or not g1 or quiet_by.get("G1") or unregistered or lint_bad or hiding
+                     else "PASS",
+                     "{} test files x normal+strict: {} tests (normal), {} failing run(s){}{}{}{}{}{}{}".format(
                          files, sum(r["ran"] for r in g1 if r["mode"] == "normal"), len(bad),
                          (": " + ", ".join("{} ({})".format(r["file"], r["mode"]) for r in bad[:8])) if bad else "",
                          "; NOT on the allowlist: {}".format(short(["{} ({})".format(t, m) for _, m, t in unexplained],
@@ -3036,6 +3436,7 @@ class Gate:
                              len(bounds["plan"]) - len(perf_ok), len(perf_ok), "; UNREGISTERED (the committed registry "
                              "{} does not list them): {}".format(PERF_REGISTRY, short(unregistered, 300))
                              if unregistered else "") if bounds else "",
+                         "; WALL-CLOCK BOUND PROBLEMS: {}".format(short(hiding, 400)) if hiding else "",
                          "; Python 3.9 lint: {}".format(
                              "{} file(s), 0 violations".format(lint.get("files")) if not lint_bad else
                              "{} violation(s) ({})".format(lint.get("count"), short(lint.get("violations") or
@@ -3202,6 +3603,213 @@ class Gate:
                 same = sum(1 for r in self.spec_rows["own"] if r.get("perception") == "realistic")
                 note += "; {} realistic-spec trials identical in G2 and G3".format(same)
             self.set(check, status, note)
+
+    # ---- G11: every schema-4 spec HARDENED (VERIFY_HARDENING 5.4, 22.6, 22.7, 22.9)
+    def store_path(self):
+        return self.gates_root / HARDENED_DIR / "evidence.jsonl"
+
+    def read_store(self):
+        """{catalog id: the last stored record}."""
+        out = {}
+        for row in read_jsonl(self.store_path()):
+            if isinstance(row, dict) and row.get("catalog_id"):
+                out[row["catalog_id"]] = row
+        return out
+
+    def changes_since(self, records):
+        """The files changed since the commits the stored records were made at, or None when that cannot be told (then
+        every record is stale, the safe answer)."""
+        commits = sorted({r.get("gate_commit") for r in records.values() if r.get("gate_commit")})
+        if not commits or any(not c for c in commits):
+            return None
+        out, error = changed_files(self.root)
+        if out is None:
+            return None
+        files = set(out)
+        for commit in commits:
+            res = subprocess.run(["git", "-C", str(policy_root()), "diff", "--name-only", commit, "HEAD"],
+                                 capture_output=True, text=True, encoding="utf-8", errors="replace")
+            if res.returncode != 0:
+                return None
+            files.update(line.strip() for line in res.stdout.splitlines() if line.strip())
+        return sorted(files)
+
+    def _harden_worker(self, kind, specs, extra=None, label="", est=60.0, slots=1):
+        tag = "{}_{}".format(kind, abs(hash(label or kind)) % 10 ** 8)
+        job = dict({"root": str(self.root), "kind": kind, "specs": specs, "commit": head_commit(),
+                    "today": getattr(self.args, "today", None)}, **(extra or {}))
+        folder = self.work / "hardened"
+        path = folder / "{}.json".format(tag)
+        out = folder / "{}.out".format(tag)
+        write_json(path, job, sort_keys=False)
+        return Job("G11 {} {}".format(kind, label), "G11", self.py(self.script, "_hardened", str(path), str(out)),
+                   self.env(), weight=slots, est=est, timeout=self.args.hardened_timeout,
+                   meta={"out": str(out), "kind": kind, "label": label})
+
+    def run_hardened(self, prev):
+        """The stage's plan: which schema-4 specs run full (new, edited, stale), which are replayed, which keep their
+        record; the release rule (22.7); then the full runs."""
+        all_specs = collect_specs(self.root)
+        if self.args.spec_files:
+            all_specs = [s for s in all_specs if fnmatch.fnmatchcase(s[1], self.args.spec_files)]
+        specs = [s for s in all_specs if s[3].get("schema") == 4]
+        legacy_ids = set((read_json(self.root / "catalog" / "review" / "legacy_ids.json", {}) or {}).get("ids") or ())
+        undeclared = sorted(s[3].get("catalog_id") for s in all_specs if s[3].get("schema") != 4 and legacy_ids and
+                            s[3].get("catalog_id") not in legacy_ids)
+        self.harden = {"specs": len(all_specs), "schema4": len(specs), "legacy": len(all_specs) - len(specs),
+                       "undeclared": undeclared, "rows": [], "reused": [], "ran": [], "stale": [], "release": False,
+                       "not_run": []}
+        if not specs:
+            return
+        names = {s[3].get("catalog_id"): s[1] for s in specs}
+        store = self.read_store()
+        records = {c: r for c, r in store.items() if c in names}
+        changed = self.changes_since(records) if records else []
+        items = [{"spec": s[3], "seeds": ((records.get(s[3].get("catalog_id")) or {}).get("seeds") or {}).get(
+            "verification")} for s in specs]
+        extra = {"changed": changed or [], "records": records}
+        if changed is None:
+            statuses = {s[3].get("catalog_id"): {"status": "stale", "why": "cannot tell what changed since the record"}
+                        for s in specs}
+        else:
+            plan = self._harden_worker("plan", items, extra, "statuses", est=10.0)
+            schedule([plan], 1, self.root, self.progress)
+            statuses = (read_json(plan.meta["out"], {}) or {}).get("rows") or {}
+            todo = [i for i in items if (statuses.get(i["spec"].get("catalog_id")) or {}).get("status") == "replay"]
+            if todo:
+                jobs = [self._harden_worker("replay", [i], label=i["spec"].get("catalog_id"), est=10.0) for i in todo]
+                schedule(jobs, self.jobs_n, self.root, self.progress)
+                replays = {}
+                for job in jobs:
+                    for row in read_jsonl(job.meta["out"]):
+                        replays[row.get("catalog_id")] = row.get("replay")
+                plan = self._harden_worker("plan", items, dict(extra, replays=replays), "after the replays", est=10.0)
+                schedule([plan], 1, self.root, self.progress)
+                statuses = (read_json(plan.meta["out"], {}) or {}).get("rows") or {}
+        by_status = defaultdict(list)
+        for cid, row in statuses.items():
+            by_status[row.get("status")].append(cid)
+        # what the replay tier found stays with the record (carried_from, replays: 21.3)
+        carried = []
+        for cid in by_status.get("carried", []) + by_status.get("overdue", []):
+            block = (statuses.get(cid) or {}).get("evidence")
+            if block is not None and block != (records.get(cid) or {}).get("evidence"):
+                records[cid] = dict(records[cid], evidence=block)
+                carried.append(records[cid])
+        if carried:
+            with open(self.store_path(), "a", encoding="utf-8", newline="\n") as stream:
+                for row in carried:
+                    stream.write(json.dumps(row, sort_keys=True, default=str) + "\n")
+        # a stale record of an unchanged spec is what a commit caused; a new or edited spec runs full whatever else
+        caused = [c for c in by_status.get("stale", []) if (records.get(c) or {}).get("spec_hash") and
+                  "the spec changed" not in str((statuses.get(c) or {}).get("why"))]
+        release = _evidence_replay().release_needed(caused, len(all_specs))
+        self.harden.update(stale=sorted(caused), release=release)
+        run_ids = list(by_status.get("new", [])) + list(by_status.get("stale", [])) + list(by_status.get("overdue", []))
+        if release and not self.args.release:
+            # 22.7: gated as a release, verified overnight in batches on a branch; a routine commit never pays for it
+            run_ids = [c for c in run_ids if c not in caused]
+        limit = self.args.hardened_limit
+        if limit is not None and len(run_ids) > limit:
+            self.harden["not_run"] = sorted(run_ids[limit:])
+            run_ids = run_ids[:limit]
+        by_id = {s[3].get("catalog_id"): s[3] for s in specs}
+        jobs = [self._harden_worker("full", [{"spec": by_id[c]}], label=c, est=300.0, slots=1) for c in run_ids]
+        if jobs:
+            self.log("G11: {} schema-4 spec(s) at the full level, {} carried or current".format(
+                len(jobs), len(specs) - len(jobs)))
+            schedule(jobs, self.jobs_n, self.root, self.progress)
+        fresh = {}
+        for job in jobs:
+            rows = read_jsonl(job.meta["out"])
+            if not rows:
+                cid = job.meta["label"]
+                rows = [{"catalog_id": cid, "verdict": "FAIL", "gates": {"G7": False}, "level": "full",
+                         "harness_errors": ["the G11 worker wrote no record (rc {}): {}".format(
+                             (job.result or {}).get("rc"), tail((job.result or {}).get("stderr"), 300))]}]
+            for row in rows:
+                fresh[row.get("catalog_id")] = row
+        if fresh:
+            path = self.store_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "a", encoding="utf-8", newline="\n") as stream:
+                for row in fresh.values():
+                    stream.write(json.dumps(row, sort_keys=True, default=str) + "\n")
+        rows = []
+        for cid in sorted(names):
+            if cid in fresh:
+                rows.append(public_row(fresh[cid], names[cid], "ran"))
+            elif cid in records and (statuses.get(cid) or {}).get("status") in ("current", "carried", "overdue"):
+                rows.append(public_row(records[cid], names[cid], statuses[cid]["status"]))
+            else:
+                rows.append({"catalog_id": cid, "file": names[cid], "verdict": None, "status": "not run",
+                             "why": (statuses.get(cid) or {}).get("why")})
+        self.harden.update(rows=rows, ran=sorted(fresh), reused=sorted(c for c in names if c not in fresh))
+        report = self._harden_report(list(records.values()) + list(fresh.values()))
+        self.harden.update(report)
+
+    def _harden_report(self, records):
+        tag = self.work / "hardened" / "report"
+        job = {"root": str(self.root), "records": [{k: r.get(k) for k in ("catalog_id", "tier", "cpu_s", "cpu_by_stage",
+                                                                          "level", "battery_budget")}
+                                                   for r in records]}
+        write_json(str(tag) + ".json", job, sort_keys=False)
+        one = Job("G11 reports", "G11", self.py(self.script, "_hardened_report", str(tag) + ".json", str(tag) + ".out"),
+                  self.env(), est=20.0, timeout=600, meta={"out": str(tag) + ".out"})
+        schedule([one], 1, self.root, self.progress)
+        return read_json(str(tag) + ".out", {}) or {"report_error": tail((one.result or {}).get("stderr"), 300)}
+
+    def evaluate_hardened(self):
+        h = getattr(self, "harden", None) or {}
+        strata = hardened_strata(h.get("rows") or [])
+        h["strata"] = strata
+        own = [r for r in self.spec_rows.get("own") or ()] if hasattr(self, "spec_rows") else []
+        schema4_ids = {r.get("catalog_id") for r in h.get("rows") or ()}
+        legacy_pass = sorted({r.get("catalog_id") for r in own if r.get("passed") and
+                              r.get("catalog_id") not in schema4_ids}) if own else None
+        h["counts"] = {"legacy_verified": None if legacy_pass is None else len(legacy_pass),
+                       "hardened": sum(1 for r in h.get("rows") or () if r.get("verdict") == "HARDENED"),
+                       "schema4": h.get("schema4", 0), "legacy": h.get("legacy", 0)}
+        self.data["hardened"] = h
+        note = "{} spec(s): {} legacy{}, {} schema 4".format(
+            h.get("specs", 0), h.get("legacy", 0), "" if legacy_pass is None else " ({} verified)".format(len(legacy_pass)),
+            h.get("schema4", 0))
+        problems = []
+        if h.get("undeclared"):
+            problems.append("{} spec(s) outside the frozen legacy list do not declare schema 4 (5.4): {}".format(
+                len(h["undeclared"]), short(h["undeclared"], 300)))
+        if not h.get("schema4"):
+            self.set("G11", "FAIL" if problems else "N/A", note + "; no schema-4 spec yet" + (
+                " [" + "; ".join(problems) + "]" if problems else ""))
+            return
+        failing, excused, pending, overdue = judge_hardened(h.get("rows") or [], self.allow)
+        note += "; {} HARDENED, {} ran now, {} current or carried".format(h["counts"]["hardened"], len(h.get("ran") or ()),
+                                                                          len(h.get("reused") or ()))
+        if failing:
+            problems.append("{} not HARDENED: {}".format(len(failing), describe_hardened(failing)))
+        if h.get("release") and not self.args.release:
+            problems.append("a RELEASE: {} of {} specs stale by this change (more than 10 %): verify it overnight in "
+                            "batches on a branch (record --release [--hardened-limit N], 22.7)".format(
+                                len(h.get("stale") or ()), h.get("specs", 0)))
+        if h.get("not_run"):
+            problems.append("{} spec(s) still to run (--hardened-limit)".format(len(h["not_run"])))
+        if excused:
+            note += "; {} allowlisted ({})".format(len(excused), short(["{} {}".format(c, v) for c, v in excused], 200))
+        if overdue:
+            note += "; {} overdue: dataset releases wait for their re-run (22.7): {}".format(len(overdue),
+                                                                                              short(overdue, 200))
+        if pending:
+            note += "; private stages not run (no split key): {} spec(s) PENDING_GATE: {}".format(len(pending),
+                                                                                                  short(pending, 200))
+        calibration = h.get("calibration") or {}
+        if calibration.get("alarms"):
+            note += "; COST CALIBRATION ALARM: {}".format(short(calibration["alarms"], 200))
+        review = h.get("review") or {}
+        if review.get("paused") or review.get("default_fix"):
+            note += "; review: {} batch(es) over budget, {} default-fix cluster(s)".format(
+                len(review.get("paused") or ()), len(review.get("default_fix") or ()))
+        status = "FAIL" if problems else ("INFO" if pending else "PASS")
+        self.set("G11", status, note + (" [" + "; ".join(problems) + "]" if problems else ""))
 
     def collect_tools(self, jobs, prev):
         audits = defaultdict(dict)
@@ -3528,6 +4136,10 @@ class Gate:
             self.log("phase 2: {} jobs (G1c, G4, G5, G6, G9)".format(len(tools)))
             schedule(tools, max(self.jobs_n, 4), self.root, self.progress)
         self.collect_tools(tools, prev)
+        # G11: the schema-4 specs at the full level (their workers take the pool; the benchmarks then run alone)
+        if "G11" in self.selected:
+            self.run_hardened(prev)
+            self.evaluate_hardened()
         # phase 3: benchmarks alone
         quiet = self.extra_jobs(quiet=True) if "G9" in self.selected else []
         if "G7" in self.selected or quiet:
@@ -3596,6 +4208,8 @@ class Gate:
         write_json(out / "bench.json", merged("bench.json", self.data["bench"]))
         write_json(out / "extras.json", merged("extras.json", self.data["extras"]))
         write_json(out / "scope.json", merged("scope.json", self.data["scope"]))
+        if "hardened" in self.data:
+            write_json(out / "hardened.json", self.data["hardened"])
         tree_now = tree_fingerprint(self.root)
         tree = tree_now if tree_now == getattr(self, "tree_start", tree_now) else None
         prev_name = str(prev) if prev else None
@@ -3633,7 +4247,7 @@ class Gate:
             failing.append("GATE")
         incomplete = record_incomplete({"recorded": recorded, "spec_files": self.args.spec_files,
                                         "seeds": list(self.seeds), "extras": self.extras,
-                                        "packages": self.policy["packages"]})
+                                        "packages": self.policy["packages"], "checks_format": CHECKS_FORMAT})
         if prev is not None and record_incomplete(read_json(prev / "meta.json", {})):
             incomplete = "; ".join(x for x in (incomplete, "previous record {} is partial or narrowed".format(
                 prev.name)) if x)
@@ -3662,6 +4276,7 @@ class Gate:
                 "started": old_meta.get("started", started) if partial else started, "finished": now_iso(),
                 "secs": round(time.perf_counter() - self.started, 1),
                 "partial": None if recorded == list(CHECKS) else recorded, "recorded": recorded,
+                "checks_format": CHECKS_FORMAT,
                 "last_run": self.selected,
                 "git": {"head": head.stdout.strip() if head.returncode == 0 else None, "changed": files},
                 "python": platform.python_version(), "platform": platform.platform(), "cpus": os.cpu_count(),
@@ -4061,8 +4676,7 @@ def cmd_isolate(args):
             tar.extractall(str(out), members=members)
     for rel in EMPTY_DIRS:
         (out / rel).mkdir(parents=True, exist_ok=True)
-    rules = _ignore_rules(out)
-    base_files = tree_files(out, rules)
+    base_files = tree_files(out, _base_ignore_rules(base))
     overlay, deleted = [], []
     picks = []
     if names:
@@ -4091,6 +4705,92 @@ def cmd_isolate(args):
         print("  + " + rel)
     for rel in deleted:
         print("  - " + rel)
+    return 0
+
+
+def rolling_plan(store, today=None, limit=None):
+    """(ids to re-run, carried records among them): evidence_replay.rolling_due over the store, oldest evidence first."""
+    replay = _evidence_replay()
+    ids = replay.rolling_due(list(store.values()), today, limit)
+    carried = {c: store[c] for c in ids if (store[c].get("evidence") or {}).get("carried_from")}
+    return ids, carried
+
+
+def cmd_rolling(args):
+    """The rolling full run (22.7): every spec re-run at the full level at least every 14 days, oldest evidence first. A
+    carried spec whose new result differs in its verdict, a gate or a family's outcomes is a replay miss; above 1 % over 14
+    days the replay adds one run per applicable family on the first seed until the rate is back under it. Appends to
+    <gates root>/_hardened/rolling.jsonl; exit 1 when a miss was found."""
+    root = Path(args.root).resolve()
+    gates_root = Path(args.gates_root).resolve() if args.gates_root else root / GATE_DIR
+    store_dir = gates_root / HARDENED_DIR
+    store = {}
+    for row in read_jsonl(store_dir / "evidence.jsonl"):
+        if isinstance(row, dict) and row.get("catalog_id"):
+            store[row["catalog_id"]] = row
+    specs = {s[3].get("catalog_id"): s[3] for s in collect_specs(root) if s[3].get("schema") == 4}
+    store = {c: r for c, r in store.items() if c in specs}
+    ids, carried = rolling_plan(store, args.today, args.limit)
+    if not ids:
+        print("rolling: nothing due ({} record(s))".format(len(store)))
+        return 0
+    work = Path(args.work).resolve() if args.work else Path(tempfile.mkdtemp(prefix="house_ai_rolling_"))
+    work.mkdir(parents=True, exist_ok=True)
+    script = str(Path(__file__).resolve())
+    env = child_env(root)
+    jobs = []
+    for i, cid in enumerate(ids):
+        path, out = work / "job{}.json".format(i), work / "job{}.out".format(i)
+        write_json(path, {"root": str(root), "kind": "full", "specs": [{"spec": specs[cid]}], "commit": head_commit(),
+                          "today": args.today}, sort_keys=False)
+        jobs.append(Job("rolling {}".format(cid), "G11", [sys.executable, script, "_hardened", str(path), str(out)], env,
+                        est=300.0, timeout=args.hardened_timeout, meta={"out": str(out), "label": cid}))
+    schedule(jobs, max(1, args.jobs or max(1, (os.cpu_count() or 2) - 1)), root, None)
+    fresh = {}
+    for job in jobs:
+        for row in read_jsonl(job.meta["out"]):
+            fresh[row.get("catalog_id")] = row
+    store_dir.mkdir(parents=True, exist_ok=True)
+    with open(store_dir / "evidence.jsonl", "a", encoding="utf-8", newline="\n") as stream:
+        for row in fresh.values():
+            stream.write(json.dumps(row, sort_keys=True, default=str) + "\n")
+    audit = _evidence_replay().replay_misses(carried, fresh)
+    line = {"date": args.today or now_iso()[:10], "ran": sorted(fresh), "carried": sorted(carried), "misses": audit["misses"],
+            "rate": audit["rate"], "added_runs": audit["added_runs"]}
+    with open(store_dir / "rolling.jsonl", "a", encoding="utf-8", newline="\n") as stream:
+        stream.write(json.dumps(line, sort_keys=True, default=str) + "\n")
+    print("rolling: {} spec(s) re-run at the full level, {} of them carried; {} replay miss(es), rate {:.1%}{}".format(
+        len(fresh), len(carried), len(audit["misses"]), audit["rate"],
+        "; the replay adds one run per applicable family on the first seed until it is back under 1 %"
+        if audit["added_runs"] else ""))
+    for cid, what in sorted(audit["misses"].items()):
+        print("  MISS {}: {}".format(cid, "; ".join(what[:4])))
+    return 1 if audit["misses"] else 0
+
+
+def cmd_publish(args):
+    """The gate's HARDENED and carried records into the evidence the splits and the harness read (reports/verification.jsonl,
+    21.3): one record per catalog id, legacy records untouched. A main-session step at a dataset release: the file is
+    tracked, so a package's record never writes it."""
+    root = Path(args.root).resolve()
+    gates_root = Path(args.gates_root).resolve() if args.gates_root else root / GATE_DIR
+    store = {}
+    for row in read_jsonl(gates_root / HARDENED_DIR / "evidence.jsonl"):
+        if isinstance(row, dict) and row.get("catalog_id"):
+            store[row["catalog_id"]] = row
+    path = root / "reports" / "verification.jsonl"
+    rows = {}
+    for row in read_jsonl(path):
+        if isinstance(row, dict) and row.get("catalog_id"):
+            rows[row["catalog_id"]] = row
+    for cid, row in store.items():
+        rows[cid] = dict(row, format=row.get("format") or "house_ai.verification/2")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="\n") as stream:
+        for cid in sorted(rows):
+            stream.write(json.dumps(rows[cid], sort_keys=True, default=str) + "\n")
+    print("published {} schema-4 record(s) into {} ({} HARDENED)".format(
+        len(store), path, sum(1 for r in store.values() if r.get("verdict") == "HARDENED")))
     return 0
 
 
@@ -4209,6 +4909,11 @@ def build_parser():
         r.add_argument("--chunk-specs", type=int, default=3, help="specs per spec-trial worker")
         r.add_argument("--spec-files", help="only spec files matching this glob, e.g. 'cleaning__*' (iteration aid; "
                                             "a record made with it is partial)")
+        r.add_argument("--release", action="store_true",
+                       help="G11: this change makes more than 10 %% of the catalog stale and is verified as a release")
+        r.add_argument("--hardened-limit", type=int, help="G11: at most N full runs now (a release's batches)")
+        r.add_argument("--hardened-timeout", type=int, default=14400, help="G11: seconds per spec (H3 specs: hours)")
+        r.add_argument("--today", help=argparse.SUPPRESS)
         r.add_argument("--test-timeout", type=int, default=3600)
         r.add_argument("--chunk-timeout", type=int, default=2400)
         r.add_argument("--out", help="output folder (default: <gates-root>/<id>)")
@@ -4249,6 +4954,13 @@ def build_parser():
     o.add_argument("--write", action="store_true", help="write it to " + SIGNOFF_DIR + "/<CUR>.json (counts once "
                                                          "committed)")
     sub.add_parser("policy", help="print the committed allowlist and second signatures as the gate reads them")
+    sub.add_parser("publish", help="the gate's schema-4 records into reports/verification.jsonl (a release step)")
+    g = sub.add_parser("rolling", help="the 14-day rolling full run with its replay-miss audit (VERIFY_HARDENING 22.7)")
+    g.add_argument("--limit", type=int, help="at most N specs now (default: every overdue spec)")
+    g.add_argument("--jobs", type=int)
+    g.add_argument("--today", help=argparse.SUPPRESS)
+    g.add_argument("--work", help="scratch folder")
+    g.add_argument("--hardened-timeout", type=int, default=14400)
     g = sub.add_parser("gen1-digests", help="check (default) or --write tests/data/gen1_digests.json")
     g.add_argument("--write", action="store_true")
     g.add_argument("--by", default="A0")
@@ -4281,6 +4993,10 @@ def main(argv):
             worker_bench_wait(rest[0], rest[1], [int(s) for s in rest[2].split(",")], int(rest[3]))
         elif name == "_gentiming":
             worker_gen_timing(rest[0], rest[1], int(rest[2]))
+        elif name == "_hardened":
+            worker_hardened(rest[0], rest[1])
+        elif name == "_hardened_report":
+            worker_hardened_report(rest[0], rest[1])
         else:
             raise SystemExit("unknown worker " + name)
         return 0
@@ -4299,6 +5015,10 @@ def main(argv):
         return cmd_gen1(args)
     if args.cmd == "signoff":
         return cmd_signoff(args)
+    if args.cmd == "rolling":
+        return cmd_rolling(args)
+    if args.cmd == "publish":
+        return cmd_publish(args)
     if args.cmd == "policy":
         return cmd_policy(args)
     build_parser().print_help()

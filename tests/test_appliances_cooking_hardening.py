@@ -28,6 +28,7 @@ from house_sim.kernel.engine import HouseEnv  # noqa: E402
 from house_sim.kernel.predicates import MISSING  # noqa: E402
 from house_sim.systems.appliances_cooking import build as B  # noqa: E402
 from house_sim.systems.appliances_cooking import hardening as HD  # noqa: E402
+from house_sim.systems.appliances_cooking import status as STATUS  # noqa: E402
 from tests.test_appliances_cooking import (SAUCEPAN, Kit, add_dishes, dw_kit, ent, load_all, ok, run_cycle,  # noqa: E402
                                            wait)
 
@@ -328,6 +329,78 @@ class SettingsSkillTests(unittest.TestCase):
         self.assertEqual(settings_steps(coil.env().world.s, burner_of(coil), "burner.lit"), [])
 
 
+class DamagingVerbTests(unittest.TestCase):
+    """B14's damaged probe reads a domain's settings skill for a condition field (WP6): each is offered only where the
+    house holds what the act needs, is one plan step, and really does the damage its value says."""
+
+    def run_step(self, env, step):
+        from house_sim.tasks.runner import run_plan
+        run_plan(env, [step], {}, strict=True)
+
+    def test_a_stalled_blender_burns_its_motor(self):
+        kit = Kit("electric_coil")
+        built = B.build_blender(kit.p, "counter_1", eid="blender")
+        jar = built["jar"] if isinstance(built, dict) and "jar" in built else next(
+            e for e, r in kit.c["entities"].items() if r.get("ac_kind") == "blender_jar")
+        env = kit.env()
+        self.assertEqual(settings_steps(env.world.s, "blender", "motor_overheated"), [])       # an empty jar: no stall
+        kit.item("berries", jar, food={"kind": "frozen_berries", "cat": "fruit", "ice": 1.0}, size_m=[0.1, 0.1, 0.1], mass_kg=0.5,
+                 volume_l=0.5, temperature_c=-18.0, relation="in")
+        env = kit.env()
+        ((value, step),) = settings_steps(env.world.s, "blender", "motor_overheated")
+        self.assertIs(value, True)
+        self.assertEqual(ledger.field_spec("blender", "motor_overheated")["class"], "condition")
+        self.run_step(env, step)
+        self.assertIs(ent(env, "blender").get("motor_overheated"), True)
+        self.assertEqual(settings_steps(env.world.s, "blender", "motor_overheated"), [])       # done: nothing to offer
+
+    def test_milk_steamed_without_wiping_dries_on_the_wand(self):
+        kit = Kit("electric_coil")
+        B.build_espresso(kit.p, "counter_1", eid="em", water_l=1.5)
+        kit.c["entities"]["em"].update(on=True, espresso={"boiler_c": 95.0, "ready": True})
+        env = kit.env()
+        self.assertEqual(settings_steps(env.world.s, "em", "wand.milk_residue"), [])           # no milk to steam
+        kit.item("pitcher", "counter_2", label="milk pitcher", material="stainless_steel", liquid_container=True, liquid="milk",
+                 liquid_l=0.2, capacity_l=0.6, size_m=[0.12, 0.09, 0.11], mass_kg=0.25, liquid_temp_c=4.0)
+        env = kit.env()
+        env.world.begin()
+        env.world.mut("em").update(on=True, espresso={"boiler_c": 95.0, "ready": True})
+        env.world.commit()
+        ((value, step),) = settings_steps(env.world.s, "em", "wand.milk_residue")
+        self.run_step(env, step)
+        self.assertEqual(ent(env, "em")["wand"]["milk_residue"], value)
+        self.assertEqual(ledger.field_spec("espresso_machine", "wand.milk_residue")["class"], "condition")
+
+    def test_a_metal_tool_scratches_a_nonstick_pan_it_frees_food_from(self):
+        kit = Kit("electric_coil")
+        kit.item("pan", "counter_1", label="frying pan", material="aluminum", coating="nonstick", accepts_items=True, container=True,
+                 size_m=[0.28, 0.28, 0.05], mass_kg=0.8)
+        env = kit.env()
+        self.assertEqual(settings_steps(env.world.s, "pan", "coating_scratched"), [])          # nothing to free
+        kit.item("egg", "pan", food={"kind": "egg", "cat": "protein"}, size_m=[0.1, 0.1, 0.02], mass_kg=0.06, relation="in")
+        env = kit.env()
+        self.assertEqual(settings_steps(env.world.s, "pan", "coating_scratched"), [])          # no metal tool
+        kit.item("turner", "counter_2", label="metal turner", material="stainless_steel", category="kitchen_tool", tool_kind="spatula",
+                 size_m=[0.3, 0.08, 0.02], mass_kg=0.1)
+        env = kit.env()
+        ((value, step),) = settings_steps(env.world.s, "pan", "coating_scratched")
+        self.run_step(env, step)
+        self.assertIs(ent(env, "pan").get("coating_scratched"), value)
+
+    def test_a_metal_thing_arcs_in_a_microwave(self):
+        kit = Kit("electric_coil")
+        kit.item("tin", "counter_2", label="metal tin", material="stainless_steel", size_m=[0.1, 0.1, 0.05], mass_kg=0.1)
+        kit.item("bowl", "counter_2", label="glass bowl", material="glass", microwave_safe=True, size_m=[0.1, 0.1, 0.05], mass_kg=0.2)
+        env = kit.env()
+        self.assertEqual(settings_steps(env.world.s, "tin", "arc_damaged"), [])                # no microwave
+        kit.add("mw_1", "microwave", "counter_1")
+        env = kit.env()
+        self.assertEqual(settings_steps(env.world.s, "bowl", "arc_damaged"), [])               # nothing to arc
+        ((value, step),) = settings_steps(env.world.s, "tin", "arc_damaged")
+        self.run_step(env, step)
+        self.assertIs(ent(env, "tin").get("arc_damaged"), value)
+
+
 class TruthTests(unittest.TestCase):
     """13.3 / 13.6: claims in this domain's words are scored on the subject's record."""
 
@@ -407,6 +480,142 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual(len(idx.readings), 1)
         self.assertEqual(idx.readings[0]["subject"], "chicken")
         self.assertAlmostEqual(idx.readings[0]["value_si"], out["reading_c"], places=3)
+
+    def test_a_probe_at_the_edge_is_no_reading_of_the_core(self):
+        kit = Kit("electric_coil")
+        kit.add("probe_1", "instant_read_thermometer", "counter_1")
+        kit.item("chicken", "counter_2", food={"kind": "chicken_breast", "cat": "meat", "raw": True}, size_m=[0.15, 0.08, 0.03],
+                 mass_kg=0.2, temperature_c=4.0)
+        env = kit.env()
+        ok(env, "approach", "probe_1")
+        ok(env, "pick_up", "probe_1")
+        ok(env, "approach", "chicken")
+        center = json.loads(ok(env, "check_doneness", "chicken", method="thermometer", where="center")["message"])
+        edge = json.loads(ok(env, "check_doneness", "chicken", method="thermometer", where="edge")["message"])
+        self.assertEqual(center["reading"]["field"], "core_temp_c")
+        self.assertNotIn("field", edge["reading"])
+        self.assertEqual((edge["reading"]["subject"], edge["reading"]["where"]), ("chicken", "edge"))
+
+    def read_dial(self, camera=None):
+        """A dial on the rack of a heated oven, read through core read in realistic mode."""
+        from tests.test_appliances_cooking import heated_oven
+        kit = Kit("electric_coil")
+        oven = heated_oven(kit, 350)
+        kit.add("oven_dial_1", "oven_thermometer", kit.k["rack_mid"], relation="on")
+        options = {"camera": camera} if camera else {}
+        env = HouseEnv(copy.deepcopy(kit.c), None, 0, perception="realistic", **options)
+        env.observe()
+        h = env.realism.handles.handle
+        ok(env, "approach", h(oven))
+        ok(env, "open", h(oven))
+        if camera:
+            ok(env, "approach", h("oven_dial_1"))
+        res = ok(env, "read", h("oven_dial_1"))
+        return env, oven, res
+
+    def test_a_dial_thermometers_read_is_a_structured_reading_of_its_compartment(self):
+        from house_sim.tasks import perceive
+        env, oven, res = self.read_dial()
+        shown = json.loads(res["message"])
+        value = float(shown["display"].split()[0])
+        self.assertEqual(shown["reading"]["value"], value)
+        self.assertEqual((shown["reading"]["quantity"], shown["reading"]["unit"], shown["reading"]["field"]),
+                         ("temperature", "C", "internal_temp_c"))
+        self.assertLessEqual(abs(value - ent(env, oven)["internal_temp_c"]), 6.0)
+        self.assertNotIn(oven, res["message"].replace(env.realism.handles.handle(oven), ""))   # handles, never true ids
+        self.assertEqual(env.realism.handles.by_handle.get(shown["reading"]["subject"]), oven)
+        idx = perceive.Index()
+        perceive._index_message(idx, res["message"], 0.0, 1)
+        self.assertEqual([r["value_si"] for r in idx.readings], [value])
+
+    def test_the_dial_founds_a_claim_about_the_oven_temperature(self):
+        from house_sim.tasks import perceive
+        from tests.test_appliances_cooking import heated_oven
+        kit = Kit("electric_coil")
+        oven = heated_oven(kit, 350)
+        kit.add("oven_dial_1", "oven_thermometer", kit.k["rack_mid"], relation="on")
+        env = HouseEnv(copy.deepcopy(kit.c), None, 0, perception="realistic")
+        perceive.enable(env)
+        h = env.realism.handles.handle
+        ok(env, "approach", h(oven))
+        ok(env, "open", h(oven))
+        value = float(ent(env, oven)["internal_temp_c"])
+        claim = {"kind": "quantity", "subject": oven, "quantity": "temperature", "value": value, "unit": "C",
+                 "certainty": "asserted"}
+        self.assertFalse(perceive.claim_founded(env, claim))
+        res = ok(env, "read", h("oven_dial_1"))
+        idx = perceive.index(env)
+        self.assertEqual([(r["subject"], r["quantity"]) for r in idx.readings], [(oven, "temperature")])
+        self.assertEqual(json.loads(res["message"])["reading"]["subject"], h(oven))
+        self.assertTrue(perceive.claim_founded(env, dict(claim, value=idx.readings[0]["value_si"])))
+
+    def test_the_read_is_the_same_with_the_geometric_camera(self):
+        env, oven, res = self.read_dial(camera="geometric")
+        shown = json.loads(res["message"])
+        self.assertEqual(shown["reading"]["value"], float(shown["display"].split()[0]))
+        self.assertEqual(env.realism.handles.by_handle.get(shown["reading"]["subject"]), oven)
+
+    def test_a_dial_on_a_counter_reads_only_its_own_face(self):
+        kit = Kit("electric_coil")
+        kit.add("dial_1", "fridge_thermometer", "counter_1")
+        env = HouseEnv(copy.deepcopy(kit.c), None, 0, perception="realistic")
+        env.observe()
+        h = env.realism.handles.handle
+        ok(env, "approach", h("dial_1"))
+        shown = json.loads(ok(env, "read", h("dial_1"))["message"])
+        self.assertEqual(env.realism.handles.by_handle.get(shown["reading"]["subject"]), "dial_1")
+        self.assertNotIn("field", shown["reading"])
+
+    def test_a_fridge_panel_is_a_structured_reading_of_its_compartment_and_blank_reads_nothing(self):
+        kit = Kit("electric_coil")
+        fridge = B.build_fridge(kit.p, "kitchen", near=[0, 6])["fridge"]
+        env = kit.env()
+        wait(env, 60)
+        ok(env, "approach", fridge)
+        shown = json.loads(ok(env, "read", fridge)["message"])
+        self.assertEqual(shown["reading"]["subject"], fridge)
+        self.assertEqual(shown["reading"]["field"], "internal_temp_c")
+        self.assertAlmostEqual(shown["reading"]["value"], ent(env, fridge)["internal_temp_c"], delta=0.51)
+        self.assertEqual(shown["reading"]["value"], float(shown["display"].split()[0]))
+        env.world.s["entities"][fridge]["display"] = ""             # a panel without power shows nothing
+        shown = json.loads(ok(env, "read", fridge)["message"])
+        self.assertNotIn("reading", shown)
+
+    def test_a_dial_seen_in_an_inspect_is_a_structured_reading_too(self):
+        from house_sim.tasks import perceive
+        from tests.test_appliances_cooking import H, heated_oven, renv
+        kit = Kit("electric_coil")
+        oven = heated_oven(kit, 350)
+        kit.add("oven_dial_1", "oven_thermometer", kit.k["rack_mid"], relation="on")
+        env = renv(kit)
+        perceive.enable(env)
+        ok(env, "approach", H(env, oven))
+        ok(env, "open", H(env, oven))
+        details = json.loads(ok(env, "inspect", H(env, oven))["message"])
+        view = details[STATUS.SEEN_KEYS["oven"]]
+        reading = view["reading"]
+        self.assertEqual(reading["value"], view["oven_thermometer_c"])
+        self.assertEqual(reading["subject"], H(env, oven))
+        self.assertEqual(reading["instrument"], H(env, "oven_dial_1"))
+        self.assertEqual([(r["subject"], r["value_si"]) for r in perceive.index(env).readings],
+                         [(oven, float(reading["value"]))])
+
+    def test_a_fridge_dial_seen_in_an_inspect_is_a_structured_reading_too(self):
+        from tests.test_appliances_cooking import H, renv
+        kit = Kit("electric_coil")
+        fridge = B.build_fridge(kit.p, "kitchen", near=[0, 6])["fridge"]
+        kit.add("fridge_dial_1", "fridge_thermometer", fridge, relation="in", shelf=1)
+        env = renv(kit)
+        ok(env, "approach", H(env, fridge))
+        ok(env, "open", H(env, fridge))
+        details = json.loads(ok(env, "inspect", H(env, fridge))["message"])
+        reading = details["cold"]["reading"]
+        self.assertEqual(reading["value"], details["cold"]["thermometer_c"])
+        self.assertEqual((reading["subject"], reading["field"]), (H(env, fridge), "internal_temp_c"))
+
+    def test_the_reading_is_a_process_field(self):
+        for name in ("oven_thermometer", "fridge_thermometer", "refrigerator", "chest_freezer"):
+            self.assertEqual(ledger.field_spec(name, "reading")["class"], "process", name)
 
 
 class InvariantLabelTests(unittest.TestCase):

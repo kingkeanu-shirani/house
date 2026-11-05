@@ -486,7 +486,7 @@ def level_held(ctx):
     """The level the robot holds (or None): only a level turns a tilt into a number."""
     if ctx is None:
         return None
-    return next((h for h in ctx.w.held_items() if ctx.w.ent(h).get("tool_kind") in LEVEL_KINDS), None)
+    return next((h for h in C.known_held(ctx.w, ctx) if ctx.w.ent(h).get("tool_kind") in LEVEL_KINDS), None)
 
 
 def _tilt_seen(ctx, eid, tilt, level):
@@ -669,7 +669,7 @@ def adhesive_system(w, dt, tick):
         new_decay = max(0.05, decay - dt * rate) if rate > 0 else decay
         changed = abs(new_decay - decay) > 1e-9
         if changed:
-            w.mut(hw)["mount"]["decay"] = C.rnd(new_decay, 4)
+            w.mut(hw, cause=[hw, mount.get("surface")])["mount"]["decay"] = C.rnd(new_decay, 4)
         load = load_kg(w, hw)
         if kernel:
             if changed and load > 0:
@@ -680,11 +680,11 @@ def adhesive_system(w, dt, tick):
         cap = capacity_kg(w, hw)
         if load <= cap + 1e-9:
             if mount.get("overload_since") is not None:
-                w.mut(hw)["mount"]["overload_since"] = None
+                w.mut(hw, cause=hw)["mount"]["overload_since"] = None
             continue
         since = mount.get("overload_since")
         if since is None:
-            w.mut(hw)["mount"]["overload_since"] = t
+            w.mut(hw, cause=hw)["mount"]["overload_since"] = t
             continue
         ttf = 120.0 + 2400.0 * max(0.0, cap / load)
         if t - float(since) >= ttf:
@@ -712,8 +712,8 @@ def _mount_let_go(w, sid, info):
     surface = mount.get("surface")
     items = [i for i in info.get("items") or [] if i in w.s["entities"]]
     for item in items:
-        w.mut(item)["fallen"] = True
-    m = w.mut(sid)
+        w.mut(item, cause=[sid, item])["fallen"] = True
+    m = w.mut(sid, cause=[sid, surface] if surface else sid)
     m["failed"] = True
     if rec.get("location") == surface and rec.get("anchor") == "stud":
         m["mount"]["bent"] = True                # still in the stud, bent: it holds nothing any more
@@ -722,8 +722,10 @@ def _mount_let_go(w, sid, info):
         m["fallen"] = True
         m.pop("mount", None)
         m.pop("anchor", None)
+        if rec.get("stops_door") in w.s["entities"]:
+            w.mut(rec["stops_door"], cause=sid)["stop_ok"] = False       # the bumper is off the wall: nothing stops the door
         if surface in w.s["entities"] and float(w.ent(surface).get("paint_age_days", 365)) < 7 and rec.get("adhesive"):
-            sm = w.mut(surface)
+            sm = w.mut(surface, cause=sid)
             sm["paint_peeled"] = int(sm.get("paint_peeled", 0)) + 1
     C.log(w, "mount_failed", hardware=sid, items=items, surface=surface)
 
@@ -766,7 +768,7 @@ def inspect_mounts(w, eid, record, details, ctx):
                                 "cured": C.now(w) - float(mount.get("mounted_at", 0)) >= float(mount.get("cure_s", 0)),
                                 "rated_kg": mount.get("rated_kg", record.get("rated_kg"))}
     if "tilt_deg" in record and record.get("relation") == "hung":
-        level = next((h for h in w.held_items() if w.ent(h).get("tool_kind") in ("spirit_level", "torpedo_level", "digital_level")), None)
+        level = next((h for h in C.known_held(w, ctx) if w.ent(h).get("tool_kind") in ("spirit_level", "torpedo_level", "digital_level")), None)
         if level and not C.at_hand(w, eid):
             level = None            # a level reads only what it is laid on: from farther the eye judges the tilt
         if C.realistic(ctx):
@@ -774,6 +776,10 @@ def inspect_mounts(w, eid, record, details, ctx):
             C.mark_perceived(ctx, details, "tilt")
             if level:
                 ctx.grant(eid, "measure", ["tilt_deg"])
+                # a structured reading for the evidence index (VERIFY_HARDENING 15.2)
+                details["readings"] = [{"subject": eid, "quantity": "angle", "value": C.reading(ctx, record["tilt_deg"], 0.05, 0.1, eid, "tilt", C.rnd(record["tilt_deg"], 3)),
+                                        "unit": "deg", "field": "tilt_deg"}]
+                C.mark_perceived(ctx, details, "readings")
         else:
             details["tilt"] = "{:+.1f} deg (level)".format(record["tilt_deg"]) if level else ("looks level" if abs(record["tilt_deg"]) < 1.5 else "looks crooked")
     if isinstance(record.get("_swing"), dict) and ctx.args.get("where") == "closely":

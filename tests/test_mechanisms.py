@@ -532,7 +532,7 @@ class LockTests(unittest.TestCase):
         ok(self, e2.step("latch", "shed_door", part="hasp"))
         ok(self, e2.step("latch", "lock_1", destination="shed_door"))
         self.assertTrue(ent(e2, "shed_door")["locked"])
-        self.assertIn("holds", ok(self, e2.step("pull_handle", "shed_door", test=True))["message"])
+        self.assertIn("holds", ok(self, e2.step("push_handle", "shed_door", test=True))["message"])
         no(self, e2.step("unlatch", "lock_1"), "key")
         e2.step("crouch")
         ok(self, e2.step("pick_up", "shed_key"))
@@ -568,12 +568,12 @@ class LockTests(unittest.TestCase):
         h = House()
         h.c["entities"]["back_door"].update(open=False, latched=True, locked=False)
         e = h.env(room="kitchen", pos=(6, 5))
-        r = ok(self, e.step("push_handle", "back_door", test=True))
+        r = ok(self, e.step("pull_handle", "back_door", test=True))
         self.assertIn("not locked", r["message"])
         self.assertTrue(ent(e, "back_door")["open"])
         e2 = h.env(room="kitchen", pos=(6, 5))
         ok(self, e2.step("lock", "back_door"))
-        self.assertIn("holds", ok(self, e2.step("push_handle", "back_door", test=True))["message"])
+        self.assertIn("holds", ok(self, e2.step("pull_handle", "back_door", test=True))["message"])
         self.assertTrue(mech(e2, "back_door")["test_held"])
 
     def test_slider_security_bar(self):
@@ -1720,7 +1720,7 @@ class AuditMechanicsTests(unittest.TestCase):
         e = h.env(room="hall", pos=(2, 2))
         ok(self, e.step("open", "door_bed"))           # controlled swing: the robot feels the contact and eases it aside
         self.assertFalse(ent(e, "vase").get("broken"))
-        self.assertTrue(ent(e, "vase")["shifted"])
+        self.assertTrue(ent(e, "vase")["_pushed_aside"])
         from house_sim.systems.mechanisms import common as MC
         room, arc = MC.swing_cells(e.world.s, "door_bed")       # kernel v2.3 leaf model: doorway, inward cell, hinge diagonal
         self.assertEqual(("bedroom", [(0, 2), (1, 2), (1, 3)]), (room, arc))
@@ -2018,7 +2018,7 @@ class IntegrationRoundTests(unittest.TestCase):
         h.add("broom", "generic_item", "bedroom", pos=[1, 3], label="broom", portable=True, size_m=[0.3, 0.08, 1.3], mass_kg=0.6)
         e = h.env(room="hall", pos=(2, 2))
         ok(self, e.step("open", "door_bed"))
-        self.assertTrue(ent(e, "basket")["shifted"])
+        self.assertTrue(ent(e, "basket")["_pushed_aside"])
         self.assertFalse(ent(e, "basket").get("toppled"))
         self.assertTrue(ent(e, "broom")["toppled"], "tall and narrow: it tips before it slides")
         self.assertEqual(1, stat(e, "knocked_over"))
@@ -2046,7 +2046,7 @@ class IntegrationRoundTests(unittest.TestCase):
         ok(self, e.step("open", "door_bed"))
         self.assertLessEqual(mech(e, "door_bed")["open_frac"], 0.35)
         self.assertEqual([1, 2], ent(e, "sack")["pos"])
-        self.assertTrue(ent(e, "mower")["shifted"], "wheels: it rolls aside")
+        self.assertTrue(ent(e, "mower")["_pushed_aside"], "wheels: it rolls aside")
         no(self, e.step("move", "bedroom"), "wider")
         self.assertEqual([], [f for f in failures(e) if f in ("collisions", "damage", "spills", "breakages")])
 
@@ -2062,7 +2062,7 @@ class IntegrationRoundTests(unittest.TestCase):
         ok(self, e.step("open", "cab"))
         self.assertEqual([2, 0], ent(e, "bin")["pos"])
         self.assertFalse(ent(e, "duster").get("toppled"), "beside the cabinet")
-        self.assertTrue(ent(e, "stool")["shifted"], "in front of the doors")
+        self.assertTrue(ent(e, "stool")["_pushed_aside"], "in front of the doors")
         self.assertEqual(0, stat(e, "knocked_over"))
 
     def test_apartment_entry_door_swings_into_the_unit(self):
@@ -2265,8 +2265,8 @@ class CrossDomainRoundTests(unittest.TestCase):
                 self.assertGreater(MC.num(MC.mget(w.s["entities"][eid], "open_frac", 1.0), 1.0), 0.9, (seed, eid))
                 self.assertFalse(irec.get("broken"), (seed, eid))
                 self.assertEqual(rec.get("liquid_l"), irec.get("liquid_l"), "a controlled swing spills nothing")
-                self.assertTrue(irec.get("shifted") or irec.get("toppled"), (seed, eid, "the door met it"))
-                if irec.get("shifted") and not irec.get("toppled"):
+                self.assertTrue(irec.get("_pushed_aside") or irec.get("toppled"), (seed, eid, "the door met it"))
+                if irec.get("_pushed_aside") and not irec.get("toppled"):
                     self.assertNotIn(tuple(irec["pos"]), set(cells), (seed, eid))
                 careless = [e for e in w.s.get("event_log", []) if e.get("kind") == "knocked_over" and e.get("careless")]
                 self.assertEqual([], careless)
@@ -2917,7 +2917,7 @@ class UndercutTests(unittest.TestCase):
             MC.navigation_loaded = original
         room, arc = MC.swing_cells(e.world.s, "door_bed")
         self.assertNotIn(tuple(ent(e, "slipper")["pos"]), arc, "a 9 cm slipper does not fit under a 2 cm undercut")
-        self.assertTrue(ent(e, "slipper").get("shifted"))
+        self.assertTrue(ent(e, "slipper").get("_pushed_aside"))
         self.assertFalse(ent(e, "slipper").get("toppled"))
         self.assertEqual([1, 3], ent(e, "flat_mail")["pos"])     # flatter than the undercut: the leaf passes over it
 

@@ -1078,13 +1078,26 @@ taken out), and the `_vessel`, `_cook` and `_kettle` peaks and counts are histor
 * Settings skills (10.3): the settings whose options are a {min, max} range (`settings.temp` of ovens,
   `settings.temp_c` of fridges, freezers and the air fryer, `settings.power` / `time_s`, `delay_h`, `hours`,
   `minutes`, `time_min`, `timer_min`), `burner.lit` of a gas burner (ignite / knob off) and `timers` (set_timer). The
-  damaging acts of this domain (a freezer's evaporator chipped once it is off and open, a nonstick pan scratched by a
-  metal tool freeing food, an empty pan left on high) each need a multi-step setting, so B14's damaged probe has none.
+  damaging acts one plan step can carry out, offered only where the house holds what they need, are settings skills of
+  their condition fields for B14's damaged probe: `motor_overheated` (a blender stalled on a frozen load),
+  `wand.milk_residue` (milk steamed with the wand neither purged nor wiped, skill `appliances_cooking.steam_unwiped`),
+  `coating_scratched` (a metal tool freeing what is in a nonstick pan), `arc_damaged` (a metal thing run in a
+  microwave). The others (an evaporator chipped once the freezer is off and thawed, an empty pan left on high until it
+  warps, racks through a self-clean) need a longer setting; a wrong plan shows those guards live (7.6).
 * Truth (13.3): states preheated, preheating (the panel reads PREHEATING), boiling (a simmer or a rolling boil),
   simmering, keeping_warm, self_cleaning; issues frost_buildup (6 mm), door_not_sealing, too_warm (the temperature
-  alarm), boil_over, burnt_food, door_alarm, flare_up.
+  alarm), boil_over, burnt_food, door_alarm, flare_up. Claims the kernel's own words make about this domain's things stay
+  unscored (never wrong) until the kernel reads what these records carry (requests to WP4): "the stove is off"
+  (`power_state`), "the burner is lit" (`burner.lit`, `grill.lit`), a liquid's or a food's temperature (`liquid_temp_c`,
+  `temperature_c`).
 * Readings (15.2): `check_doneness method=thermometer` returns a structured reading (`reading`: subject, quantity
-  temperature, value, unit C, field core_temp_c, instrument) that the perception index records as a measurement.
+  temperature, value, unit C, field core_temp_c, instrument) that the perception index records as a measurement. So
+  does core `read` of a dial thermometer (`read` shows the record's `reading` beside `display`: the compartment around
+  the dial and its internal_temp_c, else the dial's own face without a field; refreshed by this domain's before-read
+  hook with the display, a read-tier and process field like it) and of a fridge's or freezer's panel (its own
+  internal_temp_c; a blank panel, no reading), and the inspect views that show a dial or a grill's lid thermometer
+  (`status.instrument_reading`). A probe at the edge or against the bone names no field (it is no reading of the core).
+  An oven panel shows a set point and is not an instrument.
 * Invariant labels start with their registered name: `appliances_cooking.always_on_off:<unit>`,
   `appliances_cooking.detergent_within_child_reach:<pod>` (were `always_on_appliance_off` and
   `detergent_within_child_reach`), so `inv:appliances_cooking.always_on_off` matches them.
@@ -1100,5 +1113,8 @@ taken out), and the `_vessel`, `_cook` and `_kettle` peaks and counts are histor
 * closeout_breakages row 3 (VER2: fixed by the kernel's place refusal, but an unfamiliar rice cooker or pressure cooker
   still answered "That does not work on it" through this domain's own place hooks): `unload` refuses an unfamiliar
   destination or tool identify-first before anything is picked up or checked by type. The twin sweep of every verb of
-  this domain over every registry look-alike group (78) and 43 unfamiliar twins shows no other difference but a held
-  two-handed thing occupying both hands (a physical trial).
+  this domain and of the core verbs its hooks answer (every entity parameter, the tool left implicit; on a counter, held
+  and in a dishwasher rack; carried to a burner, rack, oven, microwave, toaster and fridge) shows no difference over
+  every registry look-alike group (78), and over 103 unfamiliar twins only physical trials: a fixed thing cannot be
+  lifted, a two-handed one fills both hands, a big one does not fit a microwave, a liquid in an uncapped bottle spills
+  when it is flipped (the handoff lists them).

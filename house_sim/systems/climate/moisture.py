@@ -50,10 +50,16 @@ SETTLE_CATS = ("furniture", "tv", "monitor", "computer")
 
 
 def water_sensitive(rec):
-    """Wood, fabric, paper and electronics are marked or ruined by standing water (core water_safe defaults to True)."""
+    """Wood, fabric, paper and electronics are marked or ruined by standing water (core water_safe defaults to True):
+    this domain's materials and categories, and whatever the house ledger's one predicate calls water-sensitive
+    (water_safe false, electronic, a domain's water-sensitive types; closeout_breakages row 6)."""
     if rec.get("water_resistant"):
         return False
-    return rec.get("material") in ("wood", "fabric", "paper", "cardboard", "leather", "wool") or         rec.get("category") in ("tv", "computer", "outlet", "monitor", "power_strip", "bed", "sofa")
+    if rec.get("material") in ("wood", "fabric", "paper", "cardboard", "leather", "wool") or \
+            rec.get("category") in ("tv", "computer", "outlet", "monitor", "power_strip", "bed", "sofa"):
+        return True
+    from ...kernel import ledger
+    return ledger.water_sensitive(rec)
 
 
 def tap_hardness(state):
@@ -119,7 +125,7 @@ def humidifier_tick(w, eid, dt, room_rh, room_t):
     if tank is not None and base < base_cap - 1e-4 and feed_l > 0:
         # the tank's spring valve keeps the base tray topped up
         refill = min(feed_l, base_cap - base)
-        w.mut(tank)["liquid_l"] = C.rnd(max(0.0, feed_l - refill), 4)
+        w.mut(tank, cause=eid)["liquid_l"] = C.rnd(max(0.0, feed_l - refill), 4)
         base += refill
     changes["base_water_l"] = C.rnd(max(0.0, base), 4)
     empty = on and avail <= 0.02
@@ -181,11 +187,11 @@ def _water_quality_effects(w, eid, tank, liters, dt, robot=False):
             m = w.mut(eid)
             m["mineral_out_g"] = C.rnd(C.num(rec.get("mineral_out_g")) + dust, 4)
             if m["mineral_out_g"] >= 0.05:
-                _settle_minerals(w, eid, m["mineral_out_g"])
+                _settle_minerals(w, eid, m["mineral_out_g"], tank)
                 m["mineral_out_g"] = 0.0
     elif rec.get("humidifier_type") == "evaporative":
         ppm = liquid_minerals(state, trec)
-        m = w.mut(eid)
+        m = w.mut(eid, cause=(eid, tank))
         m["wick_scale"] = C.rnd(min(1.0, C.num(rec.get("wick_scale")) + liters * ppm / 200000.0), 4)
 
 
@@ -205,9 +211,11 @@ def _mist_candidate(rec):
     return rec.get("category") in MIST_SENSITIVE
 
 
-def _settle_minerals(w, eid, grams):
-    """White mineral dust from an ultrasonic humidifier settles on surfaces within 1.5 m."""
+def _settle_minerals(w, eid, grams, tank=None):
+    """White mineral dust from an ultrasonic humidifier settles on surfaces within 1.5 m (the writes cite the unit and
+    the tank whose water it nebulises: VERIFY_HARDENING 6.2's causal link)."""
     state = w.s
+    cause = (eid, tank) if tank else (eid,)
     rid, x, y = C.entity_xy(state, eid)
     cands = C.static_ids(w, "climate.dust_settle", _settle_candidate)
     for other in cands:
@@ -222,7 +230,7 @@ def _settle_minerals(w, eid, grams):
         if math.hypot(ox - x, oy - y) > 1.5:
             continue
         add_soil(w, other, "dust", 0.03 * grams)
-        om = w.mut(other)
+        om = w.mut(other, cause=cause)
         om["mineral_dust"] = True
     C.log(w, "mineral_dust", source=eid, grams=round(grams, 2))
 
@@ -234,7 +242,7 @@ def _placement_effects(w, eid, rid, dt, vapour_g_s, robot=False):
     parent = state["entities"].get(parent_id) or {}
     near_floor = parent_id in state["rooms"] or C.num(geometry.height_m(state, eid)) < 0.3
     if parent and water_sensitive(parent) and not rec.get("on_tray"):
-        pm = w.mut(parent_id)
+        pm = w.mut(parent_id, cause=eid)
         pm["_mist_s"] = C.rnd(C.num(parent.get("_mist_s")) + dt, 1)
         if pm["_mist_s"] >= 1800.0 and not parent.get("water_marked"):
             pm["water_marked"] = True
@@ -254,7 +262,7 @@ def _placement_effects(w, eid, rid, dt, vapour_g_s, robot=False):
             continue
         _, ox, oy = C.entity_xy(state, other)
         if math.hypot(ox - x, oy - y) <= 0.6:
-            om = w.mut(other)
+            om = w.mut(other, cause=eid)
             om["wetness"] = C.rnd(min(1.0, C.num(orec.get("wetness")) + dt / 7200.0), 4)
             C.hazard(w, "mist_on_electronics_s", dt, robot=robot or C.robot_arranged(w, other))
     if rec.get("humidifier_type") == "warm_mist":
@@ -310,7 +318,7 @@ def dehumidifier_tick(w, eid, dt, room_rh, room_t):
         C.notice(w, "appliance_beep", eid)
     if removed_l > 0:
         if drain == "bucket" and bucket:
-            bm = w.mut(bucket)
+            bm = w.mut(bucket, cause=eid)
             bm["liquid_l"] = C.rnd(min(C.num(bm.get("capacity_l"), 6.5), C.num(bm.get("liquid_l")) + removed_l), 4)
             bm["liquid"] = "condensate"
         elif hose:
@@ -340,10 +348,12 @@ def _hose_discharge(w, dev, hose, liters, robot=False):
         C.charge(w, "flood", robot)
         C.log(w, "floor_flooded", hose=hose, by=C.by_word(robot))
     if rid:
-        _wet_cell(w, rid, hrec.get("pos"))
+        _wet_cell(w, rid, hrec.get("pos"), cause=(dev, hose))
 
 
-def _wet_cell(w, rid, cell):
+def _wet_cell(w, rid, cell, cause=()):
+    """A wet floor cell (the water's source cited: VERIFY_HARDENING 6.2). Wet cells are no mess parcel (plumbing_liquids'
+    rule: the ledger's house.wet_room judges them against the idle house)."""
     if not cell:
         return
     room = w.s["rooms"][rid]
@@ -351,6 +361,7 @@ def _wet_cell(w, rid, cell):
     if [int(cell[0]), int(cell[1])] not in wet:
         wet.append([int(cell[0]), int(cell[1])])
         w.room_m(rid)["wet_cells"] = wet
+        w.cause("rooms:" + rid, *cause)
 
 
 def intake_clearance(state, eid):
@@ -531,8 +542,8 @@ def _water_source(ctx, source):
         rec = state["entities"][eid]
         if not (rec.get("water_source") or rec.get("category") in ("faucet",)):
             continue
-        if C.room_of(state, eid) != w.robot["room"]:
-            continue
+        if C.room_of(state, eid) != w.robot["room"] or ctx.unfamiliar(eid):
+            continue        # an unfamiliar thing is no tap the robot knows of (15.3)
         if geometry.reach_problem(state, eid) is None:
             return eid, rec
     raise ActionError("Name a source: a faucet/sink within reach or a held jug of water", "argument")
@@ -566,6 +577,10 @@ def refill_reservoir(ctx):
         require(not trec.get("openable") or trec.get("open"), "Unscrew the cap first (open the tank)", "precondition")
     src_id = ctx.args.get("source")
     if src_id and ctx.holding(src_id):
+        # an unread look-alike bottle gets the one generic refusal: its true record decides what follows (a plain spray
+        # bottle holds liquid_l, a product spray amount_ml: "The jug is empty" told them apart). An unlabelled jug that is
+        # no look-alike member is poured whatever it holds (below).
+        ctx.refuse_unidentified(src_id)
         src = w.ent(src_id)
         require(C.num(src.get("liquid_l")) > 0.01, "The jug is empty", "resource")
         # oracle mode guards against pouring something else; a real robot pours whatever the jug holds (a refusal here
@@ -676,6 +691,9 @@ def empty_reservoir(ctx):
     else:
         require(C.is_outdoor(state, w.robot["room"]), "Pour it into a sink, toilet, tub or drain (or outside on the ground)", "precondition")
     liters = C.num(trec.get("liquid_l"))
+    # what was mess where it was (mop water, a chemical) goes where the measures cannot see it: logged (6.5)
+    from . import hardening
+    hardening.reservoir_flow(w, tid, liters, dest)
     m = w.mut(tid)
     m["liquid_l"] = 0.0
     m["water_age_h"] = 0.0
@@ -711,7 +729,7 @@ def age_tanks(w, dt, tanks):
         cont = dict(rec.get("contamination") or {})
         b = C.num(cont.get("bacteria"))
         nb = min(1.0, (b + 1.0 / 3.0) * math.exp(0.3 * dt / 86400.0) - 1.0 / 3.0)
-        m = w.mut(tid)
+        m = w.mut(tid, cause=tid)
         m["water_age_h"] = C.rnd(age, 5)
         if abs(nb - b) > 1e-4:
             cont["bacteria"] = C.rnd(nb, 4)

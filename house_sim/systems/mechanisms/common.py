@@ -467,6 +467,103 @@ def agent_moved(w, group, aid):
         sync(w, aid)
 
 
+class _NoCause:
+    """A do-nothing context manager (caused() in a robot action, an untracked World or without ids)."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+_NO_CAUSE = _NoCause()
+
+
+def caused(w, *ids):
+    """Context manager for a time system's writes that are consequences of ids (VERIFY_HARDENING 6.2's causal link, WP2's
+    World.writing with cause=): a closer's swing cites the door, the rain through a window the window, a draught the door
+    and the window it comes through. The writer class stays the system's own; a robot action, an untracked World or no
+    ids change nothing. The house ledger then charges a divergent physical consequence only when its cause chain reaches
+    something the robot wrote (a door it let go of, a window it opened), never a resident's own window."""
+    ids = tuple(sorted(set(i for i in ids if isinstance(i, str) and i)))
+    if not ids or robot_acting(w) or not getattr(w, "tracking", False):
+        return _NO_CAUSE
+    return w.writing(w.writer[0], cause=ids)
+
+
+def volition(w, name="mechanisms.agents"):
+    """Context manager: a person's or pet's own move this domain carries out (a dog slipping out through an open gate, a
+    person walking through a door they waited at) is volition, not the robot's nor a physical consequence (6.2), whatever
+    window it runs in; the pet_escape flag keeps its own attribution (robot marks). A no-op in an untracked World."""
+    if not getattr(w, "tracking", False):
+        return _NO_CAUSE
+    return w.writing("volition", name=name)
+
+
+def water_sensitive(rec):
+    """Water harms this thing: the house ledger's one predicate (kernel.ledger.water_sensitive: water_safe false,
+    electronics, and the electrical gear and paper the domains' watch files list; closeout_breakages row 6), plus the
+    categories this domain always treated so."""
+    from ...kernel import ledger
+    return bool(ledger.water_sensitive(rec)) or rec.get("category") in ("electronics", "tv", "computer", "screen", "book", "paper")
+
+
+def spill_out(w, eid, lost, cause="spill", **data):
+    """Liquid leaves eid during a robot action (a lid popping, a door knocking a cup, a jerked drawer): it comes out of
+    eid's liquid_l and lands as a real spill below it (the kernel's phys.liquids.deposit_below: on what it stands on and
+    down its support chain to the floor), so the mess balance sees a parcel a mop can take up (VERIFY_HARDENING 6.5);
+    spilled_l stays eid's record of it. The `spills` flag counts once: the kernel's own count of a new spill, else this
+    domain's for droplets too small to pool. Returns the litres lost."""
+    from ...kernel.phys import liquids
+    rec = w.mut(eid)
+    lost = round(min(num(rec.get("liquid_l")), float(lost)), 3)
+    rec["liquid_l"] = round(num(rec.get("liquid_l")) - lost, 3)
+    rec["spilled_l"] = round(num(rec.get("spilled_l")) + lost, 3)
+    before = (w.s.get("stats") or {}).get("spills", 0)
+    liquids.deposit_below(w, eid, lost, rec.get("liquid") or "water", source=eid, cause=cause)
+    if (w.s.get("stats") or {}).get("spills", 0) == before:
+        harm(w, "spills", item=eid, **data)
+    else:
+        w.emit("harm_spills", by=by_word(True), item=eid, **data)
+    return lost
+
+
+def count_water(w, liters):
+    """Count litres this domain's verbs draw from the supply (a hose nozzle's squeeze, a flush handle) on the house water
+    meter the ledger reads (VERIFY_HARDENING 6.8: house_sim/data/verify/resources.json meters.water.path, plumbing's
+    meter): through plumbing's own accounting when that domain is loaded, else on the path alone."""
+    if not liters or liters <= 0:
+        return
+    plumbing = domain_module("plumbing_liquids", "common")
+    use = getattr(plumbing, "use_water", None) if plumbing is not None else None
+    if use is not None:
+        use(w, liters)
+    else:
+        _add_to_meter(w, "water", liters)
+
+
+def count_gas(w, kwh):
+    """Gas that left a burner on the house gas meter the ledger reads (6.8; resources.json's climate.energy.gas_kwh)."""
+    if kwh and kwh > 0:
+        _add_to_meter(w, "gas", kwh)
+
+
+def _add_to_meter(w, resource, amount):
+    from ...kernel import ledger
+    path = ((ledger.data("resources").get("meters") or {}).get(resource) or {}).get("path")
+    if not isinstance(path, str) or "." not in path:
+        return
+    parts = path.split(".")
+    node = w.sec(parts[0])
+    for key in parts[1:-1]:
+        child = node.get(key)
+        if not isinstance(child, dict):
+            child = node[key] = {}
+        node = child
+    node[parts[-1]] = round(num(node.get(parts[-1])) + float(amount), 6)
+
+
 def charge(w, stat, robot, amount=1):
     """Raise the global harm flag `stat` for a robot-caused harm; count an exogenous one in the section's "exogenous"
     {stat: n} instead (never observed). Returns robot."""
@@ -911,7 +1008,12 @@ def fall_item(w, eid, room, cell, height_m, cause):
         room = w.robot.get("room")
     spot = (int(cell[0]), int(cell[1])) if cell is not None and len(cell) >= 2 else None
     drop = None if height_m is None else max(0.0, float(height_m))       # None: from where it rests now
-    return physics.fall(w, eid, height_m=drop, cause=cause, at=(room, spot))
+    before, relation = w.s["entities"][eid].get("location"), w.s["entities"][eid].get("relation")
+    outcome = physics.fall(w, eid, height_m=drop, cause=cause, at=(room, spot))
+    if eid in w.s["entities"] and w.s["entities"][eid].get("location") != before:
+        from ..core import log_mess_move
+        log_mess_move(w, eid, before, w.s["entities"][eid].get("location"), relation)    # refuse a drawer dumps is mess moved
+    return outcome
 
 
 def gap_cm(rec):
@@ -946,6 +1048,41 @@ def held_open(rec, now, w=None, eid=None):
         ents = w.s["entities"]
         return any((ents.get(x) or {}).get("location") == eid for x in ids(w, "wedges"))
     return False
+
+
+def prop_in_place(state, eid, rec=None):
+    """mech.propped_by of door eid still names a wedge standing at the door: on the floor of one of its rooms within one
+    cell of the doorway, as the place hook that recorded it found it (a resident, a pet or another domain's verb may
+    carry it off; VERIFY_HARDENING 8.2: the record follows the state)."""
+    rec = rec if rec is not None else state["entities"][eid]
+    prop = (rec.get("mech") or {}).get("propped_by")
+    wedge = state["entities"].get(prop) if prop else None
+    if wedge is not None and wedge.get("location") == eid:
+        return True                     # under the door itself
+    if wedge is None or not wedge.get("pos") or wedge.get("location") not in door_rooms(state, eid):
+        return False
+    cell = doorway_cell(state, eid, wedge["location"])
+    return cell is not None and geometry.chebyshev(tuple(cell), tuple(wedge["pos"])) <= 1
+
+
+def release_prop(w, door, wedge):
+    """A door's prop came away (picked up by the robot, carried off by anyone): the door forgets it, the wedge forgets
+    the door and a spring closer starts swinging -- the robot's when its action took the prop away."""
+    rm, mech = mut_mech(w, door)
+    if mech.get("propped_by") == wedge:
+        mech.pop("propped_by", None)
+        rm.pop("propped", None)
+        if isinstance(rm.get("settings"), dict):
+            rm["settings"].pop("hold_open", None)
+            if not rm["settings"]:
+                rm.pop("settings")
+        if mget(w.ent(door), "self_closing") or w.ent(door).get("self_closing"):
+            mech["release_at"] = w.s["time_s"]
+            note_robot(w, door, "release")
+    if wedge in w.s["entities"] and (w.ent(wedge).get("props_open") or w.ent(wedge).get("propping")):
+        wm = w.mut(wedge)
+        wm.pop("props_open", None)
+        wm.pop("propping", None)
 
 
 def self_closing(rec):

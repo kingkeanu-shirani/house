@@ -234,7 +234,9 @@ def give_pet_medication(ctx):
                           pet_medication=True, prescribed_for=rec.get("prescribed_for"), drug=rec.get("drug"), toxin=rec.get("toxin"),
                           dose_units=dose, count=dose, form="tablet", mass_kg=0.001, size_m=[0.01, 0.01, 0.005], volume_l=0.001,
                           pet_appeal={"dog": 0.5, "cat": 0.05}, schedule=list(rec.get("schedule") or []), source_med=med,
-                          derived_from=source)
+                          derived_from=source, tags=["opened_medication"], source_entity=source)
+        # (tag and source_entity: medication the robot's dose left on the floor must end back with its bottle or in
+        # hazardous waste, house.created_hazard, or be dosed again)
         prec["pos"] = C.free_cell_near(state, pet.get("location"), pet.get("pos"))
         w.create(pill, prec)
         C.log(w, "pill_spat", pet=pid, pill=pill)

@@ -154,6 +154,87 @@ class StdlibTests(unittest.TestCase):
             """), [])
 
 
+class CloseOutGapTests(unittest.TestCase):
+    """closeout_REV finding 9 / closeout_VER2: the forms the lint missed although it claimed the feature (one case each,
+    with its 3.9-safe control)."""
+
+    def assertFound(self, source, needle):
+        found = [m for _, m in problems(source)]
+        self.assertTrue(any(needle in m for m in found), (source, found))
+
+    def assertClean(self, source):
+        self.assertEqual(problems(source), [], source)
+
+    def test_grammar_the_3_9_parser_mode_lets_through(self):
+        self.assertFound("y = a[x := 1]\n", "assignment expression in an index")
+        self.assertFound("y = a[x := 1, 2]\n", "assignment expression in an index")
+        self.assertFound("s = {y := 1, 2}\n", "assignment expression in a set")
+        self.assertFound("a = b[*c]\n", "star in a subscript")
+        self.assertFound("a = b[1, *c]\n", "star in a subscript")
+        self.assertFound("def f(*args: *Ts):\n    pass\n", "*args annotation")
+        self.assertClean("y = a[(x := 1)]\ns = {(y := 1), 2}\nt = a[(*b, 1)]\nu = [*a, *b]\nv = a[1:2]\n")
+
+    def test_forward_references_are_definition_time_below_3_14(self):
+        self.assertFound("def f(x: Later) -> Later:\n    return x\n\nclass Later:\n    pass\n", "'Later'")
+        self.assertFound("class C:\n    def m(self) -> C:\n        return self\n", "'C'")
+        self.assertFound("class C:\n    y: Later = None\n\nclass Later:\n    pass\n", "'Later'")
+        self.assertFound("from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from x import T\n"
+                         "def f(a: T):\n    return a\n", "'T'")
+        self.assertClean("class Later:\n    pass\n\ndef f(x: Later) -> Later:\n    return x\n")
+        self.assertClean('def f(x: "Later"):\n    return x\n\nclass Later:\n    pass\n')
+        self.assertClean("from __future__ import annotations\n\ndef f(x: Later):\n    return x\n\n"
+                         "class Later:\n    pass\n")
+        self.assertClean("def outer():\n    local: Later = None\n    return local\n\nclass Later:\n    pass\n")
+        self.assertClean("import typing\nfrom typing import List\ndef g(a: List[int], b: typing.Any):\n    return a\n")
+
+    def test_unions_of_the_modules_own_classes(self):
+        self.assertFound("class Foo:\n    pass\nclass Bar:\n    pass\nHandler = Foo | Bar\n", "run-time union")
+        self.assertFound("import typing\nclass Foo:\n    pass\nclass Bar:\n    pass\n"
+                         "v = typing.cast(Foo | Bar, 1)\n", "run-time union")
+        self.assertFound("from typing import List\nA = List[int] | None\n", "run-time union")
+        self.assertClean("import re\nFLAGS = re.I | re.M\nA = 1\nB = 2\nC = A | B\n")
+
+    def test_import_aliases_are_resolved(self):
+        self.assertFound("import itertools as it\nw = list(it.pairwise([1, 2]))\n", "itertools.pairwise is 3.10+")
+        self.assertFound("import math as m\nr = m.cbrt(8)\n", "math.cbrt is 3.11+")
+        self.assertFound("from dataclasses import dataclass as dc\n@dc(slots=True)\nclass P:\n    pass\n",
+                         "dataclass(slots=) is 3.10+")
+        self.assertFound("import os.path as osp\nj = osp.isjunction('a')\n", "os.path.isjunction is 3.12+")
+        self.assertClean("import itertools as it\nc = list(it.chain([1]))\nimport math as m\nr = m.sqrt(4)\n")
+
+    def test_standard_library_gaps(self):
+        for source, needle in (
+                ("import unittest\nclass T(unittest.TestCase):\n    def t(self):\n"
+                 "        with self.assertNoLogs():\n            pass\n", "assertNoLogs"),
+                ("class T:\n    def t(self):\n        self.enterContext(a)\n", "enterContext"),
+                ("from collections import Counter\nc = Counter('a')\nn = c.total()\n", "Counter.total"),
+                ("import collections\nn = collections.Counter('a').total()\n", "Counter.total"),
+                ("f = open('a', encoding='locale')\n", 'encoding="locale"'),
+                ("b = (5).to_bytes()\n", "int.to_bytes()"),
+                ("n = int.from_bytes(b'a')\n", "int.from_bytes()"),
+                ("import traceback\ntraceback.print_exception(e)\n", "print_exception(exc)"),
+                ("import traceback as tb\ntb.format_exception(e)\n", "format_exception(exc)"),
+                ("import glob\nf = glob.glob('*', root_dir='a')\n", "glob(root_dir=)"),
+                ("import subprocess\nsubprocess.run(['a'], process_group=0)\n", "process_group"),
+                ("import re\nr = re.compile('(?>a)b')\n", "atomic"),
+                ("import re as rx\nr = rx.match('a*+b', 's')\n", "possessive"),
+                ("import re\nr = re.search('a{2,3}+', 's')\n", "possessive"),
+                ("import os\nj = os.path.isjunction('a')\n", "os.path.isjunction"),
+                ("from pathlib import Path\nroot = Path('a')\nfor x in root.walk():\n    pass\n", "Path.walk"),
+                ("from pathlib import Path\nsub = Path('a') / 'b'\nr = sub.relative_to('c', walk_up=True)\n",
+                 "walk_up"),
+                ("import copy\nb = copy.replace(a)\n", "copy.replace"),
+                ("import warnings\n@warnings.deprecated('x')\ndef f():\n    pass\n", "warnings.deprecated"),
+                ("from datetime import datetime\nd = datetime.fromisoformat('2026-01-01T00:00:00Z')\n",
+                 "trailing Z")):
+            self.assertFound(source, needle)
+        self.assertClean("import os, ast\nfor x in os.walk('a'):\n    pass\nfor n in ast.walk(t):\n    pass\n"
+                         "b = (5).to_bytes(2, 'big')\nn = int.from_bytes(b'a', 'big')\ns = totals.total()\n"
+                         "import re\nr = re.compile(r'a+b*[+*]\\+(?:c)?')\nf = open('a', encoding='utf-8')\n"
+                         "import traceback\ntraceback.print_exception(t, e, tb)\n"
+                         "from datetime import datetime\nd = datetime.fromisoformat('2026-01-01T00:00:00+00:00')\n")
+
+
 class ProjectTests(unittest.TestCase):
     def test_the_command_line_reports_and_exits_non_zero(self):
         tmp = Path(tempfile.mkdtemp(prefix="py39_lint_"))

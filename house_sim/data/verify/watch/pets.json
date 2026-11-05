@@ -1,0 +1,561 @@
+{
+ "about": "Field classes of the pets domain's types for the house ledger (VERIFY_HARDENING 6.3, lint L-WATCH; WP-D pets). 'fields' classifies every property name of house_sim/data/types/pets.json and the fields pets' verbs and systems write onto its own types, for every type that file defines; 'types' overrides a name for the types where it means something else (a waste bag's weight follows its load, a pile is the mess itself, a care log's text is what the robot wrote). Classes: placement, setting, condition (with 'worse': true / false / up / down / change and 'tol'), identity, content ('guard': 'mess' for a load the pet_waste balance of 6.5 judges instead of the content guard), process (biology and drift: biofilm, algae, a tank's chemistry, a bowl's debris; the look-ahead and the pets.* invariants judge those), bookkeeping. water_sensitive: pets types a charged wetting damages (house.wet). writes: the names pets writes on other domains' things (classified there by the kernel's watch_fields.json; a request to WP1 lists the ones it does not know).",
+ "fields": {
+  "accepts_items": "identity",
+  "affordances": "identity",
+  "airtight": "identity",
+  "algae": "process",
+  "ants": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "approved_setpoints": "identity",
+  "aquarium_device": "identity",
+  "area_m2": "identity",
+  "aromatic": "identity",
+  "aromatic_bedding": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "attached_to": "setting",
+  "bacteria": "process",
+  "battery_level": "process",
+  "battery_powered": "identity",
+  "bedding_kind": "identity",
+  "biofilm": "process",
+  "blocks_path": "identity",
+  "bowl_capacity_l": "identity",
+  "bowl_kind": "identity",
+  "broody": "process",
+  "brush_kind": "identity",
+  "buckled": "setting",
+  "buckles_closed": "setting",
+  "burnt_out": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "can_cover": "identity",
+  "capacity_l": "identity",
+  "category": "identity",
+  "chewable": "identity",
+  "chewed": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "clog": "process",
+  "clog_kind": "bookkeeping",
+  "clogged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "clumped_kg": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "clumps": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "color": "identity",
+  "concealed": "process",
+  "conditioned_l": "bookkeeping",
+  "conditioner_credit_l": "bookkeeping",
+  "container": "identity",
+  "contaminated": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "contents": {
+   "class": "content"
+  },
+  "count": {
+   "class": "content"
+  },
+  "covered": "setting",
+  "cracked": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "crate_size": "identity",
+  "crated_s": "bookkeeping",
+  "damage": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "damage.*": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "damaged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "debris": "process",
+  "depth_cm": "process",
+  "designated_for": "identity",
+  "detritus": "process",
+  "dirtiness": "process",
+  "dirty": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "display": "process",
+  "dose_ml_per_10l": "identity",
+  "dose_units": "identity",
+  "double_fed": "bookkeeping",
+  "droppings": "process",
+  "drug": "identity",
+  "dust_cloud": "process",
+  "egg_count": "process",
+  "emptied_s": "bookkeeping",
+  "enclosure_device": "identity",
+  "entries": "bookkeeping",
+  "evidence_of": "identity",
+  "feces": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "fed_g_total": "bookkeeping",
+  "fed_slots": "bookkeeping",
+  "fetchable": "identity",
+  "fill_line_frac": "identity",
+  "filter_due": "process",
+  "filter_kind": "identity",
+  "fish_deaths": "process",
+  "fish_food_kind": "identity",
+  "flock_inside": "process",
+  "floor_hazard": {
+   "class": "condition",
+   "worse": "change"
+  },
+  "floor_scratch_risk": "identity",
+  "flow": "process",
+  "flowing": "process",
+  "food": "identity",
+  "food_g": {
+   "class": "content",
+   "tol": 0.5
+  },
+  "food_g.*": {
+   "class": "content",
+   "tol": 0.5
+  },
+  "food_meta": "bookkeeping",
+  "food_waste": "bookkeeping",
+  "for_species": "identity",
+  "form": "identity",
+  "fragile": "identity",
+  "fresh_part": "bookkeeping",
+  "freshness": "process",
+  "g_per_pinch": "identity",
+  "g_per_treat": "identity",
+  "gear_kind": "identity",
+  "ground_layer": "identity",
+  "hair_g": "process",
+  "has_food_waste": "bookkeeping",
+  "hazards": "identity",
+  "hens": {
+   "class": "content"
+  },
+  "hens_lost": {
+   "class": "condition",
+   "worse": "up"
+  },
+  "home": "identity",
+  "home_pos": "identity",
+  "hopper_g": {
+   "class": "content",
+   "tol": 0.5
+  },
+  "hopper_kind": "setting",
+  "hull_g": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "inner_floor_m": "identity",
+  "inner_size_m": "identity",
+  "inspect_from_afar": "identity",
+  "installed_s": "process",
+  "kcal_per_treat": "identity",
+  "kicked_out_kg": "bookkeeping",
+  "label": "identity",
+  "label_text": "identity",
+  "laid_s": "process",
+  "last_check": "bookkeeping",
+  "last_scooped_s": "bookkeeping",
+  "last_served": "bookkeeping",
+  "latched": "setting",
+  "length_m": "identity",
+  "licked_by": "bookkeeping",
+  "light_s_today": "process",
+  "liner_kind": "identity",
+  "liquid": "process",
+  "liquid_container": "identity",
+  "liquid_l": {
+   "class": "content",
+   "tol": 0.01
+  },
+  "liquid_temp_c": "process",
+  "litter_density_kg_l": "identity",
+  "litter_kg": {
+   "class": "content",
+   "tol": 0.02
+  },
+  "litter_kind": "identity",
+  "litter_mix": "setting",
+  "live_when_plugged": "identity",
+  "log_kind": "identity",
+  "logged": "bookkeeping",
+  "lot": "identity",
+  "mass_kg": {
+   "class": "content",
+   "tol": 0.005
+  },
+  "material": "identity",
+  "max_l": "identity",
+  "med_in_food": {
+   "class": "condition",
+   "worse": "change"
+  },
+  "medicated": {
+   "class": "condition",
+   "worse": "change"
+  },
+  "min_l": "identity",
+  "moist": "identity",
+  "mount_height_m": "identity",
+  "movable": "identity",
+  "net_g": "bookkeeping",
+  "noise_db": "identity",
+  "observed_abnormal": "bookkeeping",
+  "occupant": "bookkeeping",
+  "odor": "process",
+  "odor.*": "process",
+  "on": "setting",
+  "open": "setting",
+  "openable": "identity",
+  "opened": "setting",
+  "opened_s": "bookkeeping",
+  "out_of_range": "process",
+  "overflowed_l": "bookkeeping",
+  "owner": "identity",
+  "padded": "identity",
+  "part_type": "identity",
+  "perishable": "identity",
+  "pet_appeal": "identity",
+  "pet_food": "identity",
+  "pet_gear": "identity",
+  "pet_item": "identity",
+  "pet_medication": "identity",
+  "pet_proof": "identity",
+  "pet_safe": "identity",
+  "pet_toy_of": "identity",
+  "pet_waste": "bookkeeping",
+  "pill_carrier": "identity",
+  "plug_required": "identity",
+  "plugged_in": "setting",
+  "portable": "identity",
+  "power_w": "identity",
+  "prescribed_for": "identity",
+  "primed": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "pump_ok": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "readings": "bookkeeping",
+  "refilled_s": "bookkeeping",
+  "remaining_g": {
+   "class": "content",
+   "tol": 0.5
+  },
+  "remaining_kg": {
+   "class": "content",
+   "tol": 0.01
+  },
+  "remaining_l": {
+   "class": "content",
+   "tol": 0.05
+  },
+  "remaining_ml": {
+   "class": "content",
+   "tol": 0.1
+  },
+  "remote_status": "identity",
+  "residue": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.02
+  },
+  "residue.*": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.02
+  },
+  "revealed": "bookkeeping",
+  "ring": "setting",
+  "rings": "identity",
+  "safe_grips": "identity",
+  "schedule": "identity",
+  "scoop_ml": "identity",
+  "sealed": "setting",
+  "secret_fields": "identity",
+  "service_life_days": "identity",
+  "setting_options": "identity",
+  "settings": "setting",
+  "settings.*": "setting",
+  "shampoo_kind": "identity",
+  "size_m": "identity",
+  "slosh_frac": "identity",
+  "slots": "setting",
+  "slots.*": "setting",
+  "soft": "identity",
+  "soft_sided": "identity",
+  "soil": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "soil.*": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "source_entity": "bookkeeping",
+  "source_med": "identity",
+  "source_pet": "identity",
+  "species_fit": "identity",
+  "species_ranges": "identity",
+  "spoiled": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "squashed": "bookkeeping",
+  "stackable": "identity",
+  "stale_wet": "process",
+  "stash_lost": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "stock": "process",
+  "storage": "identity",
+  "string_toy": "identity",
+  "substrate": "process",
+  "substrate.depth_cm": {
+   "class": "content",
+   "tol": 0.1
+  },
+  "substrate.kind": "setting",
+  "substrate.nest_g": "process",
+  "substrate.soiled": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "surface": "identity",
+  "surface_height_m": "identity",
+  "surface_size_m": "identity",
+  "swallowable": "identity",
+  "switchable": "identity",
+  "tags": "identity",
+  "taken_by": "process",
+  "temperature_c": "process",
+  "text": "identity",
+  "tied": "setting",
+  "tool_kind": "identity",
+  "torn": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "toxin": "identity",
+  "toxin_evidence": "identity",
+  "toy_for": "identity",
+  "toy_owner": "identity",
+  "transparent": "identity",
+  "treat_kind": "identity",
+  "treat_species": "identity",
+  "two_handed": "identity",
+  "uneaten_g": "process",
+  "uses": {
+   "class": "content"
+  },
+  "volume_l": "identity",
+  "walk_item": "identity",
+  "washable": "identity",
+  "washed_s": "bookkeeping",
+  "washed_with": "bookkeeping",
+  "waste": "bookkeeping",
+  "waste_g": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "waste_kind": "identity",
+  "waste_stream": "identity",
+  "water": "process",
+  "water.*": "process",
+  "water_l": {
+   "class": "content",
+   "tol": 0.05
+  },
+  "water_level": "process",
+  "water_ok": "identity",
+  "water_safe": "identity",
+  "watertight": "identity",
+  "watts": "identity",
+  "wear_slot": "identity",
+  "wearable": "identity",
+  "weatherproof": "identity",
+  "wet": "process",
+  "wet_clumped": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "wetness": "process",
+  "zones": "process",
+  "zones.*": "process"
+ },
+ "types": {
+  "aquarium": {
+   "stock": "process",
+   "water": "process",
+   "water.*": "process"
+  },
+  "automatic_pet_feeder": {
+   "food_g": {
+    "class": "content",
+    "tol": 0.5
+   },
+   "food_g.*": {
+    "class": "content",
+    "tol": 0.5
+   },
+   "display": "process"
+  },
+  "bird_seed_dish": {
+   "hull_g": {
+    "class": "content",
+    "guard": "mess"
+   }
+  },
+  "cat_wet_food_can": {
+   "storage": "bookkeeping",
+   "perishable": "bookkeeping",
+   "net_g": "bookkeeping",
+   "pet_food": "process",
+   "pet_food.*": "process"
+  },
+  "dog_waste": {
+   "mass_kg": {
+    "class": "content",
+    "guard": "mess"
+   },
+   "floor_hazard": "bookkeeping",
+   "hazards": "process",
+   "concealed": "process",
+   "soft": "process"
+  },
+  "dog_wet_food_can": {
+   "storage": "bookkeeping",
+   "perishable": "bookkeeping",
+   "net_g": "bookkeeping",
+   "pet_food": "process",
+   "pet_food.*": "process"
+  },
+  "pet_care_log": {
+   "text": "bookkeeping",
+   "entries": "bookkeeping",
+   "logged": "bookkeeping"
+  },
+  "pet_medication": {
+   "count": {
+    "class": "content"
+   },
+   "mass_kg": {
+    "class": "content",
+    "tol": 0.005
+   }
+  },
+  "pet_waste_bag": {
+   "contents": {
+    "class": "content",
+    "guard": "mess"
+   },
+   "mass_kg": {
+    "class": "content",
+    "guard": "mess"
+   },
+   "volume_l": "process",
+   "waste_stream": "bookkeeping",
+   "waste_kind": "bookkeeping",
+   "odor": "process",
+   "sealed": "setting",
+   "tied": "setting"
+  },
+  "pet_water_fountain": {
+   "flow": "process",
+   "flowing": "process"
+  },
+  "reptile_enclosure": {
+   "zones": "process",
+   "zones.*": "process"
+  },
+  "small_animal_cage": {
+   "substrate": "process"
+  },
+  "wet_food_can": {
+   "storage": "bookkeeping",
+   "perishable": "bookkeeping",
+   "net_g": "bookkeeping",
+   "pet_food": "process",
+   "pet_food.*": "process"
+  }
+ },
+ "water_sensitive": [
+  "aquarium_test_strips",
+  "automatic_pet_feeder",
+  "basking_lamp",
+  "bedding_bag",
+  "bird_seed",
+  "cage_liner",
+  "cat_kibble_bag",
+  "cat_litter_bag",
+  "ceramic_heat_emitter",
+  "chicken_feed_bag",
+  "dog_kibble_bag",
+  "fish_food",
+  "ir_thermometer",
+  "pet_care_log",
+  "pet_care_note",
+  "pet_dryer",
+  "pet_food_bag",
+  "rx_kibble_bag",
+  "scented_cage_liner",
+  "sinking_pellets",
+  "terrarium_thermometer"
+ ],
+ "writes": [
+  "_waste_origins",
+  "chewed",
+  "clog_kind",
+  "clogged",
+  "contaminated",
+  "contents",
+  "evidence_of",
+  "food_waste",
+  "has_food_waste",
+  "licked_by",
+  "mass_kg",
+  "med_in_food",
+  "medicated",
+  "pet_waste",
+  "source_pet",
+  "stash_lost",
+  "taken_by",
+  "waste_g",
+  "wetness"
+ ]
+}

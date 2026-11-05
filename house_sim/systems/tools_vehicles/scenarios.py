@@ -259,7 +259,7 @@ def toolbox(ctx, room=None, tools=None, toolset="basic", damaged=None, on=None, 
     surface = on or _surface(ctx, room)
     box = _put(ctx, room, "toolbox", on=surface, open=bool(open), eid=ctx.placer.new_id(prefix + "toolbox") if prefix else None)
     out = {"toolbox": box, "tool_room": room, "tools": []}
-    for type_name in tools or TOOLSETS.get(toolset, TOOLSETS["basic"]):
+    for type_name in ctx.placer.order(list(tools or TOOLSETS.get(toolset, TOOLSETS["basic"]))):
         props = {"home": box if home else None}
         if damaged and type_name in damaged:
             props["_damage"] = {"kind": damaged[type_name], "visible": "closely"}
@@ -411,7 +411,7 @@ def tool_inspection(ctx, room=None, damaged=2, dirty=True):
     bad = {t for t, _ in picks[:int(damaged)]}
     out = {"inspect_room": room, "bench": bench, "tools": [], "damaged": [], "intact": []}
     host = bench
-    for type_name, kind in INSPECTION_TOOLS:
+    for type_name, kind in ctx.placer.order(list(INSPECTION_TOOLS)):
         props = {}
         if type_name in bad:
             props["_damage"] = {"kind": kind, "visible": "closely"}
@@ -843,7 +843,7 @@ def decor(ctx, room=None, item="wreath", mass_kg=1.2, fragile=False, approved=("
     deco = _put(ctx, room, tname, on=surface, **props)
     tray = _put(ctx, room, "parts_tray", on=surface, label="hardware tray")
     out = {"wall": wid, "decor_room": room, "decoration": deco, "hardware_tray": tray}
-    for h in hooks:
+    for h in ctx.placer.order(list(hooks)):
         hid = ctx.placer.inside(tray, h)
         if hid is None:
             hid = _put(ctx, room, h, on=surface)
@@ -1356,15 +1356,15 @@ def undersink_filter(ctx, room=None):
     # spare cartridges live in a base cabinet when there is one (opening a head-height cabinet door beside a resident
     # cooking at the counter swings it toward them); upper cabinets otherwise
     store = [c for c in p.find("cabinet", room) + p.find("upper_cabinet", room) if c != sink_cab and reachable(ctx, c)]
-    new = alike = None
-    if store:
-        new = p.inside(store[0], "undersink_filter_cartridge", label="new filter cartridge (CB-10)", shelf=0)
-        alike = p.inside(store[0], "water_filter_cartridge", label="refrigerator filter (EDR1RXD1)", shelf=0)
+    parts = {"new": ("undersink_filter_cartridge", "new filter cartridge (CB-10)"), "alike": ("water_filter_cartridge", "refrigerator filter (EDR1RXD1)")}
+    placed = {}
     counter = next((c for c in p.find("counter", room) + p.find("table", room) if reachable(ctx, c)), None)
-    if new is None:
-        new = _put(ctx, room, "undersink_filter_cartridge", on=counter, label="new filter cartridge (CB-10)")
-    if alike is None:
-        alike = _put(ctx, room, "water_filter_cartridge", on=counter, label="refrigerator filter (EDR1RXD1)")
+    for role in p.order(["new", "alike"]):        # the look-alike pair in a seeded order (VERIFY_HARDENING 9.2; schema 4)
+        kind, label = parts[role]
+        placed[role] = p.inside(store[0], kind, label=label, shelf=0) if store else None
+        if placed[role] is None:
+            placed[role] = _put(ctx, room, kind, on=counter, label=label)
+    new, alike = placed["new"], placed["alike"]
     # the trash can stands clear of the sink cabinet's door swing (a door sweeping open knocks a can over)
     swing = set()
     for cab in [sink_cab] + store[:1]:
@@ -1454,7 +1454,12 @@ def door_seals(ctx, failing=2, include_windows=True, seed_kinds=("compressed", "
         for n in names:
             segs.setdefault(t, []).append(n)
     pool = [(t, n) for t in targets for n in segs[t]]
-    chosen = ctx.rng.sample(pool, min(failing, len(pool)))
+    if failing == "random" or isinstance(failing, (list, tuple)):
+        # a role list (VERIFY_HARDENING 9.2): "random" draws which segments fail, a sample binding names them ("door:segment")
+        names = ctx.sample_roles(failing, ["{}:{}".format(t, n) for t, n in pool], name="door_seals failing")
+        chosen = [tuple(item.split(":", 1)) for item in names]
+    else:
+        chosen = ctx.rng.sample(pool, min(failing, len(pool)))
     out = {"seal_targets": targets, "failing": [], "failing_by_target": {t: [] for t in targets}, "first_target": targets[0],
            "first_window": next((t for t in targets if _cfg(ctx, t).get("category") == "window"), targets[0])}
     for i, (t, n) in enumerate(sorted(chosen)):

@@ -695,7 +695,8 @@ class PurifierTests(unittest.TestCase):
         ok(self, env.step("place", "old_prefilter", destination="trash"))
         self.assertEqual(ent(env, "old_prefilter")["location"], "trash")
         if any(name.startswith("admin_inventory") for name in INVARIANTS):
-            self.assertIn("discarded_protected:old_prefilter", failures(env))
+            # (admin_inventory's label; its phase-2 package renames it to the registered invariant's name)
+            self.assertTrue({"discarded_protected:old_prefilter", "admin_inventory.protected_items:discarded:old_prefilter"} & set(failures(env)))
 
 
 class HumidityTests(unittest.TestCase):

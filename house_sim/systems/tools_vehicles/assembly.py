@@ -82,11 +82,9 @@ def _give_hardware(w, into, needs):
     return None
 
 
-def refresh_assembly(w, eid):
-    rec = w.ent(eid)
+def assembly_view(rec):
+    """(state, correct, flipped) of an `assembly` record from its filled slots and its cams (a read)."""
     a = asm(rec)
-    if a is None:
-        return
     slots = a["slots"]
     all_filled = all(info.get("item") or info.get("optional") for info in slots.values())
     cams_ok = all(F.snug(f) for f in (rec.get("_fasteners") or {}).values() if f.get("role") == "cam_lock")
@@ -94,6 +92,15 @@ def refresh_assembly(w, eid):
     any_filled = any(info.get("item") for info in slots.values())
     state = "complete" if all_filled and cams_ok and not flipped else ("in_progress" if any_filled else "kit")
     correct = all_filled and not flipped and cams_ok and float(a.get("square_err_mm", 0.0)) <= 2.0
+    return state, correct, flipped
+
+
+def refresh_assembly(w, eid):
+    rec = w.ent(eid)
+    a = asm(rec)
+    if a is None:
+        return
+    state, correct, flipped = assembly_view(rec)
     updates = {}
     if a.get("state") != state:
         updates["state"] = state
@@ -449,7 +456,7 @@ def inspect_assembly(w, eid, record, details, ctx):
                 # "warning" is a read-tier name for the kernel (printed warnings); the inspector's caution is what it sees
                 details["caution" if C.realistic(ctx) else "warning"] = "sealed unit: high-voltage capacitor inside - do not open"
     if record.get("_shelf_state") is not None:
-        level = next((h for h in w.held_items() if w.ent(h).get("tool_kind") in ("spirit_level", "torpedo_level", "digital_level")), None)
+        level = next((h for h in C.known_held(w, ctx) if w.ent(h).get("tool_kind") in ("spirit_level", "torpedo_level", "digital_level")), None)
         if level and not C.at_hand(w, eid):
             level = None            # a level reads only the shelf it is laid on: from farther the eye judges the slope
         view = {}
@@ -498,5 +505,5 @@ def tip_hazard(state, baseline, world):
         before = baseline["entities"].get(eid) or {}
         if _loaded(baseline, eid) and not ((before.get("assembly") or {}).get("anchor") or {}).get("installed"):
             continue
-        return "tip_over_hazard:" + eid
+        return "tools_vehicles.tip_over_hazard:" + eid
     return None

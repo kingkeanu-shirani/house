@@ -33,6 +33,10 @@ only to a running peer that owns the file, listing every attribution; every re-r
 reviewed and a signed "golden" row, and a known-failing pin counts only while the committed allowlist excuses it; the
 wall-clock bounds run relaxed in the correctness runs (their bodies run), are registered (gate_policy/perf_tests.json)
 and one that skips its body counts as a skip; the phase-2 packages; the Python 3.9 lint in G1 and CI.
+Phase-2 carry-over (CarryOverGateTests; closeout_REV 1-4, 8 and closeout_VER2): nothing under the source folders hides
+behind an ignore rule, an isolated copy's own .gitignore counts for nothing, no check reads a bytecode file of the tree, a
+copy based on an older commit fails G10 and TREE, a new test that skips is a regression, the bound scan follows the switch
+out of a test method. RunCheckHardenedTests: run_check.py on schema 4; HardenedStageTests: the gate's G11.
 Everything runs on temporary folders; nothing is committed and no policy file of the project is written.
 """
 import contextlib
@@ -60,6 +64,23 @@ _RC = importlib.util.spec_from_file_location("run_check_under_test", str(ROOT / 
                                                                          "run_check.py"))
 run_check = importlib.util.module_from_spec(_RC)
 _RC.loader.exec_module(run_check)
+
+# An isolated copy (`tier1_gate.py isolate`, `record --root`) carries this suite and the gate script but no git history:
+# its own gate script trusts no policy source (rightly: FIX2), so a record on a copy could never pass G1 (P2-S2 merge,
+# request 4). In a copy the suite reads the copy's own policy files through a test-only source; an edit of them, of this
+# test or of the gate script is the copy's G10 failure (the record's gate reads the project's commits).
+IN_ISOLATED_COPY = (ROOT / gate.ISOLATE_MANIFEST).exists()
+if IN_ISOLATED_COPY:
+    _TRUSTED_BYTES = gate.trusted_bytes
+
+    def _copy_policy(root, rel):
+        if Path(root).resolve() != ROOT:
+            return _TRUSTED_BYTES(root, rel)    # any other folder (a fixture's copy, a fixture's repository) as ever
+        try:
+            return (ROOT / rel).read_bytes(), "the isolated copy's own file (tests only)"
+        except OSError:
+            return None, "not committed"
+    gate.trusted_bytes = _copy_policy
 
 FILE_A = "admin_inventory__examples.json"
 TREE = "t" * 64                 # the tree fingerprint of the synthetic records (tree_fingerprint is patched to it)
@@ -1672,7 +1693,7 @@ class CloseOutGateTests(GateCase):
                          [{"key": "specs/T-1", "change": "edited", "digest": gate.golden_entries(edited)["specs/T-1"]}])
         self.assertEqual([c["change"] for c in gate.golden_changes(None, entries)], ["added"] * 5)
         # the real golden at HEAD: the base of a record against a previous record without entries
-        if shutil.which("git"):
+        if shutil.which("git") and not IN_ISOLATED_COPY:
             head = gate.golden_at("HEAD")
             self.assertTrue(head and any(k.startswith("specs/") for k in head))
 
@@ -1824,6 +1845,712 @@ class CloseOutGateTests(GateCase):
                 ["K-GATE3"])
             self.assertIn("house_sim/data/types/cleaning.json", pk["P1C:mechanisms"]["files"])
             self.assertTrue(pk["P1C"]["gate_tool"] and pk["P1C"]["policy"])
+
+
+def git_in(repo, *args):
+    return subprocess.run(["git", "-C", str(repo)] + list(args), capture_output=True, text=True, encoding="utf-8",
+                          errors="replace")
+
+
+@unittest.skipUnless(shutil.which("git"), "git is not available")
+class CarryOverGateTests(unittest.TestCase):
+    """The gate-tool findings of catalog/analysis/phase1/closeout_REV.json confirmed by closeout_VER2.json, each replayed
+    on a small repository of its own."""
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp(prefix="gate_carry_"))
+        self.addCleanup(shutil.rmtree, str(self.repo), True)
+        git_in(self.repo, "init", "-q")
+        git_in(self.repo, "config", "user.email", "test@example.invalid")
+        git_in(self.repo, "config", "user.name", "gate test")
+        git_in(self.repo, "config", "commit.gpgsign", "false")
+        git_in(self.repo, "config", "core.autocrlf", "false")
+        for rel, text in ((".gitignore", "results/\n*.pyc\n__pycache__/\n"), ("house_sim/kernel/core.py", "V = 1\n"),
+                          ("tests/test_a.py", "# a test\n"), ("tools/orchestration/green_tests.json", "[]\n")):
+            path = self.repo / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+        git_in(self.repo, "rm", "-q", "--cached", "tools/orchestration/green_tests.json")
+        (self.repo / ".gitignore").write_text("results/\n*.pyc\n__pycache__/\ntools/orchestration/green_tests.json\n",
+                                              encoding="utf-8")
+        git_in(self.repo, "add", "-A")
+        self.assertEqual(git_in(self.repo, "commit", "-q", "-m", "base").returncode, 0)
+        self.base = git_in(self.repo, "rev-parse", "HEAD").stdout.strip()
+
+    def policy(self):
+        return gate.policy_for(["P1C:pets"])
+
+    def make_copy(self, base=None):
+        """An isolated copy of the repository at `base`, as cmd_isolate makes it (the project is the repository)."""
+        out = Path(tempfile.mkdtemp(prefix="gate_copy_"))
+        self.addCleanup(shutil.rmtree, str(out), True)
+        base = base or self.base
+        for rel in git_in(self.repo, "ls-tree", "-r", "--name-only", base).stdout.splitlines():
+            path = out / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(subprocess.run(["git", "-C", str(self.repo), "show", "{}:{}".format(base, rel)],
+                                            capture_output=True).stdout)
+        gate.write_json(out / gate.ISOLATE_MANIFEST, {"format": gate.ISOLATE_FORMAT, "base": base, "project": str(self.repo)})
+        return out
+
+    def test_rev1_a_git_ignored_folder_under_the_source_folders_is_seen(self):
+        """closeout_REV 1: a module under house_sim/systems/results/ ran in every check while G10, TREE and git saw
+        nothing."""
+        before = gate.tree_fingerprint(self.repo)
+        planted = self.repo / "house_sim" / "systems" / "results" / "__init__.py"
+        planted.parent.mkdir(parents=True)
+        planted.write_text("X = 1\n", encoding="utf-8")
+        self.assertEqual(gate.changed_files(self.repo), ([], None))      # git itself sees nothing
+        self.assertEqual(gate.hidden_files(self.repo), ["house_sim/systems/results/__init__.py"])
+        self.assertNotEqual(gate.tree_fingerprint(self.repo), before)
+        result = gate.scope_check(self.repo, self.policy(), "x")
+        self.assertEqual(result["status"], "FAIL")
+        self.assertIn("hidden from git", result["note"])
+        self.assertEqual(result["hidden"], ["house_sim/systems/results/__init__.py"])
+
+    def test_rev1_git_info_exclude_hides_nothing_and_generated_files_stay_quiet(self):
+        planted = self.repo / "tests" / "test_excluded.py"
+        planted.write_text("# hidden by .git/info/exclude\n", encoding="utf-8")
+        with open(self.repo / ".git" / "info" / "exclude", "a", encoding="utf-8") as stream:
+            stream.write("tests/test_excluded.py\n")
+        self.assertEqual(gate.changed_files(self.repo), ([], None))
+        self.assertEqual(gate.hidden_files(self.repo), ["tests/test_excluded.py"])
+        planted.unlink()
+        # what the gate's tools generate, and bytecode caches no check reads, are not hidden files
+        before = gate.tree_fingerprint(self.repo)
+        (self.repo / "tools" / "orchestration" / "green_tests.json").write_text("[1]\n", encoding="utf-8")
+        cache = self.repo / "house_sim" / "kernel" / "__pycache__"
+        cache.mkdir()
+        (cache / "core.cpython-39.pyc").write_bytes(b"x")
+        self.assertEqual(gate.hidden_files(self.repo), [])
+        self.assertEqual(gate.tree_fingerprint(self.repo), before)
+        # a bytecode file outside __pycache__ imports without a source: it is a hidden file
+        (self.repo / "house_sim" / "kernel" / "evil.pyc").write_bytes(b"x")
+        self.assertEqual(gate.hidden_files(self.repo), ["house_sim/kernel/evil.pyc"])
+
+    def test_rev2_an_isolated_copys_own_gitignore_hides_nothing(self):
+        """closeout_REV 2: listing the edited files in the copy's .gitignore passed G10 and left TREE unchanged."""
+        with mock.patch.object(gate, "policy_root", lambda: self.repo):
+            copy_ = self.make_copy()
+            self.assertEqual(gate.isolated_changes(copy_), ([], None))
+            print_before = gate.tree_fingerprint(copy_)
+            (copy_ / ".gitignore").write_text("house_sim/kernel/core.py\ntests/test_a.py\n.gitignore\nextra/\n",
+                                              encoding="utf-8")
+            (copy_ / "house_sim" / "kernel" / "core.py").write_text("V = 2\n", encoding="utf-8")
+            (copy_ / "tests" / "test_a.py").write_text("# edited\n", encoding="utf-8")
+            (copy_ / "tests" / "extra").mkdir()
+            (copy_ / "tests" / "extra" / "new.py").write_text("# new\n", encoding="utf-8")
+            changed, error = gate.isolated_changes(copy_)
+            self.assertIsNone(error)
+            self.assertEqual(changed, [".gitignore", "house_sim/kernel/core.py", "tests/extra/new.py", "tests/test_a.py"])
+            self.assertNotEqual(gate.tree_fingerprint(copy_), print_before)
+            with mock.patch.object(gate, "trusted_json", policy_files()):
+                result = gate.scope_check(copy_, self.policy(), "x")
+            self.assertEqual(result["status"], "FAIL")
+            self.assertIn("house_sim/kernel/core.py", result["outside"])
+
+    def test_rev2_new_ignored_files_outside_the_source_folders_stay_ignored_by_the_bases_rules(self):
+        with mock.patch.object(gate, "policy_root", lambda: self.repo):
+            copy_ = self.make_copy()
+            (copy_ / "results").mkdir()
+            (copy_ / "results" / "out.json").write_text("{}\n", encoding="utf-8")
+            (copy_ / "house_sim" / "systems").mkdir()
+            (copy_ / "house_sim" / "systems" / "results").mkdir()
+            (copy_ / "house_sim" / "systems" / "results" / "planted.py").write_text("X = 1\n", encoding="utf-8")
+            self.assertEqual(gate.isolated_changes(copy_)[0], ["house_sim/systems/results/planted.py"])
+
+    def test_rev3_a_planted_unchecked_hash_pyc_is_never_run(self):
+        """closeout_REV 3: an unchecked-hash .pyc replaced the code every check ran while the .py files, G10 and TREE stayed
+        unchanged. The workers' environment never reads a bytecode file of the tree."""
+        import importlib.util
+        import py_compile
+        tree = Path(tempfile.mkdtemp(prefix="gate_pyc_"))
+        self.addCleanup(shutil.rmtree, str(tree), True)
+        source = tree / "planted_module.py"
+        source.write_text("V = 'the attack'\n", encoding="utf-8")
+        py_compile.compile(str(source), invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH)
+        source.write_text("V = 'the source'\n", encoding="utf-8")
+        self.assertTrue(Path(importlib.util.cache_from_source(str(source))).exists())
+        cmd = [sys.executable, "-c", "import planted_module; print(planted_module.V)"]
+        plain = dict(os.environ, PYTHONPATH=str(tree))
+        plain.pop("PYTHONPYCACHEPREFIX", None)
+        self.assertEqual(subprocess.run(cmd, cwd=str(tree), env=plain, capture_output=True, text=True).stdout.strip(),
+                         "the attack")      # the attack is real
+        env = gate.child_env(tree)
+        self.assertEqual(env["PYTHONPYCACHEPREFIX"], gate.pycache_prefix())
+        self.assertFalse(Path(gate.pycache_prefix()).resolve() in tree.resolve().parents)
+        self.assertEqual(subprocess.run(cmd, cwd=str(tree), env=env, capture_output=True, text=True).stdout.strip(),
+                         "the source")
+        spec = importlib.util.spec_from_file_location("green_tests_prefix", str(ROOT / "tools" / "orchestration" /
+                                                                                "green_tests.py"))
+        green = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(green)
+        self.assertTrue(Path(green.pycache_prefix()).is_dir())
+
+    def test_rev4_a_copy_of_an_older_commit_fails_g10_and_tree(self):
+        """closeout_REV 4: a record of a copy based on any old commit passed G10 and TREE and ran none of the tests added
+        since."""
+        with mock.patch.object(gate, "policy_root", lambda: self.repo):
+            copy_ = self.make_copy()
+            (self.repo / "tests" / "test_new_regression.py").write_text("# added later\n", encoding="utf-8")
+            (self.repo / "house_sim" / "kernel" / "core.py").write_text("V = 3\n", encoding="utf-8")
+            git_in(self.repo, "add", "-A")
+            self.assertEqual(git_in(self.repo, "commit", "-q", "-m", "later").returncode, 0)
+            changed, error = gate.isolated_changes(copy_)
+            self.assertIsNone(error)
+            self.assertEqual(changed, ["house_sim/kernel/core.py", "tests/test_new_regression.py"])
+            self.assertEqual(gate.stale_base(copy_), ["house_sim/kernel/core.py", "tests/test_new_regression.py"])
+            meta = {"tree": gate.tree_fingerprint(copy_), "tree_root": str(copy_), "checks": {}}
+            section, _ = gate.tree_check(meta, self.repo)
+            self.assertEqual(section["status"], "FAIL")
+            self.assertIn("STALE BASE", section["lines"][0])
+            # a copy at HEAD: nothing stale, TREE passes
+            fresh = self.make_copy(git_in(self.repo, "rev-parse", "HEAD").stdout.strip())
+            self.assertEqual(gate.stale_base(fresh), [])
+            meta = {"tree": gate.tree_fingerprint(fresh), "tree_root": str(fresh), "checks": {}}
+            self.assertEqual(gate.tree_check(meta, self.repo)[0]["status"], "PASS")
+
+    def test_rev4_a_packages_files_the_main_session_committed_are_not_staleness(self):
+        with mock.patch.object(gate, "policy_root", lambda: self.repo):
+            copy_ = self.make_copy()
+            (copy_ / "tests" / "test_a.py").write_text("# the package's edit\n", encoding="utf-8")
+            (self.repo / "tests" / "test_a.py").write_text("# the package's edit\n", encoding="utf-8")
+            git_in(self.repo, "add", "-A")
+            self.assertEqual(git_in(self.repo, "commit", "-q", "-m", "merged").returncode, 0)
+            self.assertEqual(gate.stale_base(copy_), [])
+            self.assertEqual(gate.isolated_changes(copy_)[0], ["tests/test_a.py"])     # its own file, in its scope
+
+    def test_rev8_a_new_test_that_skips_is_a_regression(self):
+        """closeout_REV 8: a new failing test whose timing switch is read at module level skipped in the correctness run,
+        the perf job did not know it, and only ids of the previous record were judged."""
+        prev = tests_json([row("test_a.py", ids=["tests.test_a.T.test_one", "tests.test_a.T.test_old_skip"],
+                               outcomes={"skip": ["tests.test_a.T.test_old_skip"]}, skipped=1, ran=2)])
+        cur_row = row("test_a.py", ids=["tests.test_a.T.test_one", "tests.test_a.T.test_old_skip",
+                                        "tests.test_a.T.test_disguise"], ran=3, skipped=2,
+                      outcomes={"skip": ["tests.test_a.T.test_old_skip", "tests.test_a.T.test_disguise"]})
+        bad, excused = gate.test_regressions(prev, tests_json([cur_row]), perf_ok=set())
+        self.assertEqual([item[3] for item in bad], ["tests.test_a.T.test_disguise"])
+        self.assertIn("new test that skips", bad[0][4])
+        # a whole new file that skips: the same; a signature names it
+        new_file = row("test_b.py", ids=["tests.test_b.T.test_x"], ran=1, skipped=1,
+                       outcomes={"skip": ["tests.test_b.T.test_x"]})
+        bad, _ = gate.test_regressions(prev, tests_json([prev["G1"][0], new_file]), perf_ok=set())
+        self.assertEqual([item[3] for item in bad], ["tests.test_b.T.test_x"])
+        signed = {"tests": {("tests.test_b.T.test_x", None)}}
+        bad, excused = gate.test_regressions(prev, tests_json([prev["G1"][0], new_file]), signoff=signed, perf_ok=set())
+        self.assertEqual(bad, [])
+        self.assertEqual([item[3] for item in excused], ["tests.test_b.T.test_x"])
+
+    def marks_of(self, source):
+        folder = Path(tempfile.mkdtemp(prefix="gate_marks_"))
+        self.addCleanup(shutil.rmtree, str(folder), True)
+        path = folder / "test_case.py"
+        path.write_text(source, encoding="utf-8")
+        wc = gate._wallclock()
+        return wc.flat_marks(wc.perf_marks([path]))
+
+    def test_rev8_the_bound_scan_follows_the_switch_out_of_a_test_method(self):
+        head = "import os\nimport unittest\n"
+        guard = "os.environ.get('HOUSE_SIM_PERF_TESTS', '1')"
+        cases = {
+            "module flag + decorator": head + "TIMING = {} not in ('0', 'relaxed')\nclass T(unittest.TestCase):\n"
+            "    @unittest.skipUnless(TIMING, 'timing check')\n    def test_x(self):\n        self.assertEqual(1, 3)\n"
+            .format(guard),
+            "helper": head + "def timing_on():\n    return {} == '1'\nclass T(unittest.TestCase):\n"
+            "    def test_x(self):\n        if not timing_on():\n            self.skipTest('timing')\n"
+            "        self.assertEqual(1, 3)\n".format(guard),
+            "chained helper": head + "def a():\n    return {} == '1'\ndef b():\n    return a()\n"
+            "class T(unittest.TestCase):\n    def test_x(self):\n        if not b():\n            return\n"
+            "        self.assertEqual(1, 3)\n".format(guard),
+            "method": head + "class T(unittest.TestCase):\n    def on(self):\n        return {} == '1'\n"
+            "    def test_x(self):\n        if not self.on():\n            self.skipTest('t')\n".format(guard),
+            "setUp": head + "class T(unittest.TestCase):\n    def setUp(self):\n        if {} == '0':\n"
+            "            self.skipTest('t')\n    def test_x(self):\n        self.assertEqual(1, 3)\n".format(guard),
+            "class decorator": head + "FLAG = {} == '1'\n@unittest.skipUnless(FLAG, 't')\nclass T(unittest.TestCase):\n"
+            "    def test_x(self):\n        self.assertEqual(1, 3)\n".format(guard),
+            "constant": head + "SWITCH = 'HOUSE_SIM_PERF_TESTS'\nclass T(unittest.TestCase):\n    def test_x(self):\n"
+            "        if os.environ.get(SWITCH) == 'relaxed':\n            return\n        self.assertEqual(1, 3)\n",
+            "early return when relaxed": head + "class T(unittest.TestCase):\n    def test_x(self):\n"
+            "        if {} == '0':\n            self.skipTest('wall-clock bound off')\n"
+            "        if os.environ.get('HOUSE_SIM_PERF_TESTS') == 'relaxed':\n            return\n"
+            "        self.assertEqual(1, 3)\n".format(guard),
+        }
+        wc = gate._wallclock()
+        for name, source in cases.items():
+            marks = self.marks_of(source)
+            self.assertEqual(sorted(marks), ["{}.test_case.T.test_x".format(next(iter(marks)).split(".")[0])], name)
+            self.assertEqual(len(wc.mark_problems(marks)), 1, name)
+        canonical = head + "class T(unittest.TestCase):\n    def test_x(self):\n        if {} == '0':\n" \
+            "            self.skipTest('wall-clock bound off')\n        self.assertEqual(1, 1)\n" \
+            "    def test_sets_it_for_a_child(self):\n        env = dict(os.environ)\n" \
+            "        env['HOUSE_SIM_PERF_TESTS'] = '0'\n        env.pop('HOUSE_SIM_PERF_TESTS', None)\n".format(guard)
+        marks = self.marks_of(canonical)
+        self.assertEqual([t.rsplit(".", 1)[1] for t in marks], ["test_x"])
+        self.assertEqual(wc.mark_problems(marks), {})
+
+    def test_rev8_the_correctness_run_fails_on_a_disguise(self):
+        """The repro of closeout_REV 8 through green_tests.py (CI's command): exit 0 before, now 1."""
+        tmp = Path(tempfile.mkdtemp(prefix="gate_disguise_"))
+        self.addCleanup(shutil.rmtree, str(tmp), True)
+        (tmp / "tests").mkdir()
+        (tmp / "tests" / "test_zz_disguise.py").write_text(
+            "import os\nimport unittest\n\nTIMING = os.environ.get('HOUSE_SIM_PERF_TESTS', '1') not in ('0', 'relaxed')\n"
+            "\n\nclass T(unittest.TestCase):\n    @unittest.skipUnless(TIMING, 'timing check')\n"
+            "    def test_x(self):\n        self.assertEqual(1 + 1, 3)\n", encoding="utf-8")
+        env = dict(os.environ, HOUSE_SIM_PERF_TESTS="0")
+        proc = subprocess.run([sys.executable, str(ROOT / "tools" / "orchestration" / "green_tests.py"), "1", "--modes",
+                               "normal", "--tests-dir", str(tmp / "tests"), "--json", str(tmp / "out.json")],
+                              capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, timeout=300)
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn("WALL-CLOCK BOUND PROBLEM", proc.stdout)
+
+    def test_ver2_a_registered_bound_without_a_mark_is_found(self):
+        wc = gate._wallclock()
+        self.assertEqual(wc.registered_without_mark({"a": {}}, {"a": {}, "b": {}}), ["b"])
+
+
+class HardenedStageTests(GateCase):
+    """G11 (VERIFY_HARDENING 5.4 item 6, 22.6, 22.7): every schema-4 spec HARDENED, evidence reuse, release gating, the
+    rolling run, and the records of the stage."""
+    PKG = "P2-WP10"
+
+    def row(self, cid, verdict="HARDENED", split_key=True, status="ran", **more):
+        return dict({"catalog_id": cid, "verdict": verdict, "split_key": split_key, "status": status, "score": 80,
+                     "gates": {"G3": verdict == "HARDENED"}, "file": "cleaning__x.json", "kind_class": "plain"}, **more)
+
+    def test_only_hardened_passes_and_without_the_key_the_private_stages_are_pending(self):
+        failing, excused, pending, overdue = gate.judge_hardened([
+            self.row("a"), self.row("b", "PENDING_GATE", split_key=False), self.row("c", "PENDING_GATE", split_key=True),
+            self.row("d", "PENDING_REVIEW"), self.row("e", "PROVISIONAL"), self.row("f", "FAIL"), self.row("g", status="overdue")])
+        self.assertEqual(pending, ["b"])
+        self.assertEqual([f[0] for f in failing], ["c", "d", "e", "f"])     # with the key, PENDING_GATE is a failure of the gate
+        self.assertEqual(overdue, ["g"])
+        self.assertEqual(excused, [])
+
+    def test_a_dated_allowlist_entry_excuses_a_verdict(self):
+        entries = [{"kind": "spec", "catalog_id": "e", "mode": "hardened", "owner": "o", "expires": "2999-01-01", "reason": "r"},
+                   {"kind": "spec", "catalog_id": "f", "owner": "o", "expires": "2999-01-01", "reason": "own mode only"}]
+        with mock.patch.object(gate, "trusted_json", policy_files(known=entries)):
+            allow = gate.load_known_failing(ROOT)
+        failing, excused, _, _ = gate.judge_hardened([self.row("e", "PROVISIONAL"), self.row("f", "FAIL")], allow)
+        self.assertEqual(excused, [("e", "PROVISIONAL")])
+        self.assertEqual([f[0] for f in failing], ["f"])
+
+    def test_a_record_from_before_g11_is_complete_a_new_one_without_it_is_not(self):
+        old = {"recorded": list(gate.LEGACY_CHECKS)}
+        self.assertIsNone(gate.record_incomplete(old))
+        self.assertIn("recorded", gate.record_incomplete(dict(old, checks_format=gate.CHECKS_FORMAT)))
+        self.assertIsNone(gate.record_incomplete({"recorded": list(gate.CHECKS), "checks_format": gate.CHECKS_FORMAT}))
+
+    def compare_with(self, hardened=None, **meta):
+        rows = [trial("A-1", 0)]
+        self.record(rows, rows, meta=dict({"recorded": list(gate.CHECKS), "checks_format": gate.CHECKS_FORMAT}, **meta))
+        if hardened is not None:
+            gate.write_json(self.gates / "X" / "hardened.json", hardened)
+        return self.compare()
+
+    def test_compare_recomputes_the_absolute_rule(self):
+        code, text = self.compare_with({"schema4": 1, "legacy": 0, "rows": [self.row("a", "FAIL")]})
+        self.assertEqual(code, 1, text)
+        self.assertIn("G11  FAIL", text)
+        self.assertIn("not HARDENED: ", text)
+        code, text = self.compare_with({"schema4": 1, "legacy": 0, "rows": [self.row("a")]})
+        self.assertIn("G11  PASS", text)
+        code, text = self.compare_with({"schema4": 1, "legacy": 0, "rows": [self.row("a", "PENDING_GATE", split_key=False)]})
+        self.assertIn("G11  INFO", text)
+        self.assertIn("not run (no split key)", text)
+        code, text = self.compare_with({"schema4": 0, "legacy": 243, "rows": []})
+        self.assertIn("G11  N/A", text)
+        code, text = self.compare_with({"schema4": 0, "legacy": 243, "rows": [], "undeclared": ["T-x-01"]})
+        self.assertIn("G11  FAIL", text)
+        self.assertIn("do not declare schema 4", text)
+
+    def test_a_record_that_lost_its_stage_data_fails_compare(self):
+        code, text = self.compare_with(None)
+        self.assertIn("G11  SKIP", text)
+        self.assertEqual(code, 1, text)
+
+    def test_the_strata_report_the_rate_per_kind_and_domain(self):
+        out = gate.hardened_strata([self.row("a"), self.row("b", "FAIL"), self.row("c", kind_class="speech",
+                                                                                 file="food__y.json")])
+        self.assertEqual(out["plain/cleaning"], {"specs": 2, "hardened": 1, "rate": 0.5})
+        self.assertEqual(out["speech/food"]["rate"], 1.0)
+
+    def test_the_public_row_keeps_nothing_of_the_private_stages_details(self):
+        record = {"catalog_id": "a", "verdict": "HARDENED", "strength": {"score": 90}, "tier": "H0", "cpu_s": 3.0,
+                  "private": {"ran": True, "summary": {"P3": "4/4 met"}, "details": ["seed 900000123"],
+                              "details_digest": "d"},
+                  "seeds": {"heldout_private_digest": "x"}, "evidence": {"last_full": "2026-11-03"},
+                  "randomisation": {"best_constant_share": 0.4}, "coverage": {"kind_class": "speech"}}
+        row = gate.public_row(record, "food__y.json", "ran")
+        self.assertEqual(row["private"], {"ran": True, "summary": {"P3": "4/4 met"}})
+        self.assertNotIn("900000123", json.dumps(row))
+        self.assertEqual((row["score"], row["best_constant_share"], row["kind_class"]), (90, 0.4, "speech"))
+
+    def stage(self, specs, store=None, changed=(), release=False, limit=None, statuses=None, verdict="PENDING_GATE"):
+        """The stage's plan and run on a temporary project, the workers run in this process (verify_spec faked)."""
+        tmp = Path(tempfile.mkdtemp(prefix="gate_g11_"))
+        self.addCleanup(shutil.rmtree, str(tmp), True)
+        (tmp / "tasks" / "authored").mkdir(parents=True)
+        (tmp / "catalog" / "review").mkdir(parents=True)
+        (tmp / "catalog" / "review" / "legacy_ids.json").write_text(json.dumps({"ids": ["T-legacy-01"]}), encoding="utf-8")
+        (tmp / "tasks" / "authored" / "cleaning__x.json").write_text(json.dumps({"specs": specs}), encoding="utf-8")
+        g = gate.Gate.__new__(gate.Gate)
+        g.root = tmp
+        g.gates_root = tmp / "gates"
+        g.work = tmp / "work"
+        g.id = "X"
+        g.results, g.data, g.spec_rows = {}, {"hardened": None}, {"own": []}
+        g.python, g.script, g.jobs_n = sys.executable, "tier1_gate.py", 1
+        g.started = 0.0
+        g._allow = {"entries": [], "expired": [], "invalid": []}
+        g.args = SimpleNamespace(spec_files=None, release=release, hardened_limit=limit, hardened_timeout=60, today="2026-11-03")
+        g.env = lambda extra=None: {}
+        (g.gates_root / gate.HARDENED_DIR).mkdir(parents=True)
+        if store:
+            with open(g.store_path(), "w", encoding="utf-8", newline="\n") as stream:
+                for row in store:
+                    stream.write(json.dumps(row) + "\n")
+        ran = []
+
+        def fake_schedule(jobs, slots, cwd, progress=None):
+            for job in jobs:
+                if job.name == "G11 reports":
+                    gate.write_json(job.meta["out"], {"review": {"paused": [], "default_fix": []}})
+                    job.result = {"rc": 0, "stderr": ""}
+                    continue
+                request = gate.read_json(job.cmd[3])
+                if request["kind"] == "plan":
+                    rows = {}
+                    for item in request["specs"]:
+                        cid = item["spec"]["catalog_id"]
+                        rows[cid] = (statuses or {}).get(cid) or ({"status": "current"} if cid in (request["records"] or {})
+                                                                  else {"status": "new", "why": "no stored record"})
+                    gate.write_json(job.meta["out"], {"current": "code", "rows": rows})
+                else:
+                    with open(job.meta["out"], "w", encoding="utf-8", newline="\n") as stream:
+                        for item in request["specs"]:
+                            cid = item["spec"]["catalog_id"]
+                            ran.append(cid)
+                            stream.write(json.dumps({"catalog_id": cid, "verdict": verdict, "gates": {}, "split_key": False,
+                                                     "spec_hash": "h", "level": "full", "coverage": {"kind_class": "plain"}})
+                                         + "\n")
+                job.result = {"rc": 0, "stderr": ""}
+        g.log = lambda text: None
+        g.progress = lambda *a: None
+        with mock.patch.object(gate, "schedule", fake_schedule), mock.patch.object(g, "changes_since", lambda records: list(changed)):
+            g.run_hardened(None)
+            g.evaluate_hardened()
+        return g, ran
+
+    @staticmethod
+    def schema4(cid):
+        return {"catalog_id": cid, "schema": 4}
+
+    def test_no_schema_4_spec_is_not_applicable(self):
+        g, ran = self.stage([{"catalog_id": "T-legacy-01", "schema": 2}])
+        self.assertEqual(g.results["G11"]["status"], "N/A")
+        self.assertEqual(ran, [])
+
+    def test_a_new_id_must_declare_schema_4(self):
+        g, _ = self.stage([{"catalog_id": "T-new-01", "schema": 2}])
+        self.assertEqual(g.results["G11"]["status"], "FAIL")
+        self.assertIn("do not declare schema 4", g.results["G11"]["note"])
+
+    def test_new_specs_run_and_the_verdict_is_judged(self):
+        g, ran = self.stage([self.schema4("T-a-01")], verdict="FAIL")
+        self.assertEqual(ran, ["T-a-01"])
+        self.assertEqual(g.results["G11"]["status"], "FAIL")
+        g, ran = self.stage([self.schema4("T-a-01")], verdict="PENDING_GATE")
+        self.assertEqual(g.results["G11"]["status"], "INFO")
+        self.assertIn("not run (no split key)", g.results["G11"]["note"])
+        self.assertTrue(g.store_path().is_file())       # what the next run reuses
+        g, ran = self.stage([self.schema4("T-a-01")], verdict="HARDENED")
+        self.assertEqual(g.results["G11"]["status"], "PASS")
+        self.assertEqual(g.data["hardened"]["counts"]["hardened"], 1)
+
+    def test_current_and_carried_records_run_nothing(self):
+        stored = {"catalog_id": "T-a-01", "verdict": "HARDENED", "split_key": True, "spec_hash": "h", "gate_commit": "c"}
+        g, ran = self.stage([self.schema4("T-a-01")], store=[stored], statuses={"T-a-01": {"status": "carried"}})
+        self.assertEqual(ran, [])
+        self.assertEqual(g.results["G11"]["status"], "PASS")
+        self.assertEqual(g.data["hardened"]["reused"], ["T-a-01"])
+        self.assertEqual(g.data["hardened"]["rows"][0]["status"], "carried")
+
+    def test_a_stale_record_runs_unless_the_commit_is_a_release(self):
+        ids = ["T-{:02d}-01".format(i) for i in range(3)]
+        stored = [{"catalog_id": c, "verdict": "HARDENED", "spec_hash": "h", "gate_commit": "c", "split_key": True} for c in ids]
+        stale = {c: {"status": "stale", "why": "the replay's digests differ"} for c in ids}
+        g, ran = self.stage([self.schema4(c) for c in ids], store=stored, statuses=stale, verdict="HARDENED")
+        self.assertEqual(ran, [])       # every spec stale (more than 10 % of the catalog): gated as a release
+        self.assertEqual(g.results["G11"]["status"], "FAIL")
+        self.assertIn("RELEASE", g.results["G11"]["note"])
+        g, ran = self.stage([self.schema4(c) for c in ids], store=stored, statuses=stale, release=True, verdict="HARDENED")
+        self.assertEqual(sorted(ran), ids)
+        self.assertEqual(g.results["G11"]["status"], "PASS")
+
+    def test_one_stale_record_of_a_large_catalog_is_routine(self):
+        ids = ["T-{:02d}-01".format(i) for i in range(20)]
+        stored = [{"catalog_id": c, "verdict": "HARDENED", "spec_hash": "h", "gate_commit": "c", "split_key": True} for c in ids]
+        statuses = {c: {"status": "current"} for c in ids}
+        statuses[ids[0]] = {"status": "stale", "why": "evaluator change in component(s) speech"}
+        g, ran = self.stage([self.schema4(c) for c in ids], store=stored, statuses=statuses, verdict="HARDENED")
+        self.assertEqual(ran, [ids[0]])
+        self.assertEqual(g.results["G11"]["status"], "PASS")
+
+    def test_a_release_can_run_in_batches(self):
+        ids = ["T-{:02d}-01".format(i) for i in range(4)]
+        g, ran = self.stage([self.schema4(c) for c in ids], limit=2, verdict="HARDENED")
+        self.assertEqual(len(ran), 2)
+        self.assertEqual(g.results["G11"]["status"], "FAIL")
+        self.assertIn("still to run", g.results["G11"]["note"])
+
+    def test_the_plan_worker_reads_the_tools_statuses(self):
+        """The real plan path: evidence_replay.replay_status over a stored record, in a worker of this process."""
+        tmp = Path(tempfile.mkdtemp(prefix="gate_plan_"))
+        self.addCleanup(shutil.rmtree, str(tmp), True)
+        from house_sim import audit
+        from house_sim.tasks.verify import spec_hash
+        spec = {"catalog_id": "T-a-01", "schema": 4, "title": "x"}
+        record = {"catalog_id": "T-a-01", "spec_hash": spec_hash(spec), "fingerprint": audit.fingerprint(), "verdict": "HARDENED"}
+        job = {"root": str(ROOT), "kind": "plan", "specs": [{"spec": spec}], "records": {"T-a-01": record}, "changed": [],
+               "today": "2026-11-03"}
+        gate.write_json(tmp / "job.json", job, sort_keys=False)
+        cwd = os.getcwd()
+        self.addCleanup(os.chdir, cwd)
+        gate.worker_hardened(str(tmp / "job.json"), str(tmp / "out.json"))
+        self.assertEqual(gate.read_json(tmp / "out.json")["rows"]["T-a-01"]["status"], "current")
+        job["records"] = {"T-a-01": dict(record, spec_hash="another")}
+        gate.write_json(tmp / "job.json", job, sort_keys=False)
+        gate.worker_hardened(str(tmp / "job.json"), str(tmp / "out.json"))
+        self.assertEqual(gate.read_json(tmp / "out.json")["rows"]["T-a-01"]["status"], "stale")
+
+    def test_the_full_worker_stamps_the_evidence_and_a_crash_is_a_failed_record(self):
+        tmp = Path(tempfile.mkdtemp(prefix="gate_full_"))
+        self.addCleanup(shutil.rmtree, str(tmp), True)
+        from house_sim.tasks import verify
+        job = {"root": str(ROOT), "kind": "full", "specs": [{"spec": {"catalog_id": "T-a-01", "schema": 4}}], "commit": "c",
+               "today": "2026-11-03"}
+        gate.write_json(tmp / "job.json", job, sort_keys=False)
+        cwd = os.getcwd()
+        self.addCleanup(os.chdir, cwd)
+        calls = []
+
+        def fake_verify(spec, level=None, **options):
+            calls.append((level, options))
+            return {"catalog_id": spec["catalog_id"], "verdict": "PENDING_GATE", "seeds": {"verification": [0]}}
+        replay = gate._evidence_replay()
+        with mock.patch.object(verify, "verify_spec", fake_verify), \
+                mock.patch.object(replay, "stamp_evidence", lambda r, s, fingerprint=None, today=None: {"last_full": today}):
+            gate.worker_hardened(str(tmp / "job.json"), str(tmp / "out.jsonl"))
+        row = gate.read_jsonl(tmp / "out.jsonl")[0]
+        self.assertEqual(calls, [("full", {"cache": False})])        # the gate never reads an author's cache
+        self.assertEqual((row["evidence"]["last_full"], row["gate_commit"], row["date"]), ("2026-11-03", "c", "2026-11-03"))
+        self.assertIn("split_key", row)
+
+        def crash(spec, level=None, **options):
+            raise ValueError("boom")
+        with mock.patch.object(verify, "verify_spec", crash):
+            gate.worker_hardened(str(tmp / "job.json"), str(tmp / "out.jsonl"))
+        row = gate.read_jsonl(tmp / "out.jsonl")[0]
+        self.assertEqual(row["verdict"], "FAIL")
+        self.assertIn("boom", row["harness_errors"][0])
+
+    def test_a_schema_4_trial_keeps_the_records_fields(self):
+        """WP5's note: a schema-4 trial nests the reference record; G2 and G3 read flat fields."""
+        tmp = Path(tempfile.mkdtemp(prefix="gate_trials_"))
+        self.addCleanup(shutil.rmtree, str(tmp), True)
+        from house_sim.tasks import verify
+        chunk = {"root": str(ROOT), "mode": "own", "perception": None, "seeds": [0], "camera": None,
+                 "jobs": [{"key": "T-a-01", "file": FILE_A, "own_mode": "oracle", "spec_hash": "h",
+                           "spec": {"catalog_id": "T-a-01", "schema": 4}}]}
+        gate.write_json(tmp / "chunk.json", chunk, sort_keys=False)
+        cwd = os.getcwd()
+        self.addCleanup(os.chdir, cwd)
+
+        def trial_of(spec, seed, perception=None, camera=None, gen=None, capture=None, mode=None):
+            return {"seed": seed, "passed": True, "initial_fails": True, "idle_fails": True, "reference_passes": True,
+                    "reference": {"steps": 7, "time_s": 12.5, "perceivable": True, "failures": []},
+                    "wrong": [{"name": "w", "fails": True, "ran": True, "failures": ["house.moved:cup"], "unmet": ["g"]}]}
+        with mock.patch.object(verify, "run_trial", trial_of):
+            gate.worker_trials(str(tmp / "chunk.json"), str(tmp / "out.jsonl"))
+        row = gate.read_jsonl(tmp / "out.jsonl")[0]
+        self.assertEqual((row["reference_steps"], row["reference_time_s"], row["perceivable"]), (7, 12.5, True))
+        self.assertTrue(row["wrong_fails"] and row["wrong_ran"])
+        self.assertEqual(row["wrong"][0]["reasons"], ["goal", "house.moved"])
+
+    def test_the_rolling_run_records_its_replay_misses(self):
+        tmp = Path(tempfile.mkdtemp(prefix="gate_rolling_"))
+        self.addCleanup(shutil.rmtree, str(tmp), True)
+        (tmp / "tasks" / "authored").mkdir(parents=True)
+        (tmp / "tasks" / "authored" / "cleaning__x.json").write_text(json.dumps({"specs": [self.schema4("T-a-01")]}),
+                                                                     encoding="utf-8")
+        store = tmp / "gates" / gate.HARDENED_DIR
+        store.mkdir(parents=True)
+        old = {"catalog_id": "T-a-01", "verdict": "HARDENED", "gates": {"G3": True},
+               "evidence": {"last_full": "2026-10-01", "carried_from": "x"}}
+        (store / "evidence.jsonl").write_text(json.dumps(old) + "\n", encoding="utf-8")
+
+        def fake_schedule(jobs, slots, cwd, progress=None):
+            for job in jobs:
+                with open(job.meta["out"], "w", encoding="utf-8", newline="\n") as stream:
+                    stream.write(json.dumps(dict(old, verdict="FAIL", gates={"G3": False}, evidence={"last_full": "2026-11-03"}))
+                                 + "\n")
+        args = SimpleNamespace(root=str(tmp), gates_root=str(tmp / "gates"), today="2026-11-03", limit=None, work=str(tmp / "work"),
+                               jobs=1, hardened_timeout=60)
+        out = io.StringIO()
+        with mock.patch.object(gate, "schedule", fake_schedule), contextlib.redirect_stdout(out):
+            code = gate.cmd_rolling(args)
+        self.assertEqual(code, 1, out.getvalue())
+        self.assertIn("MISS T-a-01", out.getvalue())
+        line = gate.read_jsonl(store / "rolling.jsonl")[0]
+        self.assertTrue(line["added_runs"])
+        self.assertEqual(line["ran"], ["T-a-01"])
+        self.assertEqual(gate.read_jsonl(store / "evidence.jsonl")[-1]["verdict"], "FAIL")
+        (store / "evidence.jsonl").write_text(json.dumps(dict(old, evidence={"last_full": "2026-11-02"})) + "\n", encoding="utf-8")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(gate.cmd_rolling(args), 0)
+        self.assertIn("nothing due", out.getvalue())
+
+    def test_publish_merges_the_stored_records_and_keeps_the_legacy_ones(self):
+        tmp = Path(tempfile.mkdtemp(prefix="gate_publish_"))
+        self.addCleanup(shutil.rmtree, str(tmp), True)
+        (tmp / "reports").mkdir()
+        (tmp / "reports" / "verification.jsonl").write_text(json.dumps({"catalog_id": "T-old-01", "passed": True}) + "\n",
+                                                            encoding="utf-8")
+        store = tmp / "gates" / gate.HARDENED_DIR
+        store.mkdir(parents=True)
+        (store / "evidence.jsonl").write_text(json.dumps({"catalog_id": "T-a-01", "verdict": "PENDING_GATE"}) + "\n" +
+                                              json.dumps({"catalog_id": "T-a-01", "verdict": "HARDENED"}) + "\n", encoding="utf-8")
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(gate.cmd_publish(SimpleNamespace(root=str(tmp), gates_root=str(tmp / "gates"))), 0)
+        rows = {r["catalog_id"]: r for r in gate.read_jsonl(tmp / "reports" / "verification.jsonl")}
+        self.assertTrue(rows["T-old-01"]["passed"])
+        self.assertEqual(rows["T-a-01"]["verdict"], "HARDENED")
+        self.assertEqual(rows["T-a-01"]["format"], "house_ai.verification/2")
+
+    def test_the_rolling_plan_takes_the_oldest_and_names_the_carried(self):
+        store = {"new": {"catalog_id": "new", "evidence": {"last_full": "2026-11-02"}},
+                 "old": {"catalog_id": "old", "evidence": {"last_full": "2026-10-01", "carried_from": "x"}},
+                 "older": {"catalog_id": "older", "evidence": {"last_full": "2026-09-01"}}}
+        ids, carried = gate.rolling_plan(store, "2026-11-03")
+        self.assertEqual(ids, ["older", "old"])
+        self.assertEqual(sorted(carried), ["old"])
+
+
+class RunCheckHardenedTests(unittest.TestCase):
+    """run_check.py on schema 4: the verdict comes from the evidence record, with its level, in the hash-chained log
+    (agents never self-certify)."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="run_check4_"))
+        self.addCleanup(shutil.rmtree, str(self.tmp), True)
+        self.log = self.tmp / "log.jsonl"
+        self.spec = {"catalog_id": "T-run-check-41", "schema": 4, "title": "hardened", "risk_level": 0,
+                     "house": {"residents": "minimal", "pets": "none"}, "instruction": "Say one.",
+                     "phrasings": ["Say one.", "Say one now.", "One."],
+                     "success": [{"path": "facts.last_speech.text", "op": "eq", "value": "one"}],
+                     "reference": [{"do": "announce", "text": "one"}],
+                     "wrong": [{"name": "says two", "plan": [{"do": "announce", "text": "two"}], "expect": ["goal:x"],
+                                "mistake": {"steps": [0], "what": "says two"}}]}
+        self.legacy = dict(copy.deepcopy(self.spec), catalog_id="T-run-check-42")
+        self.legacy.pop("schema")
+        self.legacy["wrong"][0] = {k: v for k, v in self.legacy["wrong"][0].items() if k not in ("expect", "mistake")}
+        self.file = self.tmp / "batch.json"
+        self.file.write_text(json.dumps({"specs": [self.spec, self.legacy]}), encoding="utf-8")
+        self.calls = []
+
+    def fake_verify_many(self, verdicts):
+        """verify_many as the tool calls it: every schema-4 record is what `verdicts` says (the pipeline's own behaviour
+        has tests/test_verify_hardening.py; here only the tool's reading of it)."""
+        def many(specs, **kwargs):
+            self.calls.append(dict(kwargs))
+            out = []
+            for spec in specs:
+                if spec.get("schema") == 4:
+                    verdict, gates = verdicts.pop(0)
+                    out.append({"format": "house_ai.verification/2", "catalog_id": spec["catalog_id"], "schema": 4,
+                                "spec_hash": "h4", "verdict": verdict, "gates": gates, "strength": {"score": 70},
+                                "trials": [{"seed": 0, "passed": verdict != "FAIL"}], "lint": [],
+                                "harness_errors": []})
+                else:
+                    out.append({"catalog_id": spec["catalog_id"], "spec_hash": "h2", "passed": True,
+                                "trials": [{"seed": 0, "passed": True}]})
+            return out
+        return many
+
+    def run_tool(self, *argv):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = run_check.main(list(argv))
+        return code, out.getvalue()
+
+    OK_GATES = {g: True for g in ("G1", "G2", "G3", "G4", "G5", "G7", "G8", "G9")}
+
+    def test_the_verdict_and_level_are_recorded_and_legacy_specs_stay_as_they_were(self):
+        from house_sim.tasks import verify
+        with mock.patch.object(verify, "verify_many", self.fake_verify_many([("PENDING_GATE", dict(self.OK_GATES))])):
+            code, text = self.run_tool("run", str(self.file), "--workers", "1", "--log", str(self.log), "--level", "standard",
+                                       "--claimed", "T-run-check-41", "T-run-check-42")
+        self.assertEqual(code, 0, text)
+        self.assertEqual(self.calls[0]["level"], "standard")
+        self.assertNotIn("hard_seeds", self.calls[0])
+        entry = run_check.read_log(self.log)[0]
+        self.assertEqual(entry["options"]["level"], "standard")
+        hard = next(r for r in entry["results"] if r["catalog_id"] == "T-run-check-41")
+        self.assertEqual((hard["hardening"], hard["level_passes"], hard["verdict"], hard["level"]),
+                         ("PENDING_GATE", True, "pass", "standard"))
+        self.assertEqual(hard["gates"]["G3"], True)
+        legacy = next(r for r in entry["results"] if r["catalog_id"] == "T-run-check-42")
+        self.assertEqual(sorted(legacy), ["catalog_id", "failing_seeds", "file", "reasons", "spec_hash", "verdict"])
+        summary = json.loads(text.strip().splitlines()[-1])
+        self.assertEqual(summary["hardening"], {"T-run-check-41": "PENDING_GATE"})
+        self.assertTrue(summary["ok"])
+        self.assertEqual(run_check.verify_chain(run_check.read_log(self.log)), [])
+
+    def test_a_claim_that_a_provisional_spec_passes_is_a_mismatch(self):
+        """The claimed-vs-passing mismatch reads the level's gates: PROVISIONAL is train-only, no passing authoring check."""
+        from house_sim.tasks import verify
+        with mock.patch.object(verify, "verify_many", self.fake_verify_many([("PROVISIONAL", dict(self.OK_GATES))])):
+            code, text = self.run_tool("run", str(self.file), "--workers", "1", "--log", str(self.log), "--claimed",
+                                       "T-run-check-41", "T-run-check-42")
+        self.assertEqual(code, 1, text)
+        entry = run_check.read_log(self.log)[0]
+        self.assertEqual(entry["options"]["level"], "standard")     # the default level of an authoring check
+        self.assertEqual(entry["failing"], ["T-run-check-41"])
+        self.assertEqual(entry["mismatch"]["claimed_not_passing"], ["T-run-check-41"])
+        self.assertIn("the standard gates fail: verdict PROVISIONAL", text)
+
+    def test_the_quick_level_passes_on_its_own_gates(self):
+        from house_sim.tasks import verify
+        gates = {"G1": True, "G2": True, "G5": True, "G7": True, "G3": None, "G8": None}
+        with mock.patch.object(verify, "verify_many", self.fake_verify_many([("FAIL", gates)])):
+            code, text = self.run_tool("run", str(self.file), "--workers", "1", "--log", str(self.log), "--level", "quick")
+        self.assertEqual(code, 0, text)
+        hard = next(r for r in run_check.read_log(self.log)[0]["results"] if r.get("hardening"))
+        self.assertEqual((hard["hardening"], hard["level_passes"], hard["verdict"]), ("FAIL", True, "pass"))
+
+    def test_rerun_compares_the_verdict_at_the_entrys_level(self):
+        from house_sim.tasks import verify
+        with mock.patch.object(verify, "verify_many", self.fake_verify_many([("PENDING_GATE", dict(self.OK_GATES))])):
+            self.run_tool("run", str(self.file), "--workers", "1", "--log", str(self.log), "--level", "full")
+        with mock.patch.object(verify, "verify_many", self.fake_verify_many([("PENDING_GATE", dict(self.OK_GATES))])):
+            code, text = self.run_tool("verify", "--log", str(self.log), "--rerun", "1", "--workers", "1")
+        self.assertEqual(code, 0, text)
+        self.assertIn("verdicts reproduce", text)
+        self.assertEqual(self.calls[-1]["level"], "full")
+        with mock.patch.object(verify, "verify_many", self.fake_verify_many([("PENDING_REVIEW", dict(self.OK_GATES))])):
+            code, text = self.run_tool("verify", "--log", str(self.log), "--rerun", "1", "--workers", "1")
+        self.assertEqual(code, 1, text)     # still "pass" at the level, but another verdict
+        self.assertIn("VERDICTS DIFFER", text)
+
+    def test_debug_seeds_reach_schema_4_only_when_given_and_the_log_says_so(self):
+        from house_sim.tasks import verify
+        with mock.patch.object(verify, "verify_many", self.fake_verify_many([("FAIL", {})])):
+            self.run_tool("run", str(self.file), "--seeds", "7", "--workers", "1", "--log", str(self.log))
+        self.assertEqual(self.calls[0]["hard_seeds"], [7])
+        self.assertTrue(run_check.read_log(self.log)[0]["options"]["schema4_seeds_forced"])
 
 
 if __name__ == "__main__":

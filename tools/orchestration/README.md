@@ -42,6 +42,8 @@ python tools/orchestration/tier1_gate.py packages [<PKG> ...]                   
 python tools/orchestration/tier1_gate.py gen1-digests [--write --by <ID> --reason TEXT]
 python tools/orchestration/tier1_gate.py signoff [<PREV_ID> [<ID>]] [--package <PKG>] --by NAME --out FILE
 python tools/orchestration/tier1_gate.py policy           # the committed allowlist and signatures, as read
+python tools/orchestration/tier1_gate.py rolling [--limit N] [--jobs N]     # 22.7: the 14-day rolling full run
+python tools/orchestration/tier1_gate.py publish          # a release: the gate's schema-4 records into reports/verification.jsonl
 ```
 
 `record` writes `catalog/analysis/tier1/gate/<ID>/` and prints a PASS/FAIL table; its last line is the gate summary
@@ -67,6 +69,7 @@ The A0 baseline and the handoff with the package table are in `catalog/analysis/
 | G8 | `tests.test_room_golden`, also with `HOUSE_SIM_GOLDEN_ALL=1` | green (required from B1 on); every golden entry re-recorded vs the base reviewed and signed (kind `golden`) |
 | G9 | package extras: physics_audit, body_audit, generator compat + gen-2 layout + gen-2 timing, sweep_bench, geometric camera tools | exit 0 / within budget |
 | G10 | `git diff --name-only HEAD` plus untracked files | every file in the package's list, its handoff or its gate folder; no `gate_policy/` file (main session only); with `--shared-tree` a file goes to a running peer whose scope has it, a protected path never; FAIL without git (an isolated copy needs none); N/A without `--package` |
+| G11 | every schema-4 spec at the full level (`verify_spec(spec, "full", cache=False)`: battery, must-pass, audits, held-out and, with the split key, the private stages), reusing current and carried evidence | HARDENED, or a dated allowlist entry with mode `hardened`; without the split key PENDING_GATE is INFO "not run (no split key)"; a catalog id outside the frozen legacy list must declare schema 4; N/A while no spec is schema 4 |
 | GATE | the gate code of the record (meta `gate`) | equal to the code committed at the record's commit, or a gate-tool package's with a `gate-change` signature |
 
 Each trial record (`specs_own.jsonl`, `specs_realistic.jsonl`) holds the verdict fields (`passed`, `initial_fails`,
@@ -219,11 +222,51 @@ copy over the tree); the close-out package **P1C** and the phase-2 packages **P2
 section 25) are in the rules. The close-out record: `record --id P1C --package P1C --prev P1F` (reviewed rows cite
 `P1C`; the integrator's non-domain fixes join with `--package P1C+P1C-INT`).
 
+## Phase-2 carry-over and G11 (P2-S4, WP10)
+
+The gate-tool findings of the phase-1 close-out (catalog/analysis/phase1/closeout_REV.json, closeout_VER2.json), each with a
+regression test in tests/test_gate_tool.py (`CarryOverGateTests`):
+
+* **Ignore rules hide nothing under the source folders.** G10 and TREE see every file under `house_sim`, `tests`, `tools` and
+  `tasks` whatever `.gitignore`, `.git/info/exclude` or a global excludes file says; only bytecode caches and generated files
+  (`GENERATED`) are skipped. A hidden file fails G10 even inside the package's scope.
+* **An isolated copy's own `.gitignore` counts for nothing.** Every path of the base commit's listing is compared, and new
+  files are judged by the base commit's `.gitignore`, read from the project's object store.
+* **No check reads a bytecode file of the tree.** Workers (and green_tests.py) run with `PYTHONPYCACHEPREFIX` on a fresh folder;
+  a `.pyc` outside `__pycache__` is a hidden file.
+* **A copy describes the commit it is judged against.** G10 lists where the copy differs from HEAD beside where it differs from
+  its base; TREE fails a copy that lacks files of the commit the comparison runs at.
+* **The switch is read in one form.** The bound scan follows module constants, module-level flags and helpers, helper methods,
+  setUp and decorators; a mark reading `HOUSE_SIM_PERF_TESTS` outside its own guard fails the correctness run, as does a
+  registered bound without a mark, and a new test that skips is a G1 regression needing a signature.
+* `tests/test_gate_tool.py` runs in an isolated copy, so `isolate` + `record --root` can pass G1.
+* `tools/py39_lint.py` covers the grammar `ast.parse(feature_version=)` lets through on a newer interpreter, forward references
+  (PEP 649), unions of user classes, import aliases and the wider standard library.
+
+**G11** (docs/design/VERIFY_HARDENING.md 5.4, 12, 16, 19, 22.6-22.9; `HardenedStageTests`). The stage plans first
+(`tools/evidence_replay.py`, gate code): a spec whose record is at the code's fingerprint is `current`; after a simulation change
+the reference and the idle run are replayed and identical digests are `carried` for 14 days from the last full run; an evaluator
+change makes `stale` the records that used the changed component (`house_sim/data/verify/components.json`); a harness-only change
+costs nothing. New, edited and stale specs run full, one worker per spec, into the evidence store
+`catalog/analysis/tier1/gate/_hardened/evidence.jsonl` (git-ignored). The record's `hardened.json` holds public rows only: verdict,
+gates, score, tier, cost, and of the private stages family, outcome and label class (12.3).
+
+* **Release gating.** More than 10 % of the catalog stale by one change: G11 fails until `record --release` (in batches with
+  `--hardened-limit N`, on a branch). A routine commit never pays for it, and the rule is never waived.
+* **Rolling run.** `rolling` re-runs every spec at least every 14 days, oldest evidence first, and compares each carried spec's
+  new result with the carried one: above 1 % replay misses, the replay adds one run per applicable family.
+* **Reports (INFO).** The HARDENED rate per (kind class, domain), legacy-verified and HARDENED as two numbers until R4, the cost
+  calibration (`tools/harden_audit.py --cost`: a tier or stage more than 25 % over plan is an alarm with a work item), the review
+  budget per batch and the default-fix clusters (`tools/battery_review.py budget`), the spot-check sample.
+* **Without the split key** (decision 10): the private stages report "not run (no split key)"; nothing under
+  `%USERPROFILE%\.house_ai` is created by any of this.
+
 ## run_check.py (orchestrator-verified checks)
 
 ```
 python tools/orchestration/run_check.py run tasks/authored/batch_07.json --workers 2 --role author --batch 07 \
        --agent author:07 --claimed-file claimed.json        # or --claimed ID ...; --all for every spec file
+       [--level quick|standard|full]                        # schema-4 specs: the level (default standard)
 python tools/orchestration/run_check.py verify [--rerun N]  # the chain, and re-run the last N entries
 python tools/orchestration/run_check.py show [--last N]
 ```
@@ -237,6 +280,11 @@ entries whose files and code are unchanged and fails when a verdict differs. The
 summary for a workflow agent to return verbatim; exit 1 when a spec fails or the claim does not match.
 `author_wf.js` runs it after every author and review step (a checker agent that only runs this command) and reports
 the tool's passing set, not the agents'.
+
+A schema-4 spec is checked at `--level`; its line in the entry comes from its evidence record: the verdict
+(`HARDENED` / `PENDING_REVIEW` / `PENDING_GATE` / `PROVISIONAL` / `FAIL`), whether the gates of the level pass
+(`strength.level_passes`), the score and the gates, with the level recorded. The claimed-vs-passing mismatch reads the level's
+gates, and `verify --rerun` re-runs an entry at its own level and compares verdict and `level_passes`. Legacy specs are as before.
 
 ## Tier-1 foundation workflows (2026-10-13..)
 

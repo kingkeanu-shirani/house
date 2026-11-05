@@ -18,6 +18,7 @@ use privileged state like every reference skill.
   appliances_cooking.shut_fridge(fridge, freezer=None, shelf_for=None)
   appliances_cooking.defrost_freezer(freezer, cooler, tray, towels=(), restock=True)
   appliances_cooking.reheat_in_microwave(item, microwave, seconds, power=10, dest=None, mitts=None)
+  appliances_cooking.steam_unwiped(pitcher, machine, temp_c=60.0)
   appliances_cooking.toast(toaster, slices, shade=4, dest=None)
   appliances_cooking.watch_pot(pot, burner, done_c, low="low", poll_s=15, max_s=2400, tell=None)
 """
@@ -465,6 +466,14 @@ def defrost_freezer(r, freezer, cooler, tray, towels=(), restock=True, max_wait_
                 args["shelf"] = 1 if len(heights) > 1 else 0
             r.do("place", **args)
         r.do("close", target=freezer)
+
+
+@skill("appliances_cooking.steam_unwiped")
+def steam_unwiped(r, pitcher, machine, temp_c=60.0):
+    """Milk steamed with the wand neither purged nor wiped (what dries on a steam wand; B14's damaged probe)."""
+    S.fetch(r, pitcher)
+    S.approach(r, machine)
+    r.do("steam_milk", target=pitcher, destination=machine, temp_c=float(temp_c), wipe=False, purge_after=False)
 
 
 @skill("appliances_cooking.reheat_in_microwave")

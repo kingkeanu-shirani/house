@@ -734,6 +734,8 @@ def lint_roll(ctx):
             else:
                 picked = level * 0.8
             f[soil_kind] = round(max(0.0, level - picked), 4)
+            if kind != "lint_roller":
+                M.add_soil(w, tool, soil_kind, picked)    # it stays in the bristles (on the strip): it used to vanish
     m = w.mut(target)
     m["face_soil"] = face_soil
     if kind == "lint_roller":

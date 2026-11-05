@@ -255,8 +255,11 @@ def mail_batch(ctx, location, pieces, var="mail", sealed=True):
 
 @scenario_helper("admin_inventory.trays")
 def trays(ctx, surface, owners=None, extra=None, var="tray", type="inbox_tray"):
-    """One labeled tray per owner (and extra purposes like 'junk', 'household', 'action') on a surface."""
+    """One labeled tray per owner (and extra purposes like 'junk', 'household', 'action') on a surface. owners: a list,
+    or "random" for a seeded subset of the residents (ctx.sample_roles, WP9); the caller reads the bound trays."""
     out = {}
+    if owners == "random":
+        owners = ctx.sample_roles(owners, sorted(ctx.config.get("people") or {}), name="admin_inventory.trays owners")
     wanted = [("owner", pid) for pid in owners or []] + [("purpose", purpose) for purpose in extra or []]
     # the trays look alike: placed in the placer's order (WP9: seeded in schema 4, given order otherwise)
     for kind, value in ctx.placer.order(wanted):
@@ -437,6 +440,8 @@ def carts(ctx, room="garage", streams=None, var="cart", schedule=None, fills=Non
     from .curb import is_cart
     rid = _room(ctx, room)
     out = {}
+    if streams == "random":     # a seeded subset of the streams (ctx.sample_roles, WP9); the bindings name the carts
+        streams = ctx.sample_roles(streams, sorted(CART_TYPES), name="admin_inventory.carts streams")
     streams = list(streams or ["trash", "recycling"])
     for eid in sorted(ctx.config["entities"]):
         rec = ctx.config["entities"].get(eid)
@@ -454,7 +459,9 @@ def carts(ctx, room="garage", streams=None, var="cart", schedule=None, fills=Non
     placed, home = [], None
     for target in _cart_rooms(ctx, rid):
         placed = []
-        for stream in streams:
+        # the carts stand in the placer's order (WP9: seeded in schema 4, so where a cart stands says nothing of its
+        # stream; the given order otherwise)
+        for stream in ctx.placer.order(streams):
             type_name = CART_TYPES.get(stream, "generic_item")
             if not ctx.reg.known(type_name):
                 type_name = "generic_item"

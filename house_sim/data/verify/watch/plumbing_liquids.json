@@ -1,5 +1,5 @@
 {
- "about": "Field classes of the plumbing_liquids domain's types for the house ledger (VERIFY_HARDENING 6.3, lint L-WATCH; WP-D plumbing_liquids). 'fields' classifies every property name of house_sim/data/types/plumbing_liquids.json and the fields this domain's verbs and systems write onto its own types (taps, basins, toilets, valves, the heater and meter, hoses, nozzles, sprinklers, the irrigation controller, buckets, pitchers, ice trays). Classes: identity (built in or installed: a basin's rim volume, a faucet's kind, a valve's turns), setting (what a hand sets: handles, valves, plugs, a hose's coupling and coil), condition with 'worse' and 'tol' (harm: a crushed or lost washer, a cross-threaded coupling, kinks, a frost burst, a spraying joint, an overheated disposal), content (what a vessel holds; 'guard': 'mess' for a load the mess balance of 6.5 judges: a bucket's dirt, a strainer's scraps, water pooled on a catcher), process (the water system's running state: flows, temperatures, a toilet's bowl and tank levels, water_running and dripping, which follow the handles and the hidden leaks; a hose's or spigot's wetness is its normal use) and bookkeeping (counters, clocks, notes: overflowed_l and drained_l are cumulative, the harm is the spill and the clog). potable is process: a vessel's or basin's potability follows what it holds (the contamination and the mess kinds judge what made it so). 'types' overrides a name where it means something else (a ceiling stain's dripping and wet follow the leak above it; a bucket's water is a mess load). water_sensitive: none of this domain's types (its gear is made for water; the irrigation controller is weatherproof). The fields this domain writes onto other domains' things (a cabinet's cabinet_water_l, a bin's liquid_in_bin_l, a plant's plant_harm, a thing's water_damaged, soggy, lodged_in_drain) are classified by their owners' files or the kernel's watch_fields.json (handoff_WP-D_plumbing_liquids.md requests).",
+ "about": "Field classes of the plumbing_liquids domain's types for the house ledger (VERIFY_HARDENING 6.3, lint L-WATCH; WP-D plumbing_liquids). 'fields' classifies every property name of house_sim/data/types/plumbing_liquids.json and the fields this domain's verbs and systems write onto its own types (taps, basins, toilets, valves, the heater and meter, hoses, nozzles, sprinklers, the irrigation controller, buckets, pitchers, ice trays). Classes: identity (built in or installed: a basin's rim volume, a faucet's kind, a valve's turns), setting (what a hand sets: handles, valves, plugs, a hose's coupling and coil), condition with 'worse' and 'tol' (harm: a crushed or lost washer, a cross-threaded coupling, kinks, a frost burst, a spraying joint, an overheated disposal), content (what a vessel holds; 'guard': 'mess' for a load the mess balance of 6.5 judges: a bucket's dirt, a strainer's scraps, water pooled on a catcher), process (the water system's running state: flows, temperatures, a toilet's bowl and tank levels, water_running and dripping, which follow the handles and the hidden leaks; a hose's or spigot's wetness is its normal use) and bookkeeping (counters, clocks, notes: overflowed_l and drained_l are cumulative, the harm is the spill and the clog). potable is process: a vessel's or basin's potability follows what it holds (the contamination and the mess kinds judge what made it so). 'types' overrides a name where it means something else (a ceiling stain's dripping and wet follow the leak above it; a bucket's water is a mess load). water_sensitive: none of this domain's types (its gear is made for water; the irrigation controller is weatherproof). The fields this domain writes onto other domains' things (a cabinet's cabinet_water_l, a bin's liquid_in_bin_l, a plant's plant_harm, a thing's water_damaged, soggy, lodged_in_drain) are classified by their owners' files or the kernel's watch_fields.json (handoff_WP-D_plumbing_liquids.md requests). settings.mix is process: where a lever rests between hot and cold does nothing while it is closed and any use moves it (settings.flow and the handles are the settings); a hose's own water is process, like a basin's drain or a pipe's (draining it consumes nothing). valve_open is process: it follows settings.position, the setting.",
  "fields": {
   "+affordances": "identity",
   "accepts_items": "identity",
@@ -260,6 +260,7 @@
   "serving": "identity",
   "setting_options": "identity",
   "settings": "setting",
+  "settings.mix": "process",
   "sink_zone": "identity",
   "size_m": "identity",
   "slack_m": "process",
@@ -268,7 +269,8 @@
   "soil": {
    "class": "condition",
    "worse": "up",
-   "tol": 0.001
+   "tol": 0.001,
+   "guard": "soiled"
   },
   "stain_m2": {
    "class": "condition",
@@ -319,7 +321,7 @@
   },
   "used_l": "process",
   "valve_kind": "identity",
-  "valve_open": "setting",
+  "valve_open": "process",
   "volume_l": "identity",
   "washer": {
    "class": "condition",
@@ -353,10 +355,9 @@
   "zones": "process"
  },
  "types": {
-  "water_stain": {
-   "dripping": "process",
-   "wet": "process",
-   "moisture": "process"
+  "garden_hose": {
+   "liquid_l": "process",
+   "liquid": "process"
   },
   "utility_bucket": {
    "liquid_l": {
@@ -373,6 +374,11 @@
     "tol": 0.5,
     "guard": "mess"
    }
+  },
+  "water_stain": {
+   "dripping": "process",
+   "wet": "process",
+   "moisture": "process"
   }
  },
  "water_sensitive": []

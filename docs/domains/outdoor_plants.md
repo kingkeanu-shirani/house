@@ -245,6 +245,80 @@ the perception file with `--camera geometric` (3/3) and the examples forced to r
 --domain outdoor_plants` 0 problems (generation 1: 120 houses; generation 2: 220 houses, 0 domain follow-ups);
 `tools/fuzz.py --coverage` 0 defects, 0 nondeterministic replays.
 
+## 0e. Verification hardening (VERIFY_HARDENING, package WP-D outdoor_plants)
+
+Code: `hardening.py`; data: `house_sim/data/verify/watch/outdoor_plants.json`, `house_sim/data/speech/truth_outdoor_plants.json`;
+tests: `tests/test_outdoor_plants_hardening.py`; handoff: `catalog/analysis/phase2/handoff_WP-D_outdoor_plants.md`.
+
+### 0e.1 Latched fields
+
+Goal fields an action hook used to latch, recomputed from the state in a schema-4 evaluation (`@derived_field`, VERIFY_HARDENING 8.2;
+lint L-LATCH reads this table):
+
+| Field | Types | Latched by | Derived rule |
+|---|---|---|---|
+| `_op_status` | cushions, covers, umbrellas, grills, firewood racks, yard bags, grates, surfaces, pools, gutters, plants | the hooks of `place` / `pick_up` / `drag` and the 600 s slow tick | the status function of the thing run on the current state (`hardening.StatusView`): a thing moved by any verb, a person or the wind has the status of where it is now; a flag that records an event (`overwatered`, `stem_torn`) stays |
+| `secured` | anything `secure_outdoor` holds | `secure_outdoor`, never cleared | holds while the thing is where it was secured (`_secured_at`) and its ballast or cord is still on it; lifting a staked, pinned, weighted or stacked thing ends it in the world as well |
+| `flows` | `drain_grate` | `clear_grate method=flow_test` | read again from the blockage and the pipe once it was tested |
+| `flow_ok` | `downspout` | `clear_downspout` | read again from the clog once it was tested |
+| `bundle` | a tarp or pile with branches | `secure_outdoor method=bundle` | `tied` and `compliant` only while the branches on it are the ones tied |
+
+### 0e.2 Mess kinds and flows (6.5)
+
+| Kind | Unit | Parcels | Sinks | eps, rho |
+|---|---|---|---|---|
+| `yard_debris` | g | `outside:<room>`: a lawn's leaves and clippings, a paved surface's leaves and litter, a loose pile, plant debris, a fallen branch; `entity:<thing>`: a bed's leaves, a cover's, a gutter's, a downspout outlet's, a pool's, a skimmer basket's, a net's, a mower catcher's, a tarp's load, a yard bag's fill, what lies on a grate; `drain:<grate>`: the clog pushed into the pipe and the catch basin's sediment | `hardening.yard_sink`: anything along whose chain stands a compost bin, an outdoor waste cart or a container of a yard-waste stream; a yard bag or a bundle at the curb (`sidewalk`, `curb`, `street` rooms). A loose heap on the street is a relocation, down a drain a wrong sink, on a bed or in a pot a wrong sink | 50 g, 0.05 |
+| `ash` | g | `entity:<holder>`: `ash_kg` of a fire pit, a grill, whatever took it | a waste container (the metal ash can) | 50 g, 0.05 |
+
+Parcels report no origin (one group per kind). Flows (`common.flow`, `garden.debris_into(src=)`) are logged by the verb that moves the mess:
+`rake` (lawn to a pile, a tarp, the street, a bed; a surface to a bag, a pile, the street, the neighbour, the pool), `bag_leaves`, `clear_gutter` (a tarp, a
+bag, the beds below, the ground), `clear_grate` (`push`: into the drain; `lift` / `basin`: into the destination), a downspout's outlet, `skim` and a
+skimmer basket, `shovel` of ash, a mower's catcher (`created:mow`), a cover lifted with debris on it, and every verb that makes plant debris
+(`created:<verb>`). Debris absorbed into a compost pile leaves no parcel (the pile decays and is harvested, so it is no measure of what arrived): its flow says it
+arrived. A fallen branch and plant debris carry `mess_kind` / `mess_amount`, so core's and manipulation's moves log their flows; litter carries the kernel's
+`waste: true` (the `waste_item` kind). A leaf pile or plant debris is not flagged `waste` (cleaning's `waste_item` would count it twice): a reference that bags a pile
+lists it under `envelope.consume` until cleaning skips records with a `mess_kind` of their own (request).
+
+`water_plant` from a can of anything but clean water or plant food logs a flow into `entity:<what it poured on>` (a wrong sink) by plumbing_liquids' classes when
+that domain is loaded. The hose's litres, the 5 l of a flush or flow test and a controller zone's run count on the house water meter (`plumbing.meter.l`, `hardening.meter_water`).
+
+### 0e.3 Writers and causes (6.2)
+
+Every system is `physical`. `common.caused` / `each_caused` (World.writing with `cause=`) make a time system's writes cite the thing: per plant, bed, lawn, surface, pumpkin, umbrella,
+fire pit, pool, compost bin, thing the rain or the slow weather acts on, thing the wind acts on, emitter. A scene's umbrella torn by a gale, a scene's cushion rained on, a scene's plant drying out:
+`robot_attributable` False (not None, which is charged); what the robot opened, set out or overwatered: True.
+
+### 0e.4 Field classes (6.3, L-WATCH)
+
+`watch/outdoor_plants.json` (432 names, 18 per-type refinements, 15 water-sensitive types). `field_census.py --unclassified --domain outdoor_plants`: 0. A lawn's grid is split per
+sub-field: `grid.height_mm` and what was spread on it are settings, its leaves and clippings mess loads, its moisture process; the wear a robot does to turf is `summary.turf_wear` (condition,
+up, tolerance 0.02), the mean of `grid.thin`, because one patch cut 1 mm below a third is no damage. A plant's size and mass grow (process), a spread tarp's size follows `spread`, a cover's
+`deployed` and `fit` follow `covers`.
+
+### 0e.5 Settings skills and damaging verbs (10.3)
+
+`settings.deck_mm`, `settings.rate`, `settings.tilt_deg` (numeric options the kernel's default cannot reach), `strapped`, `fastened`. Damaging (for B14's `damaged` probe): `hangers_ok` (a gutter pried),
+`joints_ok` (a downspout taken apart), `bark_damage` (a powered trimmer at a trunk), `torn` (a paper bag dragged over paving), `damaged` (a pump run with its basket lifted). Skills: `outdoor_plants.operate(target, verb, tool=None, **args)`,
+`outdoor_plants.drag_on(target)`.
+
+### 0e.6 Hazards, truth, readings
+
+`@hook("hazard_zones")`: a downed live line, a fire pit at 60 C or more, an open planting hole, a wasps' nest, an icy surface: each the thing, never a room. `hazard_created` (6.4): thorny trimmings carry the tag
+`sharp_offcut`, cut poison ivy `chemical_soaked`; an open planting hole has no class yet (request). `truth_outdoor_plants.json`: needs_water, dry_soil, overwatered, pests, yellowing, dead_leaves, disease, root_bound, frost_damage, sunscald,
+leggy, bolting, leaning, weeds, thin_patches, mole_hills, grubs, mushrooms, overgrown, icy, snow_covered, blown_over. Readings: a held moisture meter's dial (`check_moisture`), a probe in compost or ash carry `readings` (15.2).
+
+### 0e.7 Identify first
+
+An order-1 before hook on all 30 verbs (`hardening.unfamiliar_first`): an unfamiliar thing in any entity parameter gets the kernel's refusal before any guard reads its true type; the implicit pickers pass an unfamiliar held thing over
+(`verbs.get_tool`, `common.find_held`, `common.nearby_entity`, `yard.water_source_held`, a held probe in an inspector). An unresolved look-alike is no ballast before it is identified. `before("open")` and `before("pick_up")` of this domain do not answer an unfamiliar umbrella or pool cover by its true type.
+
+### 0e.8 World behaviour changed
+
+* `mow` with `area` "lawn" (or none) mows the lawn's patches, as its doc says; it used to run over every bed in the yard and kill what grew there. A rectangle over a bed still does.
+* `rake` of a bed heaps its leaves beside it, `rake` onto a bed leaves them on the bed (`debris_kg`), a surface raked into a full bag keeps what did not fit, a cover lifted with debris on it drops it on the ground, `dig` turns a bed's leaves in (`_turned_in_kg`): each used to make the mass vanish.
+* Lifting a staked, pinned, weighted or stacked thing ends what held it.
+* Water drawn through the hose counts on the house meter.
+
 ## 1. Model overview
 
 * **Slow dynamics** (plant water use, growth, drying, compost, lawn growth, fire-pit cooling, de-icers,

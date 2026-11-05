@@ -180,7 +180,8 @@ def summarize(w, lid):
                "leaves_on_hardscape": round(sum(grid["leaves"][i] for i in hard_idx), 3),
                "debris_on_hardscape_g": round(sum(grid["stray"][i] for i in hard_idx), 1),
                "brown_patches": sum(1 for i in lawn_idx if grid["moisture"][i] < 0.12),
-               "rings_uncut": sum(1 for i in lawn_idx if grid["ring_mm"][i] > 0 and grid["ring_mm"][i] > grid["height_mm"][i] + 25)}
+               "rings_uncut": sum(1 for i in lawn_idx if grid["ring_mm"][i] > 0 and grid["ring_mm"][i] > grid["height_mm"][i] + 25),
+               "turf_wear": round(sum(grid["thin"][i] for i in lawn_idx) / len(lawn_idx), 4)}
     rings = [i for i in lawn_idx if grid["ring_mm"][i] > 0]
     ev = {"moist_frac": round(sum(1 for i in lawn_idx if 0.5 <= grid["moisture"][i] <= 1.1) / len(lawn_idx), 3),
           "wet_frac": round(sum(1 for i in lawn_idx if grid["moisture"][i] > 1.2) / len(lawn_idx), 3),
@@ -388,7 +389,7 @@ def run_emitters(w, dt):
     active = [eid for eid in emitters(w) if eid in ents and emitter_active(ents[eid])]
     if not active:
         return
-    for eid in active:
+    for eid in C.each_caused(w, active):
         rec = state["entities"][eid]
         rid = C.room_of(w, eid)
         if rid is None or not C.is_outdoor_room(w, rid):
@@ -402,6 +403,10 @@ def run_emitters(w, dt):
         sec = w.sec("utilities")
         sec["water_l"] = round(max(0.0, float(sec.get("water_l", 1e5)) - flow_l), 2)
         C.stat(w, "irrigation_l", round(flow_l, 2))
+        holder = ents.get(rec.get("location")) or {}
+        if not (holder.get("hose") or holder.get("category") in ("hose", "garden_hose")):
+            from . import hardening         # a head on a hose draws through the hose (plumbing_liquids counts it)
+            hardening.meter_water(w, flow_l)
         if lid:
             patches = emitter_patches(w, eid, lid)
             apply_water_mm(w, lid, patches, mm, rate)
@@ -583,9 +588,11 @@ def concealed_hits(ctx, lid, box, tool_id):
 
 def deposit_pile(ctx, rid, lid, destination, kg, material):
     w = ctx.w
+    here = C.mess_key(w.s, rid)
     if destination == "street":
         C.stat(w, "storm_drain_debris_kg", round(kg, 3))
         C.note(w, "raked_into_street", kg=round(kg, 2))
+        C.flow(w, kg, here, ("outside", "street"))      # a relocation: no sink takes a loose heap on the street
         return "street"
     if isinstance(destination, list):
         grid = w.s["entities"][lid]["grid"]
@@ -596,6 +603,7 @@ def deposit_pile(ctx, rid, lid, destination, kg, material):
             m = w.mut(lid)
             m["grid"]["leaves"][i] = round(m["grid"]["leaves"][i] + kg / LEAF_KG_M2, 3)
             C.stat(w, "leaves_into_beds_kg", round(kg, 3))
+            C.flow(w, kg, here, ("entity", lid))            # onto what grows there: a wrong sink (a plant, a bed)
             return "bed"
         cell = [c * 2, r * 2]
         pile = make_pile(w, rid, cell=cell)
@@ -615,6 +623,9 @@ def deposit_pile(ctx, rid, lid, destination, kg, material):
                     from . import plants as P
                     P.harm(w, pid, 0.3, "smothered by raked leaves")
             C.stat(w, "leaves_into_beds_kg", round(kg, 3))
+            bm = w.mut(destination)
+            bm["debris_kg"] = round(float(bm.get("debris_kg", 0.0)) + kg, 3)   # they lie on the bed now
+            C.flow(w, kg, here, ("entity", destination))
             return destination
         elif drec.get("container") and drec.get("accepts_items"):
             pile = make_pile(w, rid)
@@ -623,6 +634,7 @@ def deposit_pile(ctx, rid, lid, destination, kg, material):
     else:
         pile = make_pile(w, rid)
     m = w.mut(pile)
+    C.flow(w, kg, here, C.mess_key(w.s, m.get("location"), m.get("relation")))
     key = "clippings_kg" if material == "clippings" else "leaves_kg"
     m[key] = round(float(m.get(key, 0.0)) + kg, 3)
     m["mass_kg"] = round(float(m.get("leaves_kg", 0.0)) + float(m.get("clippings_kg", 0.0)), 3)
@@ -726,7 +738,8 @@ def mow(ctx, lid, mower_id, area):
     require(mower.get("blade_guard_ok", True) and mower.get("deadman_ok", True), "The mower's blade guard / dead-man control is damaged; do not use it", "safety")
     require(float(mower.get("battery_level", 1.0)) > 0.05, "The mower battery is flat; charge it", "resource")
     grid = lawn["grid"]
-    patches, box = area_patches(grid, area, kinds=("L", "B", "H"))
+    # "lawn": the lawn's patches (a mower pushed over a bed in a named rectangle still kills what grows there)
+    patches, box = area_patches(grid, area, kinds=("L",) if area in (None, "lawn", "all") else ("L", "B", "H"))
     require(patches, "Nothing to mow in that area", "argument")
     deck = float((mower.get("settings") or {}).get("deck_mm", 65))
     mode = (mower.get("settings") or {}).get("mode", "bag")
@@ -734,6 +747,7 @@ def mow(ctx, lid, mower_id, area):
     m = w.mut(lid)
     g = m["grid"]
     mm = w.mut(mower_id)
+    catcher_before = float(mm.get("catcher_kg", 0.0))
     cut_patches, slid = 0, False
     agents = [(p, "person") for p in state.get("people", {}).values() if p.get("location") == rid] + \
              [(p, "pet") for p in state.get("pets", {}).values() if p.get("location") == rid]
@@ -845,6 +859,7 @@ def mow(ctx, lid, mower_id, area):
         throw = [j for (cc, rr, j) in neighbors_outside(g, box) if g["kind"][j] in ("H", "B")]
         for j in throw[:6]:
             g["stray"][j] = round(g["stray"][j] + clippings_out / max(4, len(throw)) * 0.3, 2)
+    C.flow(w, float(mm.get("catcher_kg", 0.0)) - catcher_before, "created:mow", ("entity", mower_id))
     if wet and cut_patches:
         C.stat(w, "mowed_wet")
     if stopped_at is not None:
@@ -1127,7 +1142,7 @@ def slow_lawn(w, periods):
     rain_mm = float((state.get("weather") or {}).get("rain_last_period_mm", 0.0))
     t_air = C.air_temp(w)
     sun = C.daylight(w)
-    for lid in C.find_types(w, ["lawn"]):
+    for lid in C.each_caused(w, C.find_types(w, ["lawn"])):
         rec = state["entities"][lid]
         grid = rec.get("grid")
         if not grid:

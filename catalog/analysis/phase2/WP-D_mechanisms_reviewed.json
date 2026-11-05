@@ -1,0 +1,23 @@
+[
+ {
+  "kind": "golden",
+  "key": "specs/T-0242c820d56e7e-01",
+  "code": "P2",
+  "package": "P2-WPD:mechanisms",
+  "decision": "proposed (WP-D mechanisms; this package does not own tests/data/room_golden.json, so the main session re-records and signs): a door shoving a floor thing aside recorded `shifted`, a kernel condition field, so the ledger charged house.damaged:wastebasket_2.shifted on a reference that only opened a door (admin_inventory's as-if). closures._slide_aside now writes the hidden `_pushed_aside` record: the placement guards judge the move, nothing was hurt. A/B on frozen trees (pristine HEAD vs HEAD plus only this package's files): tools/golden.py dump --all differs in 3 of 275 files, this entry only in entities.*.shifted (true -> null) and entities.*._pushed_aside (null -> true); steps, time and evaluation unchanged; the 8 script runs identical"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-3b1a4024d46110-01",
+  "code": "P2",
+  "package": "P2-WPD:mechanisms",
+  "decision": "proposed (WP-D mechanisms; the main session re-records and signs): as specs/T-0242c820d56e7e-01 (bathroom_wastebasket_1 pushed aside by a door: `shifted` -> `_pushed_aside`); steps, time and evaluation unchanged"
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-847e9e300bdea8-01",
+  "code": "P2",
+  "package": "P2-WPD:mechanisms",
+  "decision": "proposed (WP-D mechanisms; the main session re-records and signs): as specs/T-0242c820d56e7e-01 (wastebasket_2 pushed aside by a door: `shifted` -> `_pushed_aside`); steps, time and evaluation unchanged"
+ }
+]

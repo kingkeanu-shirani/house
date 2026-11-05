@@ -42,6 +42,8 @@ def _closer_busy(w, eid, rec, now, wind):
     if _unclaimed_closer(rec):
         return True
     if isinstance(mech, dict):
+        if "propped_by" in mech and not C.prop_in_place(state, eid, rec):
+            return True
         stale = "release_at" in mech or "resting_on" in mech or "closer_held" in mech or C.num(mech.get("open_frac")) > 0.005
         if not rec.get("open") and stale and not C.leaf_state(rec) and C.kind_of(rec) != "overhead_door":
             return True
@@ -173,7 +175,7 @@ def slow_idle(w):
 # ----------------------------------------------------------------------------------
 # system
 
-@system("mechanisms.tick", order=95, max_dt=30.0, idle=tick_idle)
+@system("mechanisms.tick", order=95, max_dt=30.0, idle=tick_idle, writer="physical")
 def mechanisms_tick(w, dt, tick):
     """Fast, event-sensitive mechanics. Iterates the domain's static indexes (C.ids) and re-checks dynamic
     fields on the records: nothing here scans every entity."""
@@ -190,54 +192,70 @@ def mechanisms_tick(w, dt, tick):
             continue
         mech = rec.get("mech")
         if _unclaimed_closer(rec):
-            _adopt_closer(w, eid, now)              # opened or released by someone else: its spring starts closing it
+            with C.caused(w, eid):
+                _adopt_closer(w, eid, now)          # opened or released by someone else: its spring starts closing it
             rec = ents.get(eid) or rec
             mech = rec.get("mech")
         if isinstance(mech, dict):
+            if "propped_by" in mech and not C.prop_in_place(state, eid, rec):
+                with C.caused(w, eid, mech["propped_by"]):
+                    C.release_prop(w, eid, mech["propped_by"])     # the wedge is gone: nothing holds the door any more
+                rec = ents.get(eid) or rec
+                mech = rec.get("mech") or {}
             stale = "release_at" in mech or "resting_on" in mech or "closer_held" in mech or C.num(mech.get("open_frac")) > 0.005
             if not rec.get("open") and stale and not C.leaf_state(rec) and C.kind_of(rec) != "overhead_door":
-                _reconcile_closed(w, eid)          # shut outside this domain (a resident, another domain's verb)
+                with C.caused(w, eid):
+                    _reconcile_closed(w, eid)      # shut outside this domain (a resident, another domain's verb)
                 rec = ents.get(eid) or rec
                 mech = rec.get("mech") or {}
             if "release_at" in mech and rec.get("open"):
-                _closer(w, eid, rec, mech, now, tick)
+                with C.caused(w, eid):
+                    _closer(w, eid, rec, mech, now, tick)
                 rec = ents.get(eid) or rec
                 mech = rec.get("mech") or {}
             if "relock_at" in mech and now >= C.num(mech["relock_at"]):
-                _relock(w, eid)
+                with C.caused(w, eid):
+                    _relock(w, eid)
                 rec = ents.get(eid) or rec
                 mech = rec.get("mech") or {}
             if mech.get("draft_prone") and rec.get("open"):
-                _draft(w, eid, rec, dt, wind, tick)
+                with C.caused(w, eid, *_draft_windows(w, eid)):
+                    _draft(w, eid, rec, dt, wind, tick)
                 rec = ents.get(eid) or rec
         if wind >= 6.0 and "latched" in rec and not rec.get("latched") and C.kind_of(rec) in ("gate", "hinged_door", "double_door", "storm_door") \
                 and any(C.is_outdoor(state, r) for r in C.door_rooms(state, eid)):
-            _wind(w, eid, rec, dt, wind, tick)      # wind reaches only doors and gates with an outdoor side
+            with C.caused(w, eid):
+                _wind(w, eid, rec, dt, wind, tick)  # wind reaches only doors and gates with an outdoor side
     for eid in C.ids(w, "gas"):
         rec = ents.get(eid)
         gas = ((rec or {}).get("mech") or {}).get("gas")
         if isinstance(gas, dict) and gas.get("flow") and not gas.get("lit"):
-            _gas(w, eid, dt)
+            with C.caused(w, eid):
+                _gas(w, eid, dt)
     for eid in C.ids(w, "ui"):
         rec = ents.get(eid)
         if rec is not None and isinstance(rec.get("ui"), dict) and rec["ui"].get("staged"):
-            _ui_timeout(w, eid, rec, now)
+            with C.caused(w, eid):
+                _ui_timeout(w, eid, rec, now)
     if raining:
         for eid in C.ids(w, "windows"):
             rec = ents.get(eid)
             if rec is not None and rec.get("open"):
-                _rain(w, eid, rec, dt, weather)
+                with C.caused(w, eid):              # what the rain wets comes through this window (the sill, the floor cell)
+                    _rain(w, eid, rec, dt, weather)
     if C.ids(w, "pet_doors") and C.is_night(state):
         household_risk = C.num((state.get("household") or {}).get("wildlife_risk"))
         for eid in C.ids(w, "pet_doors"):
             rec = ents.get(eid)
             risky = rec is not None and isinstance(rec.get("mech"), dict) and C.num(rec["mech"].get("wildlife_risk"), household_risk) > 0
             if risky and P.admits_in(rec):
-                _wildlife(w, eid, rec, dt, tick)
+                with C.caused(w, eid):
+                    _wildlife(w, eid, rec, dt, tick)
     for eid in C.ids(w, "alarms"):
         rec = ents.get(eid)
         if rec is not None:
-            _alarm(w, eid, rec, dt)
+            with C.caused(w, eid):
+                _alarm(w, eid, rec, dt)
     _heat_near_fabric(w, dt)
     _pets(w, dt, tick)
 
@@ -254,10 +272,11 @@ def _heat_near_fabric(w, dt):
         rec = ents.get(eid)
         if rec is None or rec.get("burnt") or C.room_of(w.s, eid) not in rooms:
             continue
-        _fabric_heat(w, eid, rec, dt, hot)
+        with C.caused(w, eid, *hot):
+            _fabric_heat(w, eid, rec, dt, hot)
 
 
-@system("mechanisms.slow", order=96, max_dt=600.0, period=300.0, idle=slow_idle)
+@system("mechanisms.slow", order=96, max_dt=600.0, period=300.0, idle=slow_idle, writer="physical")
 def mechanisms_slow(w, dt, tick):
     """Slow processes, once per 300 s with the accumulated dt (both are linear/stateless in dt):
     paint skinning over in unsealed cans; sun position -> direct sun through windows and glare."""
@@ -265,7 +284,8 @@ def mechanisms_slow(w, dt, tick):
     for eid in C.ids(w, "paint"):
         rec = ents.get(eid)
         if rec is not None and rec.get("paint") and not rec.get("sealed") and not rec.get("dried_out"):
-            _paint_skin(w, eid, rec, dt)
+            with C.caused(w, eid):
+                _paint_skin(w, eid, rec, dt)
     refresh_sun(w)
 
 
@@ -425,12 +445,20 @@ def _gas(w, eid, dt):
     rm, mech = C.mut_mech(w, eid)
     gas = dict(mech["gas"])
     gas["unlit_s"] = round(C.num(gas.get("unlit_s")) + dt, 1)
+    C.count_gas(w, C.num(gas.get("kw"), 2.5) * dt / 3600.0)       # a household burner's rate, unburnt (the gas meter, 6.8)
     if gas["unlit_s"] >= 8.0 and not gas.get("exposure_flagged"):
         gas["exposure_flagged"] = True
         # the robot's when it turned the knob that let the gas flow (else a scene's leak it may only fail to stop)
         C.harm(w, "gas_exposure", robot=C.robot_set(w.s["entities"][eid], "gas"), source=eid,
                cause="gas flowing from an unlit burner")
     mech["gas"] = gas
+
+
+def _draft_windows(w, eid):
+    """The open windows a door's draught comes through (what _draft reads), for its causal link."""
+    rooms = set(C.door_rooms(w.s, eid))
+    ents = w.s["entities"]
+    return [wid for wid in C.ids(w, "windows") if (ents.get(wid) or {}).get("location") in rooms and (ents.get(wid) or {}).get("open")]
 
 
 def _draft(w, eid, rec, dt, wind, tick):
@@ -521,7 +549,7 @@ def _rain(w, eid, rec, dt, weather):
         for item in w.children(sill):
             irec = w.mut(item)
             irec["wetness"] = round(min(1.0, C.num(irec.get("wetness")) + litres * 3.0), 3)
-            if irec["wetness"] >= 0.3 and (irec.get("water_safe") is False or irec.get("electronic") or irec.get("category") in ("book", "paper", "electronics")) and not irec.get("water_damaged"):
+            if irec["wetness"] >= 0.3 and C.water_sensitive(irec) and not irec.get("water_damaged"):
                 irec["water_damaged"] = True
                 C.add_damage(irec, "water", 0.5)
                 C.harm(w, "damage", robot=robot or C.robot_caused(w, item), item=item,
@@ -584,7 +612,8 @@ def _pets(w, dt, tick):
             if tick.rng("pet_escape:" + pid + cid).random() < 1.0 - math.exp(-dt * rate):
                 # the robot's escape when its action opened or unlatched this door (else a passage the household left)
                 robot = door is not None and C.robot_set(door, "open", "unlatch")
-                K.escape(w, pid, there, conn["cells"].get(there), via=conn.get("door") or cid, robot=robot)
+                with C.volition(w, "mechanisms.pets"):
+                    K.escape(w, pid, there, conn["cells"].get(there), via=conn.get("door") or cid, robot=robot)
                 break
         if state["pets"][pid].get("escaped"):
             continue
@@ -597,7 +626,8 @@ def _pets(w, dt, tick):
                     continue
                 if tick.rng("cat_window:" + pid + wid).random() < 1.0 - math.exp(-dt * risk / 120.0):
                     outside = next((r for r in sorted(state["rooms"]) if C.is_outdoor(state, r)), here)
-                    K.escape(w, pid, outside, None, via=wid, robot=C.robot_set(wrec, "open", "screen"))
+                    with C.volition(w, "mechanisms.pets"):
+                        K.escape(w, pid, outside, None, via=wid, robot=C.robot_set(wrec, "open", "screen"))
                     break
 
 
@@ -879,20 +909,7 @@ def _after_pickup(ctx, result):
         return
     door = rec.get("props_open")
     if door and door in w.s["entities"]:
-        rm, mech = C.mut_mech(w, door)
-        if mech.get("propped_by") == eid:
-            mech.pop("propped_by", None)
-            rm.pop("propped", None)
-            if isinstance(rm.get("settings"), dict):
-                rm["settings"].pop("hold_open", None)
-                if not rm["settings"]:
-                    rm.pop("settings")
-            if C.mget(w.ent(door), "self_closing") or w.ent(door).get("self_closing"):
-                mech["release_at"] = w.s["time_s"]
-                C.note_robot(w, door, "release")        # the robot took the prop away: its closer now swings
-        wm = w.mut(eid)
-        wm.pop("props_open", None)
-        wm.pop("propping", None)
+        C.release_prop(w, door, eid)
     if rec.get("in_track"):
         host = rec.get("location")
         w.mut(eid).pop("in_track", None)

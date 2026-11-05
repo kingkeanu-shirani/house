@@ -1,0 +1,16 @@
+[
+  {
+    "kind": "golden",
+    "key": "runs/*",
+    "code": "P2",
+    "package": "P2-WPD:admin_inventory",
+    "decision": "proposed (WP-D admin_inventory; this package does not own tests/data/room_golden.json, so the main session re-records and signs). 6 of the 8 script runs (seeds 0, 2 and 3 in both modes: reset and step digests): baseline refuse is flagged (entities.*.waste on a spent paper roll; VERIFY_HARDENING 6.4, 6.5, mark_refuse), printers and shredders get power_state standby and a standby_w (6.8: a printer was booked at its rated power_w around the clock), so climate.energy.kwh / cost_usd / by_device fall by the idle printer's difference; oracle observations show waste on a visible spent roll (obs.visible_entities.*.waste; realistic mode hides it). Each step's action, ok flag and duration are unchanged. A/B on frozen trees (HEAD 6a9e3e8 with this package's files at bc1dc72 vs HEAD plus this package): tools/golden.py dump --all + diff."
+  },
+  {
+    "kind": "golden",
+    "key": "specs/*",
+    "code": "P2",
+    "package": "P2-WPD:admin_inventory",
+    "decision": "proposed (WP-D admin_inventory; the main session re-records and signs). 233 of 243 spec entries, the state digest only (steps, time and evaluation unchanged in every entry; the 10 unchanged: P-47196e0991cdf4-01, T-03d77bbfc281a4-01, T-0adf708ce0749a-01, T-259d38eb6707f0-01, T-301e5aee8a71a0-01, T-79a861877a2a67-01, T-89530941a65283-01, T-94a0a940224c22-01, T-d1f9385dbb80fc-01, T-fffb3941b40c87-01). Paths: entities.*.waste (243 files, runs included), entities.*.power_state and standby_w (190), climate.energy.kwh / cost_usd / by_device (58), climate.energy.peak_kwh (T-d8355138bcf9fb-01), electrical.house_load_w (T-dde0975c7a26b8-01: the shredder's 0.5 W standby), T-dde0975c7a26b8-01 entities.loose_staple_1.tags and logs.mess_flows (a pulled staple is created refuse), T-73a13fb297c40f-01 entities.cart_*.waste_bin, logs.mess_flows, logs.gone.*.name / last.waste and household.collected (the collection truck's record and flows). tools/golden.py dump --all + diff on frozen trees (HEAD 6a9e3e8 with this package's files at bc1dc72 vs HEAD plus this package): 247 of 275 files."
+  }
+]

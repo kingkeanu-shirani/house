@@ -1,0 +1,1105 @@
+{
+ "about": "Field classes of the tools_vehicles domain for the house ledger (VERIFY_HARDENING 6.3, lint L-WATCH; WP-D tools_vehicles). 'fields' classifies, for this domain's types (house_sim/data/types/tools_vehicles.json), every property of the type data the kernel's name table misfits or does not name and every field this domain's verbs and systems write: identity = what a thing is (ratings, kinds, printed text: flow_lpm, cure_s, gauge, power_kw, stroke_l are static here, whatever the kernel's name patterns take them for); setting = what the robot sets (a car's engine and brake, clamps, an assembly's slots, a mount, inflation records, fastener_delta: the public mirror of the hidden _fasteners truth); condition = damage in its worse direction; content = what it holds or has left (a weatherstrip roll's length_m: cutting uses it up); process = transient physics and what follows from things the ledger compares (a trunk's stack height, a door's latch_ok, a drain's speed, cabin heat, wet paint, a charger's status); bookkeeping = records of what happened and mirrors of other things (layers: the loads themselves are judged; fasteners: the visible head list a close look extends; a tool's `condition` words, written when a close look shows the hidden _damage). 'types' refines a type and names what this domain writes on core things and on generic_items standing in for other domains' fixtures. 'writes': the names of 'fields' this domain writes on things of any type; the ledger applies a domain's 'fields' only to its own types, so on other types they fall back to the kernel table or the default (setting: watched, a false alarm at worst, never a hole) until the kernel reads this list (request to WP1). water_sensitive: powered tools, chargers and paper.",
+ "fields": {
+  "absorbent": "identity",
+  "accepts_items": "identity",
+  "accuracy_bar": "identity",
+  "adhesive": "identity",
+  "adjustable": "identity",
+  "anchor": "bookkeeping",
+  "anchor_hole": "setting",
+  "anchor_into_stud": "setting",
+  "anchor_kind": "identity",
+  "anchor_torn_out": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "anchored": "setting",
+  "assembly": "setting",
+  "assembly.*": "setting",
+  "automotive": "identity",
+  "battery": "process",
+  "battery.*": "process",
+  "battery_kwh": "identity",
+  "battery_powered": "identity",
+  "battery_swollen": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "bearings": {
+   "class": "condition",
+   "worse": "change"
+  },
+  "bearings.water_ingress": {
+   "class": "condition",
+   "worse": "up"
+  },
+  "blade": "identity",
+  "blade_tool": "identity",
+  "blocks_rear_view": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "bond_ok": "process",
+  "brakes": {
+   "class": "condition",
+   "worse": "change"
+  },
+  "brakes.contamination": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "brakes.kind": "identity",
+  "buried": "process",
+  "burr": "process",
+  "bypass_s": "bookkeeping",
+  "cabin_temp_c": "process",
+  "cable_length_m": "identity",
+  "calibrated": "setting",
+  "capabilities": "identity",
+  "capacity_l_rated": "identity",
+  "capacity_wh": "identity",
+  "cargo_pocket": "placement",
+  "centered": "bookkeeping",
+  "chain": {
+   "class": "condition",
+   "worse": "change"
+  },
+  "chain.degreased_at": "bookkeeping",
+  "chain.grime": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.05
+  },
+  "chain.grinding_paste": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "chain.lube": "setting",
+  "chain.lubed_at": "bookkeeping",
+  "chain.rust": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "charge_a": "identity",
+  "charge_complete": "process",
+  "charge_port_open": "setting",
+  "charge_site": "setting",
+  "charge_site.*": "bookkeeping",
+  "charger": "setting",
+  "charging": "setting",
+  "chemical": "identity",
+  "choking_hazard": "identity",
+  "clamps": "setting",
+  "clamps.*": "setting",
+  "clear_view": "process",
+  "compression": "identity",
+  "condition": "bookkeeping",
+  "connected_to": "setting",
+  "connector": "identity",
+  "connector_out": "process",
+  "cord_damage": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "count": {
+   "class": "content"
+  },
+  "coverage_m2_per_l": "identity",
+  "covers_leg": "bookkeeping",
+  "cracked_tile": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "cure_s": "identity",
+  "cut": "setting",
+  "cuts": "bookkeeping",
+  "dents": {
+   "class": "condition",
+   "worse": "up"
+  },
+  "detached": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "diameter_mm": "identity",
+  "dispense": "identity",
+  "drain_speed": "process",
+  "dried_faces": "bookkeeping",
+  "dull": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "edge_damaged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "edge_rounded": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "electronic": "identity",
+  "engine": "setting",
+  "ev": "identity",
+  "expiration": "identity",
+  "exterior_wet": "process",
+  "fallen": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "fastener_delta": "setting",
+  "fasteners": "bookkeeping",
+  "fasteners.*": "bookkeeping",
+  "fell_off_jack": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "filter_model": "identity",
+  "finish": "identity",
+  "finished_face": "identity",
+  "fixed_temperature": "identity",
+  "flat_change": "setting",
+  "flat_change.*": "setting",
+  "floor_area_m2": "identity",
+  "floor_pan_dented": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "flow_lpm": "identity",
+  "flow_lps": "identity",
+  "flush_l": "identity",
+  "flushed_l": "process",
+  "gas_leak": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "gauge": "identity",
+  "gear": "setting",
+  "gear_kind": "identity",
+  "glass_ice_mm": "process",
+  "glass_ice_mm.*": "process",
+  "glass_scratched": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "glazed": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "gouge_depth_mm": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "gouged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "grit": "identity",
+  "grit_guard": "identity",
+  "guard": "setting",
+  "handle.cracked": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "handle_material": "identity",
+  "handover_ok": "bookkeeping",
+  "handover_pose": "bookkeeping",
+  "hang_slots": "bookkeeping",
+  "hardware_kind": "identity",
+  "haz_stream": "identity",
+  "head_kg": "identity",
+  "heat_output_frac": "process",
+  "holds_category": "identity",
+  "holds_kind": "identity",
+  "hole_enlarged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "holstered": "process",
+  "humming_s": "bookkeeping",
+  "hung_at": "bookkeeping",
+  "inflation": "setting",
+  "inflation.*": "setting",
+  "inspect_from_afar": "identity",
+  "interior_soaked": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "jack_points": "identity",
+  "jamb_drips": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "jambs_wet": "process",
+  "jammed_lead": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "jaw_max_mm": "identity",
+  "keep_with_item": "identity",
+  "key": "identity",
+  "kit_checklist": "identity",
+  "kit_item": "identity",
+  "latch_issue": "process",
+  "latch_ok": "process",
+  "latched": "setting",
+  "layers": "bookkeeping",
+  "layers.*": "bookkeeping",
+  "lead_breaks": {
+   "class": "condition",
+   "worse": "up"
+  },
+  "leaked_l": "bookkeeping",
+  "length_m": {
+   "class": "content",
+   "tol": 0.001
+  },
+  "lever_hands": "identity",
+  "lever_m": "identity",
+  "lid_clearance_m": "identity",
+  "lid_dented": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "liquid_container": "identity",
+  "load_rating_text": "identity",
+  "loaded": "setting",
+  "lock_kind": "identity",
+  "lockable": "identity",
+  "loose_on_rear_deck": "placement",
+  "lost": "bookkeeping",
+  "lubed_with": "bookkeeping",
+  "lubricant": "identity",
+  "lubricants_used": "bookkeeping",
+  "magnetic": "identity",
+  "makes_hole_mm": "identity",
+  "marks_finish": "identity",
+  "mat_state": "process",
+  "mat_state.*": "process",
+  "max_bar": "identity",
+  "max_c": "identity",
+  "max_service_temp_c": "identity",
+  "max_stack_load_kg": "identity",
+  "max_torque_nm": "identity",
+  "min_c": "identity",
+  "moistened": "setting",
+  "mount": "setting",
+  "mount.*": "setting",
+  "mount_height_m": "identity",
+  "mount_surface": "identity",
+  "needs_hammer": "identity",
+  "needs_hole_mm": "identity",
+  "nozzle_cut": "setting",
+  "occupant": "setting",
+  "oil_film": "process",
+  "on_outline": "bookkeeping",
+  "outdoor_rated": "identity",
+  "outline_ok": "bookkeeping",
+  "outlines": "identity",
+  "overhang": "bookkeeping",
+  "packaging": "identity",
+  "paint": "identity",
+  "paint.color": "identity",
+  "paint.finish": "identity",
+  "paint.sheen": "identity",
+  "paint.swirls": {
+   "class": "condition",
+   "worse": "up"
+  },
+  "paint.wax": {
+   "class": "condition",
+   "worse": "down",
+   "tol": 0.05
+  },
+  "paint_chipped": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "paint_color": "identity",
+  "paint_lifted": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "paint_loaded": "process",
+  "paint_peeled": {
+   "class": "condition",
+   "worse": "up"
+  },
+  "park_brake": "setting",
+  "part_type": "identity",
+  "patches": {
+   "class": "content"
+  },
+  "plate": "identity",
+  "pliers_kind": "identity",
+  "plug_required": "identity",
+  "pointed": "identity",
+  "position": "identity",
+  "power_kw": "identity",
+  "power_tool": "identity",
+  "primer": "identity",
+  "product": "identity",
+  "protrudes": "process",
+  "psi": "identity",
+  "punctured": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "ran_filterless_s": "bookkeeping",
+  "rated_kg": "identity",
+  "rated_kg.*": "identity",
+  "reach_m": "identity",
+  "rechargeable": "identity",
+  "removable": "identity",
+  "reported": "bookkeeping",
+  "reported.*": "bookkeeping",
+  "retention": "identity",
+  "role": "identity",
+  "roof_snow_cm": "process",
+  "ruined": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "running": "process",
+  "seal": {
+   "class": "condition",
+   "worse": "down",
+   "tol": 0.01
+  },
+  "seal_kind": "identity",
+  "sharpness": "process",
+  "shavings_ml": "bookkeeping",
+  "sheen": "identity",
+  "sightline_h_m": "identity",
+  "size_system": "identity",
+  "soap": "identity",
+  "soap_film": "process",
+  "soap_spots": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "soc": "process",
+  "soc_target": "setting",
+  "soft_sided": "identity",
+  "sorted_ok": "bookkeeping",
+  "spilled_l": "bookkeeping",
+  "stack_top_m": "process",
+  "stackable": "identity",
+  "standing_l": "process",
+  "staples": {
+   "class": "content"
+  },
+  "status": "process",
+  "steps": "identity",
+  "stop_ok": "process",
+  "stops_door": "bookkeeping",
+  "stroke_l": "identity",
+  "stub": "bookkeeping",
+  "sun_exposed": "process",
+  "switchable": "identity",
+  "temporary": "identity",
+  "tethered_to": "identity",
+  "thickness_mm": "identity",
+  "threshold_dented": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "threshold_scratched": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "tilt_deg": "placement",
+  "tines": "process",
+  "tip": "identity",
+  "tip.*": "identity",
+  "tires": "setting",
+  "tires.*": "setting",
+  "tool_category": "identity",
+  "tool_kind": "identity",
+  "tool_storage": "identity",
+  "tooth_marks": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "toppled": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "toxic_to_pets": "identity",
+  "two_handed": "identity",
+  "used": "bookkeeping",
+  "used_l": "process",
+  "v_angle_deg": "identity",
+  "vehicle_kind": "identity",
+  "vertical_board": "identity",
+  "wall_material": "identity",
+  "washed_faces": "bookkeeping",
+  "washer_fluid": {
+   "class": "content",
+   "tol": 0.01
+  },
+  "washer_fluid.capacity_l": "identity",
+  "washer_fluid.level_l": {
+   "class": "content",
+   "tol": 0.01
+  },
+  "waste_stream": "identity",
+  "wasted_l": "bookkeeping",
+  "water_damaged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "water_spots": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "waterproof": "identity",
+  "watertight": "identity",
+  "wax_safe": "identity",
+  "wear_slot": "identity",
+  "wearable": "identity",
+  "wheel_acid": "identity",
+  "wheel_etched": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "wheel_finish": "identity",
+  "wheel_misseated": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "wheel_spots": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "wheels": "setting",
+  "wheels.*": "setting",
+  "windows_closed": "setting",
+  "wiper_ok": "setting",
+  "wipers_ok": "setting",
+  "wipers_ok.*": "setting",
+  "wrong_floor": "bookkeeping"
+ },
+ "types": {
+  "bed": {
+   "fastener_delta": "setting",
+   "dents": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "handle.cracked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "finish_marks": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "tooth_marks": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "punctured": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "bookshelf": {
+   "fastener_delta": "setting",
+   "dents": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "handle.cracked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "finish_marks": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "tooth_marks": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "punctured": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "cabinet": {
+   "fastener_delta": "setting",
+   "dents": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "handle.cracked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "finish_marks": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "tooth_marks": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "punctured": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "car": {
+   "soap": "setting",
+   "paint": {
+    "class": "condition",
+    "worse": "change"
+   },
+   "paint.finish": "identity",
+   "paint.swirls": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "paint.wax": {
+    "class": "condition",
+    "worse": "down",
+    "tol": 0.05
+   }
+  },
+  "car_wash_bucket": {
+   "grit": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.05
+   },
+   "soap": "setting",
+   "role": "identity"
+  },
+  "chair": {
+   "fastener_delta": "setting",
+   "dents": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "handle.cracked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "finish_marks": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "tooth_marks": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "punctured": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "desk": {
+   "fastener_delta": "setting",
+   "dents": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "handle.cracked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "finish_marks": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "tooth_marks": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "punctured": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "door": {
+   "fastener_delta": "setting",
+   "dents": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "handle.cracked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "finish_marks": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "tooth_marks": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "punctured": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "dresser": {
+   "fastener_delta": "setting",
+   "dents": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "handle.cracked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "finish_marks": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "tooth_marks": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "punctured": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "drying_towel": {
+   "grit": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.05
+   }
+  },
+  "electric_car": {
+   "soap": "setting",
+   "paint": {
+    "class": "condition",
+    "worse": "change"
+   },
+   "paint.finish": "identity",
+   "paint.swirls": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "paint.wax": {
+    "class": "condition",
+    "worse": "down",
+    "tol": 0.05
+   }
+  },
+  "exterior_door": {
+   "fastener_delta": "setting",
+   "dents": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "handle.cracked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "finish_marks": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "tooth_marks": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "punctured": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "generic_item": {
+   "fastener_delta": "setting",
+   "dents": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "cracked_tile": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "gouged": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "gouge_depth_mm": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.01
+   },
+   "punctured": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "tooth_marks": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "edge_damaged": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "edge_rounded": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "lead_breaks": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "paint_peeled": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "threshold_dented": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "threshold_scratched": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "anchor_torn_out": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "holes": "setting",
+   "tv_holes": "setting",
+   "handle.cracked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "caulk_joint": "setting",
+   "caulk_joint.*": "setting",
+   "grout": "setting",
+   "grout.*": "setting",
+   "seal": "setting",
+   "seal.*": "setting",
+   "paint_coats": "setting",
+   "paint_coverage": "setting",
+   "paint_color_ok": "process",
+   "paint_last_coat_at": "bookkeeping",
+   "paint_wet_until": "process",
+   "touch_up_coats": "setting",
+   "touch_up_color_ok": "process",
+   "sanded": "setting",
+   "sharpness": "process",
+   "burr": "process",
+   "stub": "bookkeeping",
+   "edge_angle_deg": "setting",
+   "snaked_at": "bookkeeping",
+   "drain_speed": "process",
+   "latch_ok": "process",
+   "latch_issue": "process",
+   "standing_l": "process",
+   "water_quality": "process",
+   "leaked_l": "bookkeeping",
+   "spilled_l": "bookkeeping",
+   "wasted_l": "bookkeeping",
+   "ran_filterless_s": "bookkeeping",
+   "bypass_s": "bookkeeping",
+   "duct_dust": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.01
+   },
+   "reversed": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "bypass_gap_mm": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.5
+   },
+   "stop_ok": "process",
+   "stops_door": "bookkeeping",
+   "fasteners": "bookkeeping",
+   "fasteners.*": "bookkeeping",
+   "condition": "bookkeeping",
+   "cut": "setting",
+   "cuts": "bookkeeping",
+   "lubed_with": "bookkeeping",
+   "assembly": "setting",
+   "assembly.*": "setting",
+   "flushed_l": "process",
+   "used_l": "process",
+   "standing": "process",
+   "thermal_tripped": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "humming_s": "bookkeeping",
+   "tripped_at": "bookkeeping",
+   "ran_ok": "bookkeeping",
+   "heat_output_frac": "process",
+   "bled_at": "bookkeeping",
+   "washed_at": "bookkeeping",
+   "bond_ok": "process",
+   "overhang": "bookkeeping",
+   "covers_leg": "bookkeeping",
+   "centered": "bookkeeping",
+   "installed_at": "bookkeeping",
+   "hung_at": "bookkeeping",
+   "tilt_deg": "placement",
+   "mount": "setting",
+   "mount.*": "setting",
+   "pads": "setting",
+   "pads.*": "setting",
+   "inflation": "setting",
+   "inflation.*": "setting"
+  },
+  "nightstand": {
+   "fastener_delta": "setting",
+   "dents": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "handle.cracked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "finish_marks": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "tooth_marks": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "punctured": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "paint_can": {
+   "paint": "identity"
+  },
+  "primer_can": {
+   "paint": "identity"
+  },
+  "repair_wall": {
+   "holes": "setting",
+   "tv_holes": "setting",
+   "dents": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "handle_hits": "bookkeeping",
+   "cracked_tile": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "paint_peeled": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "anchor_torn_out": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "paint_coats": "setting",
+   "paint_coverage": "setting",
+   "paint_color_ok": "process",
+   "paint_last_coat_at": "bookkeeping",
+   "paint_wet_until": "process",
+   "touch_up_coats": "setting",
+   "touch_up_color_ok": "process",
+   "paint": "identity",
+   "paint.*": "identity"
+  },
+  "sliding_door": {
+   "fastener_delta": "setting",
+   "dents": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "handle.cracked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "finish_marks": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "tooth_marks": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "punctured": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "suv": {
+   "soap": "setting",
+   "paint": {
+    "class": "condition",
+    "worse": "change"
+   },
+   "paint.finish": "identity",
+   "paint.swirls": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "paint.wax": {
+    "class": "condition",
+    "worse": "down",
+    "tol": 0.05
+   }
+  },
+  "table": {
+   "fastener_delta": "setting",
+   "dents": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "handle.cracked": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "finish_marks": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "tooth_marks": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "punctured": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "toilet_flapper": {
+   "seal": {
+    "class": "condition",
+    "worse": "down",
+    "tol": 0.01
+   }
+  },
+  "wall_surface": {
+   "holes": "setting",
+   "tv_holes": "setting",
+   "dents": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "handle_hits": "bookkeeping",
+   "cracked_tile": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "paint_peeled": {
+    "class": "condition",
+    "worse": "up"
+   },
+   "anchor_torn_out": {
+    "class": "condition",
+    "worse": "true"
+   },
+   "fastener_delta": "setting",
+   "paint_coats": "setting",
+   "paint_coverage": "setting",
+   "paint_color_ok": "process",
+   "paint_last_coat_at": "bookkeeping",
+   "paint_wet_until": "process",
+   "touch_up_coats": "setting",
+   "touch_up_color_ok": "process",
+   "gouged": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "wash_mitt": {
+   "grit": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.05
+   }
+  }
+ },
+ "water_sensitive": [
+  "air_compressor",
+  "assembly_manual",
+  "car_key_fob",
+  "circular_saw",
+  "cordless_drill",
+  "cordless_jigsaw",
+  "ebike_battery",
+  "ebike_charger",
+  "flatpack_box",
+  "paper_shim",
+  "power_tool",
+  "stud_finder"
+ ],
+ "writes": [
+  "anchor_torn_out",
+  "bond_ok",
+  "burr",
+  "bypass_s",
+  "centered",
+  "covers_leg",
+  "cracked_tile",
+  "cut",
+  "cuts",
+  "dents",
+  "drain_speed",
+  "edge_damaged",
+  "edge_rounded",
+  "fastener_delta",
+  "fasteners",
+  "fell_off_jack",
+  "floor_pan_dented",
+  "flushed_l",
+  "gas_leak",
+  "glass_scratched",
+  "gouge_depth_mm",
+  "gouged",
+  "hung_at",
+  "interior_soaked",
+  "latch_issue",
+  "latch_ok",
+  "lead_breaks",
+  "leaked_l",
+  "lid_dented",
+  "lost",
+  "lubed_with",
+  "lubricants_used",
+  "overhang",
+  "paint_chipped",
+  "paint_peeled",
+  "punctured",
+  "ran_filterless_s",
+  "reported",
+  "running",
+  "sharpness",
+  "spilled_l",
+  "standing_l",
+  "stop_ok",
+  "stops_door",
+  "stub",
+  "threshold_dented",
+  "threshold_scratched",
+  "tilt_deg",
+  "tooth_marks",
+  "used_l",
+  "wasted_l",
+  "water_damaged",
+  "wheel_etched",
+  "wheel_misseated",
+  "wheel_spots"
+ ]
+}

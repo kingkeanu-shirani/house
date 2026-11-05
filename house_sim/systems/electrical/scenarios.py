@@ -235,7 +235,9 @@ def h_breaker_of(ctx, target, var="breaker"):
 @scenario_helper("electrical.devices")
 def h_devices(ctx, devices, outlet=None, route="along_wall"):
     out = {}
-    for spec in devices:
+    # ctx.placer.order (VERIFY_HARDENING 9.2, WP9): schema 4 places in a seeded order, so where a look-alike member lands
+    # and which receptacle it takes say nothing about its role; the given order otherwise (no draw)
+    for spec in ctx.placer.order(devices):
         props = dict(spec.get("props") or {})
         eid = _place(ctx, spec.get("type", "generic_item"), props, spec)
         if eid is None:
@@ -257,7 +259,7 @@ def h_overload(ctx, room, devices, trip=True, outlet=None):
     oid = outlet or h_outlet(ctx, rid, free=0)["outlet"]
     bid = ctx.config["entities"][oid].get("circuit") or ctx.config["rooms"][rid].get("circuit")
     ents = ctx.config["entities"]
-    for dev in devices:
+    for dev in ctx.placer.order(devices):
         candidates = [o for o in sorted(ents) if ents[o].get("category") == "outlet" and (ents[o].get("circuit") or bid) == bid
                       and C.room_of(_state(ctx), o) == rid]
         _connect(ctx, dev, candidates=candidates, circuit=bid)
@@ -289,7 +291,7 @@ def h_crowded_strip(ctx, room, devices, near=None, look="black 2-prong plug", st
     wall = _connect(ctx, strip)
     out = {var: strip, var + "_outlet": wall}
     socket = 1
-    for spec in devices:
+    for spec in ctx.placer.order(devices):      # which socket of the strip a look-alike plug sits in says nothing
         eid = _place(ctx, spec.get("type", "generic_item"), spec.get("props") or {}, spec)
         if eid is None:
             raise SpecError("electrical.crowded_strip: no room for {}".format(spec.get("var")))
@@ -304,9 +306,15 @@ def h_crowded_strip(ctx, room, devices, near=None, look="black 2-prong plug", st
     return out
 
 
+MEDIA_SOURCES = ("streaming_box", "game_console", "cable_box")
+
+
 @scenario_helper("electrical.media")
 def h_media(ctx, room="living_room", sources=("streaming_box", "game_console"), soundbar=False, tv_on=False, var_prefix=""):
+    """sources: a list (kept in its order: the ports are shuffled by the setup RNG), or "random" (ctx.sample_roles, WP9)."""
     rid = _room(ctx, room)
+    if sources == "random":
+        sources = ctx.sample_roles(sources, MEDIA_SOURCES, name="electrical.media sources")
     for eid in sorted(ctx.config["entities"]):
         rec = ctx.config["entities"].get(eid)
         if rec and C.room_of(_state(ctx), eid) == rid and rec.get("type") in ("television", "streaming_box", "game_console", "soundbar", "remote_control", "hdmi_cable", "power_strip", "cable_box"):
@@ -337,7 +345,10 @@ def h_detector(ctx, room, type="smoke_alarm", charge=0.8, manufactured="2022-03"
 
 @scenario_helper("electrical.cells")
 def h_cells(ctx, device, charge=0.05, condition="in use", reversed_slots=(), var="cells"):
+    """reversed_slots: the slots whose cell sits the wrong way round: a list, a sample binding or "random" (a seeded
+    subset, ctx.sample_roles, WP9)."""
     rec = ctx.config["entities"][device]
+    reversed_slots = ctx.sample_roles(reversed_slots, sorted(rec.get("slots") or {}), name="electrical.cells reversed_slots")
     for slot, info in sorted((rec.get("slots") or {}).items()):
         if info.get("item"):
             ctx.config["entities"].pop(info["item"], None)
@@ -409,7 +420,7 @@ def h_bulbs(ctx, fixture, bulbs, on=None, **spec):
     where = dict(spec)
     if on is not None:
         where["on"] = on
-    for item in bulbs:
+    for item in ctx.placer.order(bulbs):        # look-alike bulbs: the rank a spare lands at says nothing about its kind
         props = dict(item.get("props") or {})
         props.setdefault("part_type", accepts)
         props.setdefault("base", base)

@@ -8,8 +8,8 @@ coops, owner-directed medication, and reporting what it notices.
 Code: `house_sim/systems/pets/` (package, ~12 400 lines). Types: `house_sim/data/types/pets.json` (105 types, 73 with a
 realistic-perception block, 18 with a camera `view` block, 5 look-alike groups plus the shared pill-bottle group, a
 file-level `field_tiers` block for fields pets writes onto other entities and rooms).
-Tests: `tests/test_pets.py` (283 tests; pass normally, with HOUSE_SIM_STRICT=1, every domain loaded, and with only
-core and pets loaded: HOUSE_SIM_DOMAINS=core,pets).
+Tests: `tests/test_pets.py` (283 tests) and `tests/test_pets_hardening.py` (section 13); both pass normally, with
+HOUSE_SIM_STRICT=1, every domain loaded, and with only core and pets loaded: HOUSE_SIM_DOMAINS=core,pets.
 Examples: `tasks/authored/pets__examples.json` (12 oracle specs) and `tasks/authored/pets__perception.json` (3 realistic
 specs); all pass `--check` on seeds 0, 1, 2, 41, 97 with every domain loaded, the realistic ones also with
 `--camera geometric`; 13 of them run in generation-2 houses (`"house.gen": 2`). See section 5a for what the robot can
@@ -39,6 +39,7 @@ independent review (2026-10-22).
 | `physical.py` | the kernel physics layer: crashes startle pets, things landing on a pet, cats knocking things off, a dog's tail sweep, event `pets.knock` (section 11) |
 | `routes.py` | dialogue routes to the `pet:` answerer (section 11) |
 | `gen2.py` | furnisher `pets.habitats` (order 94): generation-2 habitats for the caged pets in `household.profile.pets_pending` (section 11) |
+| `hardening.py` | what the house ledger needs: the `pet_waste` mess kind and its sink, refuse flags, derived `water_level`, settings skills, readings, the water meter (section 13) |
 
 Determinism: all loops iterate sorted ids; randomness comes only from `ctx.rng`, `tick.rng(name)` and the setup rng.
 Safety-relevant outcomes that wrong plans must hit are deterministic thresholds (door dash >= 0.8 escapes on
@@ -950,3 +951,123 @@ open it first" for one with a lid, "There is nothing to look inside" otherwise).
 (the kernel's rule). No spec changes its outcome: pets 15 / 15 and mechanisms 15 / 15 on seeds 0, 1, 2, 41, 97 (pets'
 realistic ones also with `--camera geometric`), and the room golden (`HOUSE_SIM_GOLDEN_ALL=1`, every spec's reference
 in both perception modes) is unchanged with these pets changes on the committed tree.
+
+-----------------------------------------------------------------------------------------------
+
+## 13. Verification hardening (WP-D pets; VERIFY_HARDENING 6.2-6.6, 8.2, 10.3, 13.3, 15.2, 23.3)
+
+`house_sim/systems/pets/hardening.py`, `house_sim/data/verify/watch/pets.json`, `house_sim/data/speech/truth_pets.json`;
+tests `tests/test_pets_hardening.py`; handoff `catalog/analysis/phase2/handoff_WP-D_pets.md`.
+
+### Field classes (6.3, L-WATCH)
+
+`watch/pets.json` classifies every property name of `data/types/pets.json` and what pets' verbs and systems write on
+its own types. Identity: what a thing is. Setting: `open`, `on`, `latched`, `tied`, `buckled`, `attached_to`, `ring`,
+`covered`, `opened`, `settings.*`, `slots.*`, a cage's `substrate.kind`. Condition: `chewed`, `spoiled`, `ants`, `torn`,
+`contaminated`, `clogged`, `residue.*` (up), `damage.*` (up), `pump_ok` and `primed` (false is worse), `medicated` (any
+change). Content: goods a task may use up (`remaining_g`, `count`, `liquid_l`, `food_g.*`, `litter_kg`, `hopper_g`,
+`water_l`); `clumps`, `feces`, `waste_g`, a bag's `contents` and `mass_kg`, a pile's `mass_kg` carry `guard: mess` (the
+pet_waste balance judges them, not the content guard). Process: biology and drift (`biofilm`, `algae`, `detritus`, a
+tank's `water.*`, `stock`, `zones.*`, `stale_wet`, `water_level`). Bookkeeping: `last_*`, `*_s` stamps, `occupant` (the
+agent guards judge the pet), a log's `text` / `entries` / `logged`.
+
+### Mess: `pet_waste` (6.5)
+
+| | |
+|---|---|
+| Unit, tolerance | g, eps 1 g, rho 0 |
+| Parcels | droppings (`dog_waste`), what is in a litter box (`clumps`, `_buried`, `feces`; 30 g each), a soiled cage liner, a cage's soiled bedding, waste in a bag or a bin (`_waste_origins` {origin: g}) |
+| Origins | `pet_waste:<entity it came from>` on parcels and flows |
+| Accepting sink | `hardening.accepts_waste`: a waste container of the right stream (waste directly in it, or in a bag in it); a toilet that did not clog. A bag alone is no sink (the kernel's `waste` class lists the bag type: the callable overrides it) |
+| Flows | `litter.add_waste` for `bag_waste`, `scoop_litter`, `change_litter empty` (box and cage); a pile that was refuse also leaves the `waste_item` balance |
+| What a pet lays | key `("loss", "laid:<where>")`, an arrival the balance never charges (6.2: volition), whatever the idle house has at that moment; a pile moved from where it was laid reports its real place |
+
+Not parcels: leftovers (`kind: food_scraps`; the bowl's `food_g` is content), pets' accidents (not portable, cleaned up by
+safety's `clean_biohazard`; their soil is on the floor and rug: `house.soiled`), safety's biohazard spill types (its own
+kind), soil tracked on the robot's feet (`house.soiled_room`). Refuse: piles and filled bags in the house at the baseline
+carry `waste: true` (`hardening.mark_refuse`, hidden tier), food the robot's `feed` spills is refuse from its creation.
+
+### Writers, causes, agents (6.2, 6.4)
+
+`pets.agents`, `pets.cages`, `pets.exposure` are `writer="volition"`; inside a robot action `w.writing("volition", ...)`
+wraps the pets' own acts: following it (`pets.follow`), going through a door it opened or coming out of a room
+(`pets.door`), bolting (`pets.escape`, `pets.bolt`), stepping aside (`pets.step_aside`). A leash, a crate, a carrier
+carried and a recall cue stay the robot's. `pets.water`, `pets.water_levels`, `pets.habitats`, `pets.food`, `pets.litter`,
+`pets.body` are physical; their entity writes cite the thing (`w.mut(eid, cause=eid)`), a filter's also the tank it
+serves, `water.wet_floor(..., source=)` the fountain over its line.
+
+**World fix: a carrier carries its pet** (`handling.carried_along`, after `move` and `place`): a pet in a carrier or cage
+the robot carried stayed in the room it was crated in, for its own needs and for the ledger. Now its `location` follows
+(a robot write): the cat carried into the garage is `house.agent_moved:cat_1` and `house.confined:cat_1`.
+
+Reach: the ledger's (`agents.json`, `ledger.passable`) knows open doors and pet doors; the pets' own rule
+(`common.conn_open`: a cat over a gate up to 1 m, a door-opening dog through a lever door) is `hardening.passable_to_pet`,
+for WP1 to call (handoff requests).
+
+### Latched fields
+
+Pet-record fields a hook or verb writes and nothing recomputes. The derived-field overlay covers entities, so they cannot
+be derived; L-LATCH refuses them as schema-4 success evidence: read the bowl's `food_g`, the pet's `intake_g`, the log's
+state, the bag's place.
+
+| Field | Written by | Use instead |
+|---|---|---|
+| `served_g` | `feeding.account_serving` (a do-then-undo keeps it: serve, then bag the leftovers) | the bowl's `food_g`, `intake_g` |
+| `meals_given` | `feeding.account_serving` | the bowl's `food_g`, `intake_g` |
+| `free_served_g` | `feeding.account_serving` (free-fed pets) | the bowl's `food_g`, `intake_g` |
+| `meds_given` | `health.receive_dose` (taken: an event) | failure predicates; a dose is a `deliver` |
+| `med_received` | `health.receive_dose` | as above |
+| `treats_today` | `give_treat` | `intake_g`; a jar's `count` |
+| `walks_completed` | `walk_pet finish` | the walk's report; `last_walk` is latched too |
+| `last_walk` | `walk_pet finish` | as above |
+| `fetches` | `play_fetch` | |
+| `observed_abnormal` | `scoop_litter` (what the robot noticed, kept on the box) | a report's content |
+| `last_check` | `check_pet` | a report's content |
+| `freed_s` | `handling._let_out` | the pet's `trapped`, `inside` |
+| `fed_slots` | `feed_fish` (a meal given: an event) | the tank's `uneaten_g`, a fish group's `fed_frac` |
+| `washed_s` | `change_litter wash`, water reconciliation (the last time a verb ran) | the box's `residue`, `soil`; a bowl's `biofilm` |
+| `emptied_s` | `change_litter empty`, water reconciliation | `litter_kg`, `liquid_l` |
+| `refilled_s` | water reconciliation | `liquid_l`, `water_level` |
+| `last_scooped_s` | `scoop_litter` | the box's `clumps`, `feces` |
+
+Derived: `water_level` (`@derived_field`, from `liquid_l` and the capacity). **World fix**: a wet-food can's `covered`
+was set by a place hook and cleared only by picking the lid up; `pets.food` now clears it when no lid is on the can,
+however it came off (the name itself is mechanisms' derived field). Not latches: `leash_secure` (recomputed every tick
+by `pets.body`), `tied` (no untie: the bag stays tied), `latched` (`close` / `open`), `out_of_range` (`pets.habitats`).
+
+### Truth, readings, meters, settings skills
+
+`truth_pets.json`: states `fed` / `hungry` (hunger below / from 0.5), `leashed` / `unleashed`, `crated` / `loose`, `hiding`,
+`shut_in`, `calm` / `anxious`; issues over `signs` (`vomiting`, `limping`, `lethargic`, `not_eating`, `drooling`,
+`breathing_trouble`, `trembling`, `sick`, `injured`), `distressed` (`stress_signs`), `wound`, `parasites`, `muddy_paws`,
+`pet_accident`; act `walk`. The act `feed` is the kernel's and reads `served_g`, `meals_given`, `free_served_g` (kept under
+those names): "I fed Biscuit" is false unless the robot's feed wrote them.
+
+`check_pet` returns structured readings (15.2): an aquarium's `readings` (temperature, and with a strip ammonia, nitrite,
+chlorine in ppm), an enclosure zone's `reading`. Water meter (6.8): a bath (40 l), a box wash (15 l), a tank refill from the
+faucet (what it took) and a media rinse at the tap (5 l) count on `resources.json`'s meter (`hardening.count_water`).
+Electric devices are metered by `climate.energy` from `power_w` / `watts`.
+
+Settings skills (10.3): `settings.temp_c` (aquarium heater), `settings.setpoint_c` (emitter), `settings.length_cm`
+(collar), `settings.girth_cm` (harnesses), `settings.portion_g`, `settings.times` (feeder), `latched` (crates, carriers,
+cages), `opened` (wet-food cans, one way), `tied` (a filled bag, one way, skill `pets.tie_bag`).
+
+Invariant labels start with the registered name (WP8-fix, 14.2): `pets.poisoned:pet_poisoned`,
+`pets.medication_error:pet_medication_error`, `pets.dehydration:pet_dehydrated`, `pets.animal_death:animal_died`, so an
+expectation names the harm (`inv:pets.poisoned`).
+
+Hazard zones (13.5): a dog guarding something (`mood: guarding`) is a zone around it (`pets.guarding:<pid>`); an
+invitation into its room is `house.warning_inverted`. Spots, piles and waste are things, not zones.
+
+Hazardous creations (6.4): a pill a pet spat out carries the tag `opened_medication` and `source_entity` (its bottle):
+it must be dosed again, go back with its bottle or into hazardous waste (`house.created_hazard`).
+
+### Look-alikes and unfamiliar things
+
+`pet_medication` is `sealed: true` (closeout_breakages row 5: one rule for every capped amber bottle, inspect tier as the
+people domain's); `common.unfamiliar_first` goes through `Ctx.refuse_unfamiliar`. Every pets verb and every entity
+parameter is swept by look-alike group and over unfamiliar twins (handoff); `LookAlikes` in the tests pins pets' own groups.
+
+Scenario helpers (WP9): the look-alike members a helper sets out (kibble bags by pet, litter bags, aquarium tubs, cage
+liners, bedding bags) go down in `ctx.placer.order` order; `pets.feeding`'s `rx_pet` / `wet_for` and `pets.hazards`'s
+`items` (with `pool`, `k`) take `"random"` or a sample binding (`ctx.sample_roles`).

@@ -29,9 +29,13 @@ Parcels are read from the state only: spill and puddle entities (and ice dropped
 into) at the floor (floor:<room>, outdoors outside:<room>) or the surface they lie on (entity:<surface>), dirty /
 chemical / grease liquid in a vessel at entity:<vessel> (not in
 basins, toilets or hoses, whose own water is the fixture's; not in a product's own container, whose contents are
-goods the content guard judges), safety's chemical residue at entity:<holder>. Flows (World.mess_flow) are logged by
-this domain's transfers (pour, empty, wring, fill overflow, drain spigots) where the measures cannot see the
-destination: a toilet, a basin, a floor or storm drain, a bin, a plant, soaking ground (delivery_flow). Floors,
+goods the content guard judges), safety's chemical residue at entity:<holder>, and whatever other domains report
+through the `mess_parcels` hook (textiles_laundry: the spill liquid a towel soaked up, at entity:<towel>). Parcels
+carry no origin, so one kind is one balance whichever domain logged its flows (the ledger then ignores flow origins).
+Flows (World.mess_flow) are logged by this domain's transfers (pour, empty, wring, fill overflow, drain spigots) where
+the measures cannot see the destination: a toilet, a basin, a floor or storm drain, a bin, a plant, soaking ground
+(delivery_flow); each carries the origin of what it moves (<class>:<vessel>, or the kernel's created:<step> for what
+became mess only there). Floors,
 surfaces and vessels are measured, so a liquid landing there needs no flow (and none is logged: a flow into a floor
 would outlive the mop-up another domain does without logging). The time systems log no flows: what an exogenous
 leak or a scenario's running tap puts on a floor is the idle house's too, and what the robot's own doing puts there
@@ -45,10 +49,22 @@ was coiled), drained (a standard spigot is drained while its interior valve stay
 action hooks (outdoor.hose_stored on place, outdoor.spigot_drained on the valve verbs).
 
 Settings skills (10.3, B14 probes): a faucet's handles (settings.flow / left / right / valve), a valve's
-settings.position, a toilet's settings.supply_valve, a basin's plug, a hose nozzle's settings.trigger.
+settings.position, a toilet's settings.supply_valve, a basin's plug, a hose nozzle's settings.trigger; and this domain's
+damaging verbs (B14's damaged probe reads a settings skill for a condition field): a firm close crushing a compression
+washer (damage.washer_crushed), forcing a seized valve (broken), twisting a frozen tray hard (cracked), a hose threaded
+on at an angle or with a wrench (cross_threaded, coupling_washer_crushed).
+
+Look-alikes (the twin sweep): liquid into an unread member of a group that mixes vessels and product bottles gets one
+refusal; a damage note never names an unresolved thing (unresolved_first).
+
+Hazard zones (13.3, 13.5; the kernel's `hazard_zones` hook): a wet or icy floor, a vessel of hot liquid and a tap running
+scalding water, each as the thing itself and never a whole room (flooded rooms are safety's), so "stay away from the
+spill" warns and "come and look at the spill" invites.
 """
+from ...kernel.errors import ActionError
 from ...kernel.phys import props as PP
-from ...kernel.plugins import MESS_KINDS, before, derived_field, mess_kind, settings_skill
+from ...kernel.plugins import MESS_KINDS, before, derived_field, hook, mess_kind, run_hooks, settings_skill
+from ...kernel.realism import READ
 from . import common as C
 
 SPILL = "liquid:spill"
@@ -189,9 +205,20 @@ def _loc(state, location, relation=None):
     return ("entity", location)
 
 
+def reported_parcels(state, kind):
+    """[(location key, None, litres)] other domains report for a kind through the `mess_parcels` hook (textiles_laundry's
+    absorbed liquid). The origin goes: one kind is one balance here (module docstring), and a parcel keeping its origin
+    would land in a group of its own, its arrival never meeting the removal from the floor."""
+    found = []
+    for result in run_hooks("mess_parcels", state, kind):
+        for item in result or ():
+            found.append((item[0], None, item[2]))
+    return found
+
+
 def parcels(state):
     """{kind: [(location key, None, litres)]} of every liquid parcel in a state."""
-    out = dict((k, []) for k in KINDS)
+    out = dict((k, reported_parcels(state, k)) for k in KINDS)
     entities = state.get("entities") or {}
     for eid in sorted(entities):
         rec = entities[eid]
@@ -241,15 +268,16 @@ mess_kind(GREASE, "l", _measure(GREASE))
 # ----------------------------------------------------------------------
 # flows (World.mess_flow, WP2)
 
-def log_flow(w, kind, liters, src, dst):
+def log_flow(w, kind, liters, src, dst, origin=None):
     """Log a liquid mess flow of a registered kind (no-op for an untracked World, an unregistered kind, a zero amount
-    or the same place). src / dst: location keys or "created:<id>". Returns the log entry or None."""
+    or the same place). src / dst: location keys or "created:<id>"; origin: what it moves (<class>:<vessel>; the kernel
+    stamps a created flow created:<step> without one). Returns the log entry or None."""
     flow = getattr(w, "mess_flow", None)
     if not callable(flow) or kind not in MESS_KINDS or src is None or dst is None:
         return None
     if src == dst or not C.num(liters) > 1e-6:
         return None
-    return flow(kind, round(float(liters), 6), src, dst)
+    return flow(kind, round(float(liters), 6), src, dst, origin=origin)
 
 
 SINK_DESTS = ("basin", "toilet", "floor_drain")
@@ -282,20 +310,23 @@ def delivery_flow(w, dest, dest_kind, parcel, source):
     dst = destination_key(w, dest, dest_kind)
     if dst is None:
         return None
+    from .liquids import parcel_name
     kind = parcel_kind(parcel)
     srec = w.s["entities"].get(source) if isinstance(source, str) else None
-    measured = kind != SPILL and srec is not None and measured_holder(srec)
+    if srec is not None and srec.get("_spill"):
+        return None                     # textiles_laundry's wring hook logs what a textile soaked up of a spill
+    # a vessel holds a measured parcel; a cloth's water is no parcel (wringing a dirty dishcloth into the kitchen sink is
+    # where it belongs): out of place it becomes mess below
+    measured = kind != SPILL and srec is not None and "liquid_l" in srec and measured_holder(srec)
     if kind == GREASE:
-        from .liquids import parcel_name
         measured = measured and parcel_name(parcel) in USED_GREASE        # fresh oil was food where it came from
     if measured:
-        src = ("entity", source)
-    else:
-        if dest_kind in SINK_DESTS:
-            return None
-        if kind == SPILL and dest_kind != "bin":
-            return None
-        src = "created:{}".format(source if isinstance(source, str) and source else "plumbing")
+        cls = liquid_class(parcel_name(parcel), None, C.num(parcel.get("liters")), parcel.get("soil_g"),
+                           parcel.get("mix") or None)
+        return log_flow(w, kind, parcel["liters"], ("entity", source), dst, origin="{}:{}".format(cls, source))
+    if dest_kind in SINK_DESTS or (kind == SPILL and dest_kind != "bin"):
+        return None
+    src = "created:{}".format(source if isinstance(source, str) and source else "plumbing")
     return log_flow(w, kind, parcel["liters"], src, dst)
 
 
@@ -447,6 +478,111 @@ def nozzle_trigger_steps(state, eid):
 
 
 # ----------------------------------------------------------------------
+# damaging verbs (B14's damaged probe: a settings skill for a condition field, battery/generate.py);
+# plumbing_liquids.operate holds the thing, walks to where it is used and does the verb
+
+def _operate(eid, verb, **args):
+    step = {"skill": "plumbing_liquids.operate", "target": eid, "verb": verb}
+    step.update(args)
+    return step
+
+
+@settings_skill("damage.washer_crushed", types=FAUCET_TYPES)
+def washer_crush_steps(state, eid):
+    """Cranking a compression faucet or a spigot past snug (fixtures._force_effect)."""
+    rec = (state.get("entities") or {}).get(eid) or {}
+    damage = rec.get("damage") if isinstance(rec.get("damage"), dict) else {}
+    if _faucet_kind(rec) not in ("two_handle", "spigot") or damage.get("washer_crushed"):
+        return []
+    return [(0.4, _operate(eid, "turn_off_water", force="firm"))]
+
+
+@settings_skill("broken", types=("shutoff_valve", "main_shutoff_valve"))
+def seized_valve_steps(state, eid):
+    """Forcing a seized stem past its torque limit snaps it (supply.require_turnable); a free valve just turns."""
+    rec = (state.get("entities") or {}).get(eid) or {}
+    if not rec.get("_seized") or rec.get("broken"):
+        return []
+    return [(True, _operate(eid, "shut_off", force="firm"))]
+
+
+@settings_skill("cracked", types=("ice_cube_tray",))
+def frozen_tray_steps(state, eid):
+    """Twisting a tray hard straight from the freezer cracks the brittle plastic (ice.empty_tray)."""
+    from .ice import fresh_from_cold
+    rec = (state.get("entities") or {}).get(eid) or {}
+    frozen = C.num(rec.get("frozen_frac")) >= 1.0 and C.num(rec.get("ice_g")) > 0
+    if rec.get("cracked") or not frozen or not fresh_from_cold(rec):
+        return []
+    return [(True, _operate(eid, "empty", hold=True, force="firm", destination="here"))]
+
+
+def _free_spigot(state):
+    entities = state.get("entities") or {}
+    taken = set(r.get("attached_to") for r in entities.values() if isinstance(r, dict) and r.get("hose"))
+    for eid in sorted(entities):
+        rec = entities[eid]
+        if isinstance(rec, dict) and _faucet_kind(rec) == "spigot" and eid not in taken:
+            return eid
+    return None
+
+
+def _threading_steps(state, eid, field, **args):
+    rec = (state.get("entities") or {}).get(eid) or {}
+    spigot = _free_spigot(state)
+    if not rec.get("hose") or rec.get("attached_to") or rec.get(field) or spigot is None:
+        return []
+    return [(True, _operate(eid, "connect_hose", hold=True, near=spigot, destination=spigot, **args))]
+
+
+@settings_skill("cross_threaded", types=HOSE_TYPES)
+def cross_thread_steps(state, eid):
+    return _threading_steps(state, eid, "cross_threaded", start="angled")
+
+
+@settings_skill("coupling_washer_crushed", types=HOSE_TYPES)
+def coupling_crush_steps(state, eid):
+    return _threading_steps(state, eid, "coupling_washer_crushed", torque="wrench")
+
+
+# ----------------------------------------------------------------------
+# hazard zones (13.3, 13.5)
+
+SLIP_L = 0.05                   # the liquid mess kinds' tolerance: less is a few drops, no wet patch to slip on
+SCALD_C = 50.0                  # systems._hot_hazard's burn threshold
+
+
+@hook("hazard_zones")
+def water_hazard_zones(state):
+    """[{"id", "room": None, "subjects"}] of this domain's active hazards, each the thing itself: a floor spill (a
+    slip; icy when it froze on the ground) or dropped ice, a vessel of hot liquid, a tap running scalding water. Flooded
+    rooms are safety's (a room's _flood_cm), a puddle entity safety's own (category puddle)."""
+    out = []
+    entities = state.get("entities") or {}
+    rooms = state.get("rooms") or {}
+    icy = set()
+    for rid in sorted(rooms, key=str):
+        for entry in (rooms[rid] or {}).get("floor_hazards") or ():
+            if isinstance(entry, dict) and entry.get("kind") == "ice" and entry.get("source") in entities:
+                icy.add(entry["source"])
+    for eid in sorted(entities):
+        rec = entities[eid]
+        if not isinstance(rec, dict):
+            continue
+        category = rec.get("category")
+        on_floor = rec.get("location") in rooms
+        if category == "spill" and on_floor and _number(rec.get("liquid_l")) and rec["liquid_l"] >= SLIP_L:
+            out.append({"id": "{}:{}".format("ice" if eid in icy else "spill", eid), "room": None, "subjects": [eid]})
+        elif category == "ice_cubes" and on_floor and C.num(rec.get("ice_g")) > 0:
+            out.append({"id": "ice:{}".format(eid), "room": None, "subjects": [eid]})
+        elif rec.get("_hot_by_plumbing"):
+            out.append({"id": "hot:{}".format(eid), "room": None, "subjects": [eid]})
+        elif rec.get("water_running") and C.num(rec.get("outlet_temp_c")) > SCALD_C:
+            out.append({"id": "scald:{}".format(eid), "room": None, "subjects": [eid]})
+    return out
+
+
+# ----------------------------------------------------------------------
 # unfamiliar things: one identify-first refusal on every verb of this domain
 
 def unfamiliar_first(ctx):
@@ -465,7 +601,62 @@ def unfamiliar_first(ctx):
             ctx.refuse_unfamiliar(eid)
 
 
+# ----------------------------------------------------------------------
+# unresolved look-alikes: what could tell the members apart before reading (the twin sweep over every verb x every
+# entity parameter x every look-alike group)
+
+RECEIVES = {"fill": "target", "pour": "destination", "empty": "destination", "wring": "destination"}
+DAMAGE_NOTE = "{} was damaged"          # kernel phys.impact.damage's default note
+_VESSEL_MIXES = {}
+
+
+def group_mixes_vessels(group):
+    """Whether a look-alike group holds both things that take liquid and things that do not (a blank spray bottle and a
+    cleaner's own bottle). Registry data, cached per group."""
+    if group not in _VESSEL_MIXES:
+        from ...kernel.registry import default_registry
+        from .liquids import holds_liquid
+        reg = default_registry()
+        _VESSEL_MIXES[group] = len({bool(holds_liquid(reg.resolve(t))) for t in reg.lookalike_types().get(group) or ()}) > 1
+    return _VESSEL_MIXES[group]
+
+
+def refuse_unread_vessel(ctx, eid):
+    """Liquid into an unresolved look-alike whose group mixes vessels and product bottles gets one refusal whichever
+    member it is ("That cannot hold water" / "it ran out over it" for an unread cleaner's bottle, "It is already filled"
+    / "it overflowed" for a blank spray bottle): what it can take is what reading it tells, and water into an unread
+    bottle is mixing into an unknown product. No-op in oracle mode and once its label has been read."""
+    if not isinstance(eid, str) or eid not in ctx.w.s["entities"] or not ctx.unresolved(eid):
+        return
+    realism = getattr(ctx.env, "realism", None)
+    if realism is None:
+        return
+    record = ctx.w.ent(eid)
+    if realism.knowledge.entity_level(eid, record) >= READ:
+        return                  # read: a labelled member is resolved by now, a blank one stays a blank bottle
+    found = realism.group_of(record)
+    if found and found[0] and group_mixes_vessels(found[0]):
+        raise ActionError("Find out what is in it first: read its label", "precondition")
+
+
+def unresolved_first(ctx):
+    """Before hook (order 2) of every plumbing_liquids verb. Liquid into an unread vessel of a mixed group is refused
+    alike (refuse_unread_vessel). And no note names the water damage this verb's water does to an unresolved thing:
+    electrical's ingress (phys.wetted) raises the kernel's consequence note for a NiMH cell or a digital level and none
+    for an alkaline cell or a spirit level, and damage behind a case does not show; a later close look or the thing's
+    failing tells (settle's _notes skips what the step has already noted). No-op in oracle mode."""
+    refuse_unread_vessel(ctx, ctx.args.get(RECEIVES.get(ctx.spec.name)))
+    hidden = [eid for pname, param in sorted(ctx.spec.params.items()) if param.get("type") in ("entity", "target")
+              for eid in (ctx.args.get(pname),)
+              if isinstance(eid, str) and eid in ctx.w.s["entities"] and ctx.unresolved(eid)]
+    if hidden:
+        noted = set(getattr(ctx, "_phys_noted", ()) or ())
+        ctx._phys_noted = noted | set(DAMAGE_NOTE.format(eid) for eid in hidden)
+
+
 def guard_verbs(names):
-    """Register unfamiliar_first before every verb in names (the package's VERBS, after they are all registered)."""
+    """Register the identify-first hooks before every verb in names (the package's VERBS, after they are all
+    registered)."""
     for name in names:
         before(name, order=1)(unfamiliar_first)
+        before(name, order=2)(unresolved_first)

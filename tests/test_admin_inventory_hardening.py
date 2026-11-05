@@ -241,6 +241,80 @@ class RefuseAndFlows(unittest.TestCase):
         self.assertIs(env._baseline["entities"][b["staple"]].get("waste"), True, "flagged before the baseline")
 
 
+class WindowEnvelope(unittest.TestCase):
+    def _sealed_window(self, take_out):
+        ops = OFFICE + [{"op": "spawn", "var": "env", "type": "window_envelope", "on": "{desk}"},
+                        {"op": "spawn", "var": "pen", "type": "click_pen", "on": "{desk}"},
+                        {"op": "helper", "name": "admin_inventory.document",
+                         "args": {"location": "{desk}", "key": "bill", "title": "Bill", "kind": "bill", "var": "doc",
+                                  "props": {"address_block": "9 Elm St, Springfield IL 62704"}}},
+                        {"op": "robot", "near": "{desk}"}]
+        env, b, r = build(ops)
+        ok(self, env, "fold_paper", b["doc"], style="z_fold")
+        r.skill("put", obj=b["doc"], dest=b["env"])
+        self.assertTrue(ent(env, b["env"])["addressed"])
+        if take_out:
+            _move_away(env, b["doc"], b["office_room"])
+        env.world.mut(b["env"]).update({"sealed": True, "open": False, "postage_cents": 200})
+        env.world.commit()
+        return env, b
+
+    def test_a_letter_taken_back_out_takes_its_address_along(self):
+        # known gap of the interrupted run (fails before): an empty window envelope still counted as addressed, and the
+        # carrier took it to the address of the letter it once held
+        from house_sim.systems.admin_inventory.mail import ready_to_send
+        env, b = self._sealed_window(take_out=False)
+        self.assertEqual(ready_to_send(env.world, b["env"]), (True, None))
+        env, b = self._sealed_window(take_out=True)
+        self.assertEqual(ready_to_send(env.world, b["env"]), (False, "no address"))
+
+    def test_an_envelope_addressed_by_hand_keeps_its_address(self):
+        from house_sim.systems.admin_inventory.mail import ready_to_send
+        env, b = self._sealed_window(take_out=True)
+        ok(self, env, "pick_up", b["pen"])
+        ok(self, env, "address_envelope", b["env"], to="12 Oak Street, Springfield IL 62704", tool=b["pen"])
+        self.assertEqual(ready_to_send(env.world, b["env"]), (True, None))
+
+
+class InvariantLabels(unittest.TestCase):
+    """P2-S2-merge request 7 / WP8-fix: a schema-4 spec names a harm by inv:<registered name> (L-EXPECT, L-PROTECT;
+    protect_rules.json drafts inv:admin_inventory.child_access and three more). Fails before: the invariants fired
+    child_access:<id>, discarded_protected:<id>, ..., which that pattern never matches, and which L-EXPECT rejects."""
+
+    def _names(self):
+        from house_sim.kernel.plugins import INVARIANTS
+        return sorted(n for n in INVARIANTS if n.startswith("admin_inventory."))
+
+    def test_every_label_starts_with_its_registered_name(self):
+        import ast
+        import inspect
+        import textwrap
+        from house_sim.kernel.plugins import INVARIANTS
+        names = self._names()
+        self.assertEqual(len(names), 7, names)
+        for name in names:
+            tree = ast.parse(textwrap.dedent(inspect.getsource(INVARIANTS[name])))
+            texts = [leaf.value for node in ast.walk(tree) if isinstance(node, ast.Return) and node.value is not None
+                     for leaf in ast.walk(node.value) if isinstance(leaf, ast.Constant) and isinstance(leaf.value, str)]
+            self.assertTrue(texts, name)
+            for text in texts:
+                self.assertTrue(text.startswith(name + ":"), (name, text))
+
+    def test_a_harm_is_named_by_its_invariant(self):
+        from house_sim.tasks import lint, verify
+        env, b, r = build(DESK_DOC + [{"op": "spawn", "var": "bin", "type": "generic_item", "floor": "{office_room}",
+                                       "props": dict(BIN)},
+                                      {"op": "set", "target": "{doc}", "props": {"_doc_important": True}}])
+        r.skill("put", obj=b["doc"], dest=b["bin"])
+        labels = [f for f in env.evaluate()["failures"] if f.startswith("admin_inventory.")]
+        self.assertEqual(labels, ["admin_inventory.protected_items:discarded:" + b["doc"]])
+        canon = verify.canonical_labels(labels)
+        for pattern in ("inv:admin_inventory.protected_items", "inv:admin_inventory.protected_items:discarded"):
+            self.assertTrue(verify.pattern_matches(pattern, canon), pattern)
+            self.assertIsNone(lint.invariant_problem(pattern[len("inv:"):]), pattern)
+        self.assertFalse(verify.pattern_matches("inv:admin_inventory.protected_items:lost", canon))
+
+
 class Curbside(unittest.TestCase):
     SCHEDULE = {"weekday": "Friday", "time": "09:00", "streams": {"trash": "weekly", "recycling": "odd_weeks"}}
 
@@ -282,11 +356,11 @@ class Curbside(unittest.TestCase):
         r.skill("open", target=b["cart_trash"])
         r.skill("put", obj=b["pp"], dest=b["cart_trash"])
         r.skill("close", target=b["cart_trash"])
-        self.assertIn("discarded_protected:" + b["pp"], env.evaluate()["failures"])
+        self.assertIn("admin_inventory.protected_items:discarded:" + b["pp"], env.evaluate()["failures"])
         self._out(env, b, r)
         ok(self, env, "wait", seconds=3 * 3600)
         self.assertNotIn(b["pp"], env.world.s["entities"])
-        self.assertIn("discarded_protected:" + b["pp"], env.evaluate()["failures"])
+        self.assertIn("admin_inventory.protected_items:discarded:" + b["pp"], env.evaluate()["failures"])
         self.assertTrue(env.world.s["household"]["collected"][b["pp"]]["robot"])
 
     def test_wind_litter_comes_out_of_the_open_cart_it_blew_from(self):
@@ -647,6 +721,35 @@ class PlacerOrder(unittest.TestCase):
         self.assertTrue(any(len(x) == 3 and x[0][0] == 0 for x in seen))
         self.assertEqual(b["mail"], ["m1", "m2", "m3"], "bindings keep the order of the pieces")
 
+    def test_role_lists_take_a_seeded_sample(self):
+        # WP9's request: "random" draws a seeded subset through ctx.sample_roles; a given list stays as it is
+        env, b, r = build(OFFICE + [{"op": "helper", "name": "admin_inventory.trays",
+                                     "args": {"surface": "{desk}", "owners": "random"}}])
+        trays = [k for k in b if k.startswith("tray_")]
+        self.assertTrue(trays)
+        for key in trays:
+            self.assertEqual(ent(env, b[key])["owner"], key[len("tray_"):])
+        env, b, r = build([{"op": "helper", "name": "admin_inventory.carts",
+                            "args": {"room": "garage", "streams": "random"}}], require=("garage",))
+        carts = sorted(k[len("cart_"):] for k in b if k.startswith("cart_") and k != "cart_room")
+        self.assertTrue(carts)
+        self.assertLess(set(carts), {"trash", "recycling", "yard_waste"})
+
+    def test_carts_stand_in_the_placers_order(self):
+        from house_sim.generator import place
+        seen = []
+        original = place.Placer.order
+
+        def spy(self, items):
+            seen.append(list(items))
+            return list(reversed(list(items)))
+        place.Placer.order = spy
+        try:
+            build([{"op": "helper", "name": "admin_inventory.carts", "args": {"room": "garage"}}], require=("garage",))
+        finally:
+            place.Placer.order = original
+        self.assertIn(["trash", "recycling"], seen)
+
 
 class UnfamiliarFirst(unittest.TestCase):
     def test_the_identify_first_refusal_is_the_kernels(self):
@@ -691,6 +794,8 @@ class LookAlikes(unittest.TestCase):
     def test_refill_answers_an_unresolved_spray_bottle_by_its_group(self):
         """Phase-2 twin sweep (fails before): refill named the held thing 'cannot hold poured product' for a product
         spray and went on to the target for a plain spray bottle (a liquid container), telling them apart unread."""
+        if not (REG.known("spray_bottle") and REG.known("all_purpose_cleaner")):
+            self.skipTest("the spray-bottle group's types are the cleaning domain's")
         plain = self._refill_from("spray_bottle")
         product = self._refill_from("all_purpose_cleaner")
         self.assertEqual(plain, product)

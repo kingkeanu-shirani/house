@@ -36,6 +36,25 @@ def latch_kind(rec):
     return C.mget(rec, "latch")
 
 
+def secure_now(rec):
+    """Whether a closed closure would hold a gentle test now: a lockable one must be locked (bolt home, or a padlock
+    through its hasp), a lid sealed or clasped, a latch-only one latched (handles._test, the derived test_held)."""
+    kind = C.kind_of(rec)
+    locked = bool(rec.get("locked"))
+    if locked and C.mget(rec, "bolt_throw", 1.0) is not None and C.num(C.mget(rec, "bolt_throw", 1.0), 1.0) < 0.9:
+        locked = False
+    hasp = C.mget(rec, "hasp") or {}
+    if hasp.get("padlock") and hasp.get("closed") and hasp.get("through_staple", True):
+        locked = True
+    if kind in C.WINDOW_KINDS:
+        return locked
+    if kind in C.LID_KINDS:
+        return bool(rec.get("sealed") or rec.get("latched") or C.num(C.mget(rec, "clasps_closed")) > 0)
+    if rec.get("lockable") or hasp:
+        return locked
+    return is_latched(rec)
+
+
 def contents(w, eid, relation=None):
     return [c for c in w.children(eid) if relation is None or w.ent(c).get("relation", "on") == relation]
 
@@ -336,11 +355,7 @@ def apply_open(ctx, eid, extent=1.0, force="normal", via="open", held_back=False
         if extent >= 0.3:
             _sweep_floor(ctx, eid, newtons)
     if kind == "snap_lid" and newtons >= C.FORCE_N["firm"] and C.num(rec.get("liquid_l")) > 0:
-        rr = w.mut(eid)
-        lost = round(min(C.num(rec.get("liquid_l")), 0.05), 3)
-        rr["liquid_l"] = round(C.num(rec.get("liquid_l")) - lost, 3)
-        rr["spilled_l"] = round(C.num(rec.get("spilled_l")) + lost, 3)
-        C.harm(w, "spills", item=eid, cause="squeezed while the lid popped")
+        C.spill_out(w, eid, 0.05, why="squeezed while the lid popped")
     if C.mget(rec, "clamshell") and rec.get("orientation") in (None, "upright", "on_edge"):
         rr, mech = C.mut_mech(w, eid)
         mech["tipped_open"] = True
@@ -486,7 +501,7 @@ def _slide_aside(w, item, room, avoid):
     best = min(options)
     rm = w.mut(item)
     rm["pos"] = [int(best[3]), int(best[2])]
-    rm["shifted"] = True
+    rm["_pushed_aside"] = True      # a record of the push, not damage (the thing itself is fine; its placement is judged)
     return True
 
 
@@ -528,11 +543,7 @@ def _sweep_floor(ctx, eid, newtons=None):
             continue
         if low:
             if careless and liquid:
-                im = w.mut(item)
-                lost = round(min(C.num(im.get("liquid_l")), 0.1), 3)
-                im["liquid_l"] = round(C.num(im.get("liquid_l")) - lost, 3)
-                im["spilled_l"] = round(C.num(im.get("spilled_l")) + lost, 3)
-                w.stat("spills")
+                C.spill_out(w, item, 0.1, why="a door swung into it")
             if _slide_aside(w, item, room, cells):
                 w.emit("pushed_aside", target=item, by=eid)
                 C.tell(ctx, "The door met the {} and pushed it aside".format(label))
@@ -557,10 +568,7 @@ def _sweep_floor(ctx, eid, newtons=None):
             w.stat("breakages")
             w.stat("damage")
         if careless and liquid:
-            lost = round(min(C.num(im.get("liquid_l")), 0.5), 3)
-            im["liquid_l"] = round(C.num(im.get("liquid_l")) - lost, 3)
-            im["spilled_l"] = round(C.num(im.get("spilled_l")) + lost, 3)
-            w.stat("spills")
+            C.spill_out(w, item, 0.5, why="a door knocked it over")
         C.visual(w, "knocked_over", source=item, target=item, by=eid, careless=careless)
         C.tell(ctx, "The door swung into the {} and knocked it over".format(label))
     if stopped:
@@ -634,7 +642,8 @@ def _door_dash(ctx, eid):
         if geometry.chebyshev(tuple(pet["pos"]), cell) > 3:
             continue
         if ctx.rng.random() < max(risk, 0.85 if pet.get("door_dash") else 0.0):
-            escape(w, pid, there, C.doorway_cell(state, eid, there), via=eid)
+            with C.volition(w, "mechanisms.pets"):       # the pet bolts; the flag is the robot's (it opened the door)
+                escape(w, pid, there, C.doorway_cell(state, eid, there), via=eid, robot=True)
             C.tell(ctx, "{} dashed out through the opening".format(C.agent_ref(ctx, state, "pets", pid)))
 
 
@@ -686,11 +695,7 @@ def _drawer_opened(ctx, eid, extent, newtons):
         for child in contents(w, eid, "in"):
             crec = w.ent(child)
             if C.num(crec.get("liquid_l")) > 0 and not crec.get("sealed", False) and crec.get("stands_upright", True):
-                cm = w.mut(child)
-                lost = round(min(C.num(crec.get("liquid_l")), 0.2), 3)
-                cm["liquid_l"] = round(C.num(crec.get("liquid_l")) - lost, 3)
-                cm["spilled_l"] = round(C.num(crec.get("spilled_l")) + lost, 3)
-                C.harm(w, "spills", item=child)
+                C.spill_out(w, child, 0.2, why="jerked drawer")
             elif crec.get("fragile") and not crec.get("broken"):
                 cm = w.mut(child)
                 cm["broken"] = True

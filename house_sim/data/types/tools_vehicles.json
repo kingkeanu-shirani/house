@@ -7,6 +7,7 @@
    "bypass_gap_mm": "tape_measure"
   },
   "hidden": [
+   "fastener_delta",
    "sorted_ok",
    "outline_ok",
    "handover_ok",

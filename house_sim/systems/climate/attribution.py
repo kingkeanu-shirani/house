@@ -28,6 +28,9 @@ This module adds what the kernel does not record:
         system (opening and closing its filter door alone does not count), ran it from a thermostat, fitted or opened its
         filter, covered its outdoor unit, shut one of its registers and left it shut, or put something over a register
         or return.
+* The same sets as ids for the writer log (VERIFY_HARDENING 6.2's causal link): room_causes(rid) and hvac_causes(sid)
+  name what a harm of the room's air or of the central system follows from; a device's or a window's own harms cite the
+  device or window itself (a physical write citing only itself is linked to the robot only when the robot wrote it).
 """
 from ...kernel.plugins import after
 from . import common as C
@@ -233,6 +236,59 @@ def robot_hvac(w, sid):
 
 # looking behind a filter door, or a register opened back up, changes nothing that strains the system
 HVAC_PASSIVE = frozenset(("open_cover", "close_cover"))
+
+
+def room_causes(w, rid):
+    """Sorted ids a change of room rid's air follows from: its windows and outside doors, the room devices in it, and the
+    thermostats, central systems and outdoor units (the things robot_room looks at, whoever worked them last)."""
+    state = w.s
+    entities = state["entities"]
+    ids = set()
+    for wid in C.static_ids(w, "climate.windows", C.is_window):
+        if C.room_of(state, wid) == rid:
+            ids.add(wid)
+    for door in C.static_ids(w, "climate.connecting", C.connects_rooms):
+        rec = entities.get(door)
+        if rec is not None and rid in (rec.get("connects") or ()) and outside_door(state, rec):
+            ids.add(door)
+    for eid in C.static_ids(w, "climate.kinds", C.has_kind):
+        rec = entities.get(eid)
+        if rec is not None and (rec.get("climate_kind") in HOUSE_KINDS or C.room_of(state, eid) == rid):
+            ids.add(eid)
+    return sorted(ids)
+
+
+def hvac_causes(w, sid):
+    """Sorted ids a central system's fault or strain follows from: the system, the filter in it, its thermostats, its
+    outdoor unit, its registers and returns (the things robot_hvac looks at) and whatever a vent is under or behind."""
+    memo = _blame(w)
+    known = memo.get("hvac_causes")
+    if known is None and memo:
+        known = memo["hvac_causes"] = {}
+    if known is not None and sid in known:
+        return known[sid]
+    state = w.s
+    entities = state["entities"]
+    rec = entities.get(sid) or {}
+    ids = {sid}
+    slot = ((rec.get("slots") or {}).get("filter") or {}).get("item")
+    if slot:
+        ids.add(slot)
+    for eid in C.static_ids(w, "climate.kinds", C.has_kind):
+        other = entities.get(eid) or {}
+        k = other.get("climate_kind")
+        if k == "thermostat" and other.get("controls_hvac") in (None, sid):
+            ids.add(eid)
+        elif k == "outdoor_condenser" and other.get("serves") == sid:
+            ids.add(eid)
+        elif k in ("register", "return_grille") and other.get("system") in (None, sid):
+            ids.add(eid)
+            if other.get("relation") in ("under", "behind") and other.get("location") in entities:
+                ids.add(other["location"])
+    out = sorted(ids)
+    if known is not None:
+        known[sid] = out
+    return out
 
 
 def _hvac_scan(w, sid):

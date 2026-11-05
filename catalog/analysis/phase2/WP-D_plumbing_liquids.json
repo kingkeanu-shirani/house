@@ -1,0 +1,88 @@
+{
+ "id": "WP-D_plumbing_liquids",
+ "landed": [
+  "liquid mess kinds liquid:spill, liquid:mop_water (rho 0), liquid:dirty_water (rho 0), liquid:chemical, liquid:grease (hardening.py @mess_kind, litres): every liquid parcel one kind by liquid_class; parcels from spill / puddle entities (this domain's, cleaning's, the kernel's, safety's floor_puddle), dropped ice, dirty / chemical / used-grease liquid in vessels, safety's _chem_spill, and what other domains report through run_hooks('mess_parcels', state, kind) (textiles_laundry's absorbed liquid)",
+  "flows with origins from transfer.deliver (pour, empty, wring, fill overflow, drain spigots) where the measures cannot see the destination: toilet, basin, floor / storm drain, bin, plant, soaking ground (plant pours are parcels: bleach or mop water on a plant is wrong_sink); a wrung cloth's water is no parcel; textiles' wring hook is not double-logged",
+  "the house water meter plumbing.meter.l (resources.json's path): every litre drawn by this domain and other domains' counted ones; the meter's display reads the house total; a tap left running is house.waste:water (tested)",
+  "causes for the time systems' writes (common.caused: fixture, leak host, drip source, holder, wet thing, spigot); every system physical; an exogenous leak's spill is not robot-attributable, a snapped stem and a tap left running are",
+  "field classes for every property of data/types/plumbing_liquids.json and the fields written onto its types (watch/plumbing_liquids.json, 224 fields + per-type overrides; field_census --unclassified --domain plumbing_liquids: 0); corrections: soil guard soiled, settings.mix and valve_open process, a hose's water process",
+  "derived fields coiled (garden hoses) and drained (outdoor spigots); Latched fields table docs/domains/plumbing_liquids.md 0e.4",
+  "settings skills: settings.flow / left / right / valve, settings.position, settings.supply_valve, plug, settings.trigger; damaging verbs for B14: damage.washer_crushed, broken (seized valve), cracked (frozen tray), cross_threaded, coupling_washer_crushed through the new skill plumbing_liquids.operate",
+  "hazard zones (@hook hazard_zones): floor spill, ice, hot vessel, scalding tap, each the thing itself; hazard_created: none of this domain's creations (spills and ice are parcels); no agents owned",
+  "truth_plumbing_liquids.json: running_toilet, no_hot_water, frozen_pipe; structured readings from held thermometers and moisture meters in a close look (perceive.index picks them up)",
+  "world fixes: electrical gear is water sensitive to this domain's drips, spills and pours (closeout_breakages row 7, reader side); an object plunged into the trap is relation drain, out of sight and reach, house.lost; an unfamiliar thing gets one identify-first refusal from all 15 verbs and is passed over by implicit tool pickers; liquid into an unread member of a group that mixes vessels and product bottles gets one refusal (fill, pour, empty, wring on spray_bottle); this domain's verbs name no water damage to an unresolved thing",
+  "the twin sweep (15 verbs, 34 commands, 4 places): 78 look-alike groups / 253 members and 26 unfamiliar twins: 16 differences in 4 groups before, 0 after, room camera; 0 on the geometric camera for the 6 most sensitive groups and the twins",
+  "tests/test_plumbing_liquids_hardening.py: 54 tests; regress_before.py: 6 of 6 carry-over and sweep regressions fail on the before tree, pass after",
+  "docs/domains/plumbing_liquids.md section 0e; catalog/analysis/phase2/handoff_WP-D_plumbing_liquids.md"
+ ],
+ "deviations": [
+  {
+   "what": "parcels report no origin (one group per kind); flows carry theirs, which the ledger then ignores",
+   "why": "cleaning's flows have none, navigation's and safety's and textiles' use their own ids; per-origin groups would split one liquid's removal from its arrival whenever two domains handle it. Per-class sinks inside liquid:spill are therefore the kind's: milk on a plant is judged by house.damaged (wrong_liquid), not wrong_sink"
+  },
+  {
+   "what": "dilute household cleaning solutions are liquid:mop_water, not liquid:chemical (6.5: 'tap water mixed with bleach is chemical wherever it goes')",
+   "why": "liquid:chemical's only sink is a hazardous-waste container, which would make the reference of T-151f6733397156-01 (bleach mop water down the toilet, the standard disposal) a wrong sink; the product itself and the kernel's toxic liquids stay chemical; mop water gets rho 0, so the review's towel, spare bucket, bread box and dog bowl cheats all fail"
+  },
+  {
+   "what": "a fresh cleaning solution is content until used",
+   "why": "a bucket made up for mopping goes into a film no measure sees; counting it failed every mopping reference (as-if T-7e93003b0dcefa-01); used water in a bucket at the end is mess_in_transit as intended"
+  },
+  {
+   "what": "liquid:dirty_water covers sewage, toilet water, urine, vomit; dirty, muddy and mop water are liquid:mop_water",
+   "why": "cleaning's dump_liquid logs every dirty liquid as liquid:mop_water"
+  },
+  {
+   "what": "floor wet volume (films, wet cells) is no parcel (6.5 lists it)",
+   "why": "a mop's film comes from the bucket and dries without a logged flow, so counting it charged every mop; house.wet_room judges wet floors"
+  },
+  {
+   "what": "no flows into measured places and none from the time systems",
+   "why": "a flow into a floor outlives a mop-up another domain logs none for; the end-state measures and the idle counterfactual carry those"
+  },
+  {
+   "what": "unresolved_first skips the damage note through Ctx._phys_noted, a private of phys/settle.py",
+   "why": "the note is the kernel's default and my files cannot change it; the alternative left a tell in four verbs (requested of WP1 / electrical)"
+  }
+ ],
+ "not_done": [
+  {
+   "what": "truth mapping for low_water_pressure",
+   "why": "no fixture field holds a pressure"
+  },
+  {
+   "what": "kernel truth for leak on a slow leak, clogged, running on a tap, open on a valve, the 'no hot water' phrase, flooding, the temperature quantity on this domain's fields",
+   "why": "kernel data (speech/truth.json, lexicon.json): a key defined in two files is an error; requested of WP4"
+  },
+  {
+   "what": "a mop film as a mess transform",
+   "why": "the ledger does not read mess_transform yet (WP1); mopping with water already dirty at the baseline stays unaccounted by the film"
+  },
+  {
+   "what": "a small thing in a toilet bowl carried down by a flush",
+   "why": "not a hole (it stays house.moved) and no spec reaches it; left as it is"
+  }
+ ],
+ "outcome_changes": [],
+ "tests": {
+  "new_tests": 54,
+  "passed": true,
+  "strict_passed": true
+ },
+ "specs": {
+  "total": 15,
+  "passed": 15
+ },
+ "requests": [
+  "WP1: (a) charge a mess flow logged by a physical writer only when robot-attributable or absent from the idle rollout (today safety's exogenous chemical leak flows count as relocated mess now that liquid:chemical is registered); (b) charge an end-state mess increase without a flow only when F exceeds idle at that location, not when it merely differs; (c) read mess_transform (a mop film drying, a soaked towel binned); (d) a liquid class table in mess_classes.json so every domain classifies one liquid alike (hardening.liquid_class's rules); (e) watch_fields.json classes for fields this domain writes on other domains' things: interior_wetness / interior_water_damage (condition up), lodged_in_drain, soggy, wrong_liquid, water_ring, water_damaged, clogged, strained, coupling_washer_crushed, stale (condition true), lid_on (setting), lid_fell, plumb_source (bookkeeping), growing, fizz, on_carpet (process), pooled_l, liquid_in_bin_l (guard mess), frozen_spill_l (bookkeeping), drip_left_l (process); (f) impact.damage's default note 'X was damaged' tells unresolved look-alike members apart for any domain's verb that wets them: allow no note",
+  "WP4: kernel truth for this domain's records: leak + _leak_active is_true (a slow leak is judged false today); clogged + _clog.amount gte 0.3; running, on / off + water_running; open / closed + valve_open; acts turn_on / turn_off + turn_on_water / turn_off_water (shut_off / open_valve for a valve); act empty + this domain's empty; flooding + pooled_l; temperature + temperature_c, outlet_temp_c, tank_temp_c; the lexicon reads 'no hot water' as the state cold, so the issue no_hot_water is unreachable by that phrase",
+  "WP-D_cleaning: (a) dump_liquid logs a strong cleaning solution as liquid:chemical where these measures count it liquid:mop_water: log it by hardening.liquid_kind or the bucket's removal and the flow fall into two kinds; (b) log what absorb / mop take from a spill into a tool textiles_laundry does not report (a sponge, a mop head), so a wipe-up is a relocation an envelope can allow",
+  "WP-D_textiles_laundry: hardening.spill_kind classifies a spill without _mess_kind by words (dirty_water -> liquid:dirty_water, sewage -> liquid:spill), against these measures (liquid:mop_water, liquid:dirty_water): use plumbing_liquids.hardening.liquid_kind when loaded (this domain's own spills record _mess_kind and agree)",
+  "WP-D_navigation_robot: common.liquid_mess maps soapy water and dirty / muddy water to liquid:dirty_water; these measures count soapy water as liquid:spill and dirty / muddy water as liquid:mop_water: align so a slop and its clean-up meet in one kind",
+  "WP-D_electrical: pass a note for ingress damage or none (see WP1 (f)): a NiMH cell or a digital level wetted by another domain's verb is still named by the kernel's note",
+  "WP6: settings skills and damaging verbs for B14 as listed; trace.mess_carrier / accept.carried_kinds may read hardening.parcels for liquid carriers",
+  "WP12: the as-if deltas of this domain's references are task deltas (envelope.change for valves, handles, plugs, lids and controller settings; held_at_end / soil for tools; transit_ok for wet rags a reference keeps; consume for products); references should put the toilet lid and cabinet doors back",
+  "main session: re-record the 26 room-golden rows in the handoff (plumbing.meter only, class state, code P2); setup.py package_data for data/verify/watch/*.json and data/speech/truth_*.json"
+ ],
+ "notes": "Resumed package (the earlier agent's work is commit 6a9e3e8; kept, finished, re-verified). Measured on after_tree = HEAD + only this package's files, before_tree = the same with this package's files as of bc1dc72. Legacy A/B: all 243 authored specs, own mode, seeds 0 1 2 41 97: 243/243 in both, 0 of 1,215 trials changed in any verdict field, step count, time or wrong-plan record; 727 trials changed only the reference state digest (plumbing.meter and the hidden _mess_kind / _coiled_at, logs.mess_flows). Forced realistic on this domain's 15 specs, seeds 0 1: 15/15 in both, 0 of 30 changed. Room golden: 26 of 52 files differ, plumbing.meter only (rows in the handoff; tests/test_room_golden.py fails until the main session re-records them). Tests: 233 OK normal, strict and core,plumbing_liquids. regress_before.py: 6 of 6 fail before, pass after. Twin sweep (rewritten, wider: the first agent's scratch did not survive and its narrower sweep had reported 0): 16 differences in 4 look-alike groups before, 0 after in all 78 groups / 253 members and the 26 unfamiliar twins; geometric camera 0 on 6 groups and the twins. Perception audit leaks 0, crashes 0; layout audit 120 houses, 0 problems; census 0 unclassified. Full suite on after_tree: 5,857 tests per mode, 8 files failing in both modes, none from this package: test_dialogue, test_electrical_hardening, test_ledger, test_lint fail identically on before_tree; test_verify_hardening is the known WP6-absent pin; test_gate_tool and test_eval_tier1_gate need a git work tree (a copy has none); test_room_golden needs the re-record. Nothing committed; no paid calls; nothing under %USERPROFILE%\\.house_ai. Scratch: <home>/.claude/projects/C--Users-USER-OneDrive-Desktop-house-ai/orchestration/p2_WP-D_plumbing_liquids/. outcome_changes is empty: on these seeds no authored reference or wrong plan reaches a changed behaviour."
+}

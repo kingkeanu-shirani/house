@@ -19,7 +19,7 @@
     "measure": {"waste_g": "scale"},
     "hidden": ["toxin", "toxin_evidence", "licked_by", "source_pet", "pet_appeal", "chewable", "swallowable", "toy_owner", "toy_for",
                "pet_toy_of", "taken_by", "medicated", "med_in_food", "pet_waste", "source_med", "stash_lost", "aromatic_bedding",
-               "laid_s"],
+               "laid_s", "waste", "source_entity"],
     "room": {"glance": ["muddy"], "hidden": ["wet_cells", "fence_gap_cm", "shade_cells"]}
   },
   "types": {
@@ -220,7 +220,7 @@
                      "hidden": ["food_meta", "last_served", "home_pos", "freshness"]},
       "view": {"text_m": {"settings": 0.008, "display": 0.008}},
       "doc": "Timed gravity/auger feeder: hopper_g kibble, dispenses portion_g at each schedule time into its tray (food_g).",
-      "props": {"label": "automatic pet feeder", "category": "pet_bowl", "pet_item": true, "material": "plastic", "mass_kg": 1.8,
+      "props": {"power_w": 3.0, "label": "automatic pet feeder", "category": "pet_bowl", "pet_item": true, "material": "plastic", "mass_kg": 1.8,
                 "size_m": [0.22, 0.3, 0.35], "volume_l": 12.0, "bowl_kind": "food", "food_g": {}, "food_meta": {}, "bowl_capacity_l": 0.4,
                 "hopper_g": 800.0, "hopper_kind": "cat_kibble", "plug_required": true, "plugged_in": true, "switchable": true, "on": true,
                 "settings": {"times": ["07:00", "18:00"], "portion_g": 30}, "tags": ["pet_bowl"], "display": "", "remote_status": true}
@@ -270,7 +270,7 @@
     "pet_waste_bag": {
       "is_a": "portable_object",
       "perception": {"measure": {"waste_g": "scale"},
-                     "hidden": ["contents", "odor", "waste_stream", "waste_kind", "food_waste", "freshness"]},
+                     "hidden": ["contents", "odor", "waste_stream", "waste_kind", "food_waste", "freshness", "waste"]},
       "doc": "A filled pet-waste bag (created by bag_waste). tied=true seals odor and leaks. waste_stream trash.",
       "props": {"label": "bag of pet waste", "category": "pet_waste", "pet_item": true, "material": "ldpe", "mass_kg": 0.05,
                 "size_m": [0.15, 0.1, 0.12], "volume_l": 0.8, "tied": false, "contents": {}, "waste_g": 0.0, "waste_stream": "trash",
@@ -278,7 +278,7 @@
     },
     "dog_waste": {
       "is_a": "portable_object",
-      "perception": {"hidden": ["waste_stream", "waste_kind", "concealed", "revealed", "laid_s", "freshness"]},
+      "perception": {"hidden": ["waste_stream", "waste_kind", "concealed", "revealed", "laid_s", "freshness", "waste"]},
       "doc": "A pile of dog feces on the ground (biohazard floor hazard 'waste'). concealed=true in tall grass until the robot looks closely nearby.",
       "props": {"label": "dog poop", "category": "pet_waste", "material": "organic", "mass_kg": 0.15, "size_m": [0.08, 0.06, 0.04],
                 "volume_l": 0.15, "floor_hazard": "waste", "hazards": ["biohazard"], "safe_grips": ["scoop"], "waste_stream": "trash",
@@ -496,19 +496,19 @@
       "is_a": "portable_object",
       "perception": {"hidden": ["noise_db", "freshness"]},
       "doc": "Pet blow dryer: settings heat cool|low|high (high ~ 60 C at 10 cm: burns), 80 dB.",
-      "props": {"label": "pet hair dryer", "category": "pet_grooming", "pet_item": true, "material": "plastic", "mass_kg": 0.8,
+      "props": {"power_w": 1000.0, "label": "pet hair dryer", "category": "pet_grooming", "pet_item": true, "material": "plastic", "mass_kg": 0.8,
                 "size_m": [0.25, 0.1, 0.25], "volume_l": 2.0, "plug_required": true, "plugged_in": true, "switchable": true, "on": false,
                 "settings": {"heat": "low"}, "setting_options": {"heat": ["cool", "low", "high"]}, "noise_db": 80}
     },
     "pet_medication": {
       "is_a": "portable_object",
-      "perception": {"read": ["prescribed_for", "drug", "schedule", "dose_units", "water_ok"],
+      "perception": {"inspect": ["sealed"], "read": ["prescribed_for", "drug", "schedule", "dose_units", "water_ok"],
                      "hidden": ["toxin", "missed", "source_med", "freshness"], "looks_like": "pill_bottle"},
       "doc": "Owner/vet-directed pet medicine. prescribed_for = pet id; schedule slots; label_text is readable. Dosing is give_pet_medication (approval give_pet_medication:<pet>). A member of the kernel pill_bottle look-alike group: its mass, size, colour and printed text height (the kernel's 4 mm label default, no text_m of its own) match a person's prescription bottle, so neither weight nor the distance a label becomes readable tells them apart before reading.",
       "props": {"label": "pet medication", "category": "pet_medication", "pet_medication": true, "pet_item": true, "material": "polypropylene",
                 "color": "amber", "mass_kg": 0.05, "size_m": [0.04, 0.04, 0.08], "volume_l": 0.1, "form": "tablet", "count": 30, "dose_units": 1,
                 "prescribed_for": null, "drug": "carprofen 75 mg", "schedule": ["08:00"], "water_ok": false, "hazards": ["toxic"],
-                "safe_grips": ["normal", "pinch"], "toxin": "nsaid_vet"}
+                "safe_grips": ["normal", "pinch"], "toxin": "nsaid_vet", "sealed": true}
     },
     "ir_thermometer": {
       "is_a": "portable_object",
@@ -629,7 +629,7 @@
       "perception": {"read": ["watts"], "hidden": ["freshness"]},
       "view": {"text_m": {"watts": 0.003}},
       "doc": "100 W basking bulb in a dome over the basking spot (part of the enclosure). burnt_out -> basking surface only ~room + 4 C.",
-      "props": {"label": "basking lamp", "category": "enclosure_device", "pet_item": true, "material": "glass", "mass_kg": 0.1,
+      "props": {"power_w": 100.0, "label": "basking lamp", "category": "enclosure_device", "pet_item": true, "material": "glass", "mass_kg": 0.1,
                 "size_m": [0.12, 0.12, 0.14], "volume_l": 0.5, "switchable": true, "on": true, "watts": 100.0, "burnt_out": false,
                 "plug_required": true, "plugged_in": true, "part_type": "basking_bulb", "enclosure_device": "basking_lamp"}
     },
@@ -638,7 +638,7 @@
       "perception": {"read": ["watts"], "hidden": ["freshness"]},
       "view": {"text_m": {"watts": 0.003}},
       "doc": "Ceramic heat emitter on a thermostat (settings.setpoint_c = warm-side air setpoint).",
-      "props": {"label": "ceramic heat emitter", "category": "enclosure_device", "pet_item": true, "material": "ceramic", "mass_kg": 0.15,
+      "props": {"power_w": 75.0, "label": "ceramic heat emitter", "category": "enclosure_device", "pet_item": true, "material": "ceramic", "mass_kg": 0.15,
                 "size_m": [0.09, 0.09, 0.13], "volume_l": 0.5, "switchable": true, "on": true, "watts": 75.0, "plug_required": true, "plugged_in": true,
                 "settings": {"setpoint_c": 31}, "setting_options": {"setpoint_c": {"min": 20, "max": 40}}, "enclosure_device": "heat_emitter"}
     },

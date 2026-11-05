@@ -100,6 +100,36 @@ def _chain_to(r, fan, setting, value):
         r.do("press", target=fan, button=button)
 
 
+def strain_fan_motor(r, fan):
+    """A damaging act (the settings probe of hardening.motor_steps): run the fan, switch it off and flip the direction
+    switch while the blades still coast (5-60 rpm jolts the motor)."""
+    K.approach(r, fan)
+    if (_ent(r, fan).get("settings") or {}).get("speed") == "off":
+        _chain_to(r, fan, "speed", "high")
+        r.do("wait", seconds=60)
+    _chain_to(r, fan, "speed", "off")
+    waited = 0
+    while C.num(_ent(r, fan).get("rpm")) >= 60.0 and waited < 120:
+        r.do("wait", seconds=5)
+        waited += 5
+    r.do("reverse_fan", target=fan, via="switch")
+
+
+def fit_filter_backwards(r, part):
+    """A damaging act (the settings probe of hardening.reversed_steps): take a fitted filter out and fit it again turned
+    over."""
+    from .hardening import installed_slot
+    device, slot = installed_slot(r.state, part)
+    K.approach(r, device)
+    if _ent(r, device).get("on") and ((_ent(r, device).get("slots") or {}).get(slot) or {}).get("power_off_first"):
+        r.do("switch_off", target=device)
+    if not _ent(r, device).get("cover_open"):
+        r.do("open_cover", target=device)
+    r.do("uninstall", target=device, slot=slot)
+    r.do("install", target=part, destination=device, slot=slot, orientation="upside_down")
+    r.do("close_cover", target=device)
+
+
 @skill("climate.wait_until_quiet")
 def wait_until_quiet(r, fan, max_s=300):
     waited = 0

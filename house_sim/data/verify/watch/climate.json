@@ -1,0 +1,393 @@
+{
+ "about": "Field classes of the climate domain's types for the house ledger (VERIFY_HARDENING 6.3, lint L-WATCH; WP-D climate). 'fields' classifies every property name of house_sim/data/types/climate.json and every field climate's verbs, hooks and systems write onto its own types: ratings, kinds, wiring and printed text are identity; what the robot sets (switches, covers, plugs, settings, slots, a filter's wrap and the way it faces) is setting; what the model derives every substep or what only follows a setting (call, stage, running, rpm, display, readings, hold_until, tank_seated, a cord's route, placement_issues) is process -- the setting or placement that caused it is compared; damage and faults are condition with a worse direction (a filter's dust load and its bypass gap with tolerances: a little dust is use, a gap under 6 mm is no bypass); stamps, counters and report marks are bookkeeping; a tank's water is content, a dehumidifier bucket's condensate a load with guard mess. 'types' refines: the bucket, a filter's open (its wrap decides), and the fields climate writes onto the window types (covered follows the coverings, condensation the air, rain_in_l a running total). Fields climate writes onto any other type are the kernel's (requests in catalog/analysis/phase2/handoff_WP-D_climate.md). water_sensitive: what standing water ruins (a filter's media but not the washable pre-filter, so the base purifier_filter type is not listed; rated outdoor units are not).",
+ "fields": {
+  "active_period": "process",
+  "affordances": "identity",
+  "afue": "identity",
+  "airflow_mps": "process",
+  "airflow_ratio": "process",
+  "aux_capacity_w": "identity",
+  "base_capacity_l": "identity",
+  "base_water_l": "process",
+  "battery_level": "process",
+  "battery_powered": "identity",
+  "behind_s": "process",
+  "blocked": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "blocks_path": "identity",
+  "blower": "process",
+  "blower_w": "identity",
+  "blowing": "process",
+  "bypass_gap_mm": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 6.0
+  },
+  "bypass_s": "process",
+  "cadr_m3h": "process",
+  "call": "process",
+  "capacity_l": "identity",
+  "capacity_l_day": "identity",
+  "category": "identity",
+  "clearance_m": "identity",
+  "climate_kind": "identity",
+  "closed_supply_frac": "process",
+  "compressor_damaged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "compressor_on": "process",
+  "condenser": "identity",
+  "contamination": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.02
+  },
+  "contamination.*": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.02
+  },
+  "contents_from": "bookkeeping",
+  "control_kinds": "identity",
+  "controls_hvac": "identity",
+  "cooling_capacity_w": "identity",
+  "cord_cells": "process",
+  "cord_crosses_walkway": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "cord_hazard": "process",
+  "cord_heat_s": "process",
+  "cord_length_m": "identity",
+  "cord_length_needed_m": "process",
+  "cord_length_used_m": "process",
+  "cord_route": "process",
+  "cord_under_rug": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "cover_open": "setting",
+  "damage": {
+   "class": "condition",
+   "worse": "up"
+  },
+  "damage.*": {
+   "class": "condition",
+   "worse": "up"
+  },
+  "damage_notes": "bookkeeping",
+  "design_flow_m3s": "identity",
+  "dirtiness": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.05
+  },
+  "discarded_t": "bookkeeping",
+  "displaced": "bookkeeping",
+  "display": "process",
+  "duct_dust": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "empty_light": "process",
+  "energized": "process",
+  "facing": "setting",
+  "fan_type": "identity",
+  "fault": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "filter_hours": "process",
+  "filter_installed_at": "bookkeeping",
+  "filter_layer": "identity",
+  "filter_life_h": "identity",
+  "filter_model": "identity",
+  "filter_spec": "identity",
+  "filter_spec.arrow": "setting",
+  "filter_spec.merv": "identity",
+  "filter_spec.nominal": "identity",
+  "fixed_temperature": "identity",
+  "free_area_m2": "identity",
+  "full_at_l": "identity",
+  "full_light": "process",
+  "hardwired": "identity",
+  "has_light": "identity",
+  "hazards": "process",
+  "heat_exchanger_stressed": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "heat_output_frac": "process",
+  "heater_type": "identity",
+  "heating_capacity_w": "identity",
+  "heating_on": "process",
+  "held_grip": "bookkeeping",
+  "held_hand": "bookkeeping",
+  "hold_ends_at_period": "process",
+  "hold_until": "process",
+  "hold_until_s": "process",
+  "hose": "setting",
+  "humidifier_type": "identity",
+  "humidistat_on": "process",
+  "hvac": "identity",
+  "in_stream": "bookkeeping",
+  "installed_at": "bookkeeping",
+  "instructions": "identity",
+  "intake_blocked": "process",
+  "ir_receiver": "identity",
+  "is_a": "identity",
+  "keep": "identity",
+  "label": "identity",
+  "label_text": "identity",
+  "last_start_s": "bookkeeping",
+  "last_stop_s": "bookkeeping",
+  "layer_order": "identity",
+  "layer_order_ok": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "length_m": "identity",
+  "light_lit": "process",
+  "light_w": "identity",
+  "limit_trips": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.5
+  },
+  "liquid": "content",
+  "liquid_container": "identity",
+  "liquid_l": "content",
+  "live_when_plugged": "identity",
+  "locked": "setting",
+  "mass_kg": "content",
+  "material": "identity",
+  "max_fill_l": "identity",
+  "max_touch_temp_c": "identity",
+  "min_fill_l": "identity",
+  "mineral_out_g": "bookkeeping",
+  "mineral_ppm": "process",
+  "motor_damaged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "mount_height_m": "identity",
+  "nominal_w": "identity",
+  "on": "setting",
+  "open": "setting",
+  "openable": "process",
+  "outlet": "setting",
+  "output_w": "process",
+  "overheated": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "panel": "identity",
+  "part_type": "identity",
+  "placement_issues": "process",
+  "plug_required": "identity",
+  "plugged_in": "setting",
+  "portable": "identity",
+  "potable": "identity",
+  "power_source": "identity",
+  "power_w": "process",
+  "pump_w": "identity",
+  "ran_filterless_s": "process",
+  "rated_flow_m3s": "identity",
+  "rated_w": "identity",
+  "reading_c": "process",
+  "readings": "process",
+  "register_kind": "identity",
+  "remote": "identity",
+  "remote_status": "identity",
+  "report_matches": "bookkeeping",
+  "reported": "bookkeeping",
+  "reported.*": "bookkeeping",
+  "reusable": "identity",
+  "revealed": "bookkeeping",
+  "reversed": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "rh_pct": "process",
+  "risk": "identity",
+  "rpm": "process",
+  "running": "process",
+  "schedule_enabled": "setting",
+  "secret_fields": "bookkeeping",
+  "serves": "identity",
+  "setting_options": "process",
+  "setting_options.*": "process",
+  "settings": "setting",
+  "settings.*": "setting",
+  "shrink_wrapped": "setting",
+  "size_m": "identity",
+  "slots": "setting",
+  "slots.*": "setting",
+  "soil": {
+   "class": "condition",
+   "worse": "up"
+  },
+  "soil.*": {
+   "class": "condition",
+   "worse": "up"
+  },
+  "soil_faces": "process",
+  "soil_faces.*": "process",
+  "spinning": "process",
+  "spinning_until": "process",
+  "stage": "process",
+  "standby_w": "identity",
+  "starts": "bookkeeping",
+  "static_pressure": "process",
+  "strain_s": "process",
+  "stream_ok": "bookkeeping",
+  "switchable": "identity",
+  "system": "identity",
+  "system_kind": "identity",
+  "tags": "identity",
+  "tank_seated": "process",
+  "temp_display": "process",
+  "temperature_c": "process",
+  "tethered_to": "identity",
+  "tip_over_switch": "identity",
+  "tipped_over": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "two_handed": "identity",
+  "type": "identity",
+  "unattended_s": "process",
+  "unstable_s": "process",
+  "vent_issues": "process",
+  "view": "identity",
+  "volume_l": "identity",
+  "wall_outlet_only": "identity",
+  "washable": "identity",
+  "waste_stream": "identity",
+  "water_age_h": "process",
+  "water_rule": "identity",
+  "weatherproof": "identity",
+  "wetness": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.05
+  },
+  "wick_scale": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.05
+  },
+  "wobble": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "zone_rooms": "identity"
+ },
+ "types": {
+  "casement_window": {
+   "covered": "process",
+   "condensation": "process",
+   "rain_in_l": "bookkeeping",
+   "water_damage": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "dehumidifier_bucket": {
+   "liquid_l": {
+    "class": "content",
+    "guard": "mess"
+   },
+   "liquid": {
+    "class": "content",
+    "guard": "mess"
+   }
+  },
+  "egress_window": {
+   "covered": "process",
+   "condensation": "process",
+   "rain_in_l": "bookkeeping",
+   "water_damage": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "hopper_window": {
+   "covered": "process",
+   "condensation": "process",
+   "rain_in_l": "bookkeeping",
+   "water_damage": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "hvac_filter": {
+   "open": "process"
+  },
+  "purifier_carbon_filter": {
+   "open": "process"
+  },
+  "purifier_filter": {
+   "open": "process"
+  },
+  "purifier_hepa_filter": {
+   "open": "process"
+  },
+  "purifier_prefilter": {
+   "open": "process"
+  },
+  "sash_window": {
+   "covered": "process",
+   "condensation": "process",
+   "rain_in_l": "bookkeeping",
+   "water_damage": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "skylight": {
+   "covered": "process",
+   "condensation": "process",
+   "rain_in_l": "bookkeeping",
+   "water_damage": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "sliding_window": {
+   "covered": "process",
+   "condensation": "process",
+   "rain_in_l": "bookkeeping",
+   "water_damage": {
+    "class": "condition",
+    "worse": "true"
+   }
+  },
+  "window": {
+   "covered": "process",
+   "condensation": "process",
+   "rain_in_l": "bookkeeping",
+   "water_damage": {
+    "class": "condition",
+    "worse": "true"
+   }
+  }
+ },
+ "water_sensitive": [
+  "air_purifier",
+  "dehumidifier",
+  "humidifier",
+  "hvac_filter",
+  "hygrometer",
+  "mini_split",
+  "portable_fan",
+  "purifier_carbon_filter",
+  "purifier_hepa_filter",
+  "space_heater",
+  "thermostat"
+ ]
+}

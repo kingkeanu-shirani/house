@@ -181,6 +181,8 @@ def spill_food(w, room, near, kind, grams, wet, owner=None):
     # (no derived_from: the kernel would show the pile as its package -- "bag of dry dog food" -- and the food domain
     # drops derived_from on portions of packages without a food record anyway)
     rec["pos"] = C.free_cell_near(w.s, room, near)
+    if C.robot_acting(w):
+        rec["waste"] = True         # refuse from its creation: it must end in a bin (the waste_item balance; a pet's spill is its own)
     w.create(eid, rec)
     C.log(w, "food_spilled", item=eid, grams=round(grams, 1))
     return eid
@@ -566,8 +568,10 @@ def food_tick(w, dt, tick):
         if isinstance(pf, dict) and pf.get("wet") and rec.get("opened") and not rec.get("spoiled"):
             cold = _cold(state, eid)
             key = "_cold_s" if cold else "_warm_s"
-            m = w.mut(eid)
+            m = w.mut(eid, cause=eid)
             m[key] = round(C.num(rec.get(key)) + dt, 1)
+            if rec.get("covered") and not C.located_in(state, C.sindex(state, "can_lids", _is_can_lid), eid):
+                m["covered"] = False        # the lid is off it, however it came off (a latch until phase 2: 8.2)
             if C.num(m.get("_warm_s")) >= WET_SPOIL_S or C.num(m.get("_cold_s")) >= FRIDGE_KEEP_S or \
                     (not rec.get("covered") and C.num(m.get("_cold_s")) >= 86400):
                 m["spoiled"] = True
@@ -577,9 +581,9 @@ def food_tick(w, dt, tick):
             meta = rec.get("food_meta") or {}
             stale = sorted(k for k, v in meta.items() if v.get("wet") and now - C.num(v.get("served_s"), now) >= WET_TIMEOUT_S)
             if stale != list(rec.get("stale_wet") or []):
-                w.mut(eid)["stale_wet"] = stale
+                w.mut(eid, cause=eid)["stale_wet"] = stale
             if stale and not rec.get("ants") and now - min(C.num(meta[k].get("served_s"), now) for k in stale) >= 2 * 3600:
-                w.mut(eid)["ants"] = True
+                w.mut(eid, cause=eid)["ants"] = True
                 C.log(w, "ants_at_bowl", bowl=eid)
         if "hopper_g" in rec and rec.get("on") and physics.is_powered(w, eid):
             _feeder(w, eid, rec)
@@ -597,7 +601,7 @@ def _feeder(w, eid, rec):
         if key in done or C.hm_to_h(t) > C.hour(state) or C.hour(state) - C.hm_to_h(t) > 0.25:
             continue
         portion = min(C.num(settings.get("portion_g"), 30.0), C.num(rec.get("hopper_g")))
-        m = w.mut(eid)
+        m = w.mut(eid, cause=eid)
         done.append(key)
         m["_dispensed"] = done[-10:]
         if portion <= 0.5:

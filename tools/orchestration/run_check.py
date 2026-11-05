@@ -5,7 +5,7 @@ step, and the batch's verdict is what the tool recorded, not the agent's own `ve
 
 usage:
   python tools/orchestration/run_check.py run FILE [FILE ...] | --all [--ids ID ...] [--seeds S ...] [--workers N]
-             [--perception oracle|realistic] [--camera room|geometric] [--gen 1|2]
+             [--level quick|standard|full] [--perception oracle|realistic] [--camera room|geometric] [--gen 1|2]
              [--claimed ID ... | --claimed-file FILE] [--role ROLE] [--agent LABEL] [--batch LABEL]
              [--log PATH] [--json OUT] [--allowlist]
   python tools/orchestration/run_check.py verify [--log PATH] [--rerun N] [--workers N]
@@ -21,6 +21,20 @@ on every seed, each spec in its own perception and camera mode unless forced, ex
    "results": [{"catalog_id", "file", "spec_hash", "verdict": "pass" | "fail", "failing_seeds", "reasons"}],
    "passing", "failing", "claimed", "mismatch": {"claimed_not_passing", "passing_not_claimed"}, "wall_s",
    "workers", "digest"}
+
+A schema-4 spec (docs/design/VERIFY_HARDENING.md 5, 19, 24) is verified at `--level` (default standard, what the authoring
+wave's check is; the legacy specs of a file are checked as before, the level does not touch them). Its result line is
+read from its evidence record v2, never from the agent's words:
+
+  {"catalog_id", "file", "spec_hash", "schema": 4, "level", "verdict": "pass" | "fail", "hardening": "HARDENED" |
+   "PENDING_REVIEW" | "PENDING_GATE" | "PROVISIONAL" | "FAIL", "level_passes", "score", "gates", "failing_seeds",
+   "unmet", "reasons"}
+
+"verdict" is "pass" exactly when the gates of the level pass (strength.level_passes: every gate of the quick level, at
+standard and full the verdicts PENDING_GATE, PENDING_REVIEW and HARDENED), so the claimed-vs-passing mismatch reads the
+same way for both schemas; an agent claiming a spec is done needs the same pass from the tool. The private stages never
+run on an authoring machine, so HARDENED appears only at the gate's level with the split key. The entry records the
+level, and `verify --rerun` re-runs a schema-4 entry at it and compares verdict, hardening verdict and level_passes.
 
 `digest` is the sha256 of the entry's canonical JSON without it, and `prev` chains every entry to the one before,
 so an entry edited, removed or inserted after the fact breaks the chain (`verify`). The chain is evidence of what
@@ -54,6 +68,8 @@ DEFAULT_LOG = "catalog/review/check_log/orchestrator.jsonl"
 FORMAT = "house-check-log-v1"
 LOCK_WAIT_S = 120.0
 TRIAL_FLAGS = ("initial_fails", "idle_fails", "reference_passes", "wrong_fails", "wrong_ran")
+DEFAULT_LEVEL = "standard"      # the authoring check of a schema-4 spec (VERIFY_HARDENING 5.3, 24 item 2)
+GATE_NAMES = ("G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9")
 
 
 def now_iso():
@@ -207,28 +223,68 @@ def code_fingerprints():
     return out
 
 
-def check(paths, seeds=None, workers=None, perception=None, camera=None, gen=None, ids=None):
-    """Verify the specs of `paths` now. Returns (files, results, options): per-spec verdicts in file order."""
+def hardened_result(record, name, level):
+    """The log line of a schema-4 spec, from its evidence record v2 (the verdict and whether the level's gates pass)."""
+    from house_sim.tasks import strength
+    gates = record.get("gates") or {}
+    passes = strength.level_passes(record, level)
+    hardening = record.get("verdict") or "FAIL"
+    trials = record.get("trials") or []
+    failing = sorted({t.get("seed") for t in trials if isinstance(t, dict) and not t.get("passed", True)},
+                     key=lambda seed: (str(type(seed)), seed if seed is not None else 0))
+    lint = [p for p in record.get("lint") or [] if isinstance(p, dict) and p.get("severity") == "error"]
+    unmet = sorted(r.get("id") for r in (record.get("battery") or {}).get("runs") or []
+                   if isinstance(r, dict) and r.get("outcome") in ("passes", "fails_other", "unrealised", "void"))
+    reasons = []
+    failed_gates = [g for g in GATE_NAMES if gates.get(g) is False]
+    if not passes or hardening == "FAIL":
+        reasons.append("{}: gates failing {}".format(hardening, ",".join(failed_gates) or "none"))
+    reasons += ["{} {}".format(p.get("id"), str(p.get("message"))[:160]) for p in lint[:3]]
+    reasons += ["harness: {}".format(str(e)[:160]) for e in (record.get("harness_errors") or [])[:2]]
+    return {"catalog_id": record.get("catalog_id"), "file": name, "spec_hash": record.get("spec_hash"),
+            "schema": record.get("schema"), "level": level, "verdict": "pass" if passes else "fail",
+            "hardening": hardening, "level_passes": bool(passes), "score": (record.get("strength") or {}).get("score"),
+            "gates": {g: gates.get(g) for g in GATE_NAMES}, "failing_seeds": failing, "unmet": unmet[:40],
+            "reasons": reasons[:6], "debug": record.get("debug")}
+
+
+def check(paths, seeds=None, workers=None, perception=None, camera=None, gen=None, ids=None, level=None):
+    """Verify the specs of `paths` now. Returns (files, results, options): per-spec verdicts in file order. Legacy specs
+    run on `seeds` as before; schema-4 specs at `level` (default standard), with `seeds` only when given (a debugging
+    run the record marks, never above PROVISIONAL)."""
     sys.path.insert(0, str(ROOT))
-    from house_sim.tasks.verify import SEEDS, verify_many
+    from house_sim.tasks.verify import SEEDS, is_hardened, verify_many
     files = load_files(paths)
     specs = [(spec, name) for _, items in files for spec, name in items]
     if ids:
         wanted = set(ids)
         specs = [(spec, name) for spec, name in specs if spec.get("catalog_id") in wanted]
-    seeds = tuple(seeds) if seeds else SEEDS
+    forced = tuple(seeds) if seeds else None
+    seeds = forced or SEEDS
+    level = level or DEFAULT_LEVEL
     kwargs = {"seeds": seeds, "workers": workers, "perception": perception, "camera": camera}
     if gen is not None:
         kwargs["gen"] = gen
+    schema4 = any(is_hardened(spec) for spec, _ in specs)
+    if schema4:
+        kwargs["level"] = level
+        if forced:
+            kwargs["hard_seeds"] = list(forced)
     records = verify_many([spec for spec, _ in specs], **kwargs) if specs else []
     results = []
     for (spec, name), record in zip(specs, records):
+        if is_hardened(spec):
+            results.append(hardened_result(record, name, level))
+            continue
         failing = [t.get("seed") for t in record.get("trials", []) if not t.get("passed")]
         results.append({"catalog_id": record.get("catalog_id"), "file": name, "spec_hash": record.get("spec_hash"),
                         "verdict": "pass" if record.get("passed") else "fail", "failing_seeds": failing,
                         "reasons": [trial_reasons(t) for t in record.get("trials", []) if not t.get("passed")][:5]})
     options = {"seeds": list(seeds), "perception": perception, "camera": camera, "gen": gen,
                "ids": sorted(ids) if ids else None}
+    if schema4:
+        options["level"] = level
+        options["schema4_seeds_forced"] = bool(forced)
     return [f for f, _ in files], results, options
 
 
@@ -245,7 +301,9 @@ def summary_line(entry, log_path):
     unexcused = [c for c in entry["failing"] if c not in set(entry.get("allowlisted") or ())]
     return json.dumps({"log": rel(log_path), "seq": entry["seq"], "digest": entry["digest"],
                        "passing": len(entry["passing"]), "failing": entry["failing"],
-                       "allowlisted": entry.get("allowlisted") or [],
+                       "allowlisted": entry.get("allowlisted") or [], "level": (entry.get("options") or {}).get("level"),
+                       "hardening": {r["catalog_id"]: r["hardening"] for r in entry.get("results") or []
+                                     if r.get("hardening")},
                        "mismatch": mismatch, "ok": not unexcused and not (
                            mismatch and (mismatch["claimed_not_passing"] or mismatch["passing_not_claimed"]))},
                       sort_keys=True)
@@ -287,7 +345,8 @@ def cmd_run(args):
     from house_sim.kernel.plugins import load_domains
     load_domains()
     start = time.perf_counter()
-    files, results, options = check(paths, args.seeds, args.workers, args.perception, args.camera, args.gen, args.ids)
+    files, results, options = check(paths, args.seeds, args.workers, args.perception, args.camera, args.gen, args.ids,
+                                    args.level)
     entry = {"format": FORMAT, "date": now_iso(), "role": args.role, "agent": args.agent, "batch": args.batch,
              "files": files, "options": options, "code": code_fingerprints(),
              "python": platform.python_version(), "platform": platform.platform(),
@@ -301,9 +360,12 @@ def cmd_run(args):
     log_path = Path(args.log) if args.log else ROOT / DEFAULT_LOG
     entry = append_entry(log_path, entry)
     for r in results:
-        print("{} {}{}{}".format("PASS" if r["verdict"] == "pass" else "FAIL", r["catalog_id"],
-                                 "" if r["verdict"] == "pass" else "  " + "; ".join(r["reasons"][:2]),
-                                 " (allowlisted)" if r["catalog_id"] in (entry.get("allowlisted") or ()) else ""))
+        print("{} {}{}{}{}".format("PASS" if r["verdict"] == "pass" else "FAIL", r["catalog_id"],
+                                   "  the {} gates {}: verdict {}, score {}".format(
+                                       r["level"], "hold" if r.get("level_passes") else "fail", r["hardening"], r.get("score"))
+                                   if r.get("hardening") else "",
+                                   "" if r["verdict"] == "pass" else "  " + "; ".join(r["reasons"][:2]),
+                                   " (allowlisted)" if r["catalog_id"] in (entry.get("allowlisted") or ()) else ""))
     mismatch = entry["mismatch"]
     if mismatch and (mismatch["claimed_not_passing"] or mismatch["passing_not_claimed"]):
         print("MISMATCH with the claimed list: claimed but not passing {}; passing but not claimed {}".format(
@@ -346,10 +408,16 @@ def cmd_verify(args):
                                                              if stale else "the code changed since"))
                 continue
             opts = entry.get("options") or {}
-            _, results, _ = check([ROOT / f["path"] for f in entry["files"]], opts.get("seeds"), args.workers,
-                                  opts.get("perception"), opts.get("camera"), opts.get("gen"), opts.get("ids"))
-            now = {r["catalog_id"]: r["verdict"] for r in results}
-            then = {r["catalog_id"]: r["verdict"] for r in entry.get("results") or []}
+            # the entry's own options: a schema-4 entry at its level (its seeds only when the entry forced them)
+            seeds = opts.get("seeds") if not opts.get("level") or opts.get("schema4_seeds_forced") else None
+            _, results, _ = check([ROOT / f["path"] for f in entry["files"]], seeds, args.workers,
+                                  opts.get("perception"), opts.get("camera"), opts.get("gen"), opts.get("ids"),
+                                  opts.get("level"))
+
+            def line(r):
+                return (r.get("verdict"), r.get("hardening"), r.get("level_passes"))
+            now = {r["catalog_id"]: line(r) for r in results}
+            then = {r["catalog_id"]: line(r) for r in entry.get("results") or []}
             diff = sorted(k for k in set(now) | set(then) if now.get(k) != then.get(k))
             print("  rerun seq {}: {}".format(entry.get("seq"), "verdicts reproduce ({} specs)".format(len(now))
                                               if not diff else "VERDICTS DIFFER: " + ", ".join(diff[:20])))
@@ -364,11 +432,18 @@ def cmd_show(args):
         if "_unreadable" in entry:
             print("(unreadable line)")
             continue
-        print("seq {} {} {} {} files {}: {} pass, {} fail{} digest {}".format(
+        counts = {}
+        for r in entry.get("results") or []:
+            if r.get("hardening"):
+                counts[r["hardening"]] = counts.get(r["hardening"], 0) + 1
+        print("seq {} {} {} {} files {}: {} pass, {} fail{}{} digest {}".format(
             entry.get("seq"), entry.get("date"), entry.get("role") or "-", entry.get("batch") or "-",
             ",".join(f["path"] for f in entry.get("files") or []), len(entry.get("passing") or []),
-            len(entry.get("failing") or []), "; claim mismatch" if entry.get("mismatch") and any(
-                entry["mismatch"].values()) else "", str(entry.get("digest"))[:12]))
+            len(entry.get("failing") or []), " (level {}: {})".format(
+                (entry.get("options") or {}).get("level"), ", ".join(
+                    "{} {}".format(n, k) for k, n in sorted(counts.items()))) if counts else "",
+            "; claim mismatch" if entry.get("mismatch") and any(entry["mismatch"].values()) else "",
+            str(entry.get("digest"))[:12]))
     return 0
 
 
@@ -381,6 +456,8 @@ def build_parser():
     r.add_argument("--ids", nargs="+")
     r.add_argument("--seeds", nargs="+", type=int)
     r.add_argument("--workers", type=int)
+    r.add_argument("--level", choices=("quick", "standard", "full"),
+                   help="schema-4 specs: the verification level (default standard); legacy specs ignore it")
     r.add_argument("--perception", choices=("oracle", "realistic"))
     r.add_argument("--camera", choices=("room", "geometric"))
     r.add_argument("--gen", type=int, choices=(1, 2))

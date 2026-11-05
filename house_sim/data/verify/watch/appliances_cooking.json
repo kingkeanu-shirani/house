@@ -200,6 +200,7 @@
   "plug_required": "identity",
   "pod_used": "process",
   "preheated": "process",
+  "reading": "process",
   "pressure": "process",
   "pressure.*": "process",
   "probe": "identity",

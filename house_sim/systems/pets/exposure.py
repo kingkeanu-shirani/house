@@ -174,7 +174,7 @@ def exposure_idle(w):
     return True
 
 
-@system("pets.exposure", order=142, max_dt=30.0, idle=exposure_idle)
+@system("pets.exposure", order=142, max_dt=30.0, idle=exposure_idle, writer="volition")
 def exposure_tick(w, dt, tick):
     state = w.s
     if not state.get("pets"):

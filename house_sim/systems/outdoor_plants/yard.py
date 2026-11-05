@@ -111,12 +111,14 @@ def clear_leaves(ctx, eid, tool_id, toward, collect):
     if "debris" in m["soil"]:
         m["soil"]["debris"] = 0.0
     rid = C.room_of(w, eid)
+    here = C.mess_key(w.s, rid)
     if wet and removed_frac < 0.9:
         C.set_status(w, eid, wet_mat_left=True)
     result = None
     if toward == "street" or toward == "neighbor":
         C.stat(w, "storm_drain_debris_kg", round(kg, 3))
         C.stat(w, "debris_off_property_kg", round(kg, 3))
+        C.flow(w, kg, here, ("outside", toward))
         result = toward
     elif toward == "pool":
         pools = C.find_types(w, ["pool"], room=rid)
@@ -124,6 +126,7 @@ def clear_leaves(ctx, eid, tool_id, toward, collect):
             pm = w.mut(pools[0])
             pm["debris_kg"] = round(float(pm.get("debris_kg", 0.0)) + kg, 3)
             C.stat(w, "pool_contamination_kg", round(kg, 3))
+            C.flow(w, kg, here, ("entity", pools[0]))
         result = "pool"
     elif toward == "lawn":
         from . import lawn
@@ -141,22 +144,28 @@ def clear_leaves(ctx, eid, tool_id, toward, collect):
             pm = w.mut(pools[0])
             pm["debris_kg"] = round(float(pm.get("debris_kg", 0.0)) + kg * 0.3, 3)
             C.stat(w, "pool_contamination_kg", round(kg * 0.3, 3))
+            C.flow(w, kg * 0.3, here, ("entity", pools[0]))
             kg *= 0.7
         from . import lawn
         if collect and collect in w.s["entities"]:
             crec = w.ent(collect)
             if C.is_type(crec, "leaf_bag"):
-                fill_bag(ctx, collect, leaves_kg=kg, wet=1.0 if wet else 0.0)
+                take = fill_bag(ctx, collect, leaves_kg=kg, wet=1.0 if wet else 0.0)
+                C.flow(w, kg * take, here, ("entity", collect))
+                if take < 1.0:                  # what the bag had no room for stays where it lay
+                    m = w.mut(eid)
+                    m["soil"]["leaves"] = round(min(1.0, float(m["soil"].get("leaves", 0.0)) + kg * (1.0 - take) / max(0.01, area * 0.15)), 4)
                 result = collect
             elif C.is_type(crec, "leaf_pile") or C.is_type(crec, "tarp"):
                 pile = collect if C.is_type(crec, "leaf_pile") else (next((c for c in w.children(collect) if C.is_type(w.s["entities"][c], "leaf_pile")), None) or lawn.make_pile(w, rid, onto=collect))
                 pm = w.mut(pile)
                 pm["leaves_kg"] = round(float(pm.get("leaves_kg", 0.0)) + kg, 3)
                 pm["mass_kg"] = round(float(pm.get("leaves_kg", 0.0)) + float(pm.get("clippings_kg", 0.0)), 3)
+                C.flow(w, kg, here, C.mess_key(w.s, pm.get("location"), pm.get("relation")))
                 result = pile
             else:
                 from . import garden
-                result = garden.debris_into(ctx, {"kind": "leaves", "kg": kg, "green": False}, collect, label="leaves")
+                result = garden.debris_into(ctx, {"kind": "leaves", "kg": kg, "green": False}, collect, label="leaves", src=here)
         else:
             pile = lawn.make_pile(w, rid)
             pm = w.mut(pile)
@@ -369,7 +378,7 @@ def deice(ctx, eid, product_id, rate_g_m2):
 def slow_surfaces(w, periods):
     dt = C.SLOW_S * periods
     t = C.air_temp(w)
-    for eid in C.static_ids(w, "paved_surfaces", is_surface):
+    for eid in C.each_caused(w, C.static_ids(w, "paved_surfaces", is_surface)):
         rec = w.s["entities"].get(eid)
         if rec is None:
             continue
@@ -445,10 +454,11 @@ def clear_gutter(ctx, gid, method, drop, flush):
         tm = w.mut(drop)
         load = tm.setdefault("load", {})
         load["gutter_sludge_kg"] = round(float(load.get("gutter_sludge_kg", 0.0)) + removed, 3)
+        C.flow(w, removed, ("entity", gid), ("entity", drop))
         landed = drop
     elif drop and drop in w.s["entities"] and w.s["entities"][drop].get("container") and (ctx.holding(drop) or C.reachable(ctx, drop, 1)):
         from . import garden
-        landed = garden.debris_into(ctx, {"kind": "gutter_sludge", "kg": removed, "green": False}, drop, label="gutter sludge")
+        landed = garden.debris_into(ctx, {"kind": "gutter_sludge", "kg": removed, "green": False}, drop, label="gutter sludge", src=("entity", gid))
     else:
         from ..core import add_soil
         beds = [b for b in C.find_types(w, ["garden_bed"], room=rid) if C.distance_to_edge_m(w.s["rooms"][rid], C.house_wall_edge(w, rid), C.center_m(w, b)) < 1.5]
@@ -457,7 +467,10 @@ def clear_gutter(ctx, gid, method, drop, flush):
                 add_soil(w, b, "mud", 0.3)
                 bm = w.mut(b)
                 bm["debris_kg"] = round(float(bm.get("debris_kg", 0.0)) + removed / len(beds), 3)
+                C.flow(w, removed / len(beds), ("entity", gid), ("entity", b))
             C.stat(w, "sludge_on_beds")
+        else:
+            C.flow(w, removed, ("entity", gid), C.mess_key(w.s, rid))     # it falls where the robot stands under the eaves
         floor = "floor_" + rid
         for walk in C.find_types(w, ["walkway"], room=rid):
             add_soil(w, walk, "mud", 0.2)
@@ -479,6 +492,8 @@ def water_source_held(ctx, liters=5.0):
     w = ctx.w
     for eid in w.held_items():
         rec = w.ent(eid)
+        if C.unresolved(ctx, eid):
+            continue                    # an unread look-alike or an unfamiliar thing is no water source, whatever it is
         if rec.get("tool_kind") in ("hose", "garden_hose", "watering_wand", "hose_nozzle") or rec.get("hose") or rec.get("category") in ("hose", "garden_hose"):
             from ...kernel import physics
             if physics.water_available(w, eid):
@@ -501,13 +516,16 @@ def clear_downspout(ctx, did, method, flush):
     if outlet > 0:
         m["outlet_leaves_kg"] = 0.0
         from . import garden
-        garden.debris_into(ctx, {"kind": "leaves", "kg": outlet, "green": False}, ctx.args.get("destination") if ctx.args.get("destination") in w.s["entities"] and w.s["entities"][ctx.args.get("destination")].get("container") else None, label="wet leaves")
+        garden.debris_into(ctx, {"kind": "leaves", "kg": outlet, "green": False}, ctx.args.get("destination") if ctx.args.get("destination") in w.s["entities"] and w.s["entities"][ctx.args.get("destination")].get("container") else None, label="wet leaves", src=("entity", did))
     if flush or method == "flush":
         src, liters = water_source_held(ctx, 5.0)
         require(src is not None, "Flushing needs a hose (or 5+ L of water) in hand", "resource")
         if liters is not None:
             sm = w.mut(src)
             sm["liquid_l"] = round(float(sm["liquid_l"]) - 5.0, 3)
+        else:
+            from . import hardening
+            hardening.meter_water(w, 5.0)           # the hose's flush
         clog = float(rec.get("clog", 0.0))
         if clog <= 0.5:
             m["clog"] = 0.0
@@ -532,6 +550,7 @@ def clear_grate(ctx, gid, method, destination):
         m["pipe_debris_kg"] = round(float(rec.get("pipe_debris_kg", 0.0)) + debris, 3)
         m["debris_kg"] = 0.0
         m["blockage"] = 0.0
+        C.flow(w, debris, ("entity", gid), ("drain", gid))      # down the drain: a wrong sink
         C.stat(w, "debris_pushed_into_drain")
         C.note(w, "pushed_into_drain", grate=gid, kg=round(debris, 2))
     elif method == "lift":
@@ -539,20 +558,23 @@ def clear_grate(ctx, gid, method, destination):
         m["debris_kg"] = 0.0
         m["blockage"] = round(float(rec.get("blockage", 0.0)) * 0.05, 3)
         from . import garden
-        garden.debris_into(ctx, {"kind": "leaves_and_sediment", "kg": max(0.05, debris), "green": False}, destination, label="leaves and silt")
+        garden.debris_into(ctx, {"kind": "leaves_and_sediment", "kg": max(0.05, debris), "green": False}, destination, label="leaves and silt", src=("entity", gid))
     elif method == "basin":
         require(rec.get("open"), "Lift the grate (open it) to reach the catch basin", "precondition")
         sediment = float(rec.get("basin_sediment_kg", 0.0))
         m["basin_sediment_kg"] = 0.0
         if sediment > 0:
             from . import garden
-            garden.debris_into(ctx, {"kind": "sediment", "kg": sediment, "green": False}, destination, label="silt")
+            garden.debris_into(ctx, {"kind": "sediment", "kg": sediment, "green": False}, destination, label="silt", src=("drain", gid))
     elif method == "flow_test":
         src, liters = water_source_held(ctx, 5.0)
         require(src is not None, "A flow test needs a hose or a few liters of water", "resource")
         if liters is not None:
             sm = w.mut(src)
             sm["liquid_l"] = round(float(sm["liquid_l"]) - 5.0, 3)
+        else:
+            from . import hardening
+            hardening.meter_water(w, 5.0)
         flows = float(m.get("blockage", 0.0)) < 0.3 and float(m.get("pipe_debris_kg", 0.0)) < 1.0
         m["flow_tested"] = True
         m["flows"] = flows
@@ -877,7 +899,7 @@ def _after_unplug_decor(ctx, result):
 
 def slow_decor(w, periods):
     days = C.SLOW_S * periods / C.DAY
-    for eid in C.find_types(w, ["pumpkin"]):
+    for eid in C.each_caused(w, C.find_types(w, ["pumpkin"])):
         rec = w.s["entities"][eid]
         rate = 0.15 if rec.get("carved") else 0.04
         if C.air_temp(w) > 15:
@@ -961,6 +983,16 @@ def bag_placed(w, bag_id):
         cols, rows = geometry.grid_size(room)
         values["blocks_sidewalk"] = int(rec["pos"][1]) not in (rows - 1,)
     C.set_status(w, bag_id, **values)
+
+
+def bag_refresh(w, bag_id):
+    """A bag's at_curb, upright and blocks_sidewalk from where it is now, once it has been set down (evaluation overlay,
+    hardening.derived_status): a bag carried away from the curb is no longer at the curb."""
+    status = w.s["entities"][bag_id].get("_op_status") or {}
+    if "at_curb" in status:
+        if "blocks_sidewalk" in status:
+            C.set_status(w, bag_id, blocks_sidewalk=False)
+        bag_placed(w, bag_id)
 
 
 @after("drag", order=159)

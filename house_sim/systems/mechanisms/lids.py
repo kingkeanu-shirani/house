@@ -98,10 +98,7 @@ def turn_lid(ctx, eid, direction, turns, push, grip_force_n, grip_aid, start, to
         hh["stuck_nm"] = 0.0
         rm["sealed"] = False
         if need > 3.0 and C.num(rec.get("liquid_l")) > 0 and C.speed(w) != "careful":
-            lost = round(min(C.num(rec.get("liquid_l")), 0.03), 3)
-            rm["liquid_l"] = round(C.num(rec.get("liquid_l")) - lost, 3)
-            rm["spilled_l"] = round(C.num(rec.get("spilled_l")) + lost, 3)
-            w.stat("spills")
+            C.spill_out(w, eid, 0.03, why="the lid broke free suddenly")
             C.tell(ctx, "The lid broke free suddenly and liquid splashed")
         if engaged <= 0.0:
             K.check_open(ctx, eid, "normal", "turn")

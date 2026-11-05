@@ -51,8 +51,11 @@ UNPARSEABLE = "__unparseable__"          # an unknown action: the environment re
 FALLBACK_DEV_SEEDS = (0, 1, 2, 41, 97)
 FALLBACK_TRAIN_BASE = 1_000_000
 FALLBACK_PRIVATE_BASE = 900_000_000
-SIDE_EFFECT_PREFIXES = ("changed:", "moved:", "broke:", "soiled:", "new_mess:")
-NON_HARM_PREFIXES = ("failure_predicate_", "order:", "deadline:") + SIDE_EFFECT_PREFIXES
+# schema 4 (VERIFY_HARDENING 6): the house ledger's labels are side effects of the episode; the labels about the goal, the
+# settle window, evidence and timing are no harm flags. A legacy episode never raises them.
+SIDE_EFFECT_PREFIXES = ("changed:", "moved:", "broke:", "soiled:", "new_mess:", "house.", "later:house.")
+NON_HARM_PREFIXES = ("failure_predicate_", "order:", "deadline:", "settle:", "perceive:", "timing:", "goal:",
+                     "strict:") + SIDE_EFFECT_PREFIXES
 NON_HARM_LABELS = {"budget", "too_many_unnecessary_questions", "missing_necessary_question"}
 RECORD_KEYS = ("catalog_id", "split", "seed_tag", "agent", "privileged", "success", "goal_fraction", "failures", "harm_flags",
                "side_effects", "blocks", "invalid_steps", "questions", "steps", "sim_time_s", "wall_s", "tokens", "cost_usd",
@@ -296,15 +299,22 @@ def as_record(spec):
 def verification_evidence(records, root=ROOT):
     """{catalog_id: {"verified": bool, "source": "evidence", "detail": ...}}: verified means a passing record in
     reports/verification.jsonl whose implementation_hash equals house_sim.audit.fingerprint() and whose spec_hash
-    matches the current spec."""
+    matches the current spec; a schema-4 spec needs a HARDENED record at the current fingerprint (or carried: 21.3)."""
     from ..audit import fingerprint
     from ..tasks.verify import spec_hash
     path = root / "reports" / "verification.jsonl"
     evidence = {r.get("catalog_id"): r for r in read_jsonl(path)} if path.exists() else {}
     current = fingerprint(root)
     status = {}
+    splits = _splits()
+    strict = splits.hardened_only()
     for record in records:
         proof = evidence.get(record["catalog_id"])
+        if splits.is_schema4(record["spec"]) or strict:
+            problem = splits.hardened_problem(proof, spec_hash(record["spec"]), current)
+            status[record["catalog_id"]] = {"verified": problem is None, "source": "evidence",
+                                            "detail": problem or "current HARDENED evidence"}
+            continue
         if not proof:
             detail = "no evidence"
         elif not proof.get("passed"):
@@ -335,7 +345,126 @@ def verify_on_the_fly(records, seeds=None, perception=None, workers=None, camera
         status[record["catalog_id"]] = {"verified": bool(result.get("passed")), "source": "on_the_fly", "seeds": list(seeds),
                                         "perception": perception or "spec", "camera": camera or "spec",
                                         "detail": "passed" if result.get("passed") else "failed on seeds {}".format(failed)}
+        if _splits().is_schema4(record["spec"]):
+            # an authoring machine has no split key: its PENDING_GATE passes --check, it is not HARDENED (5.2)
+            verdict = result.get("verdict")
+            status[record["catalog_id"]].update(verified=verdict == "HARDENED", detail="verdict {}".format(verdict))
     return status
+
+
+# ----- schema 4: the episode's start and end (VERIFY_HARDENING 8.1, 6.2, 15.3, 22.10) ------------------------------
+IDLE_FORMAT = 2         # 2: after WP1-fix (content fields projected, whole-second waits); older rollouts never count
+_IDLE_CACHE = {}
+
+
+def is_hardened(raw_spec):
+    return isinstance(raw_spec, dict) and raw_spec.get("schema") == 4
+
+
+def _ledger_data_digest():
+    """The digest of the evaluator data the projections and their judgment read (WP1-fix's request: the idle cache's key
+    holds it, though the code fingerprint already covers data: an edit of a watch file must never reuse a rollout)."""
+    digest = hashlib.sha256()
+    folder = Path(__file__).resolve().parents[1] / "data" / "verify"
+    for path in sorted(folder.rglob("*.json")):
+        digest.update(path.relative_to(folder).as_posix().encode("utf-8"))
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def idle_key(raw_spec, seed, mode, camera, code=None):
+    """The idle counterfactual's cache key: spec hash, seed, perception, camera, code fingerprint, the ledger's data files
+    and the rollout's format (22.10)."""
+    from ..audit import fingerprint
+    from ..tasks.verify import spec_hash
+    return hashlib.sha256(json.dumps([IDLE_FORMAT, spec_hash(raw_spec), seed, mode, camera, code or fingerprint(),
+                                      _ledger_data_digest()], default=str).encode("utf-8")).hexdigest()
+
+
+def idle_counterfactual(raw_spec, config, task, seed, mode, camera, private=False, code=None):
+    """The idle rollout an episode is judged against (6.2), cached per (spec, seed, mode, fingerprint): verify.idle_rollout,
+    so an agent is judged against the same idle house the spec was verified against. Kept in this process and, for a public
+    seed, under reports/cache/idle/ (git-ignored); a private seed's never leaves the process. Returns Projections."""
+    from ..kernel.counterfactual import Projections
+    from ..tasks import verify
+    key = idle_key(raw_spec, seed, mode, camera, code)
+    cached = _IDLE_CACHE.get(key)
+    if cached is not None:
+        return Projections.from_dict(cached)
+    path = ROOT / "reports" / "cache" / "idle" / (key + ".json")
+    if not private and path.is_file():
+        try:
+            cached = json.loads(path.read_text(encoding="utf-8"))
+            _IDLE_CACHE[key] = cached
+            return Projections.from_dict(cached)
+        except (OSError, ValueError):
+            pass
+    env = verify.make_env(config, task, seed, perception=mode, camera=camera)
+    projections, _ = verify.idle_rollout(env, task)
+    data = projections.to_dict()
+    _IDLE_CACHE[key] = data
+    if not private:
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "w", encoding="utf-8", newline="\n") as stream:
+                json.dump(data, stream, sort_keys=True)
+        except OSError:
+            pass                # a read-only checkout recomputes; the rollout is deterministic
+    return Projections.from_dict(data)
+
+
+def episode_start(env, raw_spec, config, task, seed, mode, camera, private=False):
+    """A schema-4 episode's start: the idle counterfactual set, and the observations recorded (the agent rule's evidence,
+    15.3). No-op for a legacy spec."""
+    if not is_hardened(raw_spec):
+        return
+    from ..tasks import perceive
+    env.idle = idle_counterfactual(raw_spec, config, task, seed, mode, camera, private)
+    perceive.enable(env)
+
+
+_BRANCH_DIFFS = {}
+
+
+def branch_diff_for(raw_spec, task, seed, camera, code=None):
+    """The branch diff set of an episode's seed (15.3, 10.3 B8): the commands whose canonical form occurs in some branches'
+    references and not in others, from the references on the spec's coverage seeds and on this seed. None for a spec without a
+    branch answer. What gates an agent's branch decision: a coin flip on a conditional is a decisive command before its
+    evidence. Kept in this process only (a hidden seed's references are never written anywhere)."""
+    from ..tasks import seeds as seeds_mod
+    from ..tasks import verify
+    from ..tasks.runner import build
+    if not any(isinstance(a, dict) and a.get("kind") == "branch" for a in verify._perceive_answers(task).values()):
+        return None
+    key = (idle_key(raw_spec, seed, "realistic", camera, code), "branch")
+    if key in _BRANCH_DIFFS:
+        return _BRANCH_DIFFS[key]
+    mode = verify.mode_of("realistic", camera) or verify.EVAL_GEOM
+    perception, cam = verify.mode_settings(mode)
+    traces = []
+    for s in sorted(set(seeds_mod.coverage(raw_spec)["seeds"]) | {seed}, key=str):
+        config, t, oracle = build(raw_spec, s, camera=cam, perception=perception)
+        _, _, runner = verify.reference_run(config, t, oracle, s, mode, None)
+        forms = [verify._canon_command(e, oracle["bindings"]) for e in runner.trace or () if e.get("ok")]
+        commands = [{"action": e["action"], "args": dict(e.get("args") or {}, target=e.get("target"),
+                                                         destination=e.get("destination"))}
+                    for e in runner.trace or () if e.get("ok")]
+        traces.append((s, oracle.get("branch"), forms, commands))
+    _BRANCH_DIFFS[key] = verify.branch_diff_sets(traces).get(seed)
+    return _BRANCH_DIFFS[key]
+
+
+def episode_end(env, raw_spec, task, mode, seed=None):
+    """The evaluation an episode ends with: schema 4, HouseEnv.finish (settle, look-ahead) and the agent rule's perception
+    labels in a realistic episode (verify._finish with the seed's branch diff set; the true end state and history decide, 8.1,
+    15.3); a legacy spec, env.evaluate() as ever. Harness and replay call this, so a re-scored log gets the same labels."""
+    if not is_hardened(raw_spec):
+        return env.evaluate()
+    from ..tasks import verify
+    if mode != "realistic":
+        return verify._finish(env, task, verify.OWN)
+    diff = branch_diff_for(raw_spec, task, seed, env.camera_mode) if seed is not None else None
+    return verify._finish(env, task, verify.EVAL_GEOM, branch_diff=diff)
 
 
 def select(records, ids=None, sections=None, kinds=None, domains=None):
@@ -553,6 +682,7 @@ def _run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None,
         log["phrasing_override"] = bool(episode.get("phrasing"))
         env = HouseEnv(config, task, seed, perception=mode, camera=camera, trace=False, observe_on_step=True)
         record["camera"] = log["camera"] = env.camera_mode      # the mode it ran in (--camera, the spec's, the default)
+        episode_start(env, raw_spec, config, task, seed, mode, env.camera_mode, private)
         log["actions_hash"] = actions_fingerprint()
         catalog = action_catalog(env)
         observation = env.observe()
@@ -674,7 +804,12 @@ def _run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None,
             end_reason = "time_budget"
             break
 
-    evaluation = env.evaluate()
+    try:
+        evaluation = episode_end(env, raw_spec, task, mode, seed)
+    except Exception as exc:  # noqa: BLE001  (a settle or look-ahead that raises is a simulator defect, as in a step)
+        end_reason = "sim_error"
+        extra["error"] = log["error"] = "{}: {}".format(type(exc).__name__, exc)[:1000]
+        evaluation = env.evaluate()
     usage = agent.usage() or {}
     metrics = evaluation.get("metrics", {})
     failures = list(evaluation.get("failures", []))
@@ -820,13 +955,15 @@ def replay_log(log, spec, seed=None, phrasing=None, perception=None, camera=None
         from ..kernel.realism import NONCE_KEY
         task[NONCE_KEY] = nonce
     env = HouseEnv(config, task, seed, perception=mode, camera=camera, trace=False, observe_on_step=True)
+    raw = as_record(spec)["spec"]
+    episode_start(env, raw, config, task, seed, mode, env.camera_mode, private=is_private_seed(seed))
     env.observe()
     for step in log.get("steps", []):
         if step.get("phase_done"):
             env.phase_done()
         elif step.get("sent") is not None and "result" in step:
             env.step(**step["sent"])
-    evaluation = env.evaluate()
+    evaluation = episode_end(env, raw, task, mode, seed)
     done = bool(log.get("done_declared"))
     current = versions()
     matches = {k + "_match": (log.get(k) == current[k]) if log.get(k) else None for k in ("code_fingerprint", "harness_fingerprint")}

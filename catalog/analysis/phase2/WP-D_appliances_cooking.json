@@ -1,0 +1,83 @@
+{
+ "id": "WP-D_appliances_cooking",
+ "landed": [
+  "Field classes (6.3): watch/appliances_cooking.json classifies every property of the 96 types and each model block's sub-keys, 17 per-type refinements, 11 water-sensitive types; field_census --unclassified --domain appliances_cooking 0, --check 0",
+  "Causes (6.2): every appliance, burner and fridge the tick steps writes under cause=[appliance], food cites its heater, the 17 kernel appliance-cycle hooks are wrapped; a pan on a burner lit before the episode is no longer charged as link unknown",
+  "Meters (6.8): burners and range / wall ovens on climate.energy kwh / gas_kwh with by_device, unburnt gas at 10.55 kWh per m3, dishwasher fills on plumbing.meter.l; the critique's oven for 40 minutes books 1.75 kWh (0 before)",
+  "Derived fields (8.2): _load_check, load_state, power_state; Latched fields table in docs/domains/appliances_cooking.md",
+  "Settings skills (10.3): range settings, burner.lit, timers; damaging verbs for B14 (WP6's request): motor_overheated, wand.milk_residue, coating_scratched, arc_damaged, each offered only where the house holds what the act needs and each run by a test that shows the damage; new skill appliances_cooking.steam_unwiped",
+  "Truth mappings (data/speech/truth_appliances_cooking.json): states preheated, preheating, boiling, simmering, keeping_warm, self_cleaning; issues frost_buildup, door_not_sealing, too_warm, boil_over, burnt_food, door_alarm, flare_up",
+  "Structured readings (15.2): check_doneness method=thermometer (a probe at the edge or the bone names no core field), core read of a dial thermometer or a fridge / freezer panel through a read-tier process field `reading`, and the inspect views showing a dial or a grill's lid thermometer; a dial read now founds a claim about the oven's temperature",
+  "Hazard zones (13.5): hot burners, ovens, griddles, grills and pressure cookers as the thing itself (hardening.hot_surface_zones)",
+  "Invariant labels start with their registered name; appliances_cooking.dishes places in ctx.placer.order (WP9)",
+  "closeout_breakages row 3: unload refuses an unfamiliar destination or tool identify-first (fails before: an unfamiliar rice cooker or pressure cooker answered by type); UnfamiliarDestinationTests",
+  "Twin sweep of every verb and the core verbs this domain's hooks answer: 78 look-alike groups, 19,926 commands, 0 differences; 103 unfamiliar twins, 11,330 commands, physical trials only; geometric on this domain's groups 0 differences and the one volume trial",
+  "23.3's boil-over cap, dry pot marked scorched and robot-only attendance re-verified (in place since phase 1, pinned by tests)"
+ ],
+ "deviations": [
+  {
+   "what": "No mess kind and no mess flow registered",
+   "why": "Everything this domain creates is liquid out of a vessel landing through the kernel's spill entry where plumbing_liquids' measures see it; a flow into a measured place would outlive a mop-up that logs none (plumbing_liquids' rule). A boil-over becomes soil, meltwater in a tray content; no verb moves ash or crumbs (guard mess). 6.5's end-state cross-check still charges a charged increase."
+  },
+  {
+   "what": "Only four damaging verbs for B14",
+   "why": "The others (an evaporator chipped once the freezer is off and thawed, an empty pan left on high until it warps, racks through a self-clean) need a longer setting than one plan step expresses without faking preconditions; a wrong plan shows those guards live (7.6 a)."
+  },
+  {
+   "what": "`reading` is a stored record field shown by core read, not a change to core read",
+   "why": "core read builds its message from read-tier fields and an after-hook cannot change it; refreshed only on read, like the display beside it."
+  },
+  {
+   "what": "The energy booking adds kWh and by_device only, not cost_usd or peak_kwh",
+   "why": "Climate's tariff logic stays climate's; the resource guard reads kwh and gas_kwh."
+  },
+  {
+   "what": "generic_item refinements live in this domain's watch file",
+   "why": "Pots, pans and dishes in this domain's helpers are generic_item; the kernel's watch_fields.json is WP1's (requested for every type)."
+  }
+ ],
+ "not_done": [
+  {
+   "what": "Scoring 'the stove is off', 'the burner is lit' and a liquid's or food's temperature claim",
+   "why": "Stays unscored (never wrong): kernel/speech.py _field and truth.json are WP4's; power_state, burner.lit, grill.lit, liquid_temp_c and temperature_c are ready. Requested."
+  },
+  {
+   "what": "Twin differences that are physical trials: a two-handed twin fills both hands, a large true volume_l does not fit a microwave, a fixed twin cannot be lifted, flip spills an uncapped lighter fluid bottle",
+   "why": "Kernel, core and manipulation behaviour under registry props, not this domain's reasoning; two_handed and volume_l behind an unfamiliar look requested from the kernel / registry."
+  },
+  {
+   "what": "Zones and passability; hazard_created types",
+   "why": "This domain owns no agents; it creates no hazardous entity (a break goes through the kernel's break_entity, which spawns nothing)."
+  },
+  {
+   "what": "ctx.sample_roles and skipping work under ctx.audit (WP9)",
+   "why": "No helper of this domain takes a role list or does costly non-binding work."
+  },
+  {
+   "what": "Opting a spec into pot_on_burner(watcher='robot'), envelopes for the references' deltas",
+   "why": "Spec files are WP12's (requested)."
+  }
+ ],
+ "outcome_changes": [],
+ "tests": {
+  "new_tests": 40,
+  "passed": true,
+  "strict_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 243
+ },
+ "requests": [
+  "WP-D_cleaning: a crash found by this package's sweep: place of any outdoor_plants garden bag (compost_bag, potting_mix_bag, grass_seed_bag, ...) raises an uncaught TypeError from env.step: cleaning/waste.py storage_conflicts calls M.product_classes(rec['product']) and those bags carry product as a dict. Guard on a string product. Repro: scratch p2_WP-D_appliances_cooking/crash_probe.py (a compost_bag on a counter, approach, pick_up, place)",
+  "WP4: speech._field falls back to a registered derived field (plugins.DERIVED_FIELDS) so power_state scores 'the stove is off'; truth.json lit / unlit also read burner.lit and grill.lit; the temperature quantity also reads liquid_temp_c and temperature_c",
+  "WP1: watch_fields.json classifies for every type the names this domain writes onto other domains' things (the generic_item block of watch/appliances_cooking.json lists them with classes: dw_damaged, etched, trim_faded, trim_burned, vacuum_lost, warped, discolored, arc_damaged, coating_scratched, handle_scorched, handle_melted, charred, ruined_self_clean, filled_with_water, stuck, seasoning, sharpness, edge, handle_dir, spent, texture, on_oven_floor, touching_element)",
+  "WP6: optional: B14's waste:energy probe picks switchable things and burners and ovens are not switchable; settings_steps for settings.heat, burner.lit or settings.temp would try the kitchen's real heat sources",
+  "WP-D_food: the plate holding toast is house.damaged:<plate>.contamination.allergen_* on the toast reference as schema 4 (cross-contact is a dish's normal use)",
+  "WP-D_cleaning: optional: the debris measure could count a toaster's crumb_tray.level and a charcoal grill's grill.ash_kg (guard mess here)",
+  "WP12: appliances_cooking: envelope.change for the task's settings (oven mode and temp, burner heat, timers, the dishwasher delay, the fridge seal and gasket), envelope.move for loaded and unloaded dishes, consume or a scope for a dissolved pod; A-2bbd9d39ff1512-01 into pot_on_burner(watcher='robot'); T-ec38fe45bca9ab-01 can rely on house.waste:energy / water",
+  "Main session: setup.py package_data for data/verify/watch/*.json and data/speech/truth_*.json; no golden re-record is needed for this package",
+  "Kernel / registry: an unfamiliar twin's two_handed and volume_l should follow its shown size and mass, not its true type"
+ ],
+ "notes": "Resumed package: the earlier agent's work (commit 6a9e3e8) re-verified on HEAD with every probe rewritten (its scratch was gone) and kept. Legacy outcomes: before_tree (HEAD with this domain's files at bc1dc72) vs after_tree (HEAD + this package), 243 / 243 both, 0 of 1,215 trials changed, 34 reference state digests of 7 specs (A-2bbd9d39ff1512-01, T-032657e9583337-01, T-123d987460eb2a-01, T-1aea0c41439b0a-01, T-d8355138bcf9fb-01: energy and gas meters; T-47d0adb37bc85e-01, T-ec38fe45bca9ab-01: the water meter). Forced realistic on the 17 specs: 17 / 17 both, 0 verdict fields changed. Full unit suite on after_tree: 92 files x 2 modes, 5,847 tests per mode, this domain's files OK; 8 files fail with the same failures on before_tree (test_room_golden, test_dialogue, test_electrical_hardening, test_ledger, test_lint, test_verify_hardening, test_eval_tier1_gate; test_gate_tool's 11 match P2-S2-merge's request 4 and were not re-run there), none from this package. Perception audits room and geometric: 0 leaks, 0 crashes. Layout audit: 240 houses, 0 problems. Room golden: 52 files, 0 changed. Handoff: catalog/analysis/phase2/handoff_WP-D_appliances_cooking.md."
+}

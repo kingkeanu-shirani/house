@@ -15,7 +15,7 @@ Conventions used across the package
 """
 import math
 
-from ...kernel import camera, clock, geometry, physics
+from ...kernel import camera, clock, geometry, ledger, physics
 from ...kernel.errors import ActionError, require  # noqa: F401  (re-exported)
 from ...kernel.phys import environment as kenv
 from ...kernel.plugins import hook
@@ -534,7 +534,9 @@ def water_sensitive(record):
     material = str(record.get("material", ""))
     if material in ("paper", "cardboard", "electronics", "leather", "fabric", "wool", "cotton", "suede"):
         return True
-    return record.get("category") in ("electronics", "book", "document", "phone", "laptop", "artwork") or bool(record.get("plug_required"))
+    if record.get("category") in ("electronics", "book", "document", "phone", "laptop", "artwork") or record.get("plug_required"):
+        return True
+    return ledger.water_sensitive(record)       # the kernel's shared rule: water_safe false, electronic, a domain's listed gear
 
 
 # ---------------------------------------------------------------------------
@@ -642,6 +644,82 @@ def spawn(w, type_name, location, eid=None, **props):
         props.setdefault("category", type_name)
         type_name = "generic_item"
     return w.spawn(type_name, location, eid=eid, **props)
+
+
+# ---------------------------------------------------------------------------
+# the house ledger: mess flows and causes (VERIFY_HARDENING 6.2, 6.5; hardening.py holds the measures)
+
+YARD_DEBRIS = "yard_debris"
+ASH = "ash"
+
+
+def mess_key(state, location, relation=None):
+    """The mess location key (class, id) of a place (core.mess_location: a room's floor, outdoors "outside"; a carrier or sink
+    entity; relation drain: a drain); None for no place."""
+    from ..core import mess_location
+    key = mess_location(state, location, relation)
+    return tuple(key) if key is not None else None
+
+
+def flow(w, kg, src, dst, kind=YARD_DEBRIS, cause=None):
+    """Log that kg kilograms of mess moved from src to dst (location keys, or "created:<what>" for src) with the writer of the
+    current window (world.mess_flow, in grams). Nothing between one place and itself, or without a place. Never fails an
+    action."""
+    amount = float(kg) * 1000.0
+    if amount <= 1e-6 or src is None or dst is None or src == dst:
+        return None
+    return w.mess_flow(kind, round(amount, 3), src, dst, cause=cause)
+
+
+def tag_debris(w, eid):
+    """A thing that is itself a parcel of yard debris (a fallen branch, plant debris): core's and manipulation's moves of a mess
+    entity log its flows from these fields (core.mess_parcel)."""
+    m = w.mut(eid)
+    m["mess_kind"] = YARD_DEBRIS
+    m["mess_amount"] = round(float(m.get("mass_kg", 0.0)) * 1000.0, 3)
+
+
+def secured_place(rec):
+    """Where a secured thing is held (compared by the derived `secured`, hardening.derived_secured)."""
+    pos = rec.get("pos")
+    return [rec.get("location"), rec.get("relation"), list(pos) if isinstance(pos, (list, tuple)) else None]
+
+
+def secure(m, by, rating_n):
+    """Record what holds a thing and where it was when it was secured."""
+    m["secured"] = {"by": by, "rating_n": rating_n}
+    m["_secured_at"] = secured_place(m)
+
+
+class _NoCause(object):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+_NO_CAUSE = _NoCause()
+
+
+def caused(w, *ids):
+    """Context manager for a time system's writes that are consequences of ids (VERIFY_HARDENING 6.2's causal link, WP2's
+    World.writing with cause=). The writer class stays the system's own; a robot action, an untracked World or no ids change
+    nothing. The ledger then charges a divergent physical consequence only when its cause chain reaches something the robot
+    wrote (a plant it overwatered, a cover it left unfastened), never the plant the scene left dry or an umbrella the scene
+    left open in a gale."""
+    ids = tuple(i for i in ids if isinstance(i, str) and i)
+    if not ids or robot_acting(w) or not getattr(w, "tracking", False):
+        return _NO_CAUSE
+    return w.writing(w.writer[0], cause=ids)
+
+
+def each_caused(w, ids):
+    """Iterate ids with the loop body inside caused(w, id): a slow system's writes on a thing cite the thing (itself, a robot
+    write on it or along its location chain links them; a scene's thing does not)."""
+    for eid in ids:
+        with caused(w, eid):
+            yield eid
 
 
 # ---------------------------------------------------------------------------
@@ -800,6 +878,8 @@ def find_held(ctx, predicate, by_identity=False):
     for eid in ctx.w.held_items():
         if by_identity and unresolved(ctx, eid):
             continue
+        if ctx.unfamiliar(eid):
+            continue                    # an unfamiliar thing serves as nothing the robot knows of, whatever it is
         if predicate(ctx.w.ent(eid)):
             return eid
     return None
@@ -838,6 +918,8 @@ def nearby_entity(ctx, predicate, radius_cells=2, by_identity=False):
         if not predicate(record):
             continue
         if by_identity and unresolved(ctx, eid):
+            continue
+        if ctx.unfamiliar(eid):
             continue
         if room_of(w, eid) != w.robot["room"] or not ctx.visible(eid):
             continue

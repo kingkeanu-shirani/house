@@ -2152,7 +2152,12 @@
     "dry_time_h": 3.0,
     "label": "fitted sheet"
    },
-   "doc": "Fitted sheet: elastic corner pockets (35 cm deep); seams face down; queen 152 x 203 cm."
+   "doc": "Fitted sheet: elastic corner pockets (35 cm deep); seams face down; queen 152 x 203 cm. Its weight is not felt in the hand (perception hidden mass_kg, as for the crib sheet it shares a look with: a held crib sheet would feel 'light', a fitted or flat one 'medium', and tell the bed_sheet look-alikes apart before the sheet is spread out and inspected; WP-D food's request).",
+   "perception": {
+    "hidden": [
+     "mass_kg"
+    ]
+   }
   },
   "flat_sheet": {
    "is_a": "bedding",
@@ -2185,7 +2190,12 @@
     "dry_time_h": 2.5,
     "label": "flat sheet"
    },
-   "doc": "Flat (top) sheet with a wide hem at the head; print side goes down; queen 229 x 259 cm."
+   "doc": "Flat (top) sheet with a wide hem at the head; print side goes down; queen 229 x 259 cm. Its weight is not felt in the hand (perception hidden mass_kg, as for the crib sheet it shares a look with: a held crib sheet would feel 'light', a fitted or flat one 'medium', and tell the bed_sheet look-alikes apart before the sheet is spread out and inspected; WP-D food's request).",
+   "perception": {
+    "hidden": [
+     "mass_kg"
+    ]
+   }
   },
   "crib_sheet": {
    "is_a": "fitted_sheet",

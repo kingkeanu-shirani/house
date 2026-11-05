@@ -1,0 +1,760 @@
+{
+ "about": "Field classes of the outdoor_plants domain's types for the house ledger (VERIFY_HARDENING 6.3, lint L-WATCH; WP-D outdoor_plants). 'fields' classifies every property name of house_sim/data/types/outdoor_plants.json and the fields this domain's verbs, hooks and systems write onto its own types. identity: ratings, kinds, what a thing is. setting: what a hand sets (covers, straps, stakes, ties, a mower's deck, a spread tarp, a planting hole's state, a lawn's mown height and what was spread on it, a bed's mulch, a hedge's profile). condition with a worse direction: damage and health (hangers, joints, bark, a torn bag, a lawn's thinning, a plant's leaves, pests, root rot, a compost pile's contaminants). content: what a thing holds; with 'guard': 'mess' a load the mess balance of 6.5 judges (leaves on a lawn, a bag's fill, a gutter's debris, a mower's catcher, a tarp's load, ash). process: what follows from weather, water and time (root-zone water, compost state, growth, snow, a grate's and downspout's flow as far as the clog decides it, inflation) or from a setting. bookkeeping: stamps and counters. 'types' refines: a plant's size and mass grow (process); a spread tarp's size follows `spread`; a pile's, debris's or branch's mass is a mess load; a bag's mass follows its fill. Fields this domain writes onto other domains' things are classified by their owners' files or the kernel's watch_fields.json (requests in catalog/analysis/phase2/handoff_WP-D_outdoor_plants.md). water_sensitive: what rain ruins (cushions, seed packets and paper-bagged granules, instruments and cordless tools, dry firewood).",
+ "fields": {
+  "accepts_any_waste": "identity",
+  "accepts_in": "identity",
+  "accepts_items": "identity",
+  "affordances": "identity",
+  "air_locked": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "air_pockets": "process",
+  "alive": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "anchored": "setting",
+  "anchors": "setting",
+  "area_m2": "identity",
+  "artificial": "identity",
+  "ash_c": "process",
+  "ash_kg": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "backfill": "setting",
+  "backfilled": "setting",
+  "bag_max_kg": "identity",
+  "ballast": "identity",
+  "ballast_kg": "content",
+  "bark_damage": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.01
+  },
+  "base_height_m": "identity",
+  "base_mass_kg": "identity",
+  "basin_sediment_kg": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "battery_level": "process",
+  "blade": "identity",
+  "blade_depth_cm": "identity",
+  "blade_guard_ok": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "blade_m": "identity",
+  "blade_sharp": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "blockage": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.05
+  },
+  "blocks_path": "identity",
+  "bottom_tray": "identity",
+  "branches": {
+   "class": "condition",
+   "worse": "change"
+  },
+  "breathable": "identity",
+  "broken": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "bundle": "setting",
+  "bundle.*": "setting",
+  "bushy": "process",
+  "canopy_d_m": "identity",
+  "canopy_m": "identity",
+  "capabilities": "identity",
+  "capacity_l": "identity",
+  "carved": "setting",
+  "catcher_kg": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "catcher_max_kg": "identity",
+  "category": "identity",
+  "cell_l": "identity",
+  "cells": "identity",
+  "center": "process",
+  "chem_class": "identity",
+  "chocked": "setting",
+  "clear_width_m": "process",
+  "clippings_kg": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "clippings_on_top": "process",
+  "clog": "process",
+  "collapsed": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "cols": "identity",
+  "compost": "process",
+  "compost.bay": "process",
+  "compost.browns_kg": "process",
+  "compost.contaminants": {
+   "class": "condition",
+   "worse": "change"
+  },
+  "compost.exposed_greens_kg": "process",
+  "compost.finished_kg": "process",
+  "compost.greens_kg": "process",
+  "compost.kind": "process",
+  "compost.last_turned_s": "process",
+  "compost.maturity": "process",
+  "compost.moisture": "process",
+  "compost.o2": "process",
+  "compost.particle_cm": "process",
+  "compost.temp_c": "process",
+  "compost.worms": "process",
+  "compost_cm": "setting",
+  "container": "identity",
+  "contaminated": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "cover_kind": "identity",
+  "covered": "setting",
+  "covered_by": "setting",
+  "covers": "setting",
+  "crack_roots": "process",
+  "crack_weeds": "process",
+  "crown_offset_cm": "process",
+  "cured_days": "identity",
+  "cut_max_cm": "identity",
+  "cut_style": "identity",
+  "damaged": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "danger_radius_m": "identity",
+  "deadman_ok": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "debris": "identity",
+  "debris.*": "identity",
+  "debris_grid": "process",
+  "debris_kg": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "deck_m": "identity",
+  "deicer": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "deicer.*": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "deployed": "process",
+  "deployed_m": "identity",
+  "depth_cm": "identity",
+  "diameter_cm": "identity",
+  "discarded_t": "bookkeeping",
+  "diseased": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "downed": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "drainage_hole": "identity",
+  "drying_owner": "identity",
+  "dug_s": "bookkeeping",
+  "embed_cm": "process",
+  "end_supports": "identity",
+  "excavated_l": "process",
+  "fabric_torn": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "face": "identity",
+  "farina_intact": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "fastened": "setting",
+  "fill": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "fill.*": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "fill_level": "process",
+  "fillable": "identity",
+  "filled": "setting",
+  "firmed": "setting",
+  "fit": "process",
+  "fits": "identity",
+  "fits_kind": "identity",
+  "fits_max_m": "identity",
+  "floor_hazard": "setting",
+  "flow_lpm": "identity",
+  "flow_ok": "process",
+  "flow_tested": "bookkeeping",
+  "flows": "process",
+  "foliage_g": "process",
+  "fragile": "identity",
+  "fresh": "process",
+  "freshness": "process",
+  "garden_chemical": "identity",
+  "gear_kind": "identity",
+  "grass": "identity",
+  "grid": "process",
+  "grid.bump_cm": "identity",
+  "grid.cell_m": "identity",
+  "grid.clippings": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "grid.clippings_decay": "process",
+  "grid.cols": "identity",
+  "grid.compaction": "process",
+  "grid.dose_g": "setting",
+  "grid.edge": "setting",
+  "grid.height_mm": "setting",
+  "grid.holes": "setting",
+  "grid.kind": "identity",
+  "grid.leaves": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "grid.moisture": "process",
+  "grid.moisture_top": "process",
+  "grid.mowed": "bookkeeping",
+  "grid.protected": "setting",
+  "grid.raked": "bookkeeping",
+  "grid.ring_mm": "setting",
+  "grid.rows": "identity",
+  "grid.salt": "setting",
+  "grid.seed_contact": "process",
+  "grid.seed_g": "setting",
+  "grid.shade": "identity",
+  "grid.slope": "identity",
+  "grid.soil_cm": "setting",
+  "grid.stray": "setting",
+  "grid.thin": "process",
+  "grid.weeds": "process",
+  "ground_layer": "identity",
+  "growth": "process",
+  "handled_with": "identity",
+  "hang_height_m": "identity",
+  "hang_slots": "identity",
+  "hangers_ok": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "hardened_days": "process",
+  "hazards": "identity",
+  "held_grip": "bookkeeping",
+  "held_hand": "bookkeeping",
+  "holes_mm": "identity",
+  "home": "identity",
+  "hopper": "content",
+  "hopper.*": "content",
+  "hopper.kind": "process",
+  "hopper.product": "process",
+  "hopper_max_kg": "identity",
+  "host": "identity",
+  "ice": "process",
+  "in_base": "setting",
+  "in_nursery_pot": "setting",
+  "infested": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "inflated": "setting",
+  "inflated_size_m": "identity",
+  "inflation": "process",
+  "ink": "identity",
+  "inner_size_m": "identity",
+  "inspect_from_afar": "identity",
+  "is_a": "identity",
+  "joints_ok": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "label": "identity",
+  "label_text": "identity",
+  "last_fed_s": "bookkeeping",
+  "last_watered_s": "bookkeeping",
+  "leaf_spots": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.5
+  },
+  "leaky": "identity",
+  "lean_deg": "process",
+  "lean_dir_deg": "process",
+  "leaves": {
+   "class": "condition",
+   "worse": "change"
+  },
+  "leaves.dead": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "leaves.healthy": {
+   "class": "condition",
+   "worse": "down",
+   "tol": 0.001
+  },
+  "leaves.yellowing": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.001
+  },
+  "leaves_kg": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "leaves_low": "process",
+  "length_m": "identity",
+  "level_dev_cm": "process",
+  "lid_latched": "setting",
+  "lid_on": "setting",
+  "liner_cracked": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "liquid": "content",
+  "liquid_container": "identity",
+  "liquid_l": "content",
+  "litter": "identity",
+  "live": "identity",
+  "load": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "load.*": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "load_kg": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "locked": "setting",
+  "mass_kg": {
+   "class": "content",
+   "tol": 0.001
+  },
+  "material": "identity",
+  "max_ballast_kg": "identity",
+  "max_gap_cm": "process",
+  "max_temp_c": "identity",
+  "medium": "process",
+  "medium.compaction": "process",
+  "medium.depth_cm": "process",
+  "medium.fill_frac": "process",
+  "medium.headspace_cm": "process",
+  "medium.kind": "identity",
+  "medium.moisture": "process",
+  "medium.moisture_top": "process",
+  "medium.organic": "identity",
+  "medium.soil_l": "process",
+  "medium.standing_l": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "medium.texture": "identity",
+  "medium.tilled_cm": "process",
+  "melted": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "mesh_cm": "identity",
+  "mess_amount": "bookkeeping",
+  "mess_kind": "identity",
+  "metal_edge": "identity",
+  "moisture": "process",
+  "moisture_pct": "process",
+  "mount_height_m": "identity",
+  "mounted": "identity",
+  "mulch": "setting",
+  "mulch.cell_m": "process",
+  "mulch.cols": "process",
+  "mulch.depth_cm": "setting",
+  "mulch.kind": "process",
+  "mulch.rows": "process",
+  "nest": "process",
+  "net_kg": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "net_max_kg": "identity",
+  "noise_db": "identity",
+  "noncombustible": "identity",
+  "off_limits": "setting",
+  "on": "setting",
+  "open": "setting",
+  "open_shelving": "identity",
+  "openable": "identity",
+  "orientation": "setting",
+  "outdoor_storage": "identity",
+  "outlet_leaves_kg": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "overflowing": "process",
+  "owner": "identity",
+  "painted": "setting",
+  "panels": "identity",
+  "part_type": "identity",
+  "pebble_top_l": "identity",
+  "pebbles": "identity",
+  "pests": {
+   "class": "condition",
+   "worse": "change"
+  },
+  "pests.*": {
+   "class": "condition",
+   "worse": "change"
+  },
+  "pinned": "setting",
+  "pipe_debris_kg": {
+   "class": "content",
+   "guard": "mess"
+  },
+  "planted_s": "bookkeeping",
+  "plug_required": "identity",
+  "plugged_in": "setting",
+  "pole_bent": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "pole_length_m": "identity",
+  "pool_item": "identity",
+  "pooled_water_l": "process",
+  "portable": "identity",
+  "powered": "identity",
+  "private": "identity",
+  "probe_cm": "identity",
+  "product": "content",
+  "product.chloride": "identity",
+  "product.dial": "identity",
+  "product.dose_ml_per_l": "identity",
+  "product.interval_days": "identity",
+  "product.kind": "identity",
+  "product.min_c": "identity",
+  "product.pet_safe": "identity",
+  "product.qty": {
+   "class": "content",
+   "tol": 0.001
+  },
+  "product.rate_g_m2": "identity",
+  "product.rate_new_g_m2": "identity",
+  "product.rate_overseed_g_m2": "identity",
+  "product.unit": "identity",
+  "product.variety": "identity",
+  "profile": "setting",
+  "profile.*": "setting",
+  "propped": "setting",
+  "protect_c": "identity",
+  "punctured": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "quick_dry": "identity",
+  "radius_m": "identity",
+  "rated_umbrella_m": "identity",
+  "reach_extension_m": "identity",
+  "regrown": "bookkeeping",
+  "reported": "bookkeeping",
+  "reported.*": "bookkeeping",
+  "repotted_s": "bookkeeping",
+  "requires_approval": "identity",
+  "rescue_gear": "identity",
+  "reused": "identity",
+  "revealed": "bookkeeping",
+  "risk": "bookkeeping",
+  "role": "identity",
+  "root_ball_cm": "process",
+  "root_ball_depth_cm": "identity",
+  "root_bound": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "root_rot": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.02
+  },
+  "rooted": "process",
+  "rot": "process",
+  "rotten": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "row": "bookkeeping",
+  "rows": "identity",
+  "run_s": "bookkeeping",
+  "runoff_l": "bookkeeping",
+  "safe_amendment": "identity",
+  "safe_grips": "identity",
+  "sanitized": {
+   "class": "condition",
+   "worse": "false"
+  },
+  "sanitized_s": "process",
+  "scoop_l": "identity",
+  "scratched": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "season": "setting",
+  "secret_fields": "identity",
+  "secured": "setting",
+  "seed": "content",
+  "seed.count": "content",
+  "seed.crop": "identity",
+  "seed.days_to_germ": "identity",
+  "seed.depth_cm": "identity",
+  "seed.light_germ": "identity",
+  "seed.min_soil_c": "identity",
+  "seed.season": "identity",
+  "seed.spacing_cm": "identity",
+  "seed.variety": "identity",
+  "seedlings": "process",
+  "sentimental": "identity",
+  "setting_options": "identity",
+  "setting_options.*": "identity",
+  "settings": "setting",
+  "settings.*": "setting",
+  "settle_cm": "process",
+  "shade": "identity",
+  "sightline": "identity",
+  "size_class": "identity",
+  "size_m": "identity",
+  "slot": "setting",
+  "slots": "setting",
+  "slots.*": "setting",
+  "snow_cm": "process",
+  "snow_density": "process",
+  "soft": "identity",
+  "soft_sided": "identity",
+  "soil_on": "process",
+  "sowings": "process",
+  "species": "identity",
+  "spoil_l": "process",
+  "spread": "setting",
+  "spreader_kind": "identity",
+  "stackable": "identity",
+  "stake": "setting",
+  "stake_points": "identity",
+  "staked": "setting",
+  "stem_cm": "process",
+  "stem_cut": "setting",
+  "strapped": "setting",
+  "stray": "identity",
+  "stream_errors": "bookkeeping",
+  "summary": "process",
+  "summary.*": "process",
+  "summary.turf_wear": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.02
+  },
+  "sun": "identity",
+  "supports": "setting",
+  "surface": "identity",
+  "surface_height_m": "identity",
+  "surface_size_m": "identity",
+  "switchable": "identity",
+  "symptoms": "process",
+  "tags": "identity",
+  "tears_turf": "identity",
+  "temperature_c": "process",
+  "thermal_tau_s": "identity",
+  "tied": "setting",
+  "ties": "setting",
+  "timer_on": "setting",
+  "tine_depth_cm": "identity",
+  "tines": "identity",
+  "tipped": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "tool_kind": "identity",
+  "top_cover": "setting",
+  "torn": {
+   "class": "condition",
+   "worse": "true"
+  },
+  "torn_leaves": {
+   "class": "condition",
+   "worse": "up",
+   "tol": 0.5
+  },
+  "touching": "process",
+  "true_leaves": "process",
+  "trunk_cm": "identity",
+  "two_handed": "identity",
+  "type": "identity",
+  "uses": "content",
+  "uses_log": "bookkeeping",
+  "utility_flags": "setting",
+  "uv_h": "process",
+  "value": "identity",
+  "vented": "identity",
+  "ventilated": "identity",
+  "volume_l": "identity",
+  "waste_stream": "identity",
+  "water_safe": "identity",
+  "water_sensitive": "identity",
+  "waterproof": "identity",
+  "wear_slot": "identity",
+  "wearable": "identity",
+  "weatherproof": "identity",
+  "wetness_mine": "process",
+  "wheeled": "identity",
+  "wrapped": "setting",
+  "yaw_deg_net": "process"
+ },
+ "types": {
+  "branch": {
+   "mass_kg": {
+    "class": "content",
+    "tol": 0.001,
+    "guard": "mess"
+   },
+   "volume_l": "process",
+   "size_m": "process",
+   "length_m": "process"
+  },
+  "cut_flower": {
+   "size_m": "process",
+   "mass_kg": "process",
+   "volume_l": "process",
+   "label": "identity"
+  },
+  "fruit_tree": {
+   "size_m": "process",
+   "mass_kg": "process",
+   "volume_l": "process",
+   "label": "identity"
+  },
+  "garden_plant": {
+   "size_m": "process",
+   "mass_kg": "process",
+   "volume_l": "process",
+   "label": "identity"
+  },
+  "hedge": {
+   "size_m": "process",
+   "mass_kg": "process",
+   "volume_l": "process",
+   "label": "identity"
+  },
+  "herb_plant": {
+   "size_m": "process",
+   "mass_kg": "process",
+   "volume_l": "process",
+   "label": "identity"
+  },
+  "houseplant": {
+   "size_m": "process",
+   "mass_kg": "process",
+   "volume_l": "process",
+   "label": "identity"
+  },
+  "leaf_bag": {
+   "mass_kg": "process",
+   "volume_l": "process",
+   "size_m": "process"
+  },
+  "leaf_pile": {
+   "mass_kg": {
+    "class": "content",
+    "tol": 0.001,
+    "guard": "mess"
+   },
+   "volume_l": "process",
+   "size_m": "process"
+  },
+  "nursery_plant": {
+   "size_m": "process",
+   "mass_kg": "process",
+   "volume_l": "process",
+   "label": "identity"
+  },
+  "plant": {
+   "size_m": "process",
+   "mass_kg": "process",
+   "volume_l": "process",
+   "label": "identity"
+  },
+  "plant_debris": {
+   "mass_kg": {
+    "class": "content",
+    "tol": 0.001,
+    "guard": "mess"
+   },
+   "volume_l": "process",
+   "size_m": "process"
+  },
+  "plant_pot": {
+   "mass_kg": "process"
+  },
+  "plastic_yard_bag": {
+   "mass_kg": "process",
+   "volume_l": "process",
+   "size_m": "process"
+  },
+  "seedling": {
+   "size_m": "process",
+   "mass_kg": "process",
+   "volume_l": "process",
+   "label": "identity"
+  },
+  "shrub": {
+   "size_m": "process",
+   "mass_kg": "process",
+   "volume_l": "process",
+   "label": "identity"
+  },
+  "tarp": {
+   "size_m": "process",
+   "surface_size_m": "process",
+   "ground_layer": "process"
+  },
+  "tree": {
+   "size_m": "process",
+   "mass_kg": "process",
+   "volume_l": "process",
+   "label": "identity"
+  }
+ },
+ "water_sensitive": [
+  "firewood_log",
+  "grass_seed_bag",
+  "hedge_trimmer",
+  "ice_melt_bag",
+  "lawn_fertilizer_bag",
+  "lawn_lime_bag",
+  "leaf_blower",
+  "moisture_meter",
+  "outdoor_cushion",
+  "power_edger",
+  "probe_thermometer",
+  "rock_salt_bag",
+  "seed_packet",
+  "snow_blower",
+  "string_trimmer"
+ ]
+}

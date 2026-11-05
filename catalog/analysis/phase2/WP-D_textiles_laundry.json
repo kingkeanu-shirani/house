@@ -1,0 +1,89 @@
+{
+ "id": "WP-D_textiles_laundry",
+ "landed": [
+  "Refuse: lint wads, peeled lint-roller sheets (new type), shaver fuzz and spent dryer sheets carry waste: true for cleaning's waste_item measure; lint wiped off a fitted screen no longer half vanishes; a clothes brush keeps what it lifts",
+  "Absorbed liquid: towels and rags report what they soaked up through the mess_parcels hook (plumbing_liquids' reported_parcels calls it), in the kind the floor measure gives that spill, with flows out through the washer drain, the wring and evaporation; T-5c9694a5a29d0e-01 as schema 4 has no mess label once its rags are on transit_ok",
+  "Derived fields made, bed_state, paired_with, spread_on, drying_mode, on_hanger, holding_garment with the Latched fields table in docs/domains/textiles_laundry.md 12.2",
+  "watch/textiles_laundry.json: every type property classified (census 0 left), plus fields this domain writes on bed, crib, cotton_rag, microfiber_cloth, rug, upholstery and clothes_brush",
+  "Settings skills including the damaging verb for B14 (damage.scorched / damage.melted: ironing on the top setting), reference skills textiles_laundry.operate and wait_dry",
+  "truth_textiles_laundry.json, hot iron and steamer hazard zones, washer and soak water on the house meter, causes for the fabric and device systems",
+  "World fixes: depill takes only depilling tools; feel_garment never lights a room over a sleeper; sock_pile and linens use the placer's order and take \"random\" roles through ctx.sample_roles",
+  "Phase-1 carry-over: strip_bed into and every verb's entity parameters give an unfamiliar thing one identify-first answer (27 verbs); roll_garment and depill no longer tell unresolved look-alikes apart; a held bed sheet no longer shows its weight class (WP-D food's request)"
+ ],
+ "deviations": [
+  {
+   "what": "No mess kind registered by this domain",
+   "why": "6.5 gives it only a share of liquid:spill, which plumbing_liquids registers (one registration per name); lint is refuse under cleaning's waste_item"
+  },
+  {
+   "what": "Absorbed liquid is recorded only from cleaning's absorb, and absorb logs no flow into the towel",
+   "why": "cleaning writes the tool's wetness itself, so no wetting hook sees it; the measure sees the arrival, and wet laundry from a wash or rain is not mess"
+  },
+  {
+   "what": "Physical flows are logged only into sinks and losses; drips and leak puddles are left to the end-state measure",
+   "why": "the ledger charges a non-volition flow into an elsewhere location without the idle comparison (request to WP1)"
+  },
+  {
+   "what": "Invariant labels keep their literal names (loose_needle, iron_left_on)",
+   "why": "L-EXPECT accepts them and a rename changes legacy wrong plans' reason labels"
+  },
+  {
+   "what": "A novel textile is never folded or washed by this domain's verbs; the old test that folded one was rewritten",
+   "why": "an unfamiliar thing never resolves, so a permanent identify-first refusal is the only answer that does not depend on what it really is"
+  },
+  {
+   "what": "A sheet's weight class stays masked after identification too",
+   "why": "a per-type perception table cannot depend on resolution; nothing reads it, and a scale's display reads the state"
+  }
+ ],
+ "not_done": [
+  {
+   "what": "Zones and passability, hazard_created types, structured readings",
+   "why": "not applicable: no people or pets, nothing created is sharp or chemical, no measuring verb"
+  },
+  {
+   "what": "Invariant label prefixes (WP8-fix, P2-S2-merge)",
+   "why": "see deviations"
+  },
+  {
+   "what": "WP9's optional skip of non-binding helper work under ctx.audit",
+   "why": "optional; not adopted and the helpers were not audited one by one for it"
+  },
+  {
+   "what": "missing_button and split_seam claims stay unscored",
+   "why": "their evidence is per-slot records the truth conditions cannot read: unknown, never wrong"
+  },
+  {
+   "what": "Rinsing a rag at a sink moves no parcel unless its water level falls; a shaver emptied with no free hand drops the wad on the garment's support",
+   "why": "known limits, listed in the handoff"
+  },
+  {
+   "what": "A-d66994a566899c-01 held-out seed 500 still fails on its reference",
+   "why": "the reference waits a fixed 56 h in a cold room: spec debt for WP12 (wait_dry is ready). From the first run, not re-measured"
+  },
+  {
+   "what": "The tier-1 gate, and the first run's held-out seeds",
+   "why": "not run in this package; the gate is the main session's"
+  }
+ ],
+ "outcome_changes": [],
+ "tests": {
+  "new_tests": 41,
+  "passed": true,
+  "strict_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 243
+ },
+ "requests": [
+  "WP1: mess_findings counts every non-volition flow into an elsewhere location as relocated without the counterfactual check; judge physical flows like end-state increases (diverging and linked)",
+  "WP4: kernel truth wrinkled is_true and shrunk is_true misjudge numeric textile fields (use thresholds: wrinkled >= 0.3, shrunk >= 0.02); dry should also need a thick item's _core_wetness <= 0.05; speech truth should read the 8.2 derived overlay (made, paired_with ...)",
+  "WP12: A-d66994a566899c-01 variant 0's reference should use textiles_laundry.wait_dry; the references need the envelope entries listed in the handoff (laundry into the washer, settings and doors, consumed products, damage, binned refuse, a wet rag on the liquid kind's transit_ok or sinks)",
+  "WP-D_manipulation: the held weight class of the smooth_stone look-alikes (decor_stone, faux_stone) is the sweep's one remaining look-alike difference; perception hidden mass_kg is how this domain closed the same tell",
+  "WP-D_cleaning: a textile's arrival from absorb is measured through the mess_parcels hook, so any absorb / mop flow into the tool is optional and must not be logged twice into entity:<towel>",
+  "WP6: this domain's settings-skill plan steps call textiles_laundry.operate and textiles_laundry.iron_garment; every textiles verb refuses an unfamiliar thing identify-first in any entity parameter",
+  "Main session: re-record the room-golden row specs/T-28ff695081cd2c-01 (plumbing.meter.l 1.273 -> 51.273, the washer's fill); setup.py package_data for data/speech/*.json and data/verify/watch/*.json"
+ ],
+ "notes": "Resumed package: the first run's scratch was gone and its Verification was never written, so results were re-measured unless the handoff says otherwise. Legacy A/B (before_tree = HEAD 6a9e3e8 with this package's files as of bc1dc72; after_tree = HEAD + this package): 243/243 both, own mode, 1,215 trials, 0 non-digest differences; 20 reference state digests of 4 specs changed (T-28ff695081cd2c-01, T-cc81e71dc2182e-01 water meter; T-af96a334296669-01 waste flag; T-5c9694a5a29d0e-01 _spill and evaporation flows). Forced realistic on the 16 affected specs: 16/16 both; only the refusal text of one wrong plan's step changed (A-8220afe27c03e7-01 wrong[1]), no verdict field. One late edit (clothes brush) came after that run: the 16 specs re-ran in own mode on the final files with identical records; no authored spec uses the brush or lint_roll, so the other 227 were not re-run. Package tests (192) OK normal, strict and HOUSE_SIM_DOMAINS=core,textiles_laundry on the working tree. One test skips on a tree without plumbing_liquids' reported_parcels, which is uncommitted in the working tree at the time of writing. Full suite on HEAD + this package: 5,843 tests per mode, 9 files failing in each mode, none caused by this package: the towel test before that skip was added, git-work-tree errors of the copy, and failures that also occur without this package (test_ledger, test_lint, test_room_golden, test_verify_hardening, test_dialogue, test_electrical_hardening, one test_gate_tool test); before_tree was checked on those tests only, not the whole suite. Twin sweep: unfamiliar twins 55 differences before, 0 now over 38 kinds; look-alikes 78 groups, 253 members, 0 in any verb of this domain, 1 observation left (smooth_stone, manipulation's). Regression tests: with the fixes taken out of a copy, 14 of the 41 fail. Audits, smaller than the gate's: perception 16 60, 12 60 --gen 2, 12 60 --camera geometric, 12 60 --twin-fields --no-probes: 0 leaks, 0 crashes, nothing attributed to textiles_laundry; layout 30 gen 1 and gen 2: 0 problems, 0 domain follow-ups. Field census 0 left; py39_lint 0 violations. Nothing committed, staged, branched or stashed, per the owner's instruction; nothing under %USERPROFILE%\\.house_ai; no network or paid calls."
+}

@@ -634,7 +634,7 @@ def _slow_plants(w, periods):
     sun = C.daylight(w)
     wind = float((state.get("weather") or {}).get("wind_mps", 2.0))
     handled_containers = set()
-    for pid in plants_in_world(w):
+    for pid in C.each_caused(w, plants_in_world(w)):
         record = state["entities"].get(pid)
         if record is None:
             continue
@@ -1018,7 +1018,7 @@ def leaf_contact(w, pid, method, tool=None, careful=False):
 def _cleaning_method(ctx):
     w = ctx.w
     text = json.dumps(ctx.args, sort_keys=True, default=str).lower()
-    tools = [w.ent(e) for e in w.held_items()]
+    tools = [w.ent(e) for e in w.held_items() if not ctx.unfamiliar(e)]
     if any(any(word in json.dumps(t, default=str).lower() for word in LEAF_SHINE_WORDS) for t in tools) or "shine" in text:
         return "shine"
     for t in tools:

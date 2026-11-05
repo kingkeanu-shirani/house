@@ -6,6 +6,7 @@ inspectors, invariants, answerers, furnishers, scenario helpers and reference sk
 Importing this package registers everything (see docs/domains/pets.md).
 """
 from . import common  # noqa: F401
+from . import hardening  # noqa: F401
 from . import model  # noqa: F401
 from . import behavior  # noqa: F401
 from . import feeding  # noqa: F401

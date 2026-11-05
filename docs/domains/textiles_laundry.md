@@ -896,11 +896,14 @@ This domain registers no mess kind: lint and fluff are refuse items, liquids are
   `house.mess_relocated:waste_item`; binned it is sunk.
 * **Absorbed liquid** (6.11: "textiles_laundry reports absorbed liquid as parcels"): a textile that soaks up part of a
   spill as cleaning's `absorb` tool records the litres with the spill's mess kind and origin (`hardening.spill_kind`:
-  plumbing's hidden `_mess_kind`, else by the liquid; the origin its `contents_from`) in the hidden `_spill`.
+  the kind plumbing_liquids' measures give that spill, so the removal from the floor and the arrival in the towel meet
+  in one kind's balance; the origin its `contents_from`) in the hidden `_spill`.
   `hardening.absorbed_parcels(state, kind)` reports what is still held -- scaled by the water the textile holds now
   over what it held when recorded, so drying, wringing and washing take it out -- as `(("entity", textile), origin,
-  litres)`; the `mess_parcels` hook hands them to whichever domain registers the liquid kinds (plumbing_liquids,
-  requested: its measure calls `run_hooks("mess_parcels", state, kind)`). Flows (only while a liquid kind is
+  litres)`; the `mess_parcels` hook hands them to the domain that registers the liquid kinds (plumbing_liquids'
+  `hardening.reported_parcels`, which drops the origin: one kind is one balance there). A wet towel is `elsewhere`
+  (6.5): unlisted it is `house.mess_in_transit` or `house.mess_relocated`, and an envelope's `transit_ok` or `sinks`
+  can allow it. Flows (only while a liquid kind is
   registered): to `drain:<washer>` when the textile is washed, to the wring destination when wrung (plumbing's
   `wring`), to `loss:evaporation` as it dries (the water class only: the ledger forgives evaporation of clean water
   alone; a towel soaked in bleach water that dries is not a disposal). With no liquid kind registered nothing is
@@ -951,10 +954,16 @@ towel on a rack) are placement class; the refuse flag, a dryer sheet's spent mar
 (written the first time it is read) are bookkeeping; a textile's `size_m` / `volume_l` follow its fold and a rack's or
 ironing board's its open state (process; a set-up rack's `portable` and `blocks_path` too), thread used from a spool
 (`length_m`) is content; a hanger's `holding_garment` is bookkeeping (WP1-fix's container-derived content); a lint
-screen's and drain filter's soil is what they catch (process: no `house.soiled` for normal use). These refinements came from the as-if schema-4 run of this domain's 15 references (scratch
-`asif_after.log`): every other label there is a real delta the authors' envelopes must name (the laundry moved into
+screen's and drain filter's soil is what they catch (process: no `house.soiled` for normal use). These refinements came from the as-if schema-4 run of this domain's references: every other label there is a real delta the authors' envelopes must name (the laundry moved into
 the washer, settings changed, consumed pods and products, a target sheet unfolded to dress a bed, clothes creased by
 a wash, jeans washed against their label).
+
+Types of other domains this domain's verbs write on are refined in the same file (`types`): a `bed`'s and `crib`'s
+(core.json) `made` is a condition whose worse direction is false (it was a kernel setting: making any bed was
+`house.changed`), `made_style` a setting, `made_at` and `bed_state` bookkeeping; a `cotton_rag`'s, `microfiber_cloth`'s
+(cleaning's, whose own classes stay) and `rug`'s fields of the wash, the drying set-ups and care read as on any textile
+(`shrunk` ... up, `drying_mode` ... placement, `face_soil` ... process); an upholstered thing's (`sofa`, `armchair`,
+`recliner`, `ottoman`) `face_soil`, which `lint_roll` keeps per face, is a process.
 
 ### 12.4 Settings skills, truth, hazard zones, meter, causes
 
@@ -963,7 +972,10 @@ a wash, jeans washed against their label).
   a garment's `inside_out` and `sleeves_rolled`, `folded` (a folded textile unfolded: the damaging direction), a bed's
   `made` (strip / make), a pillow's `zipper_hidden` (fluff). Plan steps use the new reference skill
   `textiles_laundry.operate(target, verb, hold=False, **args)`. The washer and dryer `settings.*` with option lists
-  and the iron's are the kernel default's.
+  and the iron's are the kernel default's. This domain's damaging verb for B14's `damaged:<e>.<f>` (10.3, WP6: a settings
+  skill for a condition field): `damage.scorched` / `damage.melted`, a fibre whose limit is below the dial's top
+  (`care.IRON_TEMPS["max"]`) ironed on the top setting with `textiles_laundry.iron_garment`, when a plugged-in iron and
+  a board are in its room (wool scorches, polyester melts, cotton at 230 C takes it).
 * **Truth** (`truth_textiles_laundry.json`, words from `data/vocab/textiles_laundry.json`): states made / unmade,
   inside_out / right_side_out; issues pilled, felted, snagged, stretched, dye_transfer, melted, linty (see its about
   text). The kernel maps wet / dry, folded / unfolded, wrinkled, shrunk, torn, scorched and mold (WP4 request:
@@ -995,7 +1007,8 @@ a wash, jeans washed against their label).
   reference is WP12's to change).
 * Scenario helpers (WP9): `sock_pile` and `linens` place look-alike members in `ctx.placer.order(...)` order (schema
   4: seeded, so the orphan sock or the fitted sheet is not told by where it lands; older specs: the listed order, no
-  draw).
+  draw); `sock_pile(owners="random")` and `linens(items="random")` draw a seeded subset through `ctx.sample_roles` (a
+  sample binding arrives as a list, as before).
 * Legacy outcomes: none change (handoff).
 
 ### 12.6 Look-alikes and unfamiliar things
@@ -1009,4 +1022,10 @@ fluff, hang_dry, hang_on_hanger, lace_shoes, lint_roll, iron, pair, polish_shoes
 resolves, so a novel textile is never folded or washed by these verbs (the kernel's rule for unfamiliar things: handled
 as an object, operated as nothing). Unresolved look-alikes: `roll_garment` waits for identification where the group's
 members roll differently (an unresolved crib sheet rolled, a fitted or flat one was "Too large"), as `fold` does; a
-look-alike held tool named to `depill` is refused alike (above).
+look-alike held tool named to `depill` is refused alike (above). A held sheet's weight is not felt (`perception`
+`hidden: ["mass_kg"]` on `fitted_sheet` and `flat_sheet`, and so on `crib_sheet`): the kernel's touch rendering showed a
+crib sheet "light" and a fitted or flat one "medium", which told the `bed_sheet` group apart in the hand (WP-D food's
+request); the hand's own load reading says "light" for all three. Sweep (one bedroom scene, every verb x every entity
+parameter, on the bed and held, held also with every optional entity left out): 0 differences over the 78 registry
+groups and the unfamiliar twins (55 on the unfamiliar twins and 4 + the held weight on the look-alikes before); the one
+observation left is the `smooth_stone` group's, whose types are another domain's (requested).

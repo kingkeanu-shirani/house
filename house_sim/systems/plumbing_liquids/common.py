@@ -629,8 +629,8 @@ def resize(w, spill):
     m["size_m"] = [side, side, 0.002]
 
 
-MESS_KIND = "_mess_kind"       # hidden: the strictest mess kind of what a spill holds (hardening.liquid_kind), when the
-                               # liquid's name alone would say less (bleach water named "water", turbid water)
+MESS_KIND = "_mess_kind"       # hidden: the strictest mess kind of what a spill holds (hardening.liquid_kind), which the
+                               # liquid's name alone may not say (turbid water named "water"); absent for liquid:spill
 
 
 def make_spill(w, location, liquid, liters, cell=None, source=None, surface=None, count=True, unidentified=False, origin=None,
@@ -642,7 +642,8 @@ def make_spill(w, location, liquid, liters, cell=None, source=None, surface=None
     of something it had not identified - the puddle is a plain "spill" whose liquid stays unknown to it. origin:
     the container the liquid came out of (a parcel's origin): recorded as the spill's contents_from (kernel v2.9).
     mess_kind: the parcel's mess kind (hardening.parcel_kind) when stricter than its name says; a spill keeps the
-    strictest kind of what reached it (hidden _mess_kind, read by the ledger's liquid measures)."""
+    strictest kind of what reached it (hidden _mess_kind, read by the ledger's liquid measures and by what soaks it
+    up); a plain liquid:spill records none."""
     liters = float(liters)
     if liters < 0.002:
         return None
@@ -696,11 +697,11 @@ def make_spill(w, location, liquid, liters, cell=None, source=None, surface=None
             m["relation"] = "on" if not w.ent(target).get("container") else "in"
     if unidentified:
         mark_unidentified(w, spill, True)
-    if mess_kind:
-        from . import hardening
-        effective = hardening.stricter(w.ent(spill).get(MESS_KIND), hardening.liquid_kind(liquid))
-        if mess_kind != effective and hardening.stricter(mess_kind, effective) == mess_kind:
-            w.mut(spill)[MESS_KIND] = mess_kind
+    from . import hardening
+    kind = hardening.stricter(mess_kind, hardening.liquid_kind(liquid))
+    held = w.ent(spill).get(MESS_KIND)
+    if kind != hardening.SPILL and hardening.stricter(kind, held) != held:
+        w.mut(spill)[MESS_KIND] = kind      # (recorded by kind, not name: what soaks it up reads it, textiles_laundry)
     if origin:
         from ..core import mark_contents_from
         mark_contents_from(w, spill, origin)

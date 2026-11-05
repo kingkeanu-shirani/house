@@ -25,6 +25,7 @@ from . import world  # noqa: F401
 from . import scenarios  # noqa: F401
 from . import skills  # noqa: F401
 from . import furnish  # noqa: F401
+from . import hardening  # noqa: F401
 
 VERBS = ("turn", "press", "hold_press", "touch_select", "move_lever", "pull_handle", "push_handle", "squeeze_trigger", "pump",
          "latch", "unlatch", "raise", "lower", "tilt_slats")

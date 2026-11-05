@@ -4,8 +4,8 @@ squeeze_trigger: a held sprayer (``trigger`` {"ml_per_squeeze": 1.1, "nozzle": "
 "off", "cone_deg": {...}}) or hose nozzle (``trigger`` {"flow_lpm": 9.0, ...}, hold_s) dispenses a
 dose toward a destination at distance_m. The cone footprint (radius = d * tan(cone/2)) is compared
 with the target's area: the excess lands on neighbours within reach of the cone (same surface or
-adjacent floor cells). Electronics (``electronic`` true or water_safe false) take damage when wetted
-with more than 0.5 ml; a person or pet in the cone gets the liquid (cleaners -> injury, water ->
+adjacent floor cells). Water-sensitive things (kernel.ledger.water_sensitive: electronics, electrical
+gear, paper) take damage when wetted with more than 0.5 ml; a person or pet in the cone gets the liquid (cleaners -> injury, water ->
 startled). The target's ``applied`` {liquid: ml} and wetness record the dose; > 40 ml/m2 drips and
 pools (``pooled``).
 
@@ -95,8 +95,7 @@ def _area(rec):
     return max(0.0025, C.num(size[0], 0.3) * C.num(size[1], 0.3))
 
 
-def _electronic(rec):
-    return bool(rec.get("electronic")) or rec.get("water_safe") is False or rec.get("category") in ("electronics", "tv", "computer", "screen")
+_electronic = C.water_sensitive      # the ledger's one predicate (electrical gear no IP rating protects, paper, ...)
 
 
 def _wet(w, eid, ml, liquid, area):
@@ -157,6 +156,7 @@ def squeeze_trigger(ctx):
         require(rec.get("pressurized", True), "No water pressure at the nozzle", "resource")
         ml = C.num(trig["flow_lpm"]) * 1000.0 / 60.0 * ctx.args["hold_s"]
         liquid = rec.get("liquid") or "water"
+        C.count_water(w, ml / 1000.0)      # a hose nozzle draws from the supply (the house water meter, 6.8)
     else:
         ml = C.num(trig.get("ml_per_squeeze"), 1.1) * ctx.args["squeezes"]
         liquid = rec.get("liquid") or rec.get("product") or "water"
@@ -304,7 +304,8 @@ def pump(ctx):
             where = "onto the " + C.ref(ctx, dest, drec.get("label", dest))
         else:
             add_soil(w, dest, "sticky", min(1.0, ml / 10.0))
-            where = "onto the " + C.ref(ctx, dest, drec.get("label", dest)) + " (it drips)"
+            # what happens is what the thing is; a member not yet told from its look-alikes gets the same words either way
+            where = "onto the " + C.ref(ctx, dest, drec.get("label", dest)) + (" (it drips)" if C.identified(ctx, dest) else "")
     else:
         below = rec.get("location") if rec.get("location") in state["entities"] else None
         if below:
@@ -346,11 +347,12 @@ def _inflate(ctx, eid, rec, spec, dest, strokes):
     pm = w.mut(eid)
     pm["display"] = "{:.0f} kPa ({:.0f} psi)".format(gauge, gauge * 0.145038)
     ctx.grant(dest, "measure", ["inflatable"])       # the pump's gauge reads the pressure it just pumped to
+    reading = {"subject": dest, "quantity": "pressure", "value": gauge, "unit": "kPa", "field": "inflatable.pressure_kpa"}
     if gauge > C.num(infl.get("max_kpa"), 800.0):
         dm["broken"] = True
         infl["burst"] = True
         dm["inflatable"] = infl
         C.mark_damage(w, dest, "burst by over-inflation", broken=True)
         w.stat("noise", 2.0)
-        return "BANG: it burst at {:.0f} kPa".format(gauge)
-    return "Pumped {} strokes: gauge reads {:.0f} kPa ({:.0f} psi)".format(strokes, gauge, gauge * 0.145038)
+        return {"result": "BANG: it burst at {:.0f} kPa".format(gauge), "reading": reading}
+    return {"result": "Pumped {} strokes: gauge reads {:.0f} kPa ({:.0f} psi)".format(strokes, gauge, gauge * 0.145038), "reading": reading}

@@ -1,0 +1,71 @@
+{
+ "id": "WP-D_climate",
+ "landed": [
+  "Field classes: watch/climate.json classifies every property of data/types/climate.json and every field climate writes onto its own types (205 names, 13 per-type refinements, 11 water-sensitive base types); field_census --unclassified --domain climate 0 (was 52 names / 133 pairs); a dehumidifier bucket's condensate is content with guard mess",
+  "Writer tags and causes: all three systems writer=physical; every physical write of a compared field cites what it follows from (attribution.hvac_causes, room_causes, the heater, fans, humidifier and tank, dehumidifier and hose, window, the thing itself); a household's heater, window, fan or dampers answer robot_attributable False (was None, charged), the robot's True; a census test pins no compared field without a cause",
+  "Mess: empty_reservoir logs its pour where the measures are blind (hardening.reservoir_flow, origin reservoir:<id>, plumbing_liquids' classes): mop water into a toilet sunk, a kitchen sink wrong sink, the ground relocated; a product on the ground mess, in a drain consumption; clean water and condensate no mess",
+  "Energy meter (electrical's request): climate.meter books every lit light (_bulb_w, power_w or 12 W, dimmed) and a charger's _load_w; both were on no meter; no double count",
+  "Derived fields: reversed, bypass_gap_mm, layer_order_ok, tank_seated, placement_issues, cord_crosses_walkway, cord_under_rug, with the Latched fields table in docs/domains/climate.md section 19; a paper a fan blew off loses scattered when set back",
+  "Settings skills: setpoints, damper, trv, target_rh, heater dial, aim_deg, a ceiling fan's speed / light / direction, a mini-split's settings by remote, shrink_wrapped; damaging verbs motor_damaged and reversed through climate.set_field",
+  "Truth: truth_climate.json (states heating, cooling, spinning; issues blocked_vent, closed_vent, dirty_filter, wrapped_filter, reversed_filter, short_cycling, frozen_coil, condensation, stuffy, too_humid, too_dry, drafty; acts set, fill); vocabulary: 'the filter is backwards' parses",
+  "Structured readings: a thermostat's and a hygrometer's read gives readings of the room's air (perceive.index picks them up)",
+  "Hazard zones: burst pipe room, a running heater with something at its grille or scorched, a warm-mist humidifier with a child at home",
+  "Harm labels: climate.person_heat_stress / person_cold_stress returned literally so L-EXPECT reads them; every label unchanged",
+  "Identify first: an order-1 hook on refill_reservoir, empty_reservoir, reverse_fan; the implicit water source passes an unfamiliar one over; a held unread look-alike bottle is no jug; core install / uninstall refuse an unfamiliar device, install an unfamiliar part for a climate slot. Sweep of 37 commands: unfamiliar twins 13 differences on HEAD, now only physical ones (a fixture cannot be lifted), room and geometric; look-alikes 78 groups 0",
+  "Scenario helpers (WP9): climate.hvac_filter_job and climate.purifier place spares in ctx.placer.order; climate.vents takes closed_rooms 'random' (ctx.sample_roles)",
+  "moisture.water_sensitive also asks ledger.water_sensitive (closeout_breakages row 6's rule in this domain's reader)"
+ ],
+ "deviations": [
+  {
+   "what": "no mess kind registered and no flow into floors",
+   "why": "clean water and condensate are content; liquid:* are plumbing_liquids' and debris cleaning's (a second registration raises); rain and condensate on a floor stay wet cells by plumbing's rule (a flow into a measured floor outlives a mop-up), judged by house.wet_room"
+  },
+  {
+   "what": "invariant labels stay literal, not <registered name>:<detail>",
+   "why": "a rename would change every legacy wrong plan's reasons; L-EXPECT reads literal labels (as electrical and cleaning)"
+  },
+  {
+   "what": "hot, cold, warm have no truth mapping",
+   "why": "no threshold fits every thing and listener; the claims stay unscored"
+  },
+  {
+   "what": "ctx.audit skipping (WP9's 'may') not adopted",
+   "why": "climate.hvac re-sites equipment with the setup RNG, so nothing a helper does is free of the bindings' placements"
+  },
+  {
+   "what": "install / uninstall refuse an unfamiliar device for every domain from this package's hook",
+   "why": "a narrower hook would tell an unfamiliar furnace from an unfamiliar kettle by the refusal; it is the rule electrical asked of core"
+  }
+ ],
+ "not_done": [
+  {
+   "what": "honest claims the kernel's truth.json misjudges or leaves unscored (ceiling fan off, vent open, turn_on after a chain pull, vent blocked, room issues, room temperature and humidity)",
+   "why": "truth.json and speech.py are WP4's; listed as a request"
+  },
+  {
+   "what": "house.wet_room reading the causal link; classes for fields climate writes on other domains' types",
+   "why": "kernel files (WP1); listed as requests"
+  }
+ ],
+ "outcome_changes": [],
+ "tests": {
+  "new_tests": 85,
+  "passed": true,
+  "strict_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 243
+ },
+ "requests": [
+  "WP1: watch_fields.json classes for water_marked, scattered, overheated (condition true), mineral_dust, guttering (process); house.wet_room and house.soiled_room read the causal link (robot_attributable('rooms:<r>', 'wet_cells'))",
+  "WP4: truth.json on / off read a ceiling fan's spinning first; open / closed a register's settings.damper first; jammed + blocked; temperature + temperature_c, reading_c; humidity + rh_pct and a room's humidity x 100; turn_on / turn_off actions + press, set, touch_select and fields settings.speed; empty + empty_reservoir. speech.issue_truth: a room subject reads the room's own record first. Parser: 'the humidity in the living room is 45 percent' yields no claim",
+  "WP-D_cleaning: truth_cleaning.json dirty + dirtiness gte 0.35; full + full_light is_true",
+  "WP-D_mechanisms: the window model's wet cell should cite the window; classify mech.bolt_throw, mech.ingress_l (process / bookkeeping) and mech.kind (identity)",
+  "WP-D_appliances_cooking: tests/test_appliances_cooking_hardening.py test_a_gas_burner_... asserts 0 kWh in a house whose lit lights are now metered: compare the burner's by_device entry",
+  "WP2: tests/test_attribution.py test_the_fan_the_robot_aims_at_loose_papers_... asserts robot_attributable None; climate cites the fan now: assert True (its house.moved assertion holds)",
+  "Main session: P2-S3 merge re-records the room golden, classes climate.energy.by_device.*, climate.energy.kwh, climate.energy.cost_usd, climate.energy.peak_kwh, entities.*.readings (251 of 275 files, state only, code P2; no observation digest moved); regenerate docs/DIALOGUE.md's vocabulary tables (python tools/vocab.py --markdown); setup.py package_data for data/verify/watch/*.json and data/speech/truth_*.json",
+  "WP6: climate's settings skills and climate.set_field for B14's changed and damaged probes"
+ ],
+ "notes": "Legacy outcomes: HEAD vs HEAD + this package, all 243 authored specs own mode (1,215 trials): 243/243 both, 0 trials changed in any verdict field; initial and task hashes unchanged; every reference state digest moved (meter, readings). Forced realistic on the 19 specs using climate's verbs or install / uninstall 19/19; climate__examples forced realistic geometric 12/12; climate__perception 2/2. Package tests (test_climate 112 + test_climate_hardening 85) pass normal, HOUSE_SIM_STRICT=1 and HOUSE_SIM_DOMAINS=core,climate (6-7 skips); 62 of the 85 new tests fail on HEAD. perception_audit room and geometric 0 leaks 0 crashes; layout_audit 120 houses 0 problems; field_census --unclassified 0, --check 0; py39_lint 0. Full suite in the non-git after_tree (5,918 tests per mode): 10 files fail: three from this package (test_room_golden re-record, test_appliances_cooking_hardening and test_attribution, requests above), the rest not (test_dialogue, test_electrical_hardening, test_ledger, test_lint, test_verify_hardening fail on HEAD too; test_gate_tool and test_eval_tier1_gate need a git checkout). test_climate.py now accepts admin_inventory's renamed protected-items label (its resumed run landed concurrently). No phase-1 row names climate; the look-alike / unfamiliar instruction is done through the sweep. Nothing committed; nothing under %USERPROFILE%\\.house_ai; no network. See catalog/analysis/phase2/handoff_WP-D_climate.md."
+}

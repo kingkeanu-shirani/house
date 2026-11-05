@@ -18,6 +18,7 @@ loaded and with HOUSE_SIM_DOMAINS=core,textiles_laundry (the checks that need an
 import copy
 import json
 import os
+import sys
 import unittest
 
 from house_sim.kernel import ledger, speech
@@ -150,6 +151,20 @@ class RefuseTests(unittest.TestCase):
         self.assertEqual(len(wads), 1)
         self.assertTrue(wads[0]["waste"])
 
+    def test_a_clothes_brush_keeps_what_it_lifts(self):
+        """Known gap of the interrupted run: lint brushed off a garment vanished (no floor soil, no tool load)."""
+        config, p, s = build()
+        coat = p.on(s["table"], "sweater", soil={"lint": 0.4, "pet_hair": 0.2})
+        brush = p.on(s["table"], "clothes_brush")
+        env = env_of(config)
+        hold(env, brush)
+        ok(env, "approach", s["table"])
+        ok(env, "lint_roll", coat, tool=brush)
+        soil = ent(env, brush)["soil"]
+        self.assertAlmostEqual(soil["lint"], 0.28, places=3)
+        self.assertAlmostEqual(soil["pet_hair"], 0.1, places=3)
+        self.assertLess(ent(env, coat)["soil"]["lint"], 0.4)
+
     def test_depill_takes_only_depilling_tools(self):
         config, p, s = build()
         sweater = p.on(s["table"], "sweater", pilling=0.6)
@@ -227,6 +242,63 @@ class AbsorbedLiquidTests(unittest.TestCase):
         held = H.held_spill(env.world.s, towel)
         self.assertTrue(held, "the towel recorded nothing")
         self.assertEqual(sorted(held), ["liquid:spill|"])
+
+
+class AbsorbedLiquidMeasureTests(unittest.TestCase):
+    """The parcels against plumbing_liquids' real measures (skipped when that domain or cleaning is not loaded)."""
+
+    def setUp(self):
+        from house_sim.kernel.plugins import ACTIONS
+        if "liquid:spill" not in MESS_KINDS or "absorb" not in ACTIONS or "wring" not in ACTIONS:
+            self.skipTest("plumbing_liquids' measures and cleaning's absorb are not loaded")
+
+    def test_a_soaked_up_liquid_keeps_the_kind_its_floor_parcel_has(self):
+        """Mud water is mop water to the measures (the old rule by name said dirty water: the removal from the floor and
+        the arrival in the towel fell into two kinds' balances and were unaccounted)."""
+        for liquid in ("water", "red_wine", "mud_water", "mop_water", "sewage", "bleach", "cooking_oil"):
+            config, p, s = build()
+            spill = p.floor_item("laundry", "spill", liquid=liquid, liquid_l=0.3, category="spill", portable=False)
+            env = env_of(config)
+            state = env.world.s
+            on_floor = [name for name in MESS_KINDS if name.startswith("liquid:") and
+                        any(row[0] == ("floor", "laundry") for row in MESS_KINDS[name].measure(state))]
+            self.assertEqual(on_floor, [H.spill_kind(state["entities"][spill])[0]], liquid)
+
+    def _soak(self):
+        config, p, s = build()
+        spill = p.floor_item("laundry", "spill", liquid="red_wine", liquid_l=0.3, category="spill", portable=False)
+        towel = p.on(s["table"], "bath_towel")
+        env = env_of(config)
+        hold(env, towel)
+        ok(env, "approach", spill)
+        ok(env, "absorb", spill, "", tool=towel)
+        return env, towel, spill
+
+    def test_the_towel_holds_what_left_the_floor_and_an_envelope_can_allow_it(self):
+        measures = sys.modules.get("house_sim.systems.plumbing_liquids.hardening")
+        if not hasattr(measures, "reported_parcels"):
+            self.skipTest("plumbing_liquids' measures do not call the mess_parcels hook")
+        env, towel, spill = self._soak()
+        state = env.world.s
+        parcels = dict((row[0], row[2]) for row in MESS_KINDS["liquid:spill"].measure(state))
+        self.assertIn(("entity", towel), parcels)
+        left = float((state["entities"].get(spill) or {}).get("liquid_l", 0.0) or 0.0)
+        self.assertAlmostEqual(parcels[("entity", towel)], 0.3 - left, places=3)
+        self.assertIn("house.mess_in_transit:liquid:spill", mess_labels(env))     # a held wet towel, not on the list
+        allowed = hardened({"mess": {"liquid:spill": {"transit_ok": [towel]}}})
+        self.assertEqual(mess_labels(env, allowed), [])
+
+    def test_wringing_the_towel_moves_the_parcel(self):
+        env, towel, spill = self._soak()
+        before = H.absorbed_parcels(env.world.s, "liquid:spill")[0][2]
+        env.world.mut(towel)["wetness"] = 0.9
+        H.record_absorbed(env.world, towel, "liquid:spill", None, 0.0)
+        result = env.step("wring", towel, "laundry")
+        self.assertTrue(result["ok"], result["message"])
+        flows = [f for f in env.world.s["logs"]["mess_flows"] if f["src"] == "entity:" + towel and
+                 f["dst"] == "floor:laundry"]
+        self.assertEqual(len(flows), 1, env.world.s["logs"]["mess_flows"])
+        self.assertLess(H.absorbed_parcels(env.world.s, "liquid:spill")[0][2], before + 1e-6)
 
 
 class DerivedFieldTests(unittest.TestCase):
@@ -369,6 +441,51 @@ class SettingsSkillTests(unittest.TestCase):
         runner.run_top([dict(fstep)])
         self.assertFalse(ent(env, towel)["folded"])
 
+    def _ironing(self, kind, **props):
+        from house_sim.systems.textiles_laundry.helpers import station
+        config, p, s = build()
+
+        class Ctx(object):
+            pass
+        ctx = Ctx()
+        ctx.config, ctx.placer = config, p
+        s.update(station(ctx, need=["iron", "board"], iron_on_board=True))
+        config["entities"][s["iron"]]["plugged_in"] = True
+        return config, p, s, p.on(s["table"], kind, **props)
+
+    def test_ironing_on_the_top_setting_is_the_domains_damaging_verb(self):
+        """B14 (10.3): a domain's damaging verb is a settings skill for a condition field; wool scorches on the top
+        setting of the dial, polyester melts, cotton takes it (230 C, the dial stops at 220 C)."""
+        from house_sim.tasks.runner import Runner
+        config, p, s, sweater = self._ironing("sweater", fabric="wool", care={"wash": "hand", "iron": "low"})
+        env = env_of(config)
+        state = env.world.s
+        self.assertEqual(ledger.field_spec("sweater", "damage.scorched")["class"], "condition")
+        ((value, step_),) = settings_steps(state, sweater, "damage.scorched")
+        self.assertEqual(value, 1.0)
+        self.assertEqual(settings_steps(state, sweater, "damage.melted"), [])
+        Runner(env, {}, strict=True).run_top([dict(step_)])
+        self.assertEqual(ent(env, sweater)["damage"]["scorched"], value)
+        self.assertEqual(settings_steps(env.world.s, sweater, "damage.scorched"), [])       # done once
+
+        config, p, s, top = self._ironing("t_shirt", fabric="polyester", care={"wash": "machine", "iron": "low"})
+        env = env_of(config)
+        self.assertEqual(settings_steps(env.world.s, top, "damage.scorched"), [])
+        self.assertEqual(settings_steps(env.world.s, top, "damage.melted")[0][0], 1.0)
+
+        config, p, s, cotton = self._ironing("t_shirt", fabric="cotton")
+        env = env_of(config)
+        self.assertEqual(settings_steps(env.world.s, cotton, "damage.scorched"), [])
+
+    def test_no_ironing_station_no_damaging_verb(self):
+        config, p, s = build()
+        table = p.furniture("bedroom", "table", wall=False)
+        sweater = p.on(table, "sweater", fabric="wool")
+        here = p.on(s["table"], "sweater", fabric="wool")        # the laundry's iron is not plugged in
+        env = env_of(config)
+        self.assertEqual(settings_steps(env.world.s, sweater, "damage.scorched"), [])
+        self.assertEqual(settings_steps(env.world.s, here, "damage.scorched"), [])
+
 
 class WatchTests(unittest.TestCase):
     """6.3, L-WATCH part 2: every property of the domain's type data is classified."""
@@ -381,6 +498,22 @@ class WatchTests(unittest.TestCase):
         tool = importlib.import_module("tools.field_census")
         rows = (tool.unclassified(["textiles_laundry"]) or {}).get("textiles_laundry") or []
         self.assertEqual(rows, [])
+
+    def test_what_this_domain_writes_on_other_domains_types_is_classified(self):
+        """A bed's made is a condition (it was a setting: every made bed was house.changed), the bed's summary is
+        bookkeeping, and the wash's and the drying set-ups' fields on a rag or a rug read as on any textile."""
+        for bed in ("bed", "crib"):
+            made = ledger.field_spec(bed, "made")
+            self.assertEqual((made["class"], made.get("worse")), ("condition", "false"))
+            self.assertEqual(ledger.field_class(bed, "bed_state.layers"), "bookkeeping")
+            self.assertEqual(ledger.field_class(bed, "made_style.duvet"), "setting")
+            self.assertEqual(ledger.field_class(bed, "made_at"), "bookkeeping")
+        for kind in ("cotton_rag", "microfiber_cloth", "rug"):
+            shrunk = ledger.field_spec(kind, "shrunk")
+            self.assertEqual((shrunk["class"], shrunk.get("worse")), ("condition", "up"))
+            self.assertEqual(ledger.field_class(kind, "drying_mode"), "placement")
+            self.assertEqual(ledger.field_class(kind, "face_soil"), "process")
+        self.assertEqual(ledger.field_class("sofa", "face_soil.seat"), "process")     # lint_roll on upholstery
 
     def test_key_classes(self):
         self.assertEqual(ledger.field_spec("t_shirt", "wrinkled"), {"class": "condition", "worse": "up", "tol": 0.15,
@@ -525,6 +658,22 @@ class LookalikeAndUnfamiliarTests(unittest.TestCase):
         self.assertEqual(len({json.dumps(o, sort_keys=True) for o in outs.values()}), 1, outs)
         self.assertIn("inspect", outs["crib_sheet"]["message"])
 
+    def test_a_held_unresolved_sheet_feels_the_same_whichever_it_is(self):
+        """WP-D food's request: a held crib sheet showed mass_kg "light", a fitted or flat one "medium"."""
+        seen = {}
+        for kind in ("crib_sheet", "fitted_sheet", "flat_sheet"):
+            config, p, s = build()
+            sheet = p.on(s["table"], kind, eid="thing_1")
+            env, Hd = realistic(config)
+            env.step("approach", Hd(s["table"]))
+            self.assertTrue(env.step("pick_up", Hd(sheet))["ok"])
+            obs = env.observe()
+            shown = dict(obs["visible_entities"][Hd(sheet)])
+            shown.pop("location", None)
+            seen[kind] = (json.dumps(shown, sort_keys=True), json.dumps(obs["robot"]["load"], sort_keys=True))
+            self.assertNotIn("mass_kg", shown)
+        self.assertEqual(len(set(seen.values())), 1, seen)
+
     def test_look_alike_brushes_are_no_depilling_tools_alike(self):
         """The twin sweep: depill tool=<unresolved grill brush> named its kind ("with grill brush" / "with wire_brush")."""
         from house_sim.kernel.registry import default_registry
@@ -611,6 +760,38 @@ class ScenarioHelperTests(unittest.TestCase):
             self.assertEqual(sorted(out4["socks"]), sorted(order4))
             shuffled += order4 != out4["socks"]
         self.assertGreater(shuffled, 0)
+
+    def _ctx(self, seed):
+        import random
+        from house_sim.generator.place import Placer
+        from house_sim.kernel.registry import default_registry
+        from house_sim.tasks import setup as setup_mod
+        people = {"resident_{}".format(i): {"label": "P{}".format(i), "role": "adult", "location": "bedroom"}
+                  for i in range(1, 5)}
+        config, p, s = build(people=people)
+
+        class Ctx(object):
+            def sample_roles(self, value, pool, k=None, name="roles"):
+                return setup_mod.sample_roles(self, value, pool, k=k, name=name)
+        ctx = Ctx()
+        ctx.config, ctx.rng = config, random.Random(seed)
+        ctx.placer = Placer(config, default_registry(), random.Random(seed), shuffle=True)
+        return ctx, s
+
+    def test_role_lists_take_random(self):
+        """WP9: "random" draws a seeded subset through ctx.sample_roles (and a list, a sample binding, works as before)."""
+        from house_sim.systems.textiles_laundry.helpers import linens, sock_pile
+        owners, kinds = set(), set()
+        for seed in range(8):
+            ctx, s = self._ctx(seed)
+            out = sock_pile(ctx, s["table"], pairs=2, orphans=0, owners="random", scramble=False)
+            owners.add(tuple(sorted({ctx.config["entities"][e].get("owner") for e in out["socks"]})))
+            ctx, s = self._ctx(seed)
+            kinds.add(tuple(sorted(linens(ctx, s["table"], items="random"))))
+        self.assertGreater(len(owners), 1)
+        self.assertGreater(len(kinds), 1)
+        ctx, s = self._ctx(0)
+        self.assertEqual(sorted(linens(ctx, s["table"], items=["flat", "case"])), ["case", "flat"])
 
 
 if __name__ == "__main__":

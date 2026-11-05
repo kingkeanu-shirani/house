@@ -1,0 +1,318 @@
+{
+ "about": "tools_vehicles' truth mappings for claims about its state (kernel/speech.py truth(); VERIFY_HARDENING 13.1-13.3, 13.6; WP-D tools_vehicles). Words from house_sim/data/vocab/tools_vehicles.json and the core vocabulary. No record -> unknown (never false). A tool's hidden damage is `_damage` ({kind} or a word); flat_tire reads each pressure record against 0.7 bar (a bicycle tube, a car tire and a ball are all clearly soft below it); worn_weatherstrip the segment records of a door's or window's seal.",
+ "states": {
+  "assembled": [
+   {
+    "field": "assembly.state",
+    "op": "eq",
+    "value": "complete"
+   }
+  ],
+  "sorted": [
+   {
+    "field": "sorted_ok",
+    "op": "is_true"
+   }
+  ],
+  "unsorted": [
+   {
+    "field": "sorted_ok",
+    "op": "is_false"
+   }
+  ],
+  "tight": [
+   {
+    "field": "_handle_play_mm",
+    "op": "lte",
+    "value": 0.3
+   },
+   {
+    "field": "_rack_mm",
+    "op": "lte",
+    "value": 0.3
+   }
+  ]
+ },
+ "issues": {
+  "dull": [
+   {
+    "field": "dull",
+    "op": "is_true"
+   },
+   {
+    "field": "edge_rounded",
+    "op": "is_true"
+   },
+   {
+    "field": "sharpness",
+    "op": "lt",
+    "value": 0.4
+   }
+  ],
+  "flat_tire": [
+   {
+    "field": "inflation.pressure_bar",
+    "op": "lt",
+    "value": 0.7
+   },
+   {
+    "field": "wheels.front.pressure_bar",
+    "op": "lt",
+    "value": 0.7
+   },
+   {
+    "field": "wheels.rear.pressure_bar",
+    "op": "lt",
+    "value": 0.7
+   },
+   {
+    "field": "tires.fl.pressure_bar",
+    "op": "lt",
+    "value": 0.7
+   },
+   {
+    "field": "tires.fr.pressure_bar",
+    "op": "lt",
+    "value": 0.7
+   },
+   {
+    "field": "tires.rl.pressure_bar",
+    "op": "lt",
+    "value": 0.7
+   },
+   {
+    "field": "tires.rr.pressure_bar",
+    "op": "lt",
+    "value": 0.7
+   },
+   {
+    "field": "inflation.burst",
+    "op": "is_true"
+   },
+   {
+    "field": "wheels.front.burst",
+    "op": "is_true"
+   },
+   {
+    "field": "wheels.rear.burst",
+    "op": "is_true"
+   }
+  ],
+  "mushroomed": [
+   {
+    "field": "_damage.kind",
+    "op": "eq",
+    "value": "mushroomed"
+   },
+   {
+    "field": "_damage",
+    "op": "eq",
+    "value": "mushroomed"
+   }
+  ],
+  "rounded": [
+   {
+    "field": "_damage.kind",
+    "op": "eq",
+    "value": "rounded_jaws"
+   },
+   {
+    "field": "_damage",
+    "op": "eq",
+    "value": "rounded_jaws"
+   }
+  ],
+  "stripped": [
+   {
+    "field": "damage.stripped_screw_head",
+    "op": "gt",
+    "value": 0
+   },
+   {
+    "field": "damage.stripped_hole",
+    "op": "gt",
+    "value": 0
+   }
+  ],
+  "worn_weatherstrip": [
+   {
+    "field": "_seal.segments.head.state",
+    "op": "in",
+    "value": [
+     "compressed",
+     "torn",
+     "missing",
+     "peeling",
+     "gap"
+    ]
+   },
+   {
+    "field": "_seal.segments.latch_side.state",
+    "op": "in",
+    "value": [
+     "compressed",
+     "torn",
+     "missing",
+     "peeling",
+     "gap"
+    ]
+   },
+   {
+    "field": "_seal.segments.hinge_side.state",
+    "op": "in",
+    "value": [
+     "compressed",
+     "torn",
+     "missing",
+     "peeling",
+     "gap"
+    ]
+   },
+   {
+    "field": "_seal.segments.sweep.state",
+    "op": "in",
+    "value": [
+     "compressed",
+     "torn",
+     "missing",
+     "peeling",
+     "gap"
+    ]
+   },
+   {
+    "field": "_seal.segments.left.state",
+    "op": "in",
+    "value": [
+     "compressed",
+     "torn",
+     "missing",
+     "peeling",
+     "gap"
+    ]
+   },
+   {
+    "field": "_seal.segments.right.state",
+    "op": "in",
+    "value": [
+     "compressed",
+     "torn",
+     "missing",
+     "peeling",
+     "gap"
+    ]
+   },
+   {
+    "field": "_seal.segments.top.state",
+    "op": "in",
+    "value": [
+     "compressed",
+     "torn",
+     "missing",
+     "peeling",
+     "gap"
+    ]
+   },
+   {
+    "field": "_seal.segments.bottom.state",
+    "op": "in",
+    "value": [
+     "compressed",
+     "torn",
+     "missing",
+     "peeling",
+     "gap"
+    ]
+   }
+  ],
+  "wobbly": [
+   {
+    "field": "_wobble_mm",
+    "op": "gt",
+    "value": 1.0
+   }
+  ],
+  "loose": [
+   {
+    "field": "_handle_play_mm",
+    "op": "gt",
+    "value": 0.3
+   },
+   {
+    "field": "_rack_mm",
+    "op": "gt",
+    "value": 0.3
+   },
+   {
+    "field": "_door_sag_mm",
+    "op": "gt",
+    "value": 0.3
+   }
+  ],
+  "noisy": [
+   {
+    "field": "_hinge.squeak",
+    "op": "gt",
+    "value": 0.1
+   }
+  ],
+  "scratched": [
+   {
+    "field": "glass_scratched",
+    "op": "is_true"
+   },
+   {
+    "field": "threshold_scratched",
+    "op": "is_true"
+   },
+   {
+    "field": "paint.swirls",
+    "op": "gt",
+    "value": 0
+   },
+   {
+    "field": "finish_marks",
+    "op": "gt",
+    "value": 0
+   }
+  ],
+  "chipped": [
+   {
+    "field": "paint_chipped",
+    "op": "is_true"
+   },
+   {
+    "field": "_damage.kind",
+    "op": "eq",
+    "value": "chipped_blade"
+   },
+   {
+    "field": "_damage",
+    "op": "eq",
+    "value": "chipped_blade"
+   }
+  ],
+  "worn": [
+   {
+    "field": "worn",
+    "op": "is_true"
+   }
+  ],
+  "water_damage": [
+   {
+    "field": "water_damaged",
+    "op": "is_true"
+   },
+   {
+    "field": "damage.water_damage",
+    "op": "gt",
+    "value": 0
+   }
+  ],
+  "unsecured": [
+   {
+    "field": "assembly.anchor.installed",
+    "op": "is_false"
+   }
+  ]
+ }
+}

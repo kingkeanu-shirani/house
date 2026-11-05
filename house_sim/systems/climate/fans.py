@@ -277,7 +277,7 @@ def disturb(w, rid, fans, dt):
         if flame and v >= 0.6:
             _flame_disturbed(w, eid, rid, x, y, v, fans)
         elif paper and v >= 1.2 and rec.get("location") not in state["rooms"] and not rec.get("weighted_down"):
-            _blow_paper(w, eid, rid, v)
+            _blow_paper(w, eid, rid, v, fans)
     for eid in fans:
         rec = state["entities"].get(eid) or {}
         if C.kind(rec) != "portable_fan" or not rec.get("running"):
@@ -303,7 +303,7 @@ def _flame_disturbed(w, eid, rid, x, y, v, fans=()):
     if rec.get("_flame_disturbed_logged"):
         return
     robot = any(C.robot_enabled(w, f) for f in fans) or C.robot_arranged(w, eid)
-    m = w.mut(eid)
+    m = w.mut(eid, cause=list(fans))
     m["_flame_disturbed_logged"] = True
     m["guttering"] = True
     C.log(w, "flame_disturbed", target=eid, airspeed=v, by=C.by_word(robot))
@@ -313,6 +313,7 @@ def _flame_disturbed(w, eid, rid, x, y, v, fans=()):
     if parent in state["entities"]:
         from ..core import add_soil
         add_soil(w, parent, "wax", 0.1)
+        w.cause(parent, eid, *fans)
     for other in C.combustible_ids(w):
         orec = state["entities"].get(other)
         if orec is None or other == eid or orec.get("burnt") or C.room_of(state, other) != rid:
@@ -321,7 +322,7 @@ def _flame_disturbed(w, eid, rid, x, y, v, fans=()):
             continue
         _, ox, oy = C.entity_xy(state, other)
         if math.hypot(ox - x, oy - y) <= 0.5:
-            om = w.mut(other)
+            om = w.mut(other, cause=[eid] + list(fans))
             om["burnt"] = True
             C.add_damage(om, "burnt", 1.0)
             mine = robot or C.robot_arranged(w, other)
@@ -332,7 +333,7 @@ def _flame_disturbed(w, eid, rid, x, y, v, fans=()):
             break
 
 
-def _blow_paper(w, eid, rid, v):
+def _blow_paper(w, eid, rid, v, fans=()):
     state = w.s
     rec = state["entities"][eid]
     _, x, y = C.entity_xy(state, eid)
@@ -341,11 +342,12 @@ def _blow_paper(w, eid, rid, v):
     cols, rows = geometry.grid_size(room)
     cell = [int(C.clamp(cell[0], 0, cols - 1)), int(C.clamp(cell[1], 0, rows - 1))]
     before = rec.get("location")
-    m = w.mut(eid)
+    m = w.mut(eid, cause=list(fans) or None)     # the fans blowing here (VERIFY_HARDENING 6.2's causal link)
     for key in ("spos", "shelf"):
         m.pop(key, None)
     m["location"], m["relation"], m["pos"] = rid, "on", cell
     m["scattered"] = True
+    m["_fan_blown"] = True
     w.log_move(eid, before, rid, by="fan_airflow")
     C.log(w, "paper_blown", target=eid, airspeed=v)
     C.visual(w, "paper_blown", eid, size_m=0.25)
@@ -360,7 +362,7 @@ def _topple(w, eid, rid):
     before = rec.get("location")
     _, x, y = C.entity_xy(state, eid)
     cell = geometry.free_floor_cell(state, rid, near=(int(x // C.CELL), int(y // C.CELL)), ignore=(eid,)) or [0, 0]
-    m = w.mut(eid)
+    m = w.mut(eid, cause=eid)
     for key in ("spos", "shelf"):
         m.pop(key, None)
     m["location"], m["relation"], m["pos"] = rid, "on", cell
@@ -412,7 +414,7 @@ def _rock_kernel(w, eid, rid):
     out = physics.knock(w, eid, accel, direction=thrust_axis_deg(state, eid), cause="vibration")
     rec = state["entities"].get(eid) or {}
     if out.get("tipped") or out.get("fell") or rec.get("orientation") == "on_side":
-        m = w.mut(eid)
+        m = w.mut(eid, cause=eid)
         m["on"] = False
         m["running"] = False
         m["power_w"] = 0.0
@@ -571,6 +573,37 @@ def cord_reaches(state, eid):
     return length <= have + 0.25, length, have
 
 
+def _route_flags(state, eid, rid, cells):
+    """(cells of a straight cord run on the walkway, cells of it under a rug), sorted."""
+    walk = walkway_cells(state, rid, ignore=(eid,))
+    rugs = set()
+    for oid in geometry.room_entities(state, rid):
+        orec = state["entities"][oid]
+        if orec.get("category") == "rug":
+            rugs.update(geometry.footprint(orec))
+    _, own = device_cell(state, eid)
+    route = [c for c in cells if c != own]
+    return sorted(c for c in route if c in walk), sorted(c for c in route if c in rugs)
+
+
+def live_cord_flags(state, eid):
+    """(crosses the walkway, runs under a rug) of a plugged device's cord as the room is now (VERIFY_HARDENING 8.2: the
+    fields refresh_cord keeps are written when the device is placed or switched): electrical's hazard kinds when that
+    domain owns the cord, else this module's straight run."""
+    rec = state["entities"].get(eid) or {}
+    if not rec.get("plug_required") or not rec.get("plugged_in") or rec.get("location") == "robot":
+        return False, False
+    E = _electrical_cords()
+    if E is not None and "cord_cells" in rec and hasattr(E, "live_hazards"):
+        kinds = set(E.live_hazards(state, eid))
+        return "walkway" in kinds, "under_rug" in kinds
+    rid, cells, _ = cord_route(state, eid)
+    if rid is None:
+        return False, False
+    crossing, under = _route_flags(state, eid, rid, cells)
+    return bool(crossing), bool(under)
+
+
 def refresh_cord(w, eid, relay=False):
     state = w.s
     rec = state["entities"].get(eid)
@@ -581,16 +614,7 @@ def refresh_cord(w, eid, relay=False):
     rid, cells, length = cord_route(state, eid)
     if rid is None:
         return
-    walk = walkway_cells(state, rid, ignore=(eid,))
-    rugs = set()
-    for oid in geometry.room_entities(state, rid):
-        orec = state["entities"][oid]
-        if orec.get("category") == "rug":
-            rugs.update(geometry.footprint(orec))
-    _, own = device_cell(state, eid)
-    route = [c for c in cells if c != own]
-    crossing = sorted(c for c in route if c in walk)
-    under = sorted(c for c in route if c in rugs)
+    crossing, under = _route_flags(state, eid, rid, cells)
     changes = {"cord_crosses_walkway": bool(crossing), "cord_under_rug": bool(under), "cord_length_needed_m": round(length, 2)}
     if any(rec.get(k) != v for k, v in changes.items()):
         w.mut(eid).update(changes)
@@ -610,14 +634,16 @@ def _door_zone(state, rid):
     return geometry.door_clearance(dict(state, connections=conns), rid)
 
 
-def placement_issues(state, eid):
+def placement_issues(state, eid, cord=None):
     """Sorted list of placement problems for a corded floor/table device: cord_walkway, cord_under_rug, door_swing,
-    unstable, near_water, near_curtain, child_reach (a fan's grille or a hot device on the floor where a child is home)."""
+    unstable, near_water, near_curtain, child_reach (a fan's grille or a hot device on the floor where a child is home).
+    cord: (crosses the walkway, under a rug) when known (live_cord_flags), else the device's recorded flags."""
     rec = state["entities"].get(eid) or {}
     issues = []
-    if rec.get("cord_crosses_walkway"):
+    crosses, under_rug = cord if cord is not None else (rec.get("cord_crosses_walkway"), rec.get("cord_under_rug"))
+    if crosses:
         issues.append("cord_walkway")
-    if rec.get("cord_under_rug"):
+    if under_rug:
         issues.append("cord_under_rug")
     rid, cell = device_cell(state, eid)
     if rid is None or cell is None:
@@ -682,6 +708,19 @@ def _cord_reach_guard(ctx):
     out = rec.get("outlet")
     if out and out in w.s["entities"] and C.room_of(w.s, out) not in (None, rid):
         raise ActionError("It is plugged in in another room; the cord will not reach (unplug it first)", "precondition")
+
+
+@after("place", order=59)
+def _paper_put_back(ctx, result):
+    """A paper a fan blew off is no longer scattered once the robot sets it back on something (the scattered flag is a
+    condition the ledger compares; it stayed for good)."""
+    w = ctx.w
+    eid = ctx.args.get("target")
+    rec = w.s["entities"].get(eid) or {}
+    if rec.get("_fan_blown") and rec.get("location") not in w.s["rooms"]:
+        m = w.mut(eid)
+        m.pop("_fan_blown", None)
+        m.pop("scattered", None)
 
 
 @after("place", order=58)

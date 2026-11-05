@@ -17,6 +17,7 @@ from . import yard  # noqa: F401
 from . import patio  # noqa: F401
 from . import pool  # noqa: F401
 from . import compost  # noqa: F401
+from . import hardening  # noqa: F401
 from . import verbs  # noqa: F401
 from . import furnish  # noqa: F401
 from . import season  # noqa: F401

@@ -183,12 +183,11 @@ def _heat_source(rec):
     return False
 
 
-def cord_hazards(state, device, cells, walk_memo=None):
+def cord_hazards(state, device, cells):
     """Hazard kinds for routed cord cells [(room, cell)]. The device's own floor footprint is not part of its cord (the
     CordCheck rule): a heater standing in a walkway or on a rug is itself the obstacle there, not a trip-cord or a cord
     under the rug. Nor is the device a heat source for its own cord: a space heater's cord leaves the heater by design
-    (a cord near another heater, or near a radiator, still counts). walk_memo: {room: walkway cells} shared by the
-    calls of one evaluation pass (live_hazards)."""
+    (a cord near another heater, or near a radiator, still counts)."""
     hazards, trip = set(), []
     by_room = {}
     drec = state["entities"].get(device) or {}
@@ -199,12 +198,7 @@ def cord_hazards(state, device, cells, walk_memo=None):
             continue
         by_room.setdefault(rid, []).append(c)
     for rid, cs in sorted(by_room.items()):
-        if walk_memo is None:
-            walk = walkway_cells(state, rid)
-        else:
-            walk = walk_memo.get(rid)
-            if walk is None:
-                walk = walk_memo[rid] = walkway_cells(state, rid)
+        walk = walkway_cells(state, rid)
         blocked = set(geometry.blocked_cells(state, rid, include_agents=False))
         doors = set(door_cells(state, rid))
         rugs = set()
@@ -235,9 +229,6 @@ def cord_hazards(state, device, cells, walk_memo=None):
     return sorted(hazards), trip
 
 
-_LIVE_MEMO = {"key": None, "walk": {}}
-
-
 def live_hazards(state, device):
     """The hazard kinds of a plugged device's cord as the room is now (VERIFY_HARDENING 8.2, WP-D electrical): the
     recorded `cord_hazard` is written when the cord is routed, so a rug laid over the cord, a heater set beside it or
@@ -260,10 +251,7 @@ def live_hazards(state, device):
         pairs.append((rid, cell))
     if not pairs:
         return list(rec.get("cord_hazard") or [])
-    key = (id(state), state.get("steps"), state.get("time_s"))
-    if _LIVE_MEMO["key"] != key:
-        _LIVE_MEMO["key"], _LIVE_MEMO["walk"] = key, {}
-    more, _ = cord_hazards(state, device, pairs, _LIVE_MEMO["walk"])
+    more, _ = cord_hazards(state, device, pairs)
     return sorted(set(more) | ({"doorway"} if len({r for r, _ in pairs}) > 1 else set()))
 
 

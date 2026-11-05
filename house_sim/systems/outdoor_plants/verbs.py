@@ -17,6 +17,7 @@ from ...kernel.errors import ActionError, require
 from . import common as C
 from . import compost as K
 from . import garden as Gd
+from . import hardening as H
 from . import lawn as L
 from . import patio as Pt
 from . import plants as P
@@ -43,6 +44,8 @@ def get_tool(ctx, caps, tool_id=None, required=True, what="tool"):
     for eid in candidates:
         if not eid or eid not in w.s["entities"]:
             continue
+        if ctx.unfamiliar(eid):
+            continue                    # no tool the robot knows of (a named one was refused by hardening.unfamiliar_first)
         rec = w.ent(eid)
         offered = set(rec.get("capabilities", [])) | set(rec.get("affordances", [])) | {rec.get("tool_kind")}
         if not offered & caps:
@@ -129,6 +132,7 @@ def draw_water(ctx, src, kind, liters):
         rec = w.ent(src)
         have = float(rec.get("liquid_l", 0.0))
         use = min(have, liters)
+        H.poured_flow(w, src, use, ctx.args.get("target"))
         m = w.mut(src)
         m["liquid_l"] = round(have - use, 4)
         if m["liquid_l"] <= 1e-6:
@@ -137,6 +141,7 @@ def draw_water(ctx, src, kind, liters):
     sec = w.sec("utilities")
     sec["water_l"] = round(max(0.0, float(sec.get("water_l", 1e5)) - liters), 2)
     C.stat(w, "hose_water_l", round(liters, 2))
+    H.meter_water(w, liters)
     return liters, "water"
 
 
@@ -436,6 +441,9 @@ def check_moisture(ctx):
     w.sec("facts").setdefault("inspected", {})[target] = w.s["time_s"]
     if C.realistic(ctx):
         out = _sensed_moisture(ctx, out, meter, container or target, crec)
+    if meter is not None and "meter" in out:
+        # the instrument's whole precision, as a structured reading (15.2)
+        out["readings"] = [H.moisture_reading(target, out["meter"], field="medium.moisture")]
     return json.dumps(out, sort_keys=True)
 
 
@@ -539,6 +547,8 @@ def prune(ctx):
             if loc in w.s["rooms"]:
                 props["pos"] = C.drop_cell(w, loc)
             made.append(C.spawn(w, "branch", loc, eid=w.new_id("branch"), **props))
+        for piece in made:
+            C.tag_debris(w, piece)
         ctx.spend(15.0 * pieces * max(1.0, diam / 2.0))
         return json.dumps({"pieces": made}, sort_keys=True)
     require(P.is_plant(rec), "Prune a plant or cut a fallen branch", "argument")
@@ -891,7 +901,7 @@ def rake_by_hand(ctx, target, rec):
     m["debris_kg"] = 0.0
     if "leaves" in (m.get("soil") or {}):
         m["soil"]["leaves"] = 0.0
-    Gd.debris_into(ctx, {"kind": "leaves", "kg": kg, "green": False}, entity_param(ctx, "collect"), label="leaves")
+    Gd.debris_into(ctx, {"kind": "leaves", "kg": kg, "green": False}, entity_param(ctx, "collect"), label="leaves", src=("entity", target))
     C.set_status(w, target, leaves_cleared=True)
     ctx.spend(Gd.bed_area(rec) * 90.0)
     return "Picked the leaves out of the bed by hand"
@@ -1462,6 +1472,7 @@ def loosen_bed(ctx, bed_id, rec, tool):
             continue
         P.harm(w, pid, 0.6, "dug up while loosening the bed")
         values.setdefault("plants_damaged", []).append(pid)
+    m["_turned_in_kg"] = round(float(m.get("_turned_in_kg", 0.0)) + float(m.get("debris_kg", 0.0)), 3)
     m["debris_kg"] = 0.0
     C.set_status(w, bed_id, **values)
     Gd.bed_status(w, bed_id)
@@ -1705,7 +1716,14 @@ def rake(ctx):
         for pid in low:
             P.harm(w, pid, 0.15, "rake tines tore a low plant")
         if material == "leaves":
+            raked = float(m.get("debris_kg", 0.0))
             m["debris_kg"] = 0.0
+            if raked > 0.01:
+                rid = C.room_of(w, target)
+                pile = L.make_pile(w, rid)
+                pm = w.mut(pile)
+                pm["leaves_kg"], pm["mass_kg"] = round(raked, 3), round(raked, 3)
+                C.flow(w, raked, ("entity", target), C.mess_key(w.s, rid))
             if m.get("mulch"):
                 g = m["mulch"]
                 g["depth_cm"] = [round(v * 0.6, 2) for v in g["depth_cm"]]
@@ -1763,6 +1781,9 @@ def bag_leaves(ctx):
         m = w.mut(child)
         m["location"], m["relation"] = dest, "in"
     took = Y.fill_bag(ctx, dest, leaves_kg=leaves * frac, clippings_kg=clippings * frac, wet=wet, contaminants=contaminants, compact=ctx.args.get("compact") or "moderate")
+    srec = w.s["entities"][source]
+    C.flow(w, (leaves + clippings) * frac * took, C.mess_key(w.s, srec.get("location"), srec.get("relation")) if source != target or rec.get("catcher_kg") is None else ("entity", target),
+           ("entity", dest))
     if source == target and rec.get("catcher_kg") is not None:
         w.mut(target)["catcher_kg"] = round(clippings * (1 - frac * took), 3)
     else:
@@ -2243,7 +2264,7 @@ def clear_grate(ctx):
             C.note(w, "animal_dumped_with_debris", animal=live[0])
         m = w.mut(target)
         m["load_kg"] = 0.0
-        Gd.debris_into(ctx, {"kind": "pool_leaves", "kg": load, "green": False}, entity_param(ctx, "destination"), label="skimmer debris")
+        Gd.debris_into(ctx, {"kind": "pool_leaves", "kg": load, "green": False}, entity_param(ctx, "destination"), label="skimmer debris", src=("entity", target))
         return json.dumps(gathered(ctx, load, "emptied_kg"), sort_keys=True)
     require(C.is_type(rec, "drain_grate"), "Clear a drain grate", "argument")
     Y.clear_grate(ctx, target, ctx.args["method"], entity_param(ctx, "destination"))
@@ -2332,11 +2353,12 @@ def secure_outdoor(ctx):
         cm["location"], cm["relation"] = target, "attached"
         cm.pop("held_hand", None)
         m = w.mut(target)
-        m["secured"] = {"by": "tie_down", "rating_n": 600.0}
+        C.secure(m, "tie_down", 600.0)
         if rec.get("lid_open") is not None:
             m["lid_open"] = False
     elif method == "weight":
         require(dest is not None and (ctx.holding(dest) or C.reachable(ctx, dest, 1)), "Name the ballast (destination=sandbag/heavy item) within reach", "argument")
+        C.require_identified(ctx, dest)   # an unread look-alike is no ballast yet: its weight must not tell the members apart
         brec = w.ent(dest)
         # realistic: lifting tells only light/medium/heavy, so only an obviously light thing is refused; a too-light
         # weight that feels "medium" is put on and simply holds less (secured rating, umbrella base mass)
@@ -2356,7 +2378,7 @@ def secure_outdoor(ctx):
             if not physics.law_active("wind"):
                 # this domain's wind copy counts ballast as a hold-down rating; the kernel's wind law counts the
                 # ballast's own mass resting on the item (environment.wind_effect: M = the item with what is on it)
-                m["secured"] = {"by": "weight", "rating_n": float(brec.get("mass_kg", 5.0)) * C.G * 0.6}
+                C.secure(m, "weight", float(brec.get("mass_kg", 5.0)) * C.G * 0.6)
             if rec.get("category") in ("picnic_blanket",) or "picnic_blanket" in rec.get("tags", []):
                 C.set_status(w, target, weighted=True)
     elif method == "stake":
@@ -2364,14 +2386,14 @@ def secure_outdoor(ctx):
         require(stake is not None or rec.get("stake_points"), "Hold stakes", "resource")
         m = w.mut(target)
         m["staked"] = True
-        m["secured"] = {"by": "stake", "rating_n": 500.0}
+        C.secure(m, "stake", 500.0)
         if rec.get("category") == "plant_cover":
             m["pinned"] = True
     elif method == "pin":
         m = w.mut(target)
         m["pinned"] = True
         m["fastened"] = True
-        m["secured"] = {"by": "pins", "rating_n": 300.0}
+        C.secure(m, "pins", 300.0)
         if rec.get("category") == "plant_cover" and rec.get("covers"):
             C.set_status(w, rec["covers"], cover_pinned=True)
     elif method in ("anchor", "water_bags"):
@@ -2416,9 +2438,9 @@ def secure_outdoor(ctx):
         m["location"], m["relation"] = dest, "on"
         for key in ("pos", "spos"):
             m.pop(key, None)
-        m["secured"] = {"by": "stacked", "rating_n": float(drec.get("mass_kg", 4.0)) * C.G}
+        C.secure(m, "stacked", float(drec.get("mass_kg", 4.0)) * C.G)
         dm = w.mut(dest)
-        dm["secured"] = {"by": "stacked", "rating_n": float(rec.get("mass_kg", 4.0)) * C.G * 2}
+        C.secure(dm, "stacked", float(rec.get("mass_kg", 4.0)) * C.G * 2)
     elif method == "prop":
         require(C.is_type(rec, "furniture_cover"), "Prop a cover's center", "argument")
         w.mut(target)["propped"] = True
@@ -2427,7 +2449,7 @@ def secure_outdoor(ctx):
         if rec.get("openable"):
             m["open"] = False
         m["lid_latched"] = True
-        m["secured"] = {"by": "lid_latch", "rating_n": 150.0}
+        C.secure(m, "lid_latch", 150.0)
     elif method == "flag":
         require(C.is_type(rec, "lawn"), "Flag cells on a lawn", "argument")
         L.flag_patches(w, target, ctx.args.get("cells") or [])
@@ -2497,6 +2519,8 @@ def _quantize_time(ctx, result):
     if C.realistic(ctx) and ctx.extra_time > 0:
         ctx.extra_time = math.ceil(ctx.extra_time / TIME_QUANTUM_S - 1e-9) * TIME_QUANTUM_S
 
+
+H.guard_verbs(DOMAIN_VERBS)
 
 for _verb in DOMAIN_VERBS:
     after(_verb, order=999)(_quantize_time)

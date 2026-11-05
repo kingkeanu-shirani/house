@@ -58,9 +58,12 @@ def _merge_mech(rec, mech=None, hidden=None):
 
 
 def _spawn_items(ctx, items, parent=None, room=None, relation=None):
-    out = []
-    for spec in items or []:
-        spec = dict(spec)
+    """Place item specs where a helper says (a sill's things, a drawer's contents): in the placer's order (WP9: seeded in
+    schema 4, so which look-alike stands where is no tell; as given otherwise); returned in the order they were asked."""
+    items = list(items or [])
+    out = [None] * len(items)
+    for index in ctx.placer.order(list(range(len(items)))):
+        spec = dict(items[index])
         type_name = spec.pop("type", "generic_item")
         props = dict(spec.pop("props", {}))
         rel = spec.pop("relation", relation)
@@ -77,7 +80,7 @@ def _spawn_items(ctx, items, parent=None, room=None, relation=None):
             new = ctx.placer.floor_item(room, type_name, eid=eid, near=spec.get("near"), **props)
         if new is None:
             raise SpecError("mechanisms helper: no room for {}".format(type_name))
-        out.append(new)
+        out[index] = new
     return out
 
 

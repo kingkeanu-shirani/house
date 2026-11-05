@@ -28,6 +28,47 @@ def now(w):
     return float(w.s.get("time_s", 0.0))
 
 
+class StateView:
+    """The World's read helpers over a bare state: what a registered derived field's recompute hands to the functions the
+    verbs and hooks use (they read through `w`), so a recompute and the world rule are one code path (VERIFY_HARDENING
+    8.2). It has no mut: a recompute cannot write."""
+
+    def __init__(self, state):
+        self.s = state
+
+    def ent(self, eid):
+        return self.s["entities"][eid]
+
+    def children(self, parent):
+        return sorted(eid for eid, record in self.s["entities"].items() if record.get("location") == parent)
+
+    def ancestors(self, eid):
+        chain, location, seen = [], self.ent(eid).get("location"), {eid}
+        while location is not None and location not in seen:
+            chain.append(location)
+            seen.add(location)
+            if location in self.s["entities"]:
+                location = self.s["entities"][location].get("location")
+            elif location in self.s.get("people", {}):
+                location = self.s["people"][location].get("location")
+            elif location in self.s.get("pets", {}):
+                location = self.s["pets"][location].get("location")
+            else:
+                break
+        return chain
+
+    def root_room(self, eid):
+        from ...kernel.world import root_room
+        return root_room(self.s, eid)
+
+    def within(self, eid, ancestor):
+        from ...kernel.world import is_within
+        return is_within(self.s, eid, ancestor)
+
+    def held_items(self):
+        return [eid for eid in dict.fromkeys((self.s["robot"].get("hands") or {}).values()) if eid]
+
+
 def rnd(value, digits=4):
     return round(float(value), digits)
 
@@ -517,7 +558,75 @@ def bar_to_psi(bar):
 # tools
 
 def held(ctx):
-    return ctx.w.held_items()
+    """What the robot holds that can serve as a tool: an unfamiliar (novel) thing is none it knows of, whatever it really
+    is, so it is passed over (core.require_tool's rule; phase-1 close-out)."""
+    return [eid for eid in ctx.w.held_items() if not ctx.unfamiliar(eid)]
+
+
+def known_held(w, ctx=None):
+    """What the robot holds and knows for what it is: an implicit helper (the level that reads a tilt, the rag that
+    catches a drip, the stud finder, the spare in the other hand) is looked for among these, so neither an unfamiliar
+    thing nor an unresolved look-alike member acts by what it really is. ctx None (an inspector called without one):
+    everything held."""
+    items = w.held_items()
+    if ctx is None:
+        return items
+    return [eid for eid in items if not must_identify(ctx, eid)]
+
+
+def must_identify(ctx, eid):
+    """eid is something the robot may not yet use by what it really is (VERIFY_HARDENING 15.3; the look-alike and
+    unfamiliar rows of the phase-1 close-out): an unfamiliar thing, or an unresolved member of a look-alike group with
+    two or more member types whose group a look or a read resolves. Answers that depend on what such a thing really is
+    (a tip's fit, a can's product, a part's model) must not run. A one-member group has nothing to confuse it with; a
+    group only a test resolves ("never") is told apart only by what it then does. False in oracle mode."""
+    if not isinstance(eid, str) or not ctx.unresolved(eid):
+        return False
+    realism = getattr(ctx.env, "realism", None)
+    return realism is not None and confusable(realism, ctx.w.s, eid)
+
+
+def confusable(realism, state, eid):
+    """An unresolved thing what it really is matters for: unfamiliar, or a member of a look-alike group with two or more
+    member types that a look or a read resolves (must_identify; the reference skills' skills._resolve)."""
+    rec = state["entities"].get(eid) or {}
+    if rec.get("novel"):
+        return True
+    from ...kernel import actions as kactions
+    name = kactions.lookalike_group(realism, state, rec)
+    if not name:
+        return True
+    group = (realism.groups() or {}).get(name) or {}
+    if group.get("resolve") == "never":
+        return False
+    return len(kactions.group_member_types(realism, name)) >= 2
+
+
+def identify_first(ctx, *eids):
+    """The kernel's one identify-first refusal for any of eids must_identify names: the same words for every member and
+    every unfamiliar thing, before any check that reads what it really is."""
+    for eid in eids:
+        if isinstance(eid, str) and eid in ctx.w.s["entities"]:
+            ctx.refuse_unfamiliar(eid)
+            if must_identify(ctx, eid):
+                ctx.refuse_unidentified(eid)
+
+
+TIP_SLOTS = ("bit", "socket", "blade", "needle", "tube")
+
+
+def identify_fitted(ctx, tool):
+    """What is fitted to a tool (a driver or drill bit, a socket, a saw blade, a needle, a caulk tube) decides what the
+    tool does: the same identify-first rule as for the tool itself."""
+    for item in fitted_parts(ctx.w.s, tool):
+        if must_identify(ctx, item):
+            ctx.refuse_unidentified(item, "You cannot tell what is fitted to it yet: identify the part first (inspect it)")
+
+
+def fitted_parts(state, tool):
+    """What is fitted to a tool now (its bit, socket, blade, needle or tube)."""
+    slots = (state["entities"].get(tool) or {}).get("slots") or {}
+    return [slots[name]["item"] for name in TIP_SLOTS if isinstance(slots.get(name), dict) and slots[name].get("item") in state["entities"]]
 
 
 def tool_caps(rec):
@@ -531,12 +640,21 @@ def resolve_tool(ctx, tool_id=None, accept=None, message="Hold a suitable tool")
         require(ctx.holding(tool_id), "Hold the {} first".format(w.ent(tool_id).get("label", tool_id) if tool_id in w.s["entities"] and not realistic(ctx)
                                                                  else tool_id))
         rec = w.ent(tool_id)
+        identify_first(ctx, tool_id)
         require(accept is None or accept(rec), message, "capability")
+        identify_fitted(ctx, tool_id)
         return tool_id
+    pending = None
     for eid in held(ctx):
+        if must_identify(ctx, eid):
+            pending = pending or eid        # whichever member it is: identify it first, below
+            continue
         rec = w.ent(eid)
         if accept is None or accept(rec):
+            identify_fitted(ctx, eid)
             return eid
+    if pending is not None:
+        ctx.refuse_unidentified(pending)
     raise ActionError(message, "capability")
 
 
@@ -545,6 +663,93 @@ def worn_or_held_gear(w, kinds):
     if wearing & set(kinds):
         return True
     return any(w.ent(h).get("gear_kind") in kinds for h in w.held_items())
+
+
+# ---------------------------------------------------------------------------------------------
+# the house ledger's inputs (VERIFY_HARDENING 6.5, 6.8): mess flows and meters
+
+def mess_flow(w, kind, amount, src, dst, origin=None, cause=None):
+    """world.mess_flow when the World logs flows and the amount is positive; never fails an action. Nothing logged
+    outside a tracked episode (setup)."""
+    flow = getattr(w, "mess_flow", None)
+    if not callable(flow) or amount is None or float(amount) <= 1e-9:
+        return None
+    return flow(kind, round(float(amount), 6), src, dst, origin=origin, cause=cause)
+
+
+def floor_key(w, room):
+    """The mess location key of a room's floor: "outside:<room>" outdoors, else "floor:<room>"."""
+    return ("outside:" if (w.s["rooms"].get(room) or {}).get("outdoor") else "floor:") + room
+
+
+def liquid_mess(liquid):
+    """(mess kind, origin class) of a liquid outside its vessel (6.5, the kernel's liquids.json columns): toxic or
+    corrosive chemical, oils grease, dirty water dirty, the rest (water, a radiator's, a filter's flush) water."""
+    from ...kernel.phys import props
+    row = props.liquid_props(liquid or "water")
+    if row.get("toxic") or row.get("corrosive"):
+        return "liquid:chemical", "chemical"
+    if row.get("residue") in ("grease", "stain_oil") or row.get("name") in ("oil",):
+        return "liquid:grease", "grease"
+    if row.get("name") in ("dirty_water", "mud_water", "soapy_water") or row.get("residue") in ("dirt", "mud", "streaks"):
+        return "liquid:dirty_water", "dirty_water"
+    return "liquid:spill", "water"
+
+
+def log_spill(w, liquid, liters, source, spill_id=None, room=None, cause=None):
+    """Liquid this domain let out of its vessel or pipe as created mess: from created:<source> to the floor it landed on
+    (spill_id's room, else room), with the origin <class>:<source> so the group is judged by its liquid's class. Nothing
+    for what reached no floor (droplets: the kernel's spill returned None and no room is named)."""
+    if spill_id is not None and spill_id in w.s["entities"]:
+        room = w.root_room(spill_id)
+    if room is None or room not in w.s["rooms"]:
+        return None
+    kind, cls = liquid_mess(liquid)
+    return mess_flow(w, kind, liters, "created:" + str(source), floor_key(w, room), origin="{}:{}".format(cls, source),
+                     cause=cause)
+
+
+def count_water(w, liters):
+    """Litres drawn from the supply on the house water meter the ledger reads (6.8: resources.json meters.water.path):
+    a running toilet's waste, a pressure washer, a filter flush. Nothing when the path is not a dotted section path."""
+    _add_meter(w, "water", liters, 3)
+
+
+def book_energy(w, device, kw, seconds):
+    """seconds at kw on the electricity meter the ledger reads (6.8: resources.json meters.energy.path), per device beside
+    it as climate's and appliances' meters do: a car's charger, an e-bike's, a pressure washer."""
+    amount = float(kw) * float(seconds) / 3600.0
+    node = _add_meter(w, "energy", amount, 6)
+    if node is not None:
+        table = node.get("by_device")
+        if not isinstance(table, dict):
+            table = node["by_device"] = {}
+        table[device] = round(float(table.get(device, 0.0) or 0.0) + amount, 6)
+
+
+def _add_meter(w, resource, amount, digits):
+    """Add amount at a resources.json meter path; the node that holds it, or None when nothing was added (no amount,
+    another owner's value on the path, not a dotted section path)."""
+    if not amount or amount <= 0:
+        return None
+    from ...kernel import ledger
+    path = ((ledger.data("resources").get("meters") or {}).get(resource) or {}).get("path")
+    if not isinstance(path, str) or "." not in path:
+        return None
+    parts = path.split(".")
+    node = w.sec(parts[0])
+    for key in parts[1:-1]:
+        child = node.get(key)
+        if not isinstance(child, dict):
+            if child is not None:
+                return None
+            child = node[key] = {}
+        node = child
+    current = node.get(parts[-1], 0.0)
+    if isinstance(current, bool) or not isinstance(current, (int, float)):
+        return None
+    node[parts[-1]] = round(float(current) + float(amount), digits)
+    return node
 
 
 def battery_item(w, tool_id):

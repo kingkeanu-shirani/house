@@ -23,6 +23,7 @@ from ...kernel.predicates import root_room
 from ..core import add_soil, release_from_hands
 from . import behavior as B
 from . import common as C
+from . import hardening as H
 from . import model as M
 
 BRUSH_EFFECT = {  # brush_kind -> {coat_type: fraction of loose hair removed per minute}
@@ -74,6 +75,8 @@ def dryer_db(ctx):
     if dryer is None:
         return None
     return C.num(ctx.w.s["entities"][dryer].get("noise_db"), 80.0)
+
+BATH_L = 40.0               # litres a bath draws (tub, shower or hose)
 
 
 @action("brush_pet", params={"target": "pet", "tool": "?entity", "direction": {"type": "str", "default": "with_grain", "choices": ["with_grain", "against_grain"]},
@@ -311,13 +314,15 @@ def bathe_pet(ctx):
     from . import water
     room, cells = geometry.anchor(state, pid)
     water.wet_floor(w, rid, cells or [], 0.5)
+    H.count_water(w, BATH_L)            # the house water meter (VERIFY_HARDENING 6.8)
     if not restrained and tolerance < 0.5:
         reaction = _reaction(w, pid, ctx)
         if reaction:
             notes.append(reaction)
         others = [o for o, _c, conn in C.neighbors(state, rid) if C.conn_open(state, conn, pet) and not C.is_outdoor(state, o)]
         if others:
-            B.relocate(w, pid, others[0], why="bolted from the bath")
+            with w.writing("volition", "pets.bolt"):
+                B.relocate(w, pid, others[0], why="bolted from the bath")
             water.wet_floor(w, others[0], [state["pets"][pid].get("pos")], 0.4)
             C.harm(w, "bolted_wet", pet=pid)
             notes.append("{} bolted out of the bath, dripping".format(pet.get("label", pid)))
@@ -443,16 +448,17 @@ def _check_animal(ctx, pid, aspect, tool):
         if injuries:
             result["findings"] = [c.get("cause") for c in injuries]
     elif aspect == "fit":
-        from . import handling as H
+        from . import handling
         fits = {}
-        for gid in H.worn_gear(state, pid):
+        for gid in handling.worn_gear(state, pid):
             grec = state["entities"][gid]
             if grec.get("pet_gear") not in ("collar", "harness"):
                 continue
             # the finger gap is felt to about +-0.3 cm (one fixed error per strap in realistic mode: re-checking does not
             # average it away)
-            slack = C.instrument(ctx, gid, "slack_cm:" + pid, H.gear_slack_cm(state, pid, gid), 0.3, digits=6)
-            fits[gid] = {"slack_cm": round(slack, 1), "fit": H.fit_word(slack), "buckled": bool(grec.get("buckled", grec.get("buckles_closed", True)))}
+            slack = C.instrument(ctx, gid, "slack_cm:" + pid, handling.gear_slack_cm(state, pid, gid), 0.3, digits=6)
+            fits[gid] = {"slack_cm": round(slack, 1), "fit": handling.fit_word(slack), "buckled": bool(grec.get("buckled", grec.get("buckles_closed", True))),
+                         "reading": H.reading(gid, "length", round(slack, 1), "cm")}
         result["gear"] = fits
     else:
         raise ActionError("aspect for a pet: general, gait, parasites, coat, paws or fit", "argument")
@@ -484,6 +490,7 @@ def _check_entity(ctx, eid, aspect, tool, zone):
         strip = tool and ctx.holding(tool) and state["entities"][tool].get("tool_kind") == "water_test"
         water = rec.get("water") or {}
         result["temp_c"] = C.instrument(ctx, eid, "water.temp_c", water.get("temp_c"), 0.3)
+        readings = [H.reading(eid, "temperature", result["temp_c"], "C", "water.temp_c")]
         result["clarity"] = "cloudy" if C.num(water.get("clarity"), 1.0) < 0.7 else "clear"
         result["uneaten_food"] = "visible on the gravel" if C.num(rec.get("uneaten_g")) > 0.05 else "none"
         if strip:
@@ -493,8 +500,10 @@ def _check_entity(ctx, eid, aspect, tool, zone):
             for key in ("ammonia_ppm", "nitrite_ppm", "chlorine_ppm"):
                 v = C.num(water.get(key))
                 result[key] = 0.0 if v < 0.12 else 0.25 if v < 0.37 else 0.5 if v < 0.75 else 1.0 if v < 1.5 else 2.0 if v < 3 else 4.0
+                readings.append(H.reading(eid, key[:-len("_ppm")], result[key], "ppm", "water." + key))
         else:
             result["chemistry"] = "use a test strip to read ammonia / nitrite / chlorine"
+        result["readings"] = readings
         from . import aquatic
         result["filter"] = aquatic.filter_status(state, eid)
         if C.realistic(ctx) and result["filter"] == "pump damaged":
@@ -518,6 +527,8 @@ def _check_entity(ctx, eid, aspect, tool, zone):
         else:
             raise ActionError("That is not a thermometer", "capability")
         result["zone"] = zone
+        result["reading"] = H.reading(eid, "temperature", result["reading_c"], "C",
+                                      "zones.{}.{}".format(zone, "surface_c" if result["measures"] == "surface" else "air_c"))
         from . import aquatic
         result["lamp"] = aquatic.lamp_status(state, eid)
         m = w.mut(eid)

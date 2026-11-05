@@ -1,5 +1,5 @@
 {
- "about": "Field classes of the textiles_laundry domain's types for the house ledger (VERIFY_HARDENING 6.3, lint L-WATCH; WP-D textiles_laundry). 'fields' classifies every property name of house_sim/data/types/textiles_laundry.json the kernel's watch_fields.json does not, and the fields this domain's verbs, hooks and systems write on its own types; a dotted name is one sub-key of a dict field, '<head>.*' its other sub-keys. What a textile or a machine is (fabric, care label, sizes, ratings, flags) is identity; what the robot sets on purpose (a garment turned inside out, rolled sleeves, a zipper, a shoe's lacing, a duvet cover's closure, how a bed was made, a washer's or dryer's program) is a setting; what washing, drying, ironing and careless handling do to a textile is a condition with its worse direction and a tolerance above normal handling: creases (wrinkled up 0.15: a heaped shirt creases 0.03 an hour), shrinkage, stretch, dye transfer, fading, pilling, iron shine, a towel's absorbency, a lint screen's softener film and a dryer vent's airflow, set stains, a fitted sheet's seated corners, a made bed, a pressed crease. A textile's wetness keeps the kernel's class (guard wet: house.wet judges it on the water-sensitive types below only; the harm of damp laundry is the musty smell and mildew this domain models as conditions); its scent, a soak, the drum's water and door lock, a lint roller sheet's load, a fabric shaver's lint chamber (normal use: emptying it gives a lint wad) and the face-by-face soil and pill maps (mirrors of soil and pilling) are processes. Which hanger, which pair, how a layer lies on a bed or a towel on a rack are placement details that follow the entities' own placement (judged by the placement guards); the refuse flag, a dryer sheet's spent mark and the care label's printed text (written when first read) are bookkeeping; a textile's size_m / volume_l follow its fold and a rack's or board's its open state (process), thread used from a spool is content. types: a hanger's holding_garment follows the garment it hangs, a set-up rack's or ironing board's portable / blocks_path follow its open setting, a lint screen's and drain filter's soil is what they catch. water_sensitive: leather, suede, patent leather, memory foam, coir and jute things a charged wetting damages (house.wet).",
+ "about": "Field classes of the textiles_laundry domain's types for the house ledger (VERIFY_HARDENING 6.3, lint L-WATCH; WP-D textiles_laundry). 'fields' classifies every property name of house_sim/data/types/textiles_laundry.json the kernel's watch_fields.json does not, and the fields this domain's verbs, hooks and systems write on its own types; a dotted name is one sub-key of a dict field, '<head>.*' its other sub-keys. What a textile or a machine is (fabric, care label, sizes, ratings, flags) is identity; what the robot sets on purpose (a garment turned inside out, rolled sleeves, a zipper, a shoe's lacing, a duvet cover's closure, how a bed was made, a washer's or dryer's program) is a setting; what washing, drying, ironing and careless handling do to a textile is a condition with its worse direction and a tolerance above normal handling: creases (wrinkled up 0.15: a heaped shirt creases 0.03 an hour), shrinkage, stretch, dye transfer, fading, pilling, iron shine, a towel's absorbency, a lint screen's softener film and a dryer vent's airflow, set stains, a fitted sheet's seated corners, a made bed, a pressed crease. A textile's wetness keeps the kernel's class (guard wet: house.wet judges it on the water-sensitive types below only; the harm of damp laundry is the musty smell and mildew this domain models as conditions); its scent, a soak, the drum's water and door lock, a lint roller sheet's load, a fabric shaver's lint chamber (normal use: emptying it gives a lint wad) and the face-by-face soil and pill maps (mirrors of soil and pilling) are processes. Which hanger, which pair, how a layer lies on a bed or a towel on a rack are placement details that follow the entities' own placement (judged by the placement guards); the refuse flag, a dryer sheet's spent mark and the care label's printed text (written when first read) are bookkeeping; a textile's size_m / volume_l follow its fold and a rack's or board's its open state (process), thread used from a spool is content. types: a hanger's holding_garment follows the garment it hangs, a set-up rack's or ironing board's portable / blocks_path follow its open setting, a lint screen's, drain filter's and clothes brush's soil is what they catch. Types of other domains this domain's verbs write on: a bed's or crib's made, made_style, made_at and bed_state (types bed, crib in core.json), and the fields of the wash, the drying set-ups and care on the textiles of other domains (cotton_rag, microfiber_cloth, rug). An upholstered thing's face_soil (what lint_roll keeps per face) is a process, as on a textile. water_sensitive: leather, suede, patent leather, memory foam, coir and jute things a charged wetting damages (house.wet).",
  "fields": {
   "absorbency": {
    "class": "condition",
@@ -448,11 +448,95 @@
   "zipper_hidden": "setting"
  },
  "types": {
+  "armchair": {
+   "face_soil": "process",
+   "face_soil.*": "process"
+  },
+  "bed": {
+   "made": {
+    "class": "condition",
+    "worse": "false"
+   },
+   "made_style": "setting",
+   "made_style.*": "setting",
+   "made_at": "bookkeeping",
+   "bed_state": "bookkeeping",
+   "bed_state.*": "bookkeeping"
+  },
   "clip_hanger": {
    "holding_garment": "bookkeeping"
   },
+  "clothes_brush": {
+   "soil": "process",
+   "soil.*": "process"
+  },
   "clothes_hanger": {
    "holding_garment": "bookkeeping"
+  },
+  "cotton_rag": {
+   "shrunk": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.005
+   },
+   "stretched": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.005
+   },
+   "faded": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.02
+   },
+   "pilling": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.02
+   },
+   "dye_damage": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.01
+   },
+   "shine": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.02
+   },
+   "set_stains": {
+    "class": "condition",
+    "worse": "change"
+   },
+   "drying_mode": "placement",
+   "pins": "placement",
+   "pin_at": "placement",
+   "hang_method": "placement",
+   "hanger_kind": "placement",
+   "paired_with": "placement",
+   "face_soil": "process",
+   "face_pilling": "process",
+   "scented": "process",
+   "soaking": "process",
+   "soak_agents": "process",
+   "care_label": "bookkeeping",
+   "spent": "bookkeeping",
+   "pressed": {
+    "class": "condition",
+    "worse": "false"
+   },
+   "inside_out": "setting"
+  },
+  "crib": {
+   "made": {
+    "class": "condition",
+    "worse": "false"
+   },
+   "made_style": "setting",
+   "made_style.*": "setting",
+   "made_at": "bookkeeping",
+   "bed_state": "bookkeeping",
+   "bed_state.*": "bookkeeping"
   },
   "drying_rack": {
    "portable": "process",
@@ -466,11 +550,131 @@
    "soil": "process",
    "soil.*": "process"
   },
+  "microfiber_cloth": {
+   "shrunk": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.005
+   },
+   "stretched": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.005
+   },
+   "faded": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.02
+   },
+   "pilling": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.02
+   },
+   "dye_damage": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.01
+   },
+   "shine": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.02
+   },
+   "set_stains": {
+    "class": "condition",
+    "worse": "change"
+   },
+   "drying_mode": "placement",
+   "pins": "placement",
+   "pin_at": "placement",
+   "hang_method": "placement",
+   "hanger_kind": "placement",
+   "paired_with": "placement",
+   "face_soil": "process",
+   "face_pilling": "process",
+   "scented": "process",
+   "soaking": "process",
+   "soak_agents": "process",
+   "care_label": "bookkeeping",
+   "spent": "bookkeeping",
+   "pressed": {
+    "class": "condition",
+    "worse": "false"
+   },
+   "inside_out": "setting"
+  },
+  "ottoman": {
+   "face_soil": "process",
+   "face_soil.*": "process"
+  },
   "padded_hanger": {
    "holding_garment": "bookkeeping"
   },
   "plastic_hanger": {
    "holding_garment": "bookkeeping"
+  },
+  "recliner": {
+   "face_soil": "process",
+   "face_soil.*": "process"
+  },
+  "rug": {
+   "shrunk": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.005
+   },
+   "stretched": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.005
+   },
+   "faded": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.02
+   },
+   "pilling": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.02
+   },
+   "dye_damage": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.01
+   },
+   "shine": {
+    "class": "condition",
+    "worse": "up",
+    "tol": 0.02
+   },
+   "set_stains": {
+    "class": "condition",
+    "worse": "change"
+   },
+   "drying_mode": "placement",
+   "pins": "placement",
+   "pin_at": "placement",
+   "hang_method": "placement",
+   "hanger_kind": "placement",
+   "paired_with": "placement",
+   "face_soil": "process",
+   "face_pilling": "process",
+   "scented": "process",
+   "soaking": "process",
+   "soak_agents": "process",
+   "care_label": "bookkeeping",
+   "spent": "bookkeeping",
+   "pressed": {
+    "class": "condition",
+    "worse": "false"
+   },
+   "inside_out": "setting"
+  },
+  "sofa": {
+   "face_soil": "process",
+   "face_soil.*": "process"
   },
   "velvet_hanger": {
    "holding_garment": "bookkeeping"

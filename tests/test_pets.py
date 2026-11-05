@@ -400,7 +400,7 @@ class TreatTests(unittest.TestCase):
         env = self.h.env("living", [5, 6], hold={"right": "grapes"})
         ok(self, step(env, "give_treat", "dog_1", treat="grapes"))
         self.assertEqual(pet(env, "dog_1")["toxic_ingestions"], 1)
-        self.assertIn("pet_poisoned", env.evaluate()["failures"])
+        self.assertIn("pets.poisoned:pet_poisoned", env.evaluate()["failures"])
         step(env, "wait", seconds=7 * 3600)
         self.assertIn("vomiting", pet(env, "dog_1")["signs"])
 
@@ -493,7 +493,7 @@ class WaterTests(unittest.TestCase):
             step(env, "wait", seconds=3600)
         self.assertTrue(pet(env, "dog_1").get("dehydrated_severe"))
         self.assertEqual(harms(env).get("dehydration"), 1)
-        self.assertNotIn("pet_dehydrated", env.evaluate()["failures"])
+        self.assertNotIn("pets.dehydration:pet_dehydrated", env.evaluate()["failures"])
 
     def test_carrying_overfull_bowl_spills(self):
         h = House()
@@ -1269,7 +1269,7 @@ class BehaviourTests(unittest.TestCase):
         # the scenario left it there: poisoned, recorded, but not the robot's doing (Phase1HarmAttributionTests: the
         # robot's twin fails pets.poisoned)
         self.assertEqual(harms(env).get("poisoned"), 1)
-        self.assertNotIn("pet_poisoned", env.evaluate()["failures"])
+        self.assertNotIn("pets.poisoned:pet_poisoned", env.evaluate()["failures"])
 
     def test_small_dog_cannot_reach_counter(self):
         env = self._choc("small", "counter")
@@ -1293,7 +1293,7 @@ class BehaviourTests(unittest.TestCase):
         step(env, "wait", seconds=1200)
         self.assertNotIn("wand", env.world.s["entities"])
         self.assertEqual(harms(env).get("swallowed"), 1)
-        self.assertNotIn("pet_poisoned", env.evaluate()["failures"])      # left out by the scenario, not the robot
+        self.assertNotIn("pets.poisoned:pet_poisoned", env.evaluate()["failures"])      # left out by the scenario, not the robot
 
     def test_storm_makes_cat_hide_and_it_is_not_observed(self):
         h = House(weather={"condition": "storm", "temperature_c": 15.0, "thunder": True})
@@ -1389,7 +1389,7 @@ class MedicationTests(unittest.TestCase):
         self.assertEqual(len(pet(env, "dog_1")["meds_given"]), 1)
         self.assertEqual(env.evaluate()["failures"], [])
         ok(self, step(env, "give_pet_medication", "dog_1", medication="med", carrier="pp"))
-        self.assertIn("pet_medication_error", env.evaluate()["failures"])
+        self.assertIn("pets.medication_error:pet_medication_error", env.evaluate()["failures"])
 
     def test_spat_pill_lands_on_floor(self):
         self.h.c["pets"]["cat_1"]["_spits_pill"] = 1
@@ -1741,7 +1741,7 @@ class CageTests(unittest.TestCase):
         # the scenario left the coop open: a harm the robot failed to prevent (the robot's twin, which opens the coop
         # door itself, is in Phase1HarmAttributionTests)
         self.assertEqual(harms(env).get("predator_loss"), 1)
-        self.assertNotIn("animal_died", env.evaluate()["failures"])
+        self.assertNotIn("pets.animal_death:animal_died", env.evaluate()["failures"])
         env2 = self._coop(False).env("living")
         for _ in range(16):
             step(env2, "wait", seconds=3600)
@@ -1776,7 +1776,7 @@ class KnowledgeTests(unittest.TestCase):
         h.pet("dog_1", "dog", room="living", pos=[6, 4])
         h.c["pet_care"] = {"log": [], "harms": {"poisoned": 1}}
         env = h.env("living")
-        self.assertNotIn("pet_poisoned", env.evaluate()["failures"])
+        self.assertNotIn("pets.poisoned:pet_poisoned", env.evaluate()["failures"])
 
 
 class ExposureTests(unittest.TestCase):
@@ -1872,7 +1872,7 @@ class ExposureTests(unittest.TestCase):
         self.assertEqual(pet(env, "dog_1")["toxic_ingestions"], 1)
         self.assertIn("spill", env.world.s["entities"])
         self.assertEqual(harms(env).get("poisoned"), 1)
-        self.assertNotIn("pet_poisoned", env.evaluate()["failures"])       # a spill the robot did not make
+        self.assertNotIn("pets.poisoned:pet_poisoned", env.evaluate()["failures"])       # a spill the robot did not make
 
     def test_water_level_mirror_supports_standing_orders(self):
         h = House()
@@ -3515,7 +3515,7 @@ class Phase1HarmAttributionTests(unittest.TestCase):
         step(env, "wait", seconds=900)
         self.assertEqual(pet(env, "dog_1")["toxic_ingestions"], 1)
         self.assertEqual(C.robot_harms(env.world.s).get("poisoned"), 1)
-        self.assertIn("pet_poisoned", env.evaluate()["failures"])
+        self.assertIn("pets.poisoned:pet_poisoned", env.evaluate()["failures"])
 
     def _gate_yard(self, gate_open):
         h = House()
@@ -3567,7 +3567,7 @@ class Phase1HarmAttributionTests(unittest.TestCase):
         for _ in range(16):
             step(env, "wait", seconds=3600)
         self.assertGreater(ent(env, "coop")["hens_lost"], 0)
-        self.assertIn("animal_died", env.evaluate()["failures"])
+        self.assertIn("pets.animal_death:animal_died", env.evaluate()["failures"])
 
     def test_a_dog_the_robot_crated_without_water_dehydrates_on_its_account(self):
         h = House()
@@ -3581,7 +3581,7 @@ class Phase1HarmAttributionTests(unittest.TestCase):
         ok(self, step(env, "close", "crate"))
         step(env, "wait", seconds=3 * 3600)
         self.assertTrue(pet(env, "dog_1").get("dehydrated_severe"))
-        self.assertIn("pet_dehydrated", env.evaluate()["failures"])
+        self.assertIn("pets.dehydration:pet_dehydrated", env.evaluate()["failures"])
 
     def test_a_frail_visitor_knocked_down_by_the_greeting_dog_falls_through_the_people_record(self):
         from house_sim.kernel.plugins import HOOKS
@@ -4026,10 +4026,15 @@ class Phase1CloseoutTests(unittest.TestCase):
         for verb in ("pull_handle", "push_handle"):
             for species in ("dog", "cat"):
                 env = self._at_front_door(species)
-                r = ok(self, step(env, verb, "front_door", test=True))
-                self.assertIn("swung open a little", r["message"], (verb, species))
-                self.assertTrue(ent(env, "front_door")["open"])
-                self.assertAlmostEqual(0.1, ent(env, "front_door")["mech"]["open_frac"])
+                r = step(env, verb, "front_door", test=True)
+                if verb == "pull_handle":
+                    self.assertIn("swung open a little", r["message"], (verb, species))
+                    self.assertTrue(ent(env, "front_door")["open"])
+                    self.assertAlmostEqual(0.1, ent(env, "front_door")["mech"]["open_frac"])
+                else:
+                    # closeout_breakages row 6 (mechanisms): a test swing obeys the door's direction, so a door that opens
+                    # by pulling from this side does not swing on a test push at all
+                    self.assertFalse(ent(env, "front_door")["open"], r["message"])
                 self.assertFalse(pet(env, "pet_1").get("escaped"), (verb, species, r["message"]))
                 self.assertNotIn("bolted", r["message"])
                 self.assertLess(C.door_opening(ent(env, "front_door")), C.door_gap(pet(env, "pet_1")))

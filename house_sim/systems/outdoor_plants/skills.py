@@ -45,6 +45,23 @@ def fetch_kind(r, kind, hand=None, grip=None):
     return best
 
 
+@skill("outdoor_plants.operate")
+def operate(r, target, verb, tool=None, **args):
+    """One of this domain's verbs on a thing where it is, holding a tool of that kind (fetched when given): the plan step the
+    damaging settings skills give a battery policy (hardening)."""
+    if tool:
+        fetch_kind(r, tool)
+    core_skills.approach(r, target)
+    return r.do(verb, target=target, **args)
+
+
+@skill("outdoor_plants.drag_on")
+def drag_on(r, target):
+    """Drag a thing one step along where it lies (a paper bag over paving tears)."""
+    core_skills.approach(r, target)
+    return r.do("drag", target=target, direction="away", distance_m=0.5)
+
+
 @skill("outdoor_plants.care_check")
 def care_check(r, plant):
     core_skills.approach(r, plant)

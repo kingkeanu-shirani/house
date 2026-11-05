@@ -984,6 +984,12 @@ Regression tests: `tests/test_electrical_hardening.py`.
   inside, a cord's walkway / rug / water / heat hazards) are `condition` with the worse direction; counters, test records
   and timestamps are `bookkeeping`. Per type: a cell's `condition` word ("new" -> "in use") is wear (its leak is
   `leaking`), and the core light types take electrical's `burnt_out`, `dim_level` and `flicker`.
+* **Loads built on core types** (6.3): electrical's scenes build other domains' loads from `generic_item` (a space
+  heater, a kettle), so the watch file's `types.generic_item` gives that type the cord's derived fields (`cord_cells`,
+  `cord_length_used_m`, process) and the damage electrical writes on any load (`kinked`, `water_ingress`, `fried`,
+  `burnt_out`, `thermal_runaway`, `battery_swollen`, `data_lost`, `job_interrupted`, `pin_damage`: condition, true is
+  worse). The as-if schema-4 run of `T-702453ef553c00-01` charged `house.changed:<heater>.cord_cells` before. The same
+  names on other domains' own types are kernel `watch_fields.json` entries (request to WP1).
 * **Water-sensitive gear** (6.3; phase-1 closeout_breakages row 6, data half): the watch file's `water_sensitive` lists
   the gear `physical.electrical_gear` names that no IP or weather rating protects (lamps, bulbs, chargers, strips,
   breakers, switches, alarms, remotes, clocks, electronics; not IP67/68 phones and watches, IPX4 earbuds, outdoor
@@ -1022,11 +1028,14 @@ Regression tests: `tests/test_electrical_hardening.py`.
   one laid over it later never showed. `cords.live_hazards` recomputes the hazards from the cord's cells with the
   routing rule; the trip and fire-risk invariants judge a cord's lasting hazard by it, and the derived field
   `cord_hazard` gives a schema-4 predicate the same value. A rug laid over a cord after routing raises no harm label
-  (nothing sees the rug move): the derived field shows it, the invariant does not (known gap).
+  (nothing sees the rug move): the derived field shows it, the invariant does not (known gap). The recompute reads only
+  the state it is given (no memo across calls), so a replay or a fork gets the same answer.
 * **Settings skills** (10.3; B14's changed and damaged probes): `plugged_in` (unplug; or plug into the nearest free live
   receptacle that takes the plug), the damaging verbs `strain_relief_damaged` (unplug by the cord), `plug_damage` (a
   one-way plug forced in reversed: a bent prong), `kinked` (the cord coiled tight) and `damaged` for cables (yanked out
-  by the cable), and `clock.format_24h`, through the skill `electrical.set_field(target, field, value)`. Battery
+  by the cable), `clock.format_24h` and `alarms.alarm_1` (the first alarm switched over), through the skill
+  `electrical.set_field(target, field, value)`. `clock.offset_s` has no probe: the battery's effect check wants the exact
+  new value, and the offset set from a wall time depends on the second the verb runs (request to WP6). Battery
   covers use admin_inventory's generic `cover_open` skill; switches, settings with options and doors use the kernel's
   defaults.
 * **Truth mappings** (13.1-13.3; `truth_electrical.json`): states paired / unpaired, dark, dimmed, charged; issues
@@ -1048,10 +1057,28 @@ Regression tests: `tests/test_electrical_hardening.py`.
   before the slot is matched by its true part type (the novel sweep found unfamiliar AA cells going into a NiMH bay
   where every other unfamiliar thing had "no compatible slot"). The reference skills `electrical.charge` and
   `electrical.connect` inspect (then read) such a thing first in realistic mode; oracle traces are unchanged.
+* **Inspecting a phone shows its port** (15.2-15.3): the smartphone group resolves by `inspect`, but that inspect showed
+  nothing that told a USB-C phone from a Lightning one. A close look in realistic perception now gives `charge_port` (the
+  port's label) for anything resolved with a charge port.
+* **A warning is judged by what was said and who heard it** (13.5, 23.3; a world fix for every schema): the warning a
+  detector test needs was a substring check over any utterance, so "the latest news" (`test`) or "I will not test the
+  alarm" silenced `electrical.unwarned_alarm_test`, and speech in one room warned the whole house.
+  `detectors.warns_of_alarm_test` reads whole words clause by clause: a test or an alarm going off of an alarm, or a noise
+  said to be coming or tied to an alarm, not negated within the four words before it and not reported as over.
+  `detectors.warned_people` collects the audience of each such message (an announcement reaches the house, speech its
+  room, a failed speaker nobody) and every awake person at home must be among them. The reference skill's announcement,
+  `speech.paraphrase` of it and plain rewordings warn; `speech.negate` of it does not (battery B12).
 * **Hazard zones** (13.5; WP4's request to the domains): `@hook("hazard_zones")` lists the active electrical hazards a
   warning is about -- a bared cord or a half-seated plug on live mains, a scorched, burning or arcing cord or receptacle
   still live, live gear with water inside or a wet live receptacle, a swollen or burning battery -- each only as the
   thing itself (no room: walking into the room with a frayed lamp cord is not walking into the hazard).
+* **Setup randomisation** (9.2; WP9's request to the scenario helpers): `electrical.devices`, `electrical.overload`,
+  `electrical.crowded_strip` and `electrical.bulbs` place their members in `ctx.placer.order` (schema 4: a seeded order,
+  so where a look-alike brick or bulb lands and which socket a look-alike plug sits in say nothing about its role; the
+  given order, with no draw, otherwise). Role lists go through `ctx.sample_roles`: `electrical.cells` `reversed_slots`
+  (a list, a sample binding or `"random"`) and `electrical.media` `sources` (`"random"`: a subset of streaming box, game
+  console and cable box; a list keeps its order, since the ports are shuffled by the setup RNG). No helper skips work
+  in an audit build: none binds and places nothing except `electrical.settle`, whose derived fields the audits read.
 * **Ingress gathering** (phase-1 closeout_breakages row 7): `physical._gathers` reads the kernel's
   `liquids.wetness_before(w, eid)`, so a device that was dry when an arrival came forgets what reached it before it
   dried even when the system that dried it ran before `electrical.wet_gear` in the same substep (section 15's known

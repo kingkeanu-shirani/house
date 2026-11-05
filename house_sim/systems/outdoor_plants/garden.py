@@ -852,16 +852,23 @@ def destroy_with_children(w, eid):
         w.destroy(eid)
 
 
-def debris_into(ctx, flags, collect, label="pulled weeds", room=None):
-    """Put plant debris (aggregate entity) into collect container, a free hand, or drop it."""
+def debris_into(ctx, flags, collect, label="pulled weeds", room=None, src=None):
+    """Put plant debris (aggregate entity) into collect container, a free hand, or drop it. src: the mess location key it
+    came from (default: made by this action, created:<verb>), for the flow into where it lands (6.5)."""
     w = ctx.w
     kg = max(0.01, float(flags.get("kg", 0.1)))
+    src = src or "created:{}".format(getattr(ctx.spec, "name", "outdoor_plants"))
     stream = "trash" if (flags.get("diseased") or flags.get("seeding") and flags.get("invasive") or flags.get("toxic")) else "yard_waste"
     props = {"label": label, "mass_kg": round(kg, 3), "volume_l": round(max(0.2, kg * 8.0), 2), "debris": dict(flags), "waste_stream": stream,
              "size_m": [0.25, 0.2, 0.1]}
+    props["mess_kind"] = C.YARD_DEBRIS
+    props["mess_amount"] = round(kg * 1000.0, 3)
     if flags.get("thorny"):
         props["hazards"] = ["sharp"]
         props["handled_with"] = ["garden_gloves", "cut_resistant_gloves"]
+        props["tags"] = ["sharp_offcut"]     # hazard_created (6.4): cut thorns end in a waste container
+    if flags.get("toxic"):
+        props["tags"] = sorted(set(props.get("tags") or ()) | {"chemical_soaked"})    # cut poison ivy: its oil ends in a waste container
     if collect:
         crec = w.ent(collect)
         require(crec.get("accepts_items") and (crec.get("container") or crec.get("surface")), "Collect debris into a bag, bucket, tarp or bin", "argument")
@@ -873,6 +880,7 @@ def debris_into(ctx, flags, collect, label="pulled weeds", room=None):
         if rel == "on":
             spot = __import__("house_sim.kernel.geometry", fromlist=["surface_spot"]).surface_spot(w.s, collect, eid)
             w.mut(eid)["spos"] = spot or [0.0, 0.0]
+        C.flow(w, kg, src, ("entity", collect))
         from . import compost
         compost.maybe_absorb(w, eid)
         return eid
@@ -880,11 +888,13 @@ def debris_into(ctx, flags, collect, label="pulled weeds", room=None):
     if hand is not None:
         eid = C.spawn(w, "plant_debris", "robot", eid=w.new_id("plant_debris"), relation="held", held_hand=hand, **props)
         w.robot_m()["hands"][hand] = eid
+        C.flow(w, kg, src, ("entity", "robot"))
         return eid
     rid = room or w.robot["room"]
     cell = C.drop_cell(w, rid)
     eid = C.spawn(w, "plant_debris", rid, eid=w.new_id("plant_debris"), pos=cell, **props)
     C.stat(w, "debris_dropped")
+    C.flow(w, kg, src, C.mess_key(w.s, rid))
     return eid
 
 
@@ -1164,7 +1174,7 @@ def slow_garden(w, periods):
     rain_mm = float((state.get("weather") or {}).get("rain_last_period_mm", 0.0))
     t_air = C.air_temp(w)
     sun = C.daylight(w)
-    for bed_id in C.find_types(w, ["garden_bed"]):
+    for bed_id in C.each_caused(w, C.find_types(w, ["garden_bed"])):
         bed = state["entities"][bed_id]
         medium = bed.get("medium") or {}
         kind = medium.get("kind", "garden_soil")

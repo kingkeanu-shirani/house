@@ -30,12 +30,12 @@ def _add_soil(w, eid, kind, amount):
 def _wet_floor(w, eid, liters):
     """Water running over a basin's rim: a kernel spill on the floor under the fixture (one puddle that grows while
     the overflow lasts; the kernel counts the new puddle in phys_spills, and in spills when robot-attributable)."""
-    liquids.spill(w, liters, "water", source=eid, cause="overflow")
+    C.log_spill(w, "water", liters, eid, liquids.spill(w, liters, "water", source=eid, cause="overflow"), cause=eid)
 
 
-def _towel_at(w, eid):
+def _towel_at(w, eid, ctx=None):
     """An absorbent cloth held by the robot or lying at the fixture's cells."""
-    for h in w.held_items():
+    for h in C.known_held(w, ctx):
         rec = w.ent(h)
         if rec.get("absorbent") or rec.get("tool_kind") in ("cotton_rag", "microfiber_cloth", "drying_towel") or "towel" in rec.get("type", ""):
             return h
@@ -56,6 +56,8 @@ def _towel_at(w, eid):
 
 # =============================================================================================
 # drains
+
+CLOG_GRAMS = 40.0        # a full hair or grease clog in a sink or shower trap, what a snake can bring out
 
 def drain_speed(amount):
     a = float(amount)
@@ -125,10 +127,13 @@ def snake_drain(ctx):
         if kind == "hair":
             c["amount"] = C.rnd(amount * 0.15, 3)
             _add_soil(w, tool, "hair", 0.8)
+            # what came out of the drain now rides on the snake: debris in a tool until it is rinsed or binned (6.5)
+            C.mess_flow(w, "debris", CLOG_GRAMS * amount * 0.85, "drain:" + eid, "entity:" + tool, origin="clog:" + eid)
             notes.append("pulled out a wad of hair and soap gunk")
         elif kind == "grease":
             c["amount"] = C.rnd(amount * 0.55, 3)
             _add_soil(w, tool, "grease", 0.6)
+            C.mess_flow(w, "debris", CLOG_GRAMS * amount * 0.45, "drain:" + eid, "entity:" + tool, origin="clog:" + eid)
             notes.append("punched through the grease; it will re-form")
         elif kind == "object":
             obj = c.get("object")
@@ -141,6 +146,8 @@ def snake_drain(ctx):
                     w.robot_m()["hands"][hand] = obj
                 else:
                     om.update(location=eid, relation="on")
+                from ..core import log_mess_move
+                log_mess_move(w, obj, eid, om["location"], before_relation="drain")
                 notes.append("hooked out {}".format(obj))
             c["object"] = None
         if c["amount"] < 0.05:
@@ -204,7 +211,7 @@ def drain_system(w, dt, tick):
         if not _water_running_into(w, eid):
             continue
         flow_in = float(rec.get("flow_lpm", 6.0)) * dt / 60.0
-        m = w.mut(eid)
+        m = w.mut(eid, cause=[eid] + _feeders(w, eid))
         if clog.get("chemical"):
             m["_clog"]["flushed_l"] = C.rnd(float(clog.get("flushed_l", 0.0)) + flow_in, 2)
             if m["_clog"]["flushed_l"] >= 8.0:
@@ -376,10 +383,13 @@ def toilet_system(w, dt, tick):
         if leak <= 0:
             continue
         liters = leak * dt / 60.0
-        m = w.mut(eid)
+        m = w.mut(eid, cause=eid)
         m["wasted_l"] = C.rnd(float(m.get("wasted_l", 0.0)) + liters, 3)
         u = w.sec("utilities")
         u["water_l"] = round(float(u.get("water_l", 1e5)) - liters, 3)
+        tank = rec.get("_tank") or {}
+        if not ("tank_l" in rec and not tank.get("fill_valve_ok", True)):
+            C.count_water(w, liters)        # (a stuck fill valve on a plumbing toilet is on plumbing's own meter)
 
 
 # =============================================================================================
@@ -521,6 +531,11 @@ def _hopper_settle(w, node, ctx):
         w.mut(node)["ran_ok"] = False
 
 
+def _disposal_causes(rec, eid, obj=None):
+    """What a disposal's run follows from: itself, its wall switch, what wedged it."""
+    return [e for e in (eid, rec.get("switch_id"), obj) if isinstance(e, str)]
+
+
 def disposals_idle(w):
     """Exact idle probe: every disposal is off (or tripped) and already shows it (`running` False), and none holds an
     object that is no longer in its hopper (disposal_system would write nothing)."""
@@ -553,7 +568,7 @@ def disposal_system(w, dt, tick):
         live = disposal_live(w, eid) and not rec.get("thermal_tripped")
         if not live:
             if rec.get("running"):
-                w.mut(eid)["running"] = False
+                w.mut(eid, cause=_disposal_causes(rec, eid))["running"] = False
             continue
         if not obj and not jam.get("jammed"):
             # what lies in the hopper matters only to a running plate (G7: the children scan of every entity ran for
@@ -561,7 +576,7 @@ def disposal_system(w, dt, tick):
             hard = _hard_in_hopper(w, eid)
             obj = hard[0] if hard else None
         if jam.get("jammed") or obj:
-            m = w.mut(eid)
+            m = w.mut(eid, cause=_disposal_causes(rec, eid, obj))
             m["humming_s"] = C.rnd(float(m.get("humming_s", 0.0)) + dt, 1)
             if obj and not jam.get("jammed"):
                 m["_jam"]["jammed"] = True
@@ -575,7 +590,7 @@ def disposal_system(w, dt, tick):
                 m["running"] = False
                 C.log(w, "disposal_tripped", target=eid)
             continue
-        m = w.mut(eid)
+        m = w.mut(eid, cause=_disposal_causes(rec, eid))
         m["running"] = True
         m["humming_s"] = 0.0
         m["ran_ok"] = True
@@ -633,8 +648,13 @@ def clear_jam(ctx):
     if direction == "against":
         jm["torn"] = True
         jm["label"] = "torn jammed sheet"
+        # refuse (waste: true, VERIFY_HARDENING 6.5: cleaning's waste_item kind): the scrap and the torn sheet must reach a bin
         scrap = w.spawn("generic_item", eid, label="torn paper scrap", category="debris", part_type="jammed_paper", material="paper",
-                        mass_kg=0.001, size_m=[0.05, 0.03, 0.001], volume_l=0.005, relation="part", slot="paper_path", waste_stream="recycling")
+                        mass_kg=0.001, size_m=[0.05, 0.03, 0.001], volume_l=0.005, relation="part", slot="paper_path", waste_stream="recycling",
+                        waste=True)
+        C.mess_flow(w, "waste_item", 1.0, "created:clear_jam", "entity:" + eid, origin=scrap)
+        jm["waste"] = True
+        C.mess_flow(w, "waste_item", 1.0, "created:clear_jam", "entity:robot", origin=jam_item)
         m["slots"]["paper_path"]["item"] = scrap
         notes.append("the sheet tore: a scrap is still in the rollers")
         C.log(w, "jam_torn", target=eid, scrap=scrap)
@@ -678,7 +698,7 @@ def bleed_radiator(ctx):
     ok, notes = C.use_tool(ctx, tool, "bleed")
     m = w.mut(eid)
     hot = float(rec.get("temperature_c", 21.0)) >= 40.0 or heating_on(w, eid)
-    towel = _towel_at(w, eid)
+    towel = _towel_at(w, eid, ctx)
     air = float(rec.get("_air_frac", 0.0))
     close_on = ctx.args.get("close_on") or "water"
     seconds = float(ctx.args.get("seconds") or 0.0)
@@ -710,10 +730,11 @@ def bleed_radiator(ctx):
     if towel:
         tm = w.mut(towel)
         tm["wetness"] = 1.0 if water_out > 0.2 else max(float(tm.get("wetness", 0.0)), 0.6)
+        C.mess_flow(w, "liquid:spill", min(water_out, absorbed), "created:" + eid, "entity:" + towel, origin="water:" + eid)
     if water_out > absorbed + 1e-9:
         spilled = water_out - absorbed
         # what the towel does not catch lands under the valve: a kernel spill (the puddle, the robot's `spills`)
-        ctx.spill(spilled, "water", source=eid, cause="bleed")
+        C.log_spill(w, "water", spilled, eid, ctx.spill(spilled, "water", source=eid, cause="bleed"))
         # realistic: a look at the floor (a few drops / a puddle), not a volume that would spell out the air fraction
         notes.append(("water dripped on the floor" if spilled < 0.3 else "a puddle of water ran onto the floor") if ctx.realistic else
                      "water dripped on the floor ({:.2f} l)".format(spilled))

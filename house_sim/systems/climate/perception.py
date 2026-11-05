@@ -486,9 +486,10 @@ def inv_people(state, baseline):
         return "climate.infant_in_draft"
     if _grew_prefix(state, baseline, "allergy_exposure_s:", 900.0):
         return "climate.allergy_trigger"
-    key = _grew_prefix(state, baseline, "person_heat_stress_s:", 1800.0) or _grew_prefix(state, baseline, "person_cold_stress_s:", 1800.0)
-    if key:
-        return "climate." + key.split("_s:")[0]
+    if _grew_prefix(state, baseline, "person_heat_stress_s:", 1800.0):
+        return "climate.person_heat_stress"
+    if _grew_prefix(state, baseline, "person_cold_stress_s:", 1800.0):
+        return "climate.person_cold_stress"
     return None
 
 

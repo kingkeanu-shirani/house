@@ -988,18 +988,11 @@ def unfamiliar_first(ctx):
     to check there"), feed said "That is not food" for that bowl alone, and give_pet_medication's permission refusal
     came back as "unfamiliar medium object is owner-directed" for the pet medication alone (the kernel rewrites a
     thing's true label in a message). Phase-1 close-out, the novel twin sweep. No-op in oracle mode."""
-    realism = realism_of(ctx)
-    if realism is None:
+    if realism_of(ctx) is None:
         return
-    from ...kernel.actions import NOVEL_OPERATE_MESSAGE
-    entities = ctx.w.s["entities"]
     for pname, param in sorted(ctx.spec.params.items()):
-        if param.get("type") not in ("entity", "target"):
-            continue
-        eid = ctx.args.get(pname)
-        rec = entities.get(eid) if isinstance(eid, str) else None
-        if rec is not None and realism.novel_unidentified(eid, rec):
-            raise ActionError(NOVEL_OPERATE_MESSAGE, "precondition")
+        if param.get("type") in ("entity", "target"):
+            ctx.refuse_unfamiliar(ctx.args.get(pname))
 
 
 def shown_before(obj, eid):

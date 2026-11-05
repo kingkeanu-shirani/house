@@ -46,8 +46,10 @@ Causes (6.2): the fabric system and the device tickers run each textile's and de
 cause (model.caused): a textile the robot hung, heaped or left by a heater is the robot's when it creases, sours,
 drips or scorches; a washer or dryer the robot started is the cause of what its cycle does.
 """
+import sys
+
 from ...kernel.plugins import ACTIONS, MESS_KINDS, after, before, derived_field, hook, settings_skill
-from ...kernel.predicates import MISSING
+from ...kernel.predicates import MISSING, root_room
 from . import model as M
 from . import physical as P
 
@@ -82,10 +84,17 @@ def _held_l(state, eid):
 
 
 def spill_kind(rec):
-    """(mess kind, origin) of the liquid a spill entity holds: its own stricter kind when it records one
-    (plumbing's hidden _mess_kind), else by the liquid's class -- chemicals, grease, dirty or mop water --, else a
-    plain spill; the origin is the container it came out of when the spill records one (contents_from)."""
-    kind = rec.get("_mess_kind")
+    """(mess kind, origin) of the liquid a spill entity holds; the origin is the container it came out of when the
+    spill records one (contents_from). The kind is the one the liquid measures give the spill (plumbing_liquids'
+    hardening, when that domain is loaded: a floor parcel and the part a towel soaked up must meet in one kind's
+    balance, or the removal from the floor is unaccounted); without it, its own stricter kind when it records one
+    (hidden _mess_kind), else by the liquid's class -- chemicals, grease, dirty or mop water --, else a plain spill."""
+    measures = sys.modules.get(__package__.rsplit(".", 1)[0] + ".plumbing_liquids.hardening")
+    kind = None
+    if measures is not None:
+        kind = measures.stricter(measures.liquid_kind(rec.get("liquid")), rec.get("_mess_kind"))
+    elif rec.get("_mess_kind") in LIQUID_KINDS:
+        kind = rec["_mess_kind"]
     if kind not in LIQUID_KINDS:
         liquid = str(rec.get("liquid") or "water").lower()
         if rec.get("hazardous_waste") or any(w in liquid for w in ("bleach", "ammonia", "chemical", "solvent",
@@ -469,6 +478,55 @@ def zipper_hidden_steps(state, eid):
         return []
     hidden = bool(rec.get("zipper_hidden"))
     return [(not hidden, _step(eid, "fluff", zipper="visible" if hidden else "hidden"))]
+
+
+def _ironing_station(state, eid):
+    """(plugged-in iron, board) in the room eid is in (the first of each by id), or None: what the iron-too-hot probe
+    needs (the iron_garment skill does not plug an iron in)."""
+    room = root_room(state, eid)
+    iron = board = None
+    for other in sorted(_entities(state)):
+        rec = _entities(state)[other]
+        if not isinstance(rec, dict) or root_room(state, other) != room:
+            continue
+        if iron is None and rec.get("category") == "iron" and rec.get("plugged_in"):
+            iron = other
+        elif board is None and rec.get("ironing_surface"):
+            board = other
+    return (iron, board) if iron and board else None
+
+
+def _iron_too_hot(state, eid, kind):
+    """The textile ironed on the hottest setting (the skill's temp "max"), where that does `kind` of damage: a
+    thermoplastic fibre melts, the others scorch, when their limit is below the dial's top (care.IRON_TEMPS["max"]);
+    a label that forbids ironing is another damage."""
+    from .care import IRON_TEMPS
+    rec = _textile(state, eid)
+    station = _ironing_station(state, eid) if rec is not None and rec.get("location") != "robot" else None
+    if station is None or kind in (rec.get("damage") or {}):
+        return []
+    fab, care = M.fabric(rec), M.care(rec)
+    if care.get("iron") == "none" or not fab.get("iron_c"):
+        return []
+    melt_c = P.melt_point(state, eid)
+    if kind != ("melted" if melt_c is not None else "scorched"):
+        return []
+    if IRON_TEMPS["max"] <= (melt_c if melt_c is not None else float(fab.get("scorch_c", 200))):
+        return []
+    return [(1.0, {"skill": "textiles_laundry.iron_garment", "garment": eid, "iron": station[0], "board": station[1],
+                   "temp": "max"})]
+
+
+@settings_skill("damage.scorched")
+def scorched_steps(state, eid):
+    """This domain's damaging verb for B14 (10.3, `damaged:<e>.<f>`): a fibre that scorches ironed on the top setting."""
+    return _iron_too_hot(state, eid, "scorched")
+
+
+@settings_skill("damage.melted")
+def melted_steps(state, eid):
+    """This domain's damaging verb for B14: a thermoplastic fibre ironed on the top setting."""
+    return _iron_too_hot(state, eid, "melted")
 
 
 # ----------------------------------------------------------------------

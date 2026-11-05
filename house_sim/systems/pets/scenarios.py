@@ -874,9 +874,16 @@ def h_feeding(ctx, pets, room="kitchen", branch="due", separate=False, with_scal
               rx_pet=None, wet_for=None, treats=False):
     """Bowls, food sources and the log for each pet. branch: due (meal not given yet) | fed (a resident already fed it
     this slot; the log says so). separate=true puts the cat's dish on the counter... no: on a raised shelf (1.4 m), out of a dog's
-    reach, and the dog's bowl on its mat. rx_pet gets a prescription diet bag. wet_for = pet id served wet food (a can)."""
+    reach, and the dog's bowl on its mat. rx_pet gets a prescription diet bag. wet_for = pet id served wet food (a can).
+    rx_pet and wet_for may be "random" (one of pets, seeded: ctx.sample_roles). Pets are set up in ctx.placer.order order
+    (seeded in schema 4, as given otherwise), so which bag stands first on the shelf says nothing about whose it is."""
     rid = _need_room(ctx, room, ("kitchen", "dining_room", "living_room"))
     counter = _surface_or_new(ctx, rid, "counter")
+    if rx_pet == "random":
+        rx_pet = ctx.sample_roles("random", list(pets), k=1, name="pets.feeding rx_pet")[0]
+    if wet_for == "random":
+        wet_for = ctx.sample_roles("random", list(pets), k=1, name="pets.feeding wet_for")[0]
+    pets = ctx.placer.order(list(pets))
     out = {"feed_room": rid, "counter": counter}
     # what goes onto the cupboard's bottom shelf: one bag per food kind (+ a can for wet food)
     stored = []
@@ -1072,13 +1079,10 @@ def h_litter(ctx, pet=None, room=None, clumps=4, feces=1, buried=2, abnormal=Non
     else:
         put = (lambda t, **p: ctx.placer.on(surface, t, **p))
     out["scoop"] = put("litter_scoop") or _place_floor(ctx, rid, "litter_scoop", near=rec["pos"])
-    out["litter_bag"] = put("cat_litter_bag", litter_kind=kind, label="bag of {}".format(kind.replace("_", " ")), label_text=_litter_text(kind)) or \
-        _place_floor(ctx, rid, "cat_litter_bag", litter_kind=kind, label="bag of {}".format(kind.replace("_", " ")), label_text=_litter_text(kind))
-    if spare_kind:
-        out["other_litter"] = put("cat_litter_bag", litter_kind=spare_kind, label="bag of {}".format(spare_kind.replace("_", " ")),
-                                  label_text=_litter_text(spare_kind)) or \
-            _place_floor(ctx, rid, "cat_litter_bag", litter_kind=spare_kind, label="bag of {}".format(spare_kind.replace("_", " ")),
-                         label_text=_litter_text(spare_kind))
+    # the bags look alike until read: in ctx.placer.order order (seeded in schema 4), so the first is not the right one
+    for role, what in ctx.placer.order([("litter_bag", kind)] + ([("other_litter", spare_kind)] if spare_kind else [])):
+        props = dict(litter_kind=what, label="bag of {}".format(what.replace("_", " ")), label_text=_litter_text(what))
+        out[role] = put("cat_litter_bag", **props) or _place_floor(ctx, rid, "cat_litter_bag", **props)
     if roll:
         out["roll"] = put("poop_bag_roll") or _place_floor(ctx, rid, "poop_bag_roll")
     if trash_bag:
@@ -1257,7 +1261,13 @@ def _tidy_food(ctx, keep=()):
 
 
 @scenario_helper("pets.hazards")
-def h_hazards(ctx, pet, items=("chocolate",), room="kitchen", on=None, spos_edge=True, cabinet=True, high_shelf=True, tidy=True):
+def h_hazards(ctx, pet, items=("chocolate",), room="kitchen", on=None, spos_edge=True, cabinet=True, high_shelf=True, tidy=True,
+              pool=None, k=None):
+    """items: the hazard kinds (HAZARD_ITEMS), or "random" / a sample binding: a seeded subset of pool (default every kind;
+    size k), through ctx.sample_roles. Placed in ctx.placer.order order."""
+    if items == "random" or (pool is not None and items is not None):
+        items = ctx.sample_roles(items, list(pool or sorted(HAZARD_ITEMS)), k=k, name="pets.hazards items")
+    items = ctx.placer.order(list(items))
     if tidy:
         _tidy_food(ctx)
     rid = _need_room(ctx, room, ("kitchen", "living_room"))
@@ -1326,9 +1336,8 @@ def h_aquarium(ctx, room=None, double_fed=False, light_on=True, desired_light=No
     shelf = _surface_in(ctx, rid, ("side_table", "tv_stand", "desk", "coffee_table", "table")) or _surface_or_new(ctx, rid)
     if shelf == stand:
         shelf = _surface_or_new(ctx, rid)
-    out["flakes"] = _on(ctx, shelf, "fish_food")
-    if bottom_feeders:
-        out["wafers"] = _on(ctx, shelf, "sinking_pellets")
+    for role, type_name in ctx.placer.order([("flakes", "fish_food")] + ([("wafers", "sinking_pellets")] if bottom_feeders else [])):
+        out[role] = _on(ctx, shelf, type_name)      # the two tubs look alike until read: ctx.placer.order (WP9)
     out["conditioner"] = ctx.placer.on(shelf, "water_conditioner") or _place_floor(ctx, rid, "water_conditioner")
     out["net"] = ctx.placer.on(shelf, "fish_net") or _place_floor(ctx, rid, "fish_net")
     out["siphon"] = _place_floor(ctx, rid, "gravel_siphon")
@@ -1416,8 +1425,8 @@ def h_bird(ctx, room=None, hulls=True, fan_on=False, window_open=False, liner_so
     shelf = _surface_or_new(ctx, rid)
     out = {"cage": cage, "bird": pid, "seed_dish": seed, "water_dish": water, "tray": tray, "old_liner": liner, "bird_room": rid}
     out["seed_bag"] = _on(ctx, shelf, "bird_seed")
-    out["new_liner"] = _on(ctx, shelf, "cage_liner")
-    out["scented_liner"] = _on(ctx, shelf, "scented_cage_liner")
+    for role, type_name in ctx.placer.order([("new_liner", "cage_liner"), ("scented_liner", "scented_cage_liner")]):
+        out[role] = _on(ctx, shelf, type_name)      # the two sheets look alike until sniffed: ctx.placer.order (WP9)
     out["trash"] = stand_in(ctx, "trash_can", _need_room(ctx, "kitchen", (rid,)))
     if fan_on:
         out["fan"] = stand_in(ctx, "ceiling_fan", rid, on=True)
@@ -1443,9 +1452,10 @@ def h_small(ctx, room=None, species="hamster", soiled=0.8, stash_g=12.0, kind="p
     rec["_stash_g"] = stash_g
     shelf = _surface_or_new(ctx, rid)
     out = {"cage": cage, "animal": pid, "small_room": rid}
-    out["paper_bedding"] = _on(ctx, shelf, "bedding_bag")
-    out["cedar_bedding"] = _on(ctx, shelf, "bedding_bag", label="cedar shavings (aromatic)", bedding_kind="cedar",
-                               label_text="Cedar shavings - natural aromatic wood bedding. 56 l expanded.")
+    cedar = dict(label="cedar shavings (aromatic)", bedding_kind="cedar",
+                 label_text="Cedar shavings - natural aromatic wood bedding. 56 l expanded.")
+    for role, props in ctx.placer.order([("paper_bedding", {}), ("cedar_bedding", cedar)]):
+        out[role] = _on(ctx, shelf, "bedding_bag", **props)     # the bags look alike until read: ctx.placer.order (WP9)
     out["carrier"] = _place_floor(ctx, rid, "pet_carrier", surfaces=False, label="small animal carrier", crate_size="small")
     out["trash_bag"] = stand_in(ctx, "trash_bag", rid)
     out["outdoor_trash"] = stand_in(ctx, "outdoor_trash", _need_room(ctx, None, ("garage", "driveway", "backyard", "kitchen")))

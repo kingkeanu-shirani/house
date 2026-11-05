@@ -194,8 +194,65 @@ def leg_supports(w, eid):
     return out
 
 
+def fastener_status(f):
+    """What a fastener's state comes to for the house ledger: out, a stripped hole, a cracked part, a foot's extension,
+    loose or snug. A torque within the same word is no change."""
+    if f.get("removed"):
+        return "removed"
+    if f.get("stripped_hole"):
+        return "stripped"
+    if f.get("cracked"):
+        return "cracked"
+    if f.get("kind") == "leveling_foot":
+        return "foot:{:.1f}".format(float(f.get("extension_mm", 0.0)))
+    return "loose" if loose(f) else "snug"
+
+
+def fastener_changes(rec, base):
+    """Ids of rec's fasteners whose status differs from the baseline record's (those the baseline had)."""
+    before = (base or {}).get("_fasteners") or {}
+    return sorted(fid for fid, f in (rec.get("_fasteners") or {}).items() if fid in before and fastener_status(before[fid]) != fastener_status(f))
+
+
+def _write_delta(w, eid, rec):
+    """`fastener_delta` (public, hidden from the robot's perception, class setting in watch/tools_vehicles.json): the
+    fasteners of eid that are no longer as they were at the episode's baseline, absent when none. The truth of a
+    fastener lives in the hidden `_fasteners`, which the house ledger never reads (6.3: fields starting with _ are not
+    watched), so a screw loosened on a stranger's cabinet or a table's leg bolts backed out would otherwise pass as
+    untouched. Written only once the episode has its baseline; put back as it was, the field goes."""
+    ref = getattr(w, "_env_ref", None)
+    env = ref() if ref is not None else None
+    baseline = getattr(env, "_baseline", None)
+    if not baseline:
+        return
+    base = (baseline.get("entities") or {}).get(eid)
+    if base is None:
+        return
+    changed = fastener_changes(rec, base)
+    if changed != (rec.get("fastener_delta") or []):
+        m = w.mut(eid)
+        if changed:
+            m["fastener_delta"] = changed
+        else:
+            m.pop("fastener_delta", None)
+
+
 def refresh(w, eid):
     """Recompute handle play/alignment, racking, rocking, wobble and tilt of an entity."""
+    updates = derived(w, eid)
+    rec = w.ent(eid)
+    if any(rec.get(k) != v for k, v in updates.items()):
+        m = w.mut(eid)
+        for k, v in updates.items():
+            m[k] = copy.deepcopy(v)
+    if rec.get("_fasteners"):
+        _write_delta(w, eid, w.ent(eid))
+    return updates
+
+
+def derived(w, eid):
+    """The derived hidden fields of an entity from its fasteners, pads and floor (a read: `w` may be a common.StateView):
+    {_handle_play_mm, _rack_mm, _door_sag_mm, _rock_mm, _tilt_deg, _short_leg, _wobble_mm} as they apply."""
     rec = w.ent(eid)
     fasteners = rec.get("_fasteners") or {}
     updates = {}
@@ -239,10 +296,6 @@ def refresh(w, eid):
         rock = 0.0
     if fasteners or supports:
         updates["_wobble_mm"] = C.rnd(rock + rack, 2)
-    if any(rec.get(k) != v for k, v in updates.items()):
-        m = w.mut(eid)
-        for k, v in updates.items():
-            m[k] = copy.deepcopy(v)
     return updates
 
 
@@ -356,21 +409,34 @@ def _choose_tool(ctx, f, tool_id):
     w = ctx.w
     if tool_id:
         require(ctx.holding(tool_id), "Hold the tool first")
+        C.identify_first(ctx, tool_id)
+        C.identify_fitted(ctx, tool_id)
         return tool_id
     if f.get("hand_ok") and f["drive"] in ("hand", "knob"):
         from ..core import hands_free_count
         require(hands_free_count(w) >= 1, "Free a hand to turn it", "capability")
         return None
     best, rank = None, 9
+    pending = None
+    known = []
     for eid in C.held(ctx):
+        if C.must_identify(ctx, eid):
+            pending = pending or eid    # whichever member it is, its fit is not to be told by trying: identify it first
+            continue
+        known.append(eid)
         fit, _ = tool_fit(w, eid, f)
         r = {"exact": 0, "close": 1, "poor": 2, "slip": 3}.get(fit, 9)
         if r < rank:
             best, rank = eid, r
     if best is None and f.get("hand_ok"):
         return None
-    if best is None and C.held(ctx):
-        first = C.held(ctx)[0]
+    if best is None and pending is not None:
+        ctx.refuse_unidentified(pending)
+    if best is not None:
+        C.identify_fitted(ctx, best)
+    if best is None and known:
+        first = known[0]
+        C.identify_fitted(ctx, first)
         _, why = tool_fit(w, first, f)
         if ctx.realistic:
             # name the tool by id (its label could resolve a look-alike) and say what the hand feels, not the head's
@@ -485,7 +551,7 @@ def turn(ctx, eid, fid, tighten, tool_id, torque=None, turns=None, axial="firm",
     finish = rec.get("finish") or f.get("finish")
     if tool and trec.get("tool_category") in ("pliers",) and finish in ("chrome", "brass", "polished", "nickel") and not any(
             w.ent(h).get("absorbent") or w.ent(h).get("tool_kind") in ("cotton_rag", "microfiber_cloth") or w.ent(h).get("category") == "rag"
-            for h in C.held(ctx) if h != tool):
+            for h in C.known_held(w, ctx) if h != tool):
         mk = w.mut(eid)
         mk["finish_marks"] = int(mk.get("finish_marks", 0)) + 1
         mk["tooth_marks"] = True
@@ -683,7 +749,7 @@ def _reinsert(ctx, eid, fid, st, screw, notes):
     w = ctx.w
     rec = w.ent(eid)
     source = None
-    for holder in C.held(ctx) + sorted(w.children(eid)) + [c for c in w.children(w.robot["room"])]:
+    for holder in C.known_held(w, ctx) + sorted(w.children(eid)) + [c for c in w.children(w.robot["room"])]:
         counts = (w.s["entities"].get(holder) or {}).get("hardware_counts") or {}
         if counts.get(screw, 0) > 0:
             source = holder
@@ -738,7 +804,9 @@ def _remove(ctx, eid, fid, into):
         counts[kind] = int(counts.get(kind, 0)) + 1
         return "into " + into
     room = w.robot["room"]
-    lost = w.spawn("fastener_lot", room, label="dropped screw", count=1, appearance="screw", _kind=kind, lost=True,
+    # choking_hazard: a hazardous creation (VERIFY_HARDENING 6.4; location_classes.json hazard_created): left on the floor
+    # it fails house.created_hazard unless a spec's envelope.create names where it may go
+    lost = w.spawn("fastener_lot", room, label="dropped screw", count=1, appearance="screw", _kind=kind, lost=True, tags=["choking_hazard"],
                    pos=list(geometry.free_floor_cell(w.s, room, near=C.robot_cell(w)) or C.robot_cell(w)))
     C.log(w, "hardware_dropped", item=lost, source=eid, fastener=fid)
     w.stat("tv_lost_hardware")
@@ -864,12 +932,16 @@ def inspect_fasteners(w, eid, record, details, ctx):
         if (record.get("handle") or {}).get("cracked"):
             details["handle_condition"] = "knob cracked"
     if isinstance(record.get("_tilt_deg"), list):
-        level = next((h for h in w.held_items() if w.ent(h).get("tool_kind") in ("spirit_level", "torpedo_level", "digital_level")), None)
+        level = next((h for h in C.known_held(w, ctx) if w.ent(h).get("tool_kind") in ("spirit_level", "torpedo_level", "digital_level")), None)
         if level and realistic:
             # the held level's own resolution (+-0.05 deg, read to 0.1); the same state reads the same
             details["level_reading_deg"] = [C.reading(ctx, float(v), 0.05, 0.1, eid, "tilt", axis, C.rnd(float(v), 3))
                                             for axis, v in zip(("x", "y"), record["_tilt_deg"][:2])]
             C.mark_perceived(ctx, details, "level_reading_deg")
+            # a structured reading for the evidence index (VERIFY_HARDENING 15.2)
+            details["readings"] = [{"subject": eid, "quantity": "angle", "axis": axis, "value": v, "unit": "deg"}
+                                   for axis, v in zip(("x", "y"), details["level_reading_deg"])]
+            C.mark_perceived(ctx, details, "readings")
         elif level:
             details["level_reading_deg"] = [round(float(v), 1) for v in record["_tilt_deg"][:2]]
         else:

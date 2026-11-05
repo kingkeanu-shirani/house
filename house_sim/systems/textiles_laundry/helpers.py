@@ -512,6 +512,9 @@ def linens(ctx, at, size="queen", items=None, folded=True, relation=None, set_id
     config = ctx.config
     p = ctx.placer
     fitted_dims, flat_dims, duvet_dims = SIZE_DIMS[size]
+    if items == "random":
+        # a seeded subset of what a linen cupboard holds (WP9's ctx.sample_roles; a sample binding arrives as a list)
+        items = ctx.sample_roles(items, ["fitted", "flat", "cover", "insert", "case", "protector"], name="linens items")
     wanted = items or ["fitted", "flat", "case", "case"]
     out = {}
     counters = {}
@@ -578,6 +581,9 @@ def sock_pile(ctx, container, pairs=4, orphans=1, owners=None, scramble=True):
     config = ctx.config
     p = ctx.placer
     rng = ctx.rng
+    if owners == "random":
+        # whose socks these are drawn per seed (WP9's ctx.sample_roles; a sample binding arrives as a list)
+        owners = ctx.sample_roles(owners, sorted(config.get("people", {})), name="sock_pile owners")
     owners = owners or sorted(config.get("people", {}))[:2] or [None]
     socks, pair_list, orphan_list = [], [], []
     designs = list(LOOKALIKES)

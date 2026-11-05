@@ -198,10 +198,10 @@ def pad_system(w, dt, tick):
             pad = w.ent(item)
             weak = _weak_pad(pad)
             if weak and t - float(pad.get("installed_at", t)) > (6 * 3600 if not pad.get("temporary") else 2 * 86400):
-                m = w.mut(eid)
+                m = w.mut(eid, cause=[eid, item])
                 m["slots"][slot]["item"] = None
                 room = rec.get("location")
-                pm = w.mut(item)
+                pm = w.mut(item, cause=[eid, item])
                 pm.update(location=room if room in w.s["rooms"] else rec.get("location"), relation="on", detached=True)
                 pm.pop("slot", None)
                 if room in w.s["rooms"]:
@@ -217,11 +217,13 @@ def pad_system(w, dt, tick):
 SEG_SLOT = re.compile(r"^seal_(\w+)$")
 
 
-def refresh_latch(w, eid):
+def latch_view(w, eid):
+    """(latch_ok, latch_issue, hidden gap record) of an opening with a seal record, from its seal, ice and strips (a read:
+    `w` may be a common.StateView); None without one."""
     rec = w.ent(eid)
     seal = rec.get("_seal")
     if not isinstance(seal, dict):
-        return
+        return None
     clearance = float(seal.get("clearance_mm", 3.0))
     ok = float(seal.get("threshold_ice_mm", 0.0)) < 3.0
     reason = None if ok else "ice at the threshold"
@@ -239,6 +241,15 @@ def refresh_latch(w, eid):
                 # the millimetres stay in the hidden `_latch` record for the oracle message
                 reason = "weatherstrip too thick for the gap"
                 gap = {"compressed_mm": C.rnd(squeezed, 1), "gap_mm": C.rnd(clearance, 1)}
+    return ok, reason, gap
+
+
+def refresh_latch(w, eid):
+    view = latch_view(w, eid)
+    if view is None:
+        return
+    ok, reason, gap = view
+    rec = w.ent(eid)
     if rec.get("latch_ok") != ok or rec.get("latch_issue") != reason or rec.get("_latch") != gap:
         m = w.mut(eid)
         m["latch_ok"] = ok
@@ -377,7 +388,7 @@ def seal_system(w, dt, tick):
             continue
         for name, seg in sorted((rec["_seal"].get("segments") or {}).items()):
             if seg.get("peel_at") is not None and t >= float(seg["peel_at"]):
-                m = w.mut(eid)
+                m = w.mut(eid, cause=eid)
                 s = m["_seal"]["segments"][name]
                 s["state"] = "peeling"
                 s.pop("peel_at", None)
@@ -477,13 +488,13 @@ def _filter_out_guard(ctx):
             w.stat("flood")
             # the water itself is a kernel spill: it runs down into the cabinet and out onto the floor (a puddle the
             # cleaning domain mops up; the spill counts in `spills` for the robot)
-            ctx.spill(SUMP_SPRAY_L, "water", source=host)
+            C.log_spill(w, "water", SUMP_SPRAY_L, host, ctx.spill(SUMP_SPRAY_L, "water", source=host))
             C.log(w, "housing_opened_under_pressure", seen=host, host=host)
             ctx.note("Water sprayed out of the pressurized housing")
         else:
             m = w.mut(host)
             m["leaked_l"] = C.rnd(float(m.get("leaked_l", 0.0)) + 0.15, 2)
-            ctx.spill(HEAD_DRIP_L, "water", source=host)
+            C.log_spill(w, "water", HEAD_DRIP_L, host, ctx.spill(HEAD_DRIP_L, "water", source=host))
             ctx.note("A little water dripped from the filter head")
 
 
@@ -588,8 +599,11 @@ def water_filter_system(w, dt, tick):
         pressurized = _pressurized(w, host)
         if pressurized and not filter_locked(w, host):
             rate = 0.5 if rec.get("housing") != "sump" else 2.0
-            m = w.mut(host)
+            causes = _filter_causes(w, host, item)
+            m = w.mut(host, cause=causes)
             before = float(m.get("leaked_l", 0.0))
+            C.count_water(w, rate * dt / 60.0)
+            C.log_spill(w, "water", rate * dt / 60.0, host, room=w.root_room(host), cause=causes)
             m["leaked_l"] = C.rnd(before + rate * dt / 60.0, 3)
             m["wetness"] = 1.0
             if before < 1.0 <= m["leaked_l"]:
@@ -606,18 +620,21 @@ def water_filter_system(w, dt, tick):
         if not (orec.get("on") or orec.get("water_running")):
             continue
         flow = float(orec.get("flow_lpm", rec.get("flow_lpm", 1.9))) * dt / 60.0
-        fm = w.mut(item)
+        causes = _filter_causes(w, host, item) + [outlet]
+        fm = w.mut(item, cause=causes)
         fm["flushed_l"] = C.rnd(float(fm.get("flushed_l", 0.0)) + flow, 3)
         fm["used_l"] = C.rnd(float(fm.get("used_l", 0.0)) + flow, 3)
-        hm = w.mut(host)
+        hm = w.mut(host, cause=causes)
         hm["water_quality"] = "clear" if fm["flushed_l"] >= float(fm.get("flush_l", 15.0)) else "fines"
         utilities = w.sec("utilities")
         utilities["water_l"] = round(float(utilities.get("water_l", 1e5)) - flow, 3)
+        if not orec.get("plumb") and not isinstance(orec.get("plumb_state"), dict):
+            C.count_water(w, flow)      # a plumbing faucet books its own draw
         dest = _flush_target(w, outlet)
         if dest == "drain":
             continue
         if dest:
-            dm = w.mut(dest)
+            dm = w.mut(dest, cause=causes)
             cap = float(dm.get("capacity_l", 1.0))
             have = float(dm.get("liquid_l", 0.0))
             room_left = max(0.0, cap - have)
@@ -629,8 +646,9 @@ def water_filter_system(w, dt, tick):
         else:
             overflow = flow
         if overflow > 1e-6:
-            om = w.mut(outlet)
+            om = w.mut(outlet, cause=causes)
             om["spilled_l"] = C.rnd(float(om.get("spilled_l", 0.0)) + overflow, 3)
+            C.log_spill(w, "water", overflow, outlet, room=w.root_room(outlet), cause=causes)
             if om["spilled_l"] >= 0.2 and om["spilled_l"] - overflow < 0.2:
                 # the robot's when it ran the flush or set up what catches it (review M9)
                 C.consequence(w, "flush_spill:" + outlet, ("spills",),
@@ -763,14 +781,14 @@ def air_filter_system(w, dt, tick):
             if not info.get("fit"):
                 continue
             if not info.get("item"):
-                m = w.mut(host)
+                m = w.mut(host, cause=host)
                 m["ran_filterless_s"] = C.rnd(float(m.get("ran_filterless_s", 0.0)) + dt, 1)
                 if not _climate_owned(rec):
                     m["duct_dust"] = C.rnd(min(1.0, float(m.get("duct_dust", 0.0)) + dt / 36000.0), 4)
             else:
                 part = ents.get(info["item"]) or {}
                 if float(part.get("bypass_gap_mm", 0.0)) > 6.0 or part.get("reversed"):
-                    m = w.mut(host)
+                    m = w.mut(host, cause=[host, info["item"]])
                     m["bypass_s"] = C.rnd(float(m.get("bypass_s", 0.0)) + dt, 1)
 
 

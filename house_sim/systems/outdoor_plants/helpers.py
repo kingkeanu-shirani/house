@@ -64,7 +64,9 @@ def _rwc_value(ctx, value):
 # plants in pots
 
 @scenario_helper("outdoor_plants.houseplants")
-def houseplants(ctx, room="living_room", plants=None, clear_existing=True, window=True):
+def houseplants(ctx, room="living_room", plants=None, clear_existing=True, window=True, needs_water=None):
+    """needs_water: which plants (indices into plants) start dry, the others moist, overriding their rwc: a list, a sample
+    binding or "random" (ctx.sample_roles, VERIFY_HARDENING 9.2); None: each plant's own rwc."""
     rid = _room(ctx, room)
     p = ctx.placer
     cfg = ctx.config
@@ -77,7 +79,12 @@ def houseplants(ctx, room="living_room", plants=None, clear_existing=True, windo
     windows = [e for e in sorted(cfg["entities"]) if cfg["entities"][e].get("category") == "window" and cfg["entities"][e].get("location") == rid]
     near = cfg["entities"][windows[0]]["pos"] if windows and window else None
     surfaces_used = []
-    for i, spec in enumerate(plants or [{"species": "pothos"}]):
+    plants = list(plants or [{"species": "pothos"}])
+    if needs_water is not None:
+        live = [i for i, spec in enumerate(plants) if spec.get("species") != "artificial"]
+        dry = set(ctx.sample_roles(needs_water, live, name="houseplants needs_water"))
+        plants = [dict(spec, rwc="dry" if i in dry else "moist") if i in live else spec for i, spec in enumerate(plants)]
+    for i, spec in enumerate(plants):
         spec = dict(spec)
         species = spec.get("species")
         if isinstance(species, list):
@@ -350,6 +357,8 @@ def lawn(ctx, room="backyard", height_mm=None, moisture=None, leaves=None, leaf_
             i = ctx.rng.choice(lawn_idx)
             issue_list.append({"kind": ctx.rng.choice(kinds), "cell": [i % int(g["cols"]), i // int(g["cols"])]})
     rec["_issues"] = issue_list
+    if issue_list:
+        rec["_issue_kinds"] = sorted({it["kind"] for it in issue_list})    # what a claim about the lawn is judged by (truth_outdoor_plants.json)
     out["expected_issues"] = sorted(set("{}@{},{}".format(it["kind"], it["cell"][0], it["cell"][1]) for it in issue_list))
     for it in issue_list:
         i = L.idx(g, it["cell"][0], it["cell"][1])
@@ -498,7 +507,7 @@ def patio_set(ctx, room=None, chairs=2, cushions="out", wet_chairs=False, damp_c
                      settings={"tilt_deg": int(u.get("tilt_deg", 0)), "lock": "engaged"})
         out["umbrella"] = uid
         out["umbrella_base"] = base
-    for cv in covers or []:
+    for cv in p.order(covers or []):
         cv = dict(cv)
         on = cv.pop("on", None)
         target = {"table": tbl, "chair": out["chairs"][0] if out["chairs"] else None}.get(on, on)
@@ -595,7 +604,7 @@ def fire_pit(ctx, room="backyard", hours_since=48.0, ember_c=None, surface_c=Non
     if plastic_bin:
         out["bin"] = F.floor_place(p, rid, "generic_item", label="plastic trash bin", category="trash_bin", material="plastic", accepts_items=True, container=True,
                                   capacity_l=120.0, waste_stream="trash", accepts_any_waste=True, size_m=[0.6, 0.7, 1.0], portable=False, near=rec["pos"])
-    for tool in tools:
+    for tool in p.order(tools):
         tool = dict(tool)
         var = tool.pop("var")
         out[var] = F.floor_place(p, rid, tool.pop("type"), near=rec["pos"], **tool.get("props", {}))

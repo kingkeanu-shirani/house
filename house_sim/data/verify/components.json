@@ -1,0 +1,169 @@
+{
+ "format": "house_ai.verify.components/1",
+ "about": "VERIFY_HARDENING 22.7: which files are simulation, evaluator or harness (the change classes of tools/evidence_replay.py and the gate's G11) and which evaluator component each file belongs to. A replay cannot see a change of judgment: a change to a component makes every record that used it stale. `when`: always, or the spec features that make a record use the component (commands by class, predicate forms, spec keys).",
+ "classes": {
+  "harness": [
+   "house_sim/eval/*",
+   "tools/*",
+   "tests/*",
+   "docs/*",
+   "catalog/*",
+   "reports/*",
+   ".github/*",
+   "setup.py",
+   "setup_project.py",
+   "house_env.py",
+   "MANIFEST.in",
+   ".gitignore"
+  ],
+  "spec": [
+   "tasks/authored/*"
+  ],
+  "evaluator": [
+   "house_sim/kernel/ledger.py",
+   "house_sim/kernel/counterfactual.py",
+   "house_sim/kernel/evaluation.py",
+   "house_sim/kernel/monitor.py",
+   "house_sim/kernel/speech.py",
+   "house_sim/kernel/reports.py",
+   "house_sim/kernel/predicates.py",
+   "house_sim/tasks/perceive.py",
+   "house_sim/tasks/verify.py",
+   "house_sim/tasks/runner.py",
+   "house_sim/tasks/spec.py",
+   "house_sim/tasks/lint.py",
+   "house_sim/tasks/strength.py",
+   "house_sim/tasks/escapes.py",
+   "house_sim/tasks/seeds.py",
+   "house_sim/tasks/private.py",
+   "house_sim/tasks/checklog.py",
+   "house_sim/tasks/runcache.py",
+   "house_sim/tasks/battery/*",
+   "house_sim/data/verify/*",
+   "house_sim/data/speech/*"
+  ],
+  "simulation": [
+   "house_sim/*",
+   "tasks/*"
+  ]
+ },
+ "components": {
+  "ledger": {
+   "files": [
+    "house_sim/kernel/ledger.py",
+    "house_sim/kernel/counterfactual.py",
+    "house_sim/data/verify/watch_fields.json",
+    "house_sim/data/verify/watch/*",
+    "house_sim/data/verify/location_classes.json",
+    "house_sim/data/verify/valuables.json",
+    "house_sim/data/verify/ambient.json",
+    "house_sim/data/verify/restore.json",
+    "house_sim/data/verify/agents.json",
+    "house_sim/data/verify/mess_classes.json",
+    "house_sim/data/verify/resources.json"
+   ],
+   "when": "always"
+  },
+  "evaluation": {
+   "files": [
+    "house_sim/kernel/evaluation.py",
+    "house_sim/kernel/predicates.py"
+   ],
+   "when": "always"
+  },
+  "timing": {
+   "files": [
+    "house_sim/kernel/monitor.py"
+   ],
+   "when": {
+    "spec_keys": [
+     "timing",
+     "responses",
+     "never",
+     "deadline"
+    ]
+   }
+  },
+  "speech": {
+   "files": [
+    "house_sim/kernel/speech.py",
+    "house_sim/data/speech/*"
+   ],
+   "when": {
+    "command_classes": [
+     "COMM"
+    ],
+    "predicates": [
+     "said",
+     "key_claims"
+    ]
+   }
+  },
+  "reports": {
+   "files": [
+    "house_sim/kernel/reports.py"
+   ],
+   "when": {
+    "actions": [
+     "report",
+     "report_finding",
+     "report_status"
+    ],
+    "predicates": [
+     "reports",
+     "report"
+    ]
+   }
+  },
+  "perceive": {
+   "files": [
+    "house_sim/tasks/perceive.py",
+    "house_sim/data/verify/derivations.json"
+   ],
+   "when": "always"
+  },
+  "verify": {
+   "files": [
+    "house_sim/tasks/verify.py",
+    "house_sim/tasks/runner.py",
+    "house_sim/tasks/spec.py",
+    "house_sim/tasks/seeds.py",
+    "house_sim/tasks/private.py",
+    "house_sim/tasks/checklog.py",
+    "house_sim/tasks/runcache.py",
+    "house_sim/data/verify/budget.json",
+    "house_sim/data/verify/expected_families.json"
+   ],
+   "when": "always"
+  },
+  "lint": {
+   "files": [
+    "house_sim/tasks/lint.py",
+    "house_sim/data/verify/protect_rules.json"
+   ],
+   "when": "always"
+  },
+  "strength": {
+   "files": [
+    "house_sim/tasks/strength.py",
+    "house_sim/tasks/escapes.py",
+    "house_sim/data/verify/escapes.json"
+   ],
+   "when": "always"
+  },
+  "battery": {
+   "files": [
+    "house_sim/tasks/battery/*",
+    "house_sim/data/verify/actions.json",
+    "house_sim/data/verify/inverses.json"
+   ],
+   "when": "always"
+  },
+  "components": {
+   "files": [
+    "house_sim/data/verify/components.json"
+   ],
+   "when": "never"
+  }
+ }
+}

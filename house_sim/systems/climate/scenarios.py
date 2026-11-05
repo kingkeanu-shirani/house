@@ -709,14 +709,17 @@ def hvac_filter_job(ctx, system="furnace_ac", nominal="16x25x1", old_dirt=0.85, 
             if eid:
                 return eid
         raise SpecError("climate.hvac_filter_job: no floor space for " + type_name)
-    new = drop("hvac_filter", **furnish._filter_props(nominal, merv))
+    # placed in ctx.placer.order (schema 4: a seeded order; VERIFY_HARDENING 9.2, WP9), so which spare lies nearer the
+    # unit says nothing about which one fits
+    placed = {}
+    for role, size in p.order([("new", nominal)] + ([("wrong", wrong)] if wrong else [])):
+        placed[role] = drop("hvac_filter", **furnish._filter_props(size, merv))
+    new = placed["new"]
     if spare_reversed:
         cfg["entities"][new]["filter_spec"]["arrow"] = "away_from_blower"
     out["new_filter"] = new
     out["old_filter"] = out["filter"]
-    out["wrong_filter"] = None
-    if wrong:
-        out["wrong_filter"] = drop("hvac_filter", **furnish._filter_props(wrong, merv))
+    out["wrong_filter"] = placed.get("wrong")
     if trash_room:
         out["trash"] = _trash(ctx, _room(ctx, trash_room), fits=[cfg["entities"][new]["size_m"]])
     else:
@@ -759,29 +762,28 @@ def purifier_helper(ctx, room="master_bedroom", model="combo", dirt=0.9, indicat
         out["old_" + layer] = old[layer]
     if spares:
         box_surface = furnish._surface_in(p, rid, ("dresser", "nightstand", "desk", "table"))
-        new = []
-        for layer in layers:
-            if layer == "prefilter":
+        spare = [layer for layer in layers if layer != "prefilter"]
+        # placed in ctx.placer.order (schema 4: a seeded order; VERIFY_HARDENING 9.2, WP9): where a spare lands says
+        # nothing about its layer or about which one is the other model's
+        for layer in p.order(spare + (["wrong"] if wrong_model else [])):
+            if layer == "wrong":
+                # the other model's filter looks like this unit's own (realistic perception: the purifier_cartridge or, for a
+                # panel, the purifier_panel look-alike group) until its label is read
+                extra = {} if model == "combo" else {"looks_like": "purifier_panel"}
+                # a panel is built on the HEPA panel's type (its weight, feel and bulk), so only its print and its slightly
+                # smaller frame differ from this unit's panels: nothing but reading (or measuring) tells it apart
+                base = "purifier_filter" if model == "combo" else "purifier_hepa_filter"
+                out["wrong_filter"] = _floor_item_near(ctx, rid, base, label="AP-200 replacement filter (other model)", filter_model="AP-200",
+                                                       size_m=[0.18, 0.18, 0.22] if model == "combo" else [0.33, 0.21, 0.04],
+                                                       filter_layer="combo" if model == "combo" else "hepa",
+                                                       label_text="AP-200 3-in-1 filter - fits AP-200 purifiers only." if model == "combo" else
+                                                       "AP-200 HEPA panel - fits AP-200 purifiers only.", **extra)
                 continue
             f = p.on(box_surface, types[layer]) if box_surface else None
             if f is None:
                 f = _floor_item_near(ctx, rid, types[layer])
-            new.append(f)
             out["new_" + layer] = f
-        out["new_filters"] = new
-        if wrong_model:
-            # the other model's filter looks like this unit's own (realistic perception: the purifier_cartridge or, for a
-            # panel, the purifier_panel look-alike group) until its label is read
-            extra = {} if model == "combo" else {"looks_like": "purifier_panel"}
-            # a panel is built on the HEPA panel's type (its weight, feel and bulk), so only its print and its slightly
-            # smaller frame differ from this unit's panels: nothing but reading (or measuring) tells it apart
-            base = "purifier_filter" if model == "combo" else "purifier_hepa_filter"
-            wf = _floor_item_near(ctx, rid, base, label="AP-200 replacement filter (other model)", filter_model="AP-200",
-                              size_m=[0.18, 0.18, 0.22] if model == "combo" else [0.33, 0.21, 0.04],
-                              filter_layer="combo" if model == "combo" else "hepa",
-                              label_text="AP-200 3-in-1 filter - fits AP-200 purifiers only." if model == "combo" else
-                              "AP-200 HEPA panel - fits AP-200 purifiers only.", **extra)
-            out["wrong_filter"] = wf
+        out["new_filters"] = [out["new_" + layer] for layer in spare]
     return out
 
 
@@ -801,6 +803,9 @@ def vents_helper(ctx, closed=0, closed_rooms=None, preference_closed=None, under
     rng = ctx.rng
     only = _room(ctx, room) if room is not None else None
     pool = [r for r in regs if only is None or C.room_of(state, r) == only]
+    if closed_rooms == "random":
+        # a seeded subset of the rooms with registers (ctx.sample_roles, VERIFY_HARDENING 9.2, WP9); the bindings name them
+        closed_rooms = ctx.sample_roles("random", sorted({C.room_of(state, r) for r in pool}), name="climate.vents closed_rooms")
     if closed_rooms:
         targets = [r for r in regs if cfg["rooms"][C.room_of(state, r)]["type"] in closed_rooms or C.room_of(state, r) in closed_rooms]
     else:

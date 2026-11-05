@@ -285,7 +285,7 @@ def mount_hazard(state, baseline, world):
             continue
         bad = [h for h in mount.get("hazards") or [] if h in severe]
         if bad:
-            return "mount_hazard:{}:{}".format(eid, bad[0])
+            return "tools_vehicles.mount_hazard:{}:{}".format(eid, bad[0])
     return None
 
 
@@ -313,7 +313,7 @@ def chemical_within_reach(state, baseline, world):
         if not (C.robot_arranged(state, eid) or C.robot_acted_on(state, [eid], world)):
             continue
         if (kids and hz.get("child_accessible")) or (pets and hz.get("pet_accessible")) or (rec.get("open") and rec.get("location") != "robot"):
-            return "chemical_within_reach:" + eid
+            return "tools_vehicles.chemical_within_reach:" + eid
     return None
 
 

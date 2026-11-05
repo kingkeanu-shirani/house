@@ -177,6 +177,7 @@ def maybe_absorb(w, eid):
             fill = irec.get("fill") or {}
             add_to_pile(w, loc, "brown", float(fill.get("leaves_kg", 0.0)))
             add_to_pile(w, loc, "green", float(fill.get("clippings_kg", 0.0)))
+            C.flow(w, float(fill.get("leaves_kg", 0.0)) + float(fill.get("clippings_kg", 0.0)) + float(fill.get("branches_kg", 0.0)), ("entity", item), ("entity", loc))
             if irec.get("material") in ("plastic",):
                 add_contaminant(w, loc, "plastic", float(irec.get("mass_kg", 0.2)))
             w.mut(item)["_composted"] = True
@@ -342,7 +343,7 @@ def slow_compost(w, periods):
     dt = C.SLOW_S * periods
     days = dt / C.DAY
     ambient = C.air_temp(w)
-    for bid in C.find_types(w, ["compost_bin"]):
+    for bid in C.each_caused(w, C.find_types(w, ["compost_bin"])):
         rec = w.s["entities"][bid]
         comp = rec.get("compost") or {}
         total = float(comp.get("greens_kg", 0.0)) + float(comp.get("browns_kg", 0.0))
@@ -450,7 +451,8 @@ def inspect_compost(w, eid, record, details, ctx):
     details["contaminants_seen"] = seen
     if comp.get("kind") == "vermi":
         details["worms"] = "lively worms" if float(comp.get("worms", 1.0)) > 0.5 else "few worms"
-    probe = any(w.ent(h).get("tool_kind") == "probe_thermometer" for h in w.held_items())
+    probe = any(w.ent(h).get("tool_kind") == "probe_thermometer" and not ctx.unfamiliar(h) for h in w.held_items())
     if probe and ctx.args.get("where") == "closely":
         reading = ctx.percept_value(eid, "temperature_c", float(comp.get("temp_c", 20.0)), "measure")
         details["core_temp_c"] = int(round(reading if isinstance(reading, (int, float)) else float(comp.get("temp_c", 20.0))))
+        details["readings"] = [{"subject": eid, "quantity": "temperature", "value": details["core_temp_c"], "unit": "C", "field": "compost.temp_c"}]

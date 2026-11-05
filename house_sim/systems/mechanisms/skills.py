@@ -273,6 +273,16 @@ def close_safely(r, target, max_wait_s=900, push_latch=False):
         r.do("latch", target=target, lift=True)
 
 
+def _test_verb(r, target):
+    """A hinged door or gate is tested the way it swings from the robot's side (a test against its stop tells nothing);
+    anything else that closes is pushed."""
+    state = r.state
+    if C.kind_of(state["entities"][target]) not in ("hinged_door", "gate", "french_door", "storm_door", "double_door", "closet_hinged"):
+        return "push_handle"
+    toward = C.swing_into(state, target)
+    return "pull_handle" if toward == state["robot"]["room"] else "push_handle"
+
+
 @skill("mechanisms.lock_verified")
 def lock_verified(r, target):
     close_safely(r, target)
@@ -285,7 +295,7 @@ def lock_verified(r, target):
         r.do("turn", target=target, part="deadbolt", value="locked")
     if C.mget(r.state["entities"][target], "security_bar") == "up":
         r.do("lower", target=target, part="security_bar")
-    r.do("push_handle", target=target, test=True)
+    r.do(_test_verb(r, target), target=target, test=True)
 
 
 @skill("mechanisms.secure_gate")
@@ -303,7 +313,7 @@ def secure_gate(r, gate):
     rec = r.state["entities"][gate]
     if not rec.get("latched"):
         r.do("latch", target=gate, lift=True)
-    r.do("pull_handle", target=gate, test=True)
+    r.do(_test_verb(r, gate), target=gate, test=True)
 
 
 def _hot_sill_items(state, curtain):
@@ -555,9 +565,22 @@ def touch_path(r, device, setting, value, commit=True, scope=None):
             r.do("touch_select", target=device, item=scope or "This day only")
 
 
+def _resolve_first(r, target):
+    """Realistic perception: a look-alike member is told from its group before its controls are worked (controls.knob_turn
+    refuses an unresolved one): a look, then its label."""
+    realism = getattr(r.env, "realism", None)
+    if realism is None:
+        return
+    for verb in ("inspect", "read"):
+        if realism.unresolved(target):
+            r.do(verb, target=target)
+
+
 @skill("mechanisms.set_control")
 def set_control(r, target, setting=None, value=None, push=False, hold_s=0.0, direction=None):
     _approach(r, target)
+    if setting:
+        _resolve_first(r, target)
     args = {"target": target, "value": value}
     if setting:
         args["setting"] = setting
@@ -576,7 +599,7 @@ def inspect_report(r, target, field, value_path, test=False, to=None):
     r.do("inspect", target=target)
     if test:
         rec = r.state["entities"][target]
-        r.do("push_handle" if C.kind_of(rec) not in ("gate",) else "pull_handle", target=target, test=True)
+        r.do(_test_verb(r, target), target=target, test=True)
     value = get_path(r.state, value_path)
     args = {"target": target, "field": field, "value": value}
     if to:

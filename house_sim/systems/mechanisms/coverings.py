@@ -631,8 +631,10 @@ def refresh_sun(w, windows=None):
         rec = ents[wid]
         if rec.get("facing_deg", C.mget(rec, "facing_deg")) is None:
             continue
-        values[wid] = direct_sun(state, wid, covers=coverings_of_w(w, wid))
-        _set_direct_sun(w, wid, values[wid])
+        covers = coverings_of_w(w, wid)
+        values[wid] = direct_sun(state, wid, covers=covers)
+        with C.caused(w, wid, *covers):
+            _set_direct_sun(w, wid, values[wid])
     for g in targets:
         rec = ents[g]
         srcs = [s for s in rec.get("glare_from") or [] if s in ents]
@@ -640,7 +642,8 @@ def refresh_sun(w, windows=None):
             continue
         value = max([values[s] if s in values else direct_sun(state, s, covers=coverings_of_w(w, s)) for s in srcs] or [0.0])
         if abs(C.num(rec.get("glare")) - value) > 0.02 or "glare" not in rec:
-            w.mut(g)["glare"] = round(value, 3)
+            with C.caused(w, g, *srcs):
+                w.mut(g)["glare"] = round(value, 3)
 
 
 def direct_sun(state, wid, covers=None):

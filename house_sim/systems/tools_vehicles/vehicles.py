@@ -32,6 +32,7 @@ from . import fasteners as F
 
 P_ATM = 1.013
 COMPRESSOR_DB = 80.0     # a portable tire inflator / pancake compressor at 1 m (manufacturers list 75-85 dB(A))
+EBIKE_CHARGER_KW = 0.144 # 4 A at 36 V
 BRAKE_G = 0.4            # one firm stop per drive (TIER1_PHYSICS physics.brake default; normal stops are 0.2-0.3 g)
 CRYING_DB = 55.0         # a crying child (80 dB at 1 m) heard through a shut car body (about 25 dB of attenuation)
 
@@ -93,13 +94,22 @@ def gauge_reading(w, eid, keys, tool=None):
     return round(float(node.get("pressure_bar", 0.0)) / acc) * acc
 
 
+def pressure_message(text, eid, part, bar):
+    """A gauge's reading in realistic perception: the words and the structured reading the evidence index picks up
+    (VERIFY_HARDENING 15.2: perceive.index readings, quantity pressure)."""
+    reading = {"subject": eid, "quantity": "pressure", "value": round(float(bar), 3), "unit": "bar"}
+    if part:
+        reading["part"] = part
+    return {"result": text, "reading": reading}
+
+
 def _inflate_db(ctx):
     """Noise of an inflate (dB at 1 m): a running compressor is loud (quiet mode refuses it); a hand or floor pump is
     not (None)."""
     tool = ctx.args.get("tool")
-    rec = ctx.w.s["entities"].get(tool) if tool else None
-    if rec is None:
-        rec = next((ctx.w.ent(h) for h in ctx.w.held_items() if "inflate" in C.tool_caps(ctx.w.ent(h))), None)
+    rec = ctx.w.s["entities"].get(tool) if tool and not C.must_identify(ctx, tool) else None
+    if rec is None and not tool:
+        rec = next((ctx.w.ent(h) for h in C.known_held(ctx.w, ctx) if "inflate" in C.tool_caps(ctx.w.ent(h))), None)
     return COMPRESSOR_DB if rec is not None and rec.get("tool_kind") == "compressor" else None
 
 
@@ -228,9 +238,11 @@ def inflate(ctx):
         # a pump's dial gauge: about +-0.1 bar, read to 0.05 bar (the same state always reads the same)
         reading = max(0.0, C.reading(ctx, p, 0.07, 0.05, eid, part or "", tool, "pump_gauge", C.rnd(p, 3)))
         ctx.grant(eid, "measure", [keys[0]])
-    lo, hi = (node.get("range_bar") or [0, 99])[:2]
-    return "Pressure now {}{}".format("{:.2f} bar ({:.0f} psi) on the gauge".format(reading, C.bar_to_psi(reading)) if reading is not None else "unknown (no gauge)",
+    text = "Pressure now {}{}".format("{:.2f} bar ({:.0f} psi) on the gauge".format(reading, C.bar_to_psi(reading)) if reading is not None else "unknown (no gauge)",
                                       ": " + "; ".join(notes) if notes else "")
+    if reading is not None and ctx.realistic:
+        return pressure_message(text, eid, ctx.args.get("part"), reading)
+    return text
 
 
 @action("check_tire", params={"target": "entity", "part": "?str", "tool": "?entity"}, duration=8.0, energy=0.0, category="perception",
@@ -266,7 +278,8 @@ def check_tire(ctx):
         hours = max(1e-6, (history[-1]["t"] - history[-2]["t"]) / 3600.0)
         if drop > 0.08:
             trend = "; down {:.2f} bar in {:.0f} min: it is leaking".format(drop, hours * 60)
-    return "{:.2f} bar ({:.0f} psi){}".format(reading, C.bar_to_psi(reading), trend)
+    text = "{:.2f} bar ({:.0f} psi){}".format(reading, C.bar_to_psi(reading), trend)
+    return pressure_message(text, eid, ctx.args.get("part"), reading) if ctx.realistic else text
 
 
 @C.per_step_index("inflatables")
@@ -314,6 +327,7 @@ def leak_system(w, dt, tick):
             if leak <= 0.0 or p <= 0.0:
                 continue
             new = max(0.0, p - leak * dt / 3600.0 * max(0.2, p / max(0.3, float((node.get("range_bar") or [1, 1])[1]))))
+            w.mut(eid, cause=eid)
             target = _mut_inflation(w, eid, keys)
             target["pressure_bar"] = C.rnd(new, 4)
 
@@ -345,8 +359,10 @@ def inspect_inflation(w, eid, record, details, ctx):
         if node.get("valve_damaged"):
             item["valve"] = "{} (damaged)".format(node.get("valve"))
         if closely and node.get("_puncture") and p > 0.2:
-            node_m = _mut_inflation(w, eid, ("inflation",) if part == "" else (("wheels" if part in C.wheel_group(record, "wheels") else "tires"), part))
-            node_m["puncture_located"] = True
+            # what the robot now knows is no change to the tire: kept beside the wheel records, which the ledger compares
+            located = record.get("_punctures_located") or []
+            if (part or "ball") not in located:
+                w.mut(eid)["_punctures_located"] = sorted(set(located) | {part or "ball"})
             item["puncture"] = "air hissing at {}".format(node["_puncture"].get("location", "the tread"))
         view[part or "ball"] = item
     details[C.seen_key(ctx, "inflation")] = view
@@ -391,9 +407,10 @@ def _crush_limit(rec):
     return None
 
 
-def repack_trunk(w, trunk):
-    """Recompute stack layers for everything currently in a trunk, in loading order: items go on the
-    floor while floor area remains (92 % packing), then on top of the load."""
+def trunk_view(w, trunk):
+    """{layers, stack_top_m, protrudes, blocks_rear_view} of a trunk as its load lies now (a read: `w` may be a
+    common.StateView): stack layers for everything currently in it, in loading order: items go on the floor while floor
+    area remains (92 % packing), then on top of the load. Only an unchanged load keeps its order and its measured layers."""
     rec = w.ent(trunk)
     old = rec.get("layers") or {}
     present = _trunk_load(w, trunk)
@@ -416,13 +433,16 @@ def repack_trunk(w, trunk):
         max_layer = max(max_layer, layer)
         layers[item] = {"fp": C.rnd(fp, 4), "h_m": C.rnd(h, 3), "layer": layer, "z_m": C.rnd(z, 3)}
         top = max(top, z + h)
-    m = w.mut(trunk)
-    m["layers"] = layers
-    m["stack_top_m"] = C.rnd(top, 3)
-    m["protrudes"] = top > inner_h + 0.02
     sight = rec.get("sightline_h_m")
-    m["blocks_rear_view"] = bool(sight is not None and top > float(sight) + 1e-9)
-    return layers
+    return {"layers": layers, "stack_top_m": C.rnd(top, 3), "protrudes": top > inner_h + 0.02,
+            "blocks_rear_view": bool(sight is not None and top > float(sight) + 1e-9)}
+
+
+def repack_trunk(w, trunk):
+    """Write trunk_view onto the trunk."""
+    view = trunk_view(w, trunk)
+    w.mut(trunk).update(view)
+    return view["layers"]
 
 
 def trunk_items_above(state, eid):
@@ -571,7 +591,8 @@ def _trunk_lid(ctx, result):
 # =============================================================================================
 # mats
 
-def refresh_footwell(w, fw):
+def footwell_state(w, fw):
+    """`mat_state` of a footwell from what lies in it now (a read: `w` may be a common.StateView)."""
     rec = w.ent(fw)
     slot = (rec.get("slots") or {}).get("mat") or {}
     installed = slot.get("item")
@@ -580,8 +601,12 @@ def refresh_footwell(w, fw):
     retained = bool(installed) and w.ent(installed).get("position") == rec.get("position")
     stacked = len(mats) > 1
     pedal_clear = (rec.get("position") != "driver") or (retained and not stacked) or (not mats)
-    state = {"mats": mats, "retained": retained, "stacked": stacked, "pedal_clear": pedal_clear}
-    if rec.get("mat_state") != state:
+    return {"mats": mats, "retained": retained, "stacked": stacked, "pedal_clear": pedal_clear}
+
+
+def refresh_footwell(w, fw):
+    state = footwell_state(w, fw)
+    if w.ent(fw).get("mat_state") != state:
         w.mut(fw)["mat_state"] = state
 
 
@@ -740,7 +765,7 @@ def cabin_system(w, dt, tick):
                 C.consequence(w, "occupant_heat_stress:" + car, ("injury",), ids=[car], car=car, who=list(vulnerable))
                 C.log(w, "occupant_heat_stress", car=car, who=vulnerable)
         if updates:
-            m = w.mut(car)
+            m = w.mut(car, cause=car)
             m.update(updates)
         _wash_dry(w, car, dt, sun_now)
 
@@ -760,7 +785,7 @@ def child_left_in_car(state, baseline, world):
         for group in ("people", "pets"):
             for aid, agent in sorted(state.get(group, {}).items()):
                 if agent.get("in_vehicle") == car and (group == "pets" or agent.get("role") in C.YOUNG_ROLES):
-                    return "locked_in_car:" + aid
+                    return "tools_vehicles.child_left_in_car:" + aid
     return None
 
 
@@ -882,7 +907,7 @@ def _wash_dry(w, car, dt, sun):
     wet = float(rec.get("exterior_wet", 0.0))
     if film <= 0.0 and wet <= 0.0 and not rec.get("jambs_wet"):
         return
-    m = w.mut(car)
+    m = w.mut(car, cause=car)
     if film > 0.0:
         dry_s = 240.0 if sun else 1500.0
         m["soap_age_s"] = C.rnd(float(rec.get("soap_age_s", 0.0)) + dt, 1)
@@ -1059,7 +1084,7 @@ def change_tire(ctx):
         return "Pulled the flat wheel off"
     if step == "mount_spare":
         require(job.get("jacked") and job.get("wheel_on") is None, "Remove the flat wheel first", "precondition")
-        spare = next((h for h in w.held_items() if w.ent(h).get("part_type") == "wheel_compact"), None)
+        spare = next((h for h in C.known_held(w, ctx) if w.ent(h).get("part_type") == "wheel_compact"), None)
         require(spare, "Hold the spare", "precondition")
         from ..core import release_from_hands
         release_from_hands(w, spare)
@@ -1155,7 +1180,7 @@ def connect_charger(ctx):
     if ctx.args.get("disconnect"):
         return _disconnect(ctx, eid, rec)
     if rec.get("ev"):
-        conn = next((h for h in w.held_items() if "ev_connector" in (w.ent(h).get("tags") or [])), None)
+        conn = next((h for h in C.known_held(w, ctx) if "ev_connector" in (w.ent(h).get("tags") or [])), None)
         require(conn, "Hold the charging connector", "precondition")
         crec = w.ent(conn)
         charger = crec.get("tethered_to")
@@ -1192,7 +1217,7 @@ def connect_charger(ctx):
         return "Connector latched; charging{}".format(": " + "; ".join(notes) if notes else "")
     battery = eid if rec.get("part_type") == "ebike_battery_500wh" else ((rec.get("slots") or {}).get("battery") or {}).get("item")
     require(battery and battery in w.s["entities"], "No e-bike battery there", "precondition")
-    charger = ctx.args.get("destination") or next((h for h in w.held_items() if "charger" in (w.ent(h).get("tags") or [])), None)
+    charger = ctx.args.get("destination") or next((h for h in C.known_held(w, ctx) if "charger" in (w.ent(h).get("tags") or [])), None)
     require(charger and charger in w.s["entities"], "Name the charger (destination)", "argument")
     chg = w.ent(charger)
     require(chg.get("plugged_in"), "Plug the charger into an outlet first", "precondition")
@@ -1293,13 +1318,14 @@ def charging_system(w, dt, tick):
             target = float(rec.get("soc_target", 0.8))
             if soc >= target - 1e-6:
                 if w.ent(charger).get("status") != "complete":
-                    w.mut(charger)["status"] = "complete"
+                    w.mut(charger, cause=[eid, charger])["status"] = "complete"
                     # the charger's app tells the household (and a networked robot) that the car is charged
                     C.notice(w, "device", source=charger, remote=True, text="Charging complete")
                 continue
             add = float(w.ent(charger).get("power_kw", 7.7)) * dt / 3600.0 / float(rec.get("battery_kwh", 60.0))
-            m = w.mut(eid)
+            m = w.mut(eid, cause=[eid, charger])
             m["soc"] = C.rnd(min(target, soc + add), 4)
+            C.book_energy(w, charger, float(w.ent(charger).get("power_kw", 7.7)), dt)
             continue
         battery = eid if rec.get("part_type") == "ebike_battery_500wh" else ((rec.get("slots") or {}).get("battery") or {}).get("item")
         if not battery or battery not in w.s["entities"]:
@@ -1308,10 +1334,11 @@ def charging_system(w, dt, tick):
         charge = float(bm.get("charge", 0.0))
         if charge >= 1.0:
             if not rec.get("charge_complete"):
-                w.mut(eid)["charge_complete"] = True
+                w.mut(eid, cause=eid)["charge_complete"] = True
             continue
         add = 4.0 * 36.0 * dt / 3600.0 / float(bm.get("capacity_wh", 500.0))
-        w.mut(battery)["charge"] = C.rnd(min(1.0, charge + add), 4)
+        w.mut(battery, cause=[eid, battery])["charge"] = C.rnd(min(1.0, charge + add), 4)
+        C.book_energy(w, eid, EBIKE_CHARGER_KW, dt)
 
 
 # =============================================================================================

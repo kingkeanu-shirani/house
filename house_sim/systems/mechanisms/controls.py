@@ -53,6 +53,10 @@ def _dial_spec(rec, setting):
 def knob_turn(ctx, eid, setting, value, direction, push, hold_s, force):
     w = ctx.w
     rec = w.ent(eid)
+    # which controls a thing has and what they take tells its look-alikes apart (a smart bulb's dimmer, a rice cooker's
+    # programs): an unresolved member gets the kernel's one identify-first refusal, like core set's
+    if ctx.unresolved(eid):
+        ctx.refuse_unidentified(eid)
     settings = rec.get("settings") or {}
     require(setting in settings, "No control named {} here (controls: {})".format(setting, ", ".join(sorted(settings)) or "none"), "argument")
     kind = (rec.get("control_kinds") or {}).get(setting)
@@ -777,6 +781,8 @@ def move_lever(ctx):
         rm, mech = C.mut_mech(w, eid)
         mech["reclined"] = position == "recline"
         return "The footrest {}".format("swung up" if position == "recline" else "folded down")
+    if ctx.unresolved(eid):
+        ctx.refuse_unidentified(eid)       # as knob_turn: what it has on a lever tells look-alikes apart
     setting = ctx.args.get("setting") or lever.get("setting")
     if setting is None:
         levers = [s for s, k in sorted((rec.get("control_kinds") or {}).items()) if k == "lever"]
@@ -798,6 +804,7 @@ def flush(ctx, eid, hold_s):
     rm, mech = C.mut_mech(w, eid)
     mech["last_flush"] = {"time_s": w.s["time_s"], "complete": bool(complete), "hold_s": round(float(hold_s), 2)}
     mech["flushes"] = int(C.num(mech.get("flushes"))) + 1
+    C.count_water(w, C.num(rec.get("flush_l"), 6.0) * (1.0 if complete else round(hold_s / need, 2)))     # the tank refills
     ctx.spend(hold_s)
     run_hooks("mechanisms.flushed", ctx, eid, 1.0 if complete else round(hold_s / need, 2))
     return "Full flush; the handle returns" if complete else "A weak partial flush (released too soon)"

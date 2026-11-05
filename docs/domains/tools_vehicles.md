@@ -37,6 +37,7 @@ before the v2.1 refactor; whole engine ~5.6 ms with every domain), and
 | `vehicles.py` | `inflate`, `check_tire`, `jump_start`, `change_tire`, `scrape_ice`, `connect_charger`, `drive_to`; trunk packing, mats, wipers, occupants, cabin heat (`tools_vehicles.cabin`), charging (`.charging`), leaks (`.leaks`), car-wash hooks on cleaning verbs; invariant `tools_vehicles.child_left_in_car` |
 | `perception.py` | report mirroring and report judges, `_hazmat` chemical storage state, defects/fastener-lot inspector, the fastener-lot judge `sorted_ok` (`lot_sorted(state, eid)`, re-derived after any move: section 12), invariants `tools_vehicles.mount_hazard`, `tools_vehicles.chemical_within_reach`, answerer `tools_vehicles.`; realistic-perception helpers live in `common.py` (`realistic`, `seen_key`, `reading`, `bucket`, section 10) |
 | `routes.py` | kernel v3.1 dialogue route `tools_vehicles.job`: canonical `ask(target, aspect, about, detail)` questions reach the `tools_vehicles.<key>` answerer (section 11.4) |
+| `hardening.py` | verification hardening (section 14): identify first on every verb, registered derived fields, settings skills, hazard zones |
 | `scenarios.py`, `skills.py`, `furnish.py` | scenario helpers, reference skills, furnishers (section 6.1): `tools_vehicles.vehicles` (order 32: the car through `Placer.furniture` + light guard, parked nose-in through the overhead garage door or along the driveway; path-blocking bikes parked along a wall through `Placer.floor_item` keep_access; the floor pump beside them) and `tools_vehicles.tools` (order 74: the pegboard on the wall at the workbench, outside door clearance and clear of other wall fixtures) |
 
 All iteration that changes state is over sorted ids; randomness only through `ctx.rng` (handlers), `tick.rng` (systems)
@@ -1086,3 +1087,124 @@ verifier's to add. Tests: `test_every_authored_step_uses_parameters_its_action_h
 * Kernel: build a declared-read index on the plain record of every entity with no journal or quiet entry, even
   mid-step (cleaning asked for the same thing). Index builds after reset, for example for entities created during the
   episode, would then cost a third of what they do today.
+
+---------------------------------------------------------------------------------------------------------------------
+
+## 14. Verification hardening (VERIFY_HARDENING section 25 "WP-D tools_vehicles", 23.3)
+
+Code: `hardening.py` (identify first, derived fields, settings skills, hazard zones), `common.py` (`StateView`, `must_identify`,
+`identify_first`, `known_held`, `mess_flow`, `log_spill`, `count_water`, `book_energy`), the systems (causes). Data:
+`house_sim/data/verify/watch/tools_vehicles.json`, `house_sim/data/speech/truth_tools_vehicles.json`,
+`house_sim/data/vocab/tools_vehicles.json` (states `assembled`, `sorted`, `unsorted`, `tight`). Tests:
+`tests/test_tools_vehicles_hardening.py`. Handoff: `catalog/analysis/phase2/handoff_WP-D_tools_vehicles.md`.
+
+### 14.1 Field classes (6.3)
+
+`field_census.py --unclassified --domain tools_vehicles` is empty. Identity overrides the kernel's name patterns where they
+misfit this domain's static props (`flow_lpm`, `cure_s`, `gauge`, `power_kw`, `stroke_l`, `product`, `capacity_wh`, `max_c`).
+The classes that decide guards: an `assembly`, a `mount`, inflation records (`wheels.*`, `tires.*`, `inflation.*`), a car's
+`engine`, `clamps` are settings; a trunk's `stack_top_m` and `protrudes`, a door's `latch_ok`, a drain's `drain_speed`, a toilet's
+`running` are process (what follows from a compared thing); `layers.*` (a mirror of the load) and a tool's `condition` words
+(written when a close look shows the hidden `_damage`: a perception write) are bookkeeping; a mitt's `grit` is a condition while a
+sanding sheet's is identity. `holes` is a setting on a wall: the kernel's condition-up cannot compare a list.
+
+**`fastener_delta`.** The truth of a fastener lives in the hidden `_fasteners`, and the ledger never reads a field starting with `_`
+(6.3), so a screw backed out of a stranger's cabinet passed as untouched. `fasteners.refresh` writes `fastener_delta`: the
+fasteners of the thing whose status (`fastener_status`: removed, stripped, cracked, a foot's extension, loose, snug) differs from the
+episode's baseline, absent when none. It is a setting (`house.changed:<e>.fastener_delta`), domain-wide hidden from the robot's
+perception, and put back as it was it disappears, so an undone change charges nothing.
+
+**A located puncture** moved out of the wheel record (`inflation.puncture_located` to the hidden `_punctures_located`): a close look at
+a tire is no change to it, and the ledger compares a wheel's record as a whole.
+
+### 14.2 Writers and causes (6.2)
+
+Every system is `physical` (the domain carries out no resident's or pet's decision). Each write of a compared field cites what it
+follows from: rain on a tool the tool; a hinge's lubricant wearing off, a sealer failing, a cure the surface; a mount's bond the mount and
+its surface; a mount letting go the hardware and what hung on it; a filter leak or flush the housing, cartridge, supply valve and
+outlet; an overflowing basin itself and the taps running into it; a toilet itself; a disposal itself, its switch and what wedged it; a
+charge the vehicle and the charger. So a tool the robot never touched that rains wet is `robot_attributable` False, one it carried out is
+True.
+
+### 14.3 Mess, meters, hazardous creations (6.4, 6.5, 6.8)
+
+No mess kind of its own: its refuse and liquids are cleaning's and plumbing's kinds (one registration per name). Flows, with origins:
+
+| What | Flow |
+|---|---|
+| sanding, raking grout | `debris`, `created:<surface>` to the floor or the drop cloth, 7.5 g per soil level (a patch sheds 1.5 g, under the 5 g tolerance; paint spatter stays soil: `house.soiled`) |
+| snaking a drain | `debris`, `drain:<sink>` to `entity:<snake>`, origin `clog:<sink>`, 40 g x what came out; left on the snake it is `house.mess_in_transit:debris` |
+| over-applied lubricant, a clogged basin's overflow, a bleed valve, a housing opened under pressure, a leaking filter, a flush that overflows | by the liquid's class (`common.liquid_mess`: the kernel's motor oil is `liquid:chemical`), `created:<source>` to the floor, physical ones with their cause |
+| a bleed valve into a towel | `liquid:spill` to `entity:<towel>` |
+| a pressure wash | its run-off, `liquid:spill` to where the surface is (`outside:<room>` is a sink for water; indoors it is a flood) |
+| a torn paper jam | the scrap and the torn sheet get `waste: true` (a world fix) and a `waste_item` flow: they must reach a bin |
+| a pencil sharpener's shavings | `mess_kind: debris` with their grams on the record: ambient where they are made, flows when moved (core.log_mess_move) |
+
+Meters: a running toilet's leak, a pressure washer, a filter flush and a leak on `plumbing.meter.l` (`count_water`; a stuck fill valve on a
+plumbing toilet is plumbing's own); an EV's charger, an e-bike's charger and a pressure washer's motor on `climate.energy.kwh`
+with `by_device` (`book_energy`). Hazardous creation: a screw dropped by `loosen remove=true` carries `tags: ["choking_hazard"]`
+(`house.created_hazard` unless it reaches a bin or an `envelope.create` scope). No agents, so no zones or passability.
+
+### 14.4 Settings skills and damaging verbs (10.3)
+
+Carried out by the skill `tools_vehicles.operate(target, verb, tool=None, **args)`: `fastener_delta` (back a snug fastener off or snug a
+loose one, with a tool that fits), `damage.stripped_hole` (over-torque), `dents` (a hammer strike), `nozzle_cut`, a car's `locked`.
+The tools' settings (`settings.direction`, `blade`, `jaw_mm` ...) are the kernel's defaults. No probe for a pressure (the effect check wants
+the exact new value; request to WP6).
+
+### 14.5 Truth mappings and readings (13, 15.2)
+
+`truth_tools_vehicles.json`: states `assembled`, `sorted`, `unsorted`, `tight`; issues `dull`, `flat_tire`, `mushroomed`, `rounded`,
+`stripped`, `worn_weatherstrip`, `wobbly`, `loose`, `noisy`, `scratched`, `chipped`, `worn`, `water_damage`, `unsecured`. No record: unknown,
+never false. Readings: in realistic perception `check_tire` and a gauged `inflate` answer `{"result": <words>, "reading": {"subject",
+"quantity": "pressure", "value", "unit": "bar"}}` (oracle mode keeps its plain words); a held level's inspect gives `readings` of
+quantity `angle` (the kernel vocabulary has no such quantity: no SI value), a stud finder's of `length`.
+
+### 14.6 Identify first (15.3; the look-alike and unfamiliar rows of the phase-1 close-out)
+
+`hardening.identify_params` is a before hook (order 1) of every verb of this domain: an unfamiliar thing or an unresolved member of a
+look-alike group with two or more members, in any entity parameter, gets the kernel's one refusal before any check reads what it really is.
+`hardening._identify_part` does the same for core `install` into this domain's slots. A tool's fitted bit, socket, blade, needle or tube is
+identified like the tool (`common.identify_fitted`). Unnamed: an unfamiliar thing in the hand is passed over (`common.held`), an unresolved
+member gets the one refusal when nothing known serves, and implicit helpers (the level, the stud finder, the rag, the spackle in the other
+hand) are looked for among what the robot knows (`common.known_held`). This replaces `tools._lube_unidentified`, which let an aerosol can be
+used unread: the squeak it left told the members apart. The reference skills inspect, then read, what they are about to use
+(`skills._resolve`, in `ensure_holding`); in oracle mode nothing changes.
+
+### 14.7 Latched fields (8.2)
+
+A goal field a hook or a system writes has a registered recompute over the bare state (`hardening.py`, through the functions the verbs
+use: `common.StateView` has no `mut`, so a recompute cannot write), which schema-4 evaluation overlays. Lint L-LATCH reads this table.
+The world rule of section 12.1 stays: these are also kept current by the settle hooks. `running` is shared with other domains and refreshed
+every substep, so it is not registered. World fix: a bumper that falls off clears its door's `stop_ok`. `_tilt_deg` and `_wobble_mm` are one
+registration for this domain's fasteners and navigation_robot's leveling feet (`navigation_robot.measure.compute_level`, its request).
+
+| Field | On | Recompute |
+|---|---|---|
+| `sorted_ok` | fastener lot | `perception.lot_sorted` |
+| `ran_ok` | disposal | `fixes.disposal_runs_free` |
+| `on_outline` | tool on a pegboard | `tools.outline_at` |
+| `outline_ok` | tool on a pegboard | `tools.outline_at` |
+| `mat_state` | footwell | `vehicles.footwell_state` |
+| `layers` | trunk | `vehicles.trunk_view` |
+| `stack_top_m` | trunk | `vehicles.trunk_view` |
+| `protrudes` | trunk | `vehicles.trunk_view` |
+| `blocks_rear_view` | trunk | `vehicles.trunk_view` |
+| `buried` | emergency kit in a trunk | what `trunk_view` stacks over it |
+| `holstered` | EV connector | where it is |
+| `connector_out` | EV charger | where its connector is |
+| `drain_speed` | clogged drain | `fixes.drain_speed` |
+| `heat_output_frac` | radiator | its air |
+| `latch_ok` | door or window with a seal | `fittings.latch_view` |
+| `clear_view` | car | its glass ice and roof snow |
+| `stop_ok` | door with a swing record | the bumper that claims it, mounted |
+| `assembly` | flat-pack | `assembly.assembly_view` |
+| `_tilt_deg` | legged furniture, leveling feet | `fasteners.derived`, `compute_level` |
+| `_wobble_mm` | legged furniture, leveling feet | `fasteners.derived`, `compute_level` |
+| `_rock_mm` | legged furniture | `fasteners.derived` |
+| `_rack_mm` | fastened furniture | `fasteners.derived` |
+| `_short_leg` | legged furniture | `fasteners.derived` |
+| `_handle_play_mm` | handle | `fasteners.derived` |
+| `_door_sag_mm` | hinged door | `fasteners.derived` |
+| `_stowed` | tool | `tools.stowage` |
+| `_hazmat` | garage chemical | `perception.hazmat_state` |

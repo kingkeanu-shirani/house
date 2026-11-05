@@ -193,6 +193,8 @@ def _window_part(ctx, eid, part, engage):
         require(guard, "This window has no guard", "precondition")
         guard["engaged"] = engage
         mech["guard"] = guard
+        from . import windows
+        windows.refresh(w, eid)         # a guard blocks the clear opening: egress_ready follows it at once
         return "Window guard {}".format("locked in place" if engage else "released with its quick-release")
     raise ActionError("Unknown window part " + part, "argument")
 
@@ -446,6 +448,9 @@ def _child_lock_removed(ctx, device_id, slot, part_id):
 
 def _padlock_on(ctx, pad, host):
     w = ctx.w
+    # an unfamiliar thing serves as no padlock and no hasp the robot knows of: the kernel's one identify-first refusal,
+    # before any wording the kernel would rewrite for an unfamiliar padlock alone (closeout_REV 7)
+    ctx.refuse_unfamiliar(pad, host)
     require(ctx.holding(pad), "Hold the padlock", "precondition")
     prec = w.ent(pad)
     require(prec.get("category") == "padlock" or "padlock" in C.tags(prec), "That is not a padlock", "argument")

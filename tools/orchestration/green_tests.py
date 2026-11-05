@@ -16,12 +16,16 @@ HOUSE_SIM_PERF_TESTS=0 (an explicit value in the caller's environment is kept) a
 test relaxed -- its body runs, its timing cannot fail (a counting clock, or the wall_clock_bound helper recording
 instead of asserting). A run fails when a perf-marked test still skips its body ("wall-clock bound off") without the
 registry's dated exception, and the whole run fails when a test file of the project carries a perf mark the committed
-registry (tools/orchestration/gate_policy/perf_tests.json; --registry) does not list. `--perf` is the perf job: the
+registry (tools/orchestration/gate_policy/perf_tests.json; --registry) does not list, a perf mark that reads the switch
+outside its own guard (wallclock.mark_problems), or the committed registry lists a bound without a mark in the tree.
+Workers never read a bytecode file of the tree (PYTHONPYCACHEPREFIX, a fresh folder per run: closeout_REV 3, a planted
+unchecked-hash .pyc replaced the code every check ran). `--perf` is the perf job: the
 bounds alone, one process at a time, HOUSE_SIM_PERF_TESTS=1, each bound passing when one of --attempts runs (default 3)
 meets it -- the tolerance for a machine that is busy for a moment. The tier-1 gate runs the same job in G7, alone after
 its benchmarks.
 """
 import argparse
+import atexit
 import concurrent.futures as cf
 import glob
 import importlib.util
@@ -61,12 +65,26 @@ def _outcomes(path):
         return None
 
 
+_PYCACHE = []
+
+
+def pycache_prefix():
+    """A folder of this run for the workers' bytecode (PYTHONPYCACHEPREFIX; removed at exit): a .pyc planted in the
+    tree's __pycache__ folders is never read (closeout_REV 3)."""
+    if not _PYCACHE:
+        folder = tempfile.mkdtemp(prefix="house_ai_pyc_")
+        atexit.register(shutil.rmtree, folder, True)
+        _PYCACHE.append(folder)
+    return _PYCACHE[0]
+
+
 def run(path, strict, cwd, plan_path=None, work=None, excused=()):
     """One correctness run of a test file through the gate's _unittest worker. The row: file, strict, rc, ran,
     skipped, secs, outcomes (the ids of every outcome that is not "ok"), bounds_skipped (perf-marked tests that
     skipped their body without a registry exception: the run fails) and tail."""
     env = dict(os.environ)
     env.pop("HOUSE_SIM_DOMAINS", None)
+    env["PYTHONPYCACHEPREFIX"] = pycache_prefix()
     env.setdefault(PERF_ENV, "0")          # the correctness suite: wall-clock bounds run relaxed, asserted in --perf
     if plan_path:
         env[wallclock().PLAN_ENV] = plan_path
@@ -128,6 +146,7 @@ def run_perf(ids_by_file, modes, attempts, cwd, work, base_env=None, timeout=180
             env = dict(base_env if base_env is not None else os.environ)
             env.pop("HOUSE_SIM_DOMAINS", None)
             env.pop(wallclock().PLAN_ENV, None)
+            env["PYTHONPYCACHEPREFIX"] = pycache_prefix()
             env[PERF_ENV] = "1"
             if mode == "strict":
                 env["HOUSE_SIM_STRICT"] = "1"
@@ -191,6 +210,29 @@ def main_perf(args, files, modes, cwd):
     return 1 if failed else 0
 
 
+def bound_problems(files, registry, tests_dir):
+    """{test id: why} a correctness run fails on beyond the unregistered marks: perf marks that read the switch outside
+    their own guard, and bounds the registry lists without a mark in the tree (only for the project's own tests folder
+    or an explicit registry)."""
+    wc = wallclock()
+    marks = wc.flat_marks(wc.perf_marks(files))
+    out = wc.mark_problems(marks)
+    if registry is None:
+        registry = "committed" if os.path.abspath(tests_dir) == os.path.join(ROOT, "tests") else "none"
+    if registry != "none":
+        if registry == "committed":
+            data = wc.committed_registry(ROOT)[0]
+        else:
+            try:
+                with open(registry, encoding="utf-8") as f:
+                    data = json.load(f)
+            except (OSError, ValueError):
+                data = None
+        for tid in wc.registered_without_mark(marks, wc.registry_entries(data)["bounds"]):
+            out[tid] = "registered, but no perf mark in the tree (its guard and timing assertions were removed)"
+    return out
+
+
 def bound_policy(files, registry, tests_dir):
     """(plan, excused ids, unregistered ids, note) of the correctness runs: the perf marks of `files`, the registry
     (--registry: "committed" -- the project's committed registry, the default for the project's own tests folder --,
@@ -249,8 +291,9 @@ def main(argv):
         return main_perf(args, files, modes, cwd)
     # the registry and the plan cover every test file of the folder (an unregistered mark fails the run whatever
     # pattern selected the files)
-    plan, excused, unregistered, note = bound_policy(sorted(glob.glob(os.path.join(tests_dir, "test_*.py"))),
-                                                     args.registry, tests_dir)
+    every_file = sorted(glob.glob(os.path.join(tests_dir, "test_*.py")))
+    plan, excused, unregistered, note = bound_policy(every_file, args.registry, tests_dir)
+    problems = bound_problems(every_file, args.registry, tests_dir)
     work = tempfile.mkdtemp(prefix="green_tests_")
     try:
         plan_path = os.path.join(work, "perf_plan.json")
@@ -275,13 +318,15 @@ def main(argv):
     if unregistered:
         print("UNREGISTERED wall-clock bound(s) (a perf mark the registry {} does not list; the main session registers "
               "it after review): {}".format(wallclock().REGISTRY, ", ".join(unregistered)))
+    for tid, why in sorted(problems.items()):
+        print("WALL-CLOCK BOUND PROBLEM {}: {}".format(tid, why))
     out = args.json or os.path.join(os.path.dirname(os.path.abspath(__file__)), "green_tests.json")
     with open(out, "w", encoding="utf-8", newline="\n") as f:
         json.dump(results, f, indent=1)
     for r in bad:
         print("=" * 30, r["file"], "strict" if r["strict"] else "normal")
         print(r["tail"][-1500:])
-    return 1 if bad or unregistered else 0
+    return 1 if bad or unregistered or problems else 0
 
 
 if __name__ == "__main__":

@@ -52,6 +52,7 @@ COMMITMENT_FILE = ROOT / "reports" / "test_commitment.json"
 MANIFEST_FORMAT = "house_ai.test_manifest/1"
 COMMITMENT_FORMAT = "house_ai.test_commitment/1"
 DEFAULT_K = 10
+MAX_DROP_RATE = 0.10                      # 15.5: a spec dropping more than 10 % of its candidates leaves the test set
 FAIL_LIMIT = 8                            # a needed variant failing this often with no pass marks the entry incomplete
 PERCEPTIONS = ("oracle", "realistic")
 PRIVATE_NAMES = ("split_key", "test_manifest.json", "test_phrasings.json", "verifier_key")
@@ -518,6 +519,18 @@ def _worker_init():
     load_domains()
 
 
+def _evaluation_trial(spec, seed):
+    """A hidden candidate of a schema-4 spec is verified in the evaluation mode (15.5): the core trial in every evaluation
+    mode (until the D3 switch both cameras) must pass."""
+    from ..tasks.verify import eval_modes, run_trial
+    trial = {"passed": False}
+    for mode in eval_modes():
+        trial = run_trial(spec, seed, mode=mode)
+        if not trial.get("passed"):
+            return trial
+    return trial
+
+
 def _entry_job(job):
     """One entry: verify candidates, choose hidden seeds, assign held-out phrasings. Receives derived candidate seeds
     and the entry's private phrasings, never the key."""
@@ -528,7 +541,16 @@ def _entry_job(job):
     spec, mode = job["spec"], job["mode"]
     expanded = expand(spec)
     n_variants = len(expanded.get("variants") or [])
-    picked = _select(job["candidates"], job["k"], n_variants, lambda seed: run_trial(spec, seed, mode),
+    hardened = job.get("hardened")
+    if job.get("excluded"):
+        # 15.5: only specs with HARDENED evidence get hidden candidates; nothing is verified for the others
+        return {"seeds": [], "variants": [], "n_variants": n_variants, "phrasings": [], "phrasing_index": [],
+                "public_phrasings": True, "skipped": [], "candidates_tried": 0, "candidates_considered": 0,
+                "k": job["k"], "k_requested": job["k_requested"], "complete": False, "drop_rate": None,
+                "excluded": job["excluded"], "error": job["excluded"],
+                "perception": "realistic" if hardened else (mode or expanded.get("perception") or "oracle")}
+    trial_fn = (lambda seed: _evaluation_trial(spec, seed)) if hardened else (lambda seed: run_trial(spec, seed, mode))
+    picked = _select(job["candidates"], job["k"], n_variants, trial_fn,
                      catalog_id=expanded.get("catalog_id", spec.get("catalog_id")))
     phrasings, index, public = _assign_phrasings(expanded, picked["seeds"], picked["variants"], job["pool"])
     error = picked["error"]
@@ -548,7 +570,15 @@ def _entry_job(job):
              "phrasings": phrasings, "phrasing_index": index, "public_phrasings": public,
              "skipped": picked["skipped"], "candidates_tried": picked["tried"], "candidates_considered": considered,
              "k": job["k"], "k_requested": job["k_requested"], "complete": error is None,
-             "perception": mode or expanded.get("perception") or "oracle"}
+             "perception": "realistic" if hardened else (mode or expanded.get("perception") or "oracle")}
+    # 15.5: the share of candidates dropped because the reference failed (houses with winder stairs would otherwise
+    # silently leave the test set); a HARDENED spec dropping more than 10 % leaves the test set as skill debt
+    dropped = [item for item in picked["skipped"] if item.get("reason") == "verification_failed"]
+    entry["drop_rate"] = round(len(dropped) / float(picked["tried"]), 4) if picked["tried"] else 0.0
+    if hardened and entry["drop_rate"] > MAX_DROP_RATE:
+        entry.update(complete=False, excluded="drop_rate", skill_debt=[item.get("detail") for item in dropped][:5])
+        error = error or "dropped {:.0%} of the candidates (limit {:.0%}): skill debt, excluded from the test set".format(
+            entry["drop_rate"], MAX_DROP_RATE)
     if error:
         entry["error"] = error
     return entry
@@ -572,18 +602,28 @@ def _spec_list(specs):
 
 
 def build_test_manifest(specs, k=DEFAULT_K, workers=None, key=None, perception=None, max_candidates=None,
-                        phrasings=None, progress=None):
+                        phrasings=None, progress=None, evidence=None):
     """Verify hidden candidates and return the private manifest {catalog_id: entry} (not written; see save_manifest).
 
     Each entry gets k seeds (raised to the number of variants when smaller) that pass house_sim.tasks.verify.run_trial
     in the spec's own perception mode ("realistic" when the spec declares it; `perception="realistic"` forces it for
     every entry). Failing candidates are skipped deterministically and recorded with the reason. Entries that cannot
     be completed from max_candidates (default 3k+10) candidates are kept with "complete": false and an "error"; the
-    test split never uses them. phrasings: the private pool (default: load_private_phrasings())."""
+    test split never uses them. phrasings: the private pool (default: load_private_phrasings()).
+
+    A schema-4 spec (from R4 on every spec: hardened_only) gets candidates only with HARDENED evidence (evidence: {catalog
+    id: record}, default reports/verification.jsonl), verified in the evaluation mode (15.5, _evaluation_trial). Every
+    entry records "drop_rate", the share of tried candidates dropped because the reference failed; a schema-4 spec above
+    10 % is excluded from the test set and lists "skill_debt"."""
     from ..audit import fingerprint
+    from ..catalog import read_jsonl
     from ..tasks.spec import expand
     from ..tasks.verify import spec_hash
     key = _coerce_key(key)
+    if evidence is None:
+        path = ROOT / "reports" / "verification.jsonl"
+        evidence = {r["catalog_id"]: r for r in read_jsonl(path)} if path.is_file() else {}
+    strict = hardened_only()
     if perception not in (None, "realistic"):
         raise ValueError("perception must be None (each spec's own mode) or 'realistic'")
     if int(k) < 1:
@@ -592,6 +632,7 @@ def build_test_manifest(specs, k=DEFAULT_K, workers=None, key=None, perception=N
     code = fingerprint()
     jobs = []
     for spec in _spec_list(specs):
+        hardened = is_schema4(spec) or strict
         cid = spec["catalog_id"]
         expanded = expand(spec)
         n_variants = len(expanded.get("variants") or [])
@@ -601,7 +642,9 @@ def build_test_manifest(specs, k=DEFAULT_K, workers=None, key=None, perception=N
         _check_pool(cid, expanded, pool_value)
         jobs.append({"catalog_id": cid, "spec": copy.deepcopy(spec), "candidates": _candidate_stream(cid, key, max(limit, k_eff)),
                      "k": k_eff, "k_requested": int(k), "mode": perception or expanded.get("perception") or None,
-                     "pool": copy.deepcopy(pool_value), "spec_hash": spec_hash(spec)})
+                     "pool": copy.deepcopy(pool_value), "spec_hash": spec_hash(spec), "hardened": hardened,
+                     "excluded": (lambda why: "no HARDENED evidence: {}".format(why) if why else None)(
+                         hardened_problem(evidence.get(cid), spec_hash(spec), code)) if hardened else None})
     workers = workers or max(1, (os.cpu_count() or 2) - 1)
     results = []
     if workers == 1 or len(jobs) <= 1:
@@ -922,7 +965,52 @@ def build_episode(spec, episode):
 
 
 # ----------------------------------------------------------------------------------------------------------------
-# Verified specs
+# Verified specs (schema 4: VERIFY_HARDENING 5.2, 15.5, 19.4, 21.3)
+
+EVIDENCE_V2 = "house_ai.verification/2"
+HARDENED = "HARDENED"
+STALENESS_DAYS = 14                 # 22.7: a carried record counts as current for 14 days after its last full run
+HARDENED_ONLY_ENV = "HOUSE_SIM_HARDENED_ONLY"     # R4 (decision 8): legacy evidence no longer counts as verified
+STRATUM_SHARE = 0.75                # 19.4: every stratum at least 0.75x its share of the catalog
+
+
+def hardened_only():
+    """True from R4 on (decision 8): only HARDENED specs enter dev and test. Until then the published "verified" count is
+    two numbers (verified_counts) and a legacy spec is verified by its legacy evidence; a schema-4 spec is verified by a
+    HARDENED record whatever this says."""
+    return os.environ.get(HARDENED_ONLY_ENV, "") not in ("", "0")
+
+
+def is_schema4(spec):
+    return isinstance(spec, dict) and spec.get("schema") == 4
+
+
+def hardened_problem(proof, digest, current, today=None):
+    """Why a record does not make a spec HARDENED now, or None (21.3): the verdict is HARDENED, the spec hash matches, and
+    the record is at the current fingerprint or carried by the replay tier inside its staleness limit (22.7). A record of
+    the legacy format, or a `passed` at a lower verdict (PENDING_GATE passes --check on an authoring machine), is not one."""
+    if not proof:
+        return "no verification evidence"
+    if proof.get("format") != EVIDENCE_V2:
+        return "no evidence record v2 (a schema-4 spec needs a HARDENED record)"
+    if proof.get("verdict") != HARDENED:
+        return "verdict {} (only HARDENED counts)".format(proof.get("verdict"))
+    if proof.get("spec_hash") != digest:
+        return "evidence is stale (spec changed since verification)"
+    if proof.get("fingerprint") == current:
+        return None
+    evidence = proof.get("evidence") or {}
+    if evidence.get("status") == "carried" and evidence.get("carried_from"):
+        try:
+            age = (datetime.strptime(str(today or datetime.now(timezone.utc).date().isoformat())[:10], "%Y-%m-%d") -
+                   datetime.strptime(str(evidence.get("last_full"))[:10], "%Y-%m-%d")).days
+        except ValueError:
+            return "carried evidence without a date"
+        if age <= STALENESS_DAYS:
+            return None
+        return "carried evidence is overdue ({} days since its last full run; limit {})".format(age, STALENESS_DAYS)
+    return "evidence is stale (implementation changed since verification)"
+
 
 def candidate_records(root=None, only=None):
     """Authored specs whose structure is valid (compiler status CANDIDATE), in catalog order, read-only (unlike
@@ -961,9 +1049,11 @@ def candidate_records(root=None, only=None):
 
 def filter_verified(items, verify=False, seeds=DEV_SEEDS, workers=None, root=None, progress=None):
     """Keep the specs (or records) with passing verification. verify=False: current evidence in
-    reports/verification.jsonl (passed, implementation_hash == fingerprint(), spec_hash matches). verify=True: run
-    house_sim.tasks.verify.verify_many on `seeds` (the dev seeds) in each spec's own perception mode now; nothing is
-    written. Returns (kept, rejected) lists of (item, verification_record_or_reason)."""
+    reports/verification.jsonl (passed, implementation_hash == fingerprint(), spec_hash matches; a schema-4 spec, and
+    from R4 on every spec: a HARDENED record, hardened_problem). verify=True: run
+    house_sim.tasks.verify.verify_many on `seeds` (the dev seeds) in each spec's own perception mode now (schema 4: the
+    full level, kept only when HARDENED); nothing is written. Returns (kept, rejected) lists of (item,
+    verification_record_or_reason)."""
     from ..audit import fingerprint
     from ..catalog import read_jsonl
     from ..tasks.verify import spec_hash, verify_many
@@ -973,15 +1063,26 @@ def filter_verified(items, verify=False, seeds=DEV_SEEDS, workers=None, root=Non
     kept, rejected = [], []
     if verify:
         results = verify_many(specs, seeds=tuple(seeds), workers=workers, progress=progress, perception=None)
-        for item, result in zip(items, results):
-            (kept if result["passed"] else rejected).append((item, result))
+        strict = hardened_only()
+        for item, spec, result in zip(items, specs, results):
+            if is_schema4(spec) or strict:
+                (kept if result.get("verdict") == HARDENED else rejected).append((item, result))
+            else:
+                (kept if result["passed"] else rejected).append((item, result))
         return kept, rejected
     path = root / "reports" / "verification.jsonl"
     evidence = {r["catalog_id"]: r for r in read_jsonl(path)} if path.is_file() else {}
     current = fingerprint(root)
+    strict = hardened_only()
     for item, spec in zip(items, specs):
         proof = evidence.get(spec["catalog_id"])
-        if not proof:
+        if is_schema4(spec) or strict:
+            problem = hardened_problem(proof, spec_hash(spec), current)
+            if problem:
+                rejected.append((item, problem))
+            else:
+                kept.append((item, proof))
+        elif not proof:
             rejected.append((item, "no verification evidence"))
         elif not proof.get("passed"):
             rejected.append((item, "verification failed"))
@@ -1010,6 +1111,84 @@ def verified_specs(root=None, verify=False, seeds=DEV_SEEDS, workers=None, only=
         record["verification"] = proof
         out.append(record)
     return out
+
+
+def verified_counts(root=None, only=None):
+    """The published "verified" count until R4, two numbers (23.5), and the HARDENED rate per (kind class, domain) (19.4):
+    {"legacy_verified", "hardened", "specs", "strata": {"<kind>/<domain>": {"specs", "hardened", "rate"}}}. Legacy-verified
+    counts schema 2 / 3 specs with current passing evidence; hardened counts the HARDENED records."""
+    from ..audit import fingerprint
+    from ..catalog import read_jsonl
+    from ..tasks.verify import spec_hash
+    root = Path(root) if root else ROOT
+    items = candidate_records(root, only=only)
+    path = root / "reports" / "verification.jsonl"
+    evidence = {r["catalog_id"]: r for r in read_jsonl(path)} if path.is_file() else {}
+    current = fingerprint(root)
+    out = {"specs": len(items), "legacy_verified": 0, "hardened": 0, "strata": {}}
+    for item in items:
+        spec, proof = item["spec"], evidence.get(item["catalog_id"])
+        digest = spec_hash(spec)
+        is_hard = hardened_problem(proof, digest, current) is None
+        if is_hard:
+            out["hardened"] += 1
+        elif not is_schema4(spec) and proof and proof.get("passed") and proof.get("implementation_hash") == current and \
+                proof.get("spec_hash") == digest:
+            out["legacy_verified"] += 1
+        kind = ((proof or {}).get("coverage") or {}).get("kind_class") or "unaudited"
+        cell = out["strata"].setdefault("{}/{}".format(kind, item.get("domain")), {"specs": 0, "hardened": 0})
+        cell["specs"] += 1
+        cell["hardened"] += is_hard
+    for cell in out["strata"].values():
+        cell["rate"] = round(cell["hardened"] / float(cell["specs"]), 3)
+    return out
+
+
+def stratum_of(record):
+    """(kind class, domain) of a verified_specs(records=True) record (19.4)."""
+    proof = record.get("verification") or {}
+    return ((proof.get("coverage") or {}).get("kind_class") or "plain", record.get("domain") or "unknown")
+
+
+def stratified(records, catalog=None, share=STRATUM_SHARE):
+    """The dev split's and the hidden test candidates' draw (19.4, critique hole 17): HARDENED records, with every stratum's
+    share at least `share` x its share of the catalog. catalog: {(kind class, domain): entries} (default: the strata of
+    `records`, nothing to do). A stratum over-represented so far that it pushes another below its floor is thinned, in the
+    deterministic order of its catalog ids' hashes, while that helps; a stratum with too few specs is listed in "shortfall"
+    with what it lacks (the first migration priority). Returns {"selected": [records], "shortfall": {stratum: {...}}}."""
+    groups = {}
+    for record in records:
+        groups.setdefault(stratum_of(record), []).append(record)
+    for rows in groups.values():
+        rows.sort(key=lambda r: hashlib.sha256(str(r.get("catalog_id")).encode("utf-8")).hexdigest())
+    if catalog is None:
+        return {"selected": sorted((r for rows in groups.values() for r in rows), key=lambda r: str(r.get("catalog_id"))),
+                "shortfall": {}}
+    total = float(sum(catalog.values())) or 1.0
+    floors = {s: share * n / total for s, n in catalog.items()}
+    kept = {s: len(rows) for s, rows in groups.items()}
+
+    def lacking():
+        n = float(sum(kept.values())) or 1.0
+        return [s for s, floor in floors.items() if kept.get(s, 0) / n < floor - 1e-12]
+    while True:
+        short = lacking()
+        reachable = [s for s in short if kept.get(s, 0) > 0]
+        if not reachable:
+            break
+        over = [s for s, count in kept.items() if count > 1 and s not in short and
+                (count - 1) / max(1.0, float(sum(kept.values())) - 1.0) >= floors.get(s, 0.0)]
+        if not over:
+            break
+        kept[max(over, key=lambda s: (kept[s] / max(floors.get(s, 0.0), 1e-9), s))] -= 1
+    selected = sorted((r for s, rows in groups.items() for r in rows[:kept.get(s, 0)]),
+                      key=lambda r: str(r.get("catalog_id")))
+    n = float(sum(kept.values())) or 1.0
+    shortfall = {}
+    for s in lacking():
+        shortfall["{}/{}".format(*s)] = {"have": kept.get(s, 0), "catalog": catalog[s],
+                                         "floor_share": round(floors[s], 4), "share": round(kept.get(s, 0) / n, 4)}
+    return {"selected": selected, "shortfall": shortfall}
 
 
 # ----------------------------------------------------------------------------------------------------------------

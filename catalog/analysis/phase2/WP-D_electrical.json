@@ -1,0 +1,88 @@
+{
+ "id": "WP-D_electrical",
+ "landed": [
+  "Field classes: house_sim/data/verify/watch/electrical.json classifies every property of every electrical type and every field electrical writes on its own types (349 names, by the domain itself); per-type entries for cells' condition, the core light types and generic_item (the loads electrical's scenes build); field_census --unclassified --domain electrical 0, --check 0",
+  "Water-sensitive gear list (87 types no IP or weather rating protects): the kernel's ledger.water_sensitive is the one predicate for electrical gear (closeout_breakages row 6, electrical's part)",
+  "Causes: every electrical system writer='physical'; common.set_if cites hardening.inputs(state, eid, w) for watched fields, and each mutation site that knows its cause cites it (breaker and strip trips their loads, GFCI the faulted device, scorching cord what draws through it, burnt bulb and scorched socket the fixture, leaking cell its device, runaway battery its charger, power-loss consequences what cut the power, water ingress the wet thing and source, automations the hub or app). Probe over the 16 specs' idle, reference and wrong plans: no watched field written without a cause",
+  "Mess, hazard_created, zones: electrical creates no entities, moves no mess, owns no agents (stated in docs/domains/electrical.md section 16)",
+  "Derived field cord_hazard (cords.live_hazards) with its Latched fields table; the trip and fire-risk invariants judge a cord's lasting hazard as the room is now (a rug taken off the cord ends cord_under_rug); no memo across calls (the partial work's id(state)-keyed cache removed: nondeterminism)",
+  "Content-gated warning before a detector test (13.5, 23.3; a world fix found on resuming): detectors.warns_of_alarm_test and warned_people replace a substring check that took 'the latest news' or 'I will not test the alarm' for a warning; every awake person at home must have heard a message that warns; speech.negate of the reference warning does not warn, speech.paraphrase does",
+  "Harm labels an expectation can name: each family's invariant names its labels literally (L-EXPECT accepts inv:electrical.cord_trip_hazard); labels unchanged",
+  "Settings skills through electrical.set_field: plugged_in, strain_relief_damaged, plug_damage, kinked, damaged (cables), clock.format_24h, alarms.alarm_1",
+  "Truth mappings data/speech/truth_electrical.json: states paired, unpaired, dark, dimmed, charged; 15 issues",
+  "hazard_zones hook: live electrical hazards, each only as the thing itself",
+  "Structured reading: the battery tester's inspect line carries {subject, quantity, value, unit}; WP7's index records it. The CO alarm's co_ppm and the voltage tester's live are already (id, field) observations",
+  "A close look at a resolved thing with a charge port shows the port in realistic perception (charge_port): the smartphone group resolves by inspect, and that inspect told a USB-C phone from a Lightning one by nothing",
+  "Identify first: charge and connect_cable refuse an unresolved look-alike member or unfamiliar thing with the kernel's generic refusal before any type-dependent check (USB-C test-only group exempt); core set refuses an unresolved member of an electrical group; core install refuses an unfamiliar thing for battery, bay and bulb slots; reference skills inspect then read first in realistic mode",
+  "Twin sweep rewritten and re-run on the final code: 7 look-alike groups (22 members) and 18 unfamiliar twins x every electrical verb and every core verb electrical hooks x each entity parameter x partners x table and held, plus the third entity parameters: only the resolving actions (read, inspect of remotes) and the kernel's per-entity touch noise on wetness differ",
+  "Scenario helpers (WP9's request, found open on resuming): electrical.devices, overload, crowded_strip, bulbs place in ctx.placer.order; electrical.cells reversed_slots and electrical.media sources take ctx.sample_roles",
+  "Ingress gathering reads liquids.wetness_before (closeout_breakages row 7); percept.unfamiliar calls Ctx.unfamiliar (row 9)",
+  "docs/domains/electrical.md section 16 and tests/test_electrical_hardening.py (34 tests; the regressions fail on before_tree = HEAD with electrical's files at bc1dc72)"
+ ],
+ "deviations": [
+  {
+   "what": "Invariant labels keep electrical.<kind>:<id> instead of starting with the registered family name",
+   "why": "A prefix would move every legacy wrong plan's failure reasons; the invariants name their labels literally, which L-EXPECT accepts (WP8-fix's alternative). inv:<family> still matches no label until the evaluator records which invariant produced a label"
+  },
+  {
+   "what": "No electricity meter of electrical's own",
+   "why": "resources.json meters climate.energy.kwh, and WP-D climate's working tree now books chargers' _load_w and unrated lights there; a second meter would double-count"
+  },
+  {
+   "what": "No settings skill for clock.offset_s",
+   "why": "B14's effect check wants the exact new value, and the offset set from a wall time depends on the second the verb runs"
+  },
+  {
+   "what": "Identify-first is targeted (charge, connect_cable, set on electrical groups, install into electrical slots), not blanket",
+   "why": "Removal verbs answer alike for every member (the sweep shows it) and the USB-C group resolves only by connecting"
+  },
+  {
+   "what": "Unfamiliar-twin sweep on 18 true kinds, not 37; geometric camera sweep on two groups",
+   "why": "Machine time: other packages' full suites were running. The third-parameter sweep kept all 37 kinds; every electrical category is in the 18"
+  }
+ ],
+ "not_done": [
+  {
+   "what": "closeout_breakages row 6, the readers in cleaning (engine, surfaces, dishes, systems) and mechanisms (dispense._water_sensitive, world.py's wet check)",
+   "why": "Their files; they should ask ledger.water_sensitive (requests)"
+  },
+  {
+   "what": "A rug laid over a cord after it was routed raises no harm label",
+   "why": "Nothing sees the rug move; the derived cord_hazard shows it to schema-4 predicates (known gap)"
+  },
+  {
+   "what": "Core install of an unfamiliar thing into other domains' slots",
+   "why": "Kernel file; electrical's hook covers battery, bay and bulb slots (request)"
+  },
+  {
+   "what": "Claims with no_* issues (no_signal, no_internet, no_power) are not scored from natural text",
+   "why": "speech.parse skips any phrase starting with 'no' (kernel, request to WP4); truth_electrical.json holds their truth"
+  }
+ ],
+ "outcome_changes": [
+  "No verdict changes: 467 of 467 trials pass on both sides of the A/B (16 electrical specs on 5 seeds in own, forced realistic and forced realistic geometric modes; the other 227 authored specs on seed 0 in own mode). Own mode identical, state digests included. Room golden: 52 files compared, 0 changed",
+  "T-dd0bf4a1707041-01, forced realistic only (room and geometric, all 5 seeds): electrical.charge inspects the phone first (identify first): one more reference step, 3 to 5 s more, another state digest, more attempted steps on one wrong plan; still passes. Re-verified"
+ ],
+ "tests": {
+  "new_tests": 34,
+  "passed": true,
+  "strict_passed": true
+ },
+ "specs": {
+  "total": 16,
+  "passed": 16
+ },
+ "requests": [
+  "WP1: watch_fields.json names for fields electrical writes on other domains' entities: burnt_out, water_ingress, water_damaged, data_lost, os_corrupted, recording_lost, job_interrupted (condition, worse true); dim_level, flicker, connector_locked, soc, charge_session, on_backup, backup_battery_level, power_source, operational, remote_status (process); connected_to (setting); reclassify cord_length_used_m (placement to process), cord_cells (setting to process), captive_at (bookkeeping to setting), display_source, audio_output, loudness_db, handle (setting to process), resets_after_trip (condition to bookkeeping). ambient.json: a smart bulb's settings.power, settings.brightness, settings.cct_k under the lights allowance. ledger.water_sensitive: let waterproof, weatherproof or an IP second digit >= 4 on the record win over the type list, so wall_outlet and extension_cord can be listed",
+  "WP1: record which registered invariant produced each label so inv:<family> (inv:electrical.trip_hazard) can match (with WP5's canonical_labels)",
+  "WP4: speech.py's parse loop skips an index whose word is in _NEVER_VOCAB before trying a phrase there, so every vocabulary phrase starting with 'no' is unreachable (no_power, no_signal, no_internet, no_hot_water, no_label, no_paper, no_ink, no_picture, no_wifi, no_connection, no_appetite): apply the veto to single-word hits only. Repro: speech.parse('the tv has no signal') is []",
+  "WP4: truth.json flickering should also read flicker; no_power energized / live false; frayed _cord_damage in fray / exposed / chewed; working / not_working an alarm's operational and a remote's functional before broken; a charge truth act; a pair act in the lexicon",
+  "WP6: B14 changed checks field_is with an exact value; let a settings skill ask for field_changed (effects.py has it) so clock.offset_s can have a probe",
+  "WP8: tools/protect_map.py / protect_rules.json should draft inv:electrical.<label> names (inv:electrical.cord_trip_hazard), not family names, which match no label; KNOWN_LIMITS 7a: electrical's labels are nameable now",
+  "WP-D_cleaning: closeout_breakages row 6: engine (wet wipe, liquid ingress), surfaces (rinse_item, wipe, spray), dishes, systems should ask ledger.water_sensitive(rec) instead of electronic or water_safe is False",
+  "WP-D_mechanisms: closeout_breakages row 6: dispense._water_sensitive and world.py's wet check should ask ledger.water_sensitive",
+  "WP-D_climate: keep booking chargers' _load_w and unrated lights in climate.energy (your working tree does); electrical adds no meter",
+  "main: core install should refuse an unfamiliar part before matching a slot by its true part type for every domain's slots (electrical's hook covers battery, bay and bulb slots)"
+ ],
+ "notes": "Resumed from an interrupted agent (its partial work is commit 6a9e3e8); kept what was sound. Added on resuming: the failing latched-table test fixed, the id(state)-keyed memo removed, the content-gated warning, WP9's helper order, generic_item classes, fill_l / load_kg classes, the alarm settings skill, the sweeps rewritten (the earlier scratch was gone). Package tests: test_electrical + test_electrical_hardening pass normal, strict, HOUSE_SIM_DOMAINS=core,electrical and that strict. Specs: electrical__examples 12/12, electrical__perception 4/4 on five seeds; forced realistic and geometric 16/16. All 243 authored specs pass in own mode on seed 0 (A/B); the 227 non-electrical ones were not run on seeds 1, 2, 41, 97 here. perception_audit 20 80 room and geometric: 0 leaks, 0 crashes; layout_audit 20 --domain electrical: 120 houses, 0 problems. py39_lint 0; field_census 0 and 0. Physical-write cause probe: no uncaused watched field. A 1-hour wait costs the same on both trees under cProfile (7.05 vs 7.19 s, calls +0.06 %); wall-clock benches were too noisy to read on the loaded machine and the gate's G7 was not run. Full suite: green_tests.py 3 on a frozen HEAD + this package, before the last change (a phone's charge_port, re-checked by the package's tests in four modes, the other test files using phones, both perception audits, the golden diff and the electrical specs): 5,843 tests per mode, 7 files fail in both modes, none from this package: test_ledger, test_lint, test_dialogue, test_verify_hardening fail the same with electrical's changes out; test_room_golden shows other packages' digests (electrical's golden diff is 0 of 52); test_gate_tool and test_eval_tier1_gate need a git work tree. Nothing committed, stashed, branched or reset; nothing under %USERPROFILE%\\.house_ai; no network, no paid calls. Scratch: p2_WP-D_electrical/."
+}

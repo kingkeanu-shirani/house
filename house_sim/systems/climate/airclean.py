@@ -118,6 +118,13 @@ def _filter_fit_guard(ctx):
 FLIP_ORIENTATIONS = ("upside_down", "reversed", "flipped", "turned_over")
 
 
+def bypass_gap(size, fit):
+    """The gap (mm) around a filter of face `size` in a slot of `fit`: a smaller face lets air round it."""
+    face_p = sorted([C.num(size[0]), C.num(size[1])])
+    face_s = sorted([C.num(fit[0]), C.num(fit[1])])
+    return C.rnd(max(0.0, (face_s[0] - face_p[0]) + (face_s[1] - face_p[1])) * 1000.0, 1)
+
+
 def _apply_install_orientation(w, part_id, pm):
     """Kernel v2.1 ``install ... orientation=``: upside_down / reversed / flipped turns the filter over (the airflow
     arrow or the pull tab points the other way); toward_blower / away_from_blower (HVAC) and tab_out / tab_in
@@ -155,10 +162,7 @@ def _filter_installed(ctx, device_id, slot, part_id):
     _apply_install_orientation(w, part_id, pm)
     part = pm
     if fit:
-        size = part.get("size_m") or fit
-        face_p = sorted([C.num(size[0]), C.num(size[1])])
-        face_s = sorted([C.num(fit[0]), C.num(fit[1])])
-        pm["bypass_gap_mm"] = C.rnd(max(0.0, (face_s[0] - face_p[0]) + (face_s[1] - face_p[1])) * 1000.0, 1)
+        pm["bypass_gap_mm"] = bypass_gap(part.get("size_m") or fit, fit)
     if C.kind(part) == "hvac_filter":
         info = (dev.get("slots") or {}).get(slot) or {}
         airflow = (info.get("fit") or {}).get("airflow", "toward_blower")
@@ -189,18 +193,21 @@ def _filter_removed(ctx, device_id, slot, part_id):
         _check_layers(w, device_id)
 
 
-def _check_layers(w, pid):
-    rec = w.ent(pid)
+def layers_in_order(entities, rec):
+    """Whether what sits in a purifier's layer slots follows its layer_order (a cartridge unit has no order to break)."""
     slots = rec.get("slots") or {}
     order = rec.get("layer_order") or ["prefilter", "carbon", "hepa"]
-    layered = [s for s in sorted(slots) if s.startswith("layer_")]
-    ok = True
-    if layered:
-        for i, name in enumerate(layered):
-            item = (slots[name] or {}).get("item")
-            want = order[i] if i < len(order) else None
-            if item and w.ent(item).get("filter_layer") != want:
-                ok = False
+    for i, name in enumerate(s for s in sorted(slots) if s.startswith("layer_")):
+        item = (slots[name] or {}).get("item")
+        want = order[i] if i < len(order) else None
+        if item and (entities.get(item) or {}).get("filter_layer") != want:
+            return False
+    return True
+
+
+def _check_layers(w, pid):
+    rec = w.ent(pid)
+    ok = layers_in_order(w.s["entities"], rec)
     if rec.get("layer_order_ok") != ok:
         w.mut(pid)["layer_order_ok"] = ok
 
@@ -298,7 +305,7 @@ def purifier_tick(w, pid, dt, pm25):
         changes["filter_hours"] = C.rnd(C.num(rec.get("filter_hours")) + dt / 3600.0, 4)
         life = C.num(rec.get("filter_life_h"), 4380.0)
         if changes["filter_hours"] >= life and s.get("filter_indicator") != "replace":
-            w.mut(pid)["settings"]["filter_indicator"] = "replace"
+            w.mut(pid, cause=pid)["settings"]["filter_indicator"] = "replace"
         load = CADR.get(mode, 220.0) * flow / 3600.0 * dt * max(1.0, pm25) / 1.5e7
         for name, f in filters.items():
             prec = w.ent(f)
@@ -309,7 +316,7 @@ def purifier_tick(w, pid, dt, pm25):
             if layer == "hepa" and not layers.get("prefilter") and len(filters) > 1:
                 k = 3.0
             if not prec.get("shrink_wrapped"):
-                w.mut(f)["dirtiness"] = C.rnd(min(1.0, C.num(prec.get("dirtiness")) + load * k), 5)
+                w.mut(f, cause=pid)["dirtiness"] = C.rnd(min(1.0, C.num(prec.get("dirtiness")) + load * k), 5)
     if any(rec.get(k) != v for k, v in changes.items()):
         w.mut(pid).update(changes)
     if on and not filters:

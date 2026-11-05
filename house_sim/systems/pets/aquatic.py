@@ -27,10 +27,12 @@ from ...kernel.plugins import system
 from ...kernel.predicates import root_room
 from ..core import add_soil, release_from_hands
 from . import common as C
+from . import hardening as H
 
 NH3_PER_FISH_G_H = 0.03      # mg per gram of fish per hour
 NH3_PER_FOOD_G = 70.0        # mg released per gram of decaying flake food
 K_NITRIFY = 0.3 / 3600.0     # per second per unit colony
+RINSE_TAP_L = 5.0         # litres a rinse of filter media under the tap draws
 TAP_CHLORINE_PPM = 1.0
 
 
@@ -137,7 +139,7 @@ def _filter_power(w, eid, dt):
         for part in media_parts(w.s, eid):
             prec = w.s["entities"][part]
             if C.num(prec.get("bacteria")) > 0 and off > 3600:
-                w.mut(part)["bacteria"] = round(C.num(prec.get("bacteria")) * math.exp(-dt / (12 * 3600.0)), 4)
+                w.mut(part, cause=(part, eid))["bacteria"] = round(C.num(prec.get("bacteria")) * math.exp(-dt / (12 * 3600.0)), 4)
     else:
         changes["_off_s"] = 0.0
         if not rec.get("pump_ok", True):
@@ -161,10 +163,10 @@ def _filter_power(w, eid, dt):
             for part in parts:
                 prec = w.s["entities"][part]
                 if C.num(prec.get("clog")) < 1.0:
-                    w.mut(part)["clog"] = round(min(1.0, C.num(prec.get("clog")) + dt / (30 * 86400.0)), 5)
+                    w.mut(part, cause=(part, eid))["clog"] = round(min(1.0, C.num(prec.get("clog")) + dt / (30 * 86400.0)), 5)
     changes = {k: v for k, v in changes.items() if rec.get(k) != v}
     if changes:
-        w.mut(eid).update(changes)
+        w.mut(eid, cause=(eid, rec.get("serves")) if rec.get("serves") else eid).update(changes)
 
 
 def _aquarium(w, tank, dt):
@@ -234,7 +236,7 @@ def _aquarium(w, tank, dt):
             deaths += 1
             health = 0.5
         group["health"] = round(min(1.0, health), 4)
-    m = w.mut(tank)
+    m = w.mut(tank, cause=tank)
     m["water"] = water
     m["uneaten_g"] = round(uneaten - decayed, 4)
     m["detritus"] = round(min(1.0, detritus), 4)
@@ -252,11 +254,11 @@ def _aquarium(w, tank, dt):
 def _kill_colony(w, tank, chlorine, dt):
     state = w.s
     factor = math.exp(-chlorine * dt / 1800.0)
-    m = w.mut(tank)
+    m = w.mut(tank, cause=tank)
     m["_bacteria"] = round(C.num(state["entities"][tank].get("_bacteria"), 0.15) * factor, 5)
     for filt in devices(state, tank, "filter"):
         for part in media_parts(state, filt):
-            pm = w.mut(part)
+            pm = w.mut(part, cause=(part, tank))
             pm["bacteria"] = round(C.num(state["entities"][part].get("bacteria")) * factor, 5)
 
 
@@ -305,13 +307,13 @@ def _enclosure(w, enc, dt):
         if value < lo - 0.5 or value > hi + 0.5:
             out.append(name)
     if changed or out != list(rec.get("out_of_range") or []):
-        m = w.mut(enc)
+        m = w.mut(enc, cause=enc)
         m["zones"] = zones
         m["out_of_range"] = out
     for therm in devices(state, enc, "thermometer"):
         text = "Warm {:.1f} C | Cool {:.1f} C".format(zones["warm"]["air_c"], zones["cool"]["air_c"])
         if state["entities"][therm].get("display") != text:
-            w.mut(therm)["display"] = text
+            w.mut(therm, cause=enc)["display"] = text
     occupant = rec.get("occupant")
     if occupant in state.get("pets", {}):
         pet = state["pets"][occupant]
@@ -565,6 +567,7 @@ def change_aquarium_water(ctx):
             tap = True
             util = w.sec("utilities")
             util["water_l"] = round(C.num(util.get("water_l"), 1e5) - add, 2)
+            H.count_water(w, add)           # the house water meter (VERIFY_HARDENING 6.8)
         require(add > 0.01, "The tank is already full", "precondition")
         credit = C.num(rec.get("conditioner_credit_l"))
         treated = min(add, conditioned + credit)
@@ -636,6 +639,7 @@ def change_aquarium_water(ctx):
             require(source, "Rinse it in a bucket of tank water (or at a tap)", "precondition")
             hot = C.num(ctx.args.get("temp_c"), 15.0) > 40.0
             kill = 0.95 if hot else 0.75
+            H.count_water(w, RINSE_TAP_L)
             how = "hot tap water" if hot else "running tap water (chlorine)"
         if cleaner:
             require(ctx.holding(cleaner), "Hold the cleaner", "precondition")

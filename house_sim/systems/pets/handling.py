@@ -24,6 +24,7 @@ from ...kernel.predicates import root_room
 from ..core import release_from_hands
 from . import behavior as B
 from . import common as C
+from . import hardening as H
 from . import model as M
 
 SIZE_RANK = {"toy": 0, "small": 1, "medium": 2, "large": 3}
@@ -251,6 +252,8 @@ def _leash_dropped(ctx, result):
     state = w.s
     eid = ctx.args.get("target")
     rec = state["entities"].get(eid) or {}
+    if rec.get("occupant") in state.get("pets", {}):
+        carried_along(w)
     pid = rec.get("attached_to")
     if rec.get("pet_gear") != "leash" or pid not in state.get("pets", {}):
         return
@@ -273,6 +276,30 @@ def _leash_dropped(ctx, result):
 
 def is_enclosure(rec):
     return rec.get("category") in ("pet_crate", "small_animal_cage", "bird_cage", "reptile_enclosure") or rec.get("pet_enclosure")
+
+
+def carried_along(w):
+    """A pet in a carrier or cage goes where that goes: the robot carried it through a door, or set it down elsewhere (a
+    robot write of the pet's room: the cat carried into the garage in its carrier is house.agent_moved). Before this a
+    carried pet stayed behind in the room it was crated in, hearing and drinking there. Called from the robot's own move
+    and place; nothing else moves an occupied carrier."""
+    state = w.s
+    for pid in C.pet_ids(state):
+        pet = state["pets"][pid]
+        box = pet.get("crate") or pet.get("enclosure")
+        if box not in state["entities"]:
+            continue
+        room, cells = geometry.anchor(state, box)
+        if room not in state["rooms"]:
+            continue
+        moved = room != pet.get("location")
+        if moved or (cells and tuple(pet.get("pos") or ()) not in {tuple(c) for c in cells}):
+            m = w.pet_m(pid)
+            m["location"] = room
+            if cells:
+                m["pos"] = list(cells[0])
+            if moved:
+                C.log(w, "carried", pet=pid, crate=box, room=room)
 
 
 def release_from_crate(w, pid, why="let out"):
@@ -482,6 +509,8 @@ def _let_out(ctx, eid):
     state = w.s
     rec = state["entities"].get(eid) or {}
     opening = C.door_opening(rec)
+    if rec.get("latched") and rec.get("open") and is_enclosure(rec):
+        w.mut(eid)["latched"] = False       # opened with a handle verb: an open crate is not latched (a latch until phase 2)
     # a pet trapped in an appliance drum or a closed cupboard comes out when it is opened
     for pid in C.pet_ids(state):
         pet = state["pets"][pid]
@@ -512,7 +541,8 @@ def _let_out(ctx, eid):
                 for cid in sorted(state["connections"]):
                     if state["connections"][cid].get("door") == eid:
                         cell = state["connections"][cid]["cells"].get(other)
-                B.relocate(w, pid, other, near=cell, why="came out of the room")
+                with w.writing("volition", "pets.door"):
+                    B.relocate(w, pid, other, near=cell, why="came out of the room")
 
 
 @after("start", order=40)
@@ -618,7 +648,9 @@ def _pick_up_waste_on_walk(ctx, pid):
     require(roll is not None, "No poop bags with you", "resource")
     w.mut(roll)["count"] = int(w.ent(roll).get("count", 0)) - 1
     bag = w.new_id("pet_waste_bag")
-    brec = w.reg.make("pet_waste_bag", holder or "robot", tied=True, sealed=True, waste_g=150.0, contents={"dog_waste": 1}, pet_waste=True)
+    brec = w.reg.make("pet_waste_bag", holder or "robot", tied=True, sealed=True, waste_g=150.0, contents={"dog_waste": 1}, pet_waste=True,
+                      _waste_origins={H.origin_of(bag): 150.0})
+    # the dog laid it on the walk (nothing of the house's moved): the bag is a new parcel that must reach a bin
     if holder:
         brec["relation"] = "in"
         w.create(bag, brec)

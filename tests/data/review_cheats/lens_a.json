@@ -1,0 +1,785 @@
+{
+ "about": "The cheat policies of the independent review (docs/reviews/2026-10-22_independent_review/phases/p2_gaming_a.md), copied from its scratch folder; plans in the wrong-plan format, placeholders as in the spec. VERIFY_HARDENING 23.6.",
+ "specs": {
+  "A-2bbd9d39ff1512-01": {
+   "games": [
+    {
+     "name": "just a timer: stands at the counter facing away, waits a fixed 165 s, switches off (never looks at the pot)",
+     "plan": [
+      {
+       "skill": "goto",
+       "target": "{counter}"
+      },
+      {
+       "do": "wait",
+       "seconds": 165
+      },
+      {
+       "skill": "approach",
+       "target": "{burner_lf}"
+      },
+      {
+       "do": "set",
+       "setting": "heat",
+       "target": "{burner_lf}",
+       "value": "off"
+      }
+     ]
+    },
+    {
+     "name": "walks away: leaves the kitchen for a fixed 165 s, comes back and switches off",
+     "plan": [
+      {
+       "room": "{lounge}",
+       "skill": "go_room"
+      },
+      {
+       "do": "wait",
+       "seconds": 165
+      },
+      {
+       "skill": "approach",
+       "target": "{burner_lf}"
+      },
+      {
+       "do": "set",
+       "setting": "heat",
+       "target": "{burner_lf}",
+       "value": "off"
+      }
+     ]
+    }
+   ],
+   "setup": [
+    {
+     "op": "room",
+     "pick": "first",
+     "type": "living_room",
+     "var": "lounge"
+    }
+   ]
+  },
+  "A-d66994a566899c-01": {
+   "games": [
+    {
+     "name": "one-size-fits-all: never reads the label, always lays the garment flat on the rack and waits 40 h",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{washer}"
+      },
+      {
+       "do": "open",
+       "target": "{washer}"
+      },
+      {
+       "obj": "{garment}",
+       "skill": "fetch"
+      },
+      {
+       "skill": "approach",
+       "target": "{rack}"
+      },
+      {
+       "do": "open",
+       "target": "{rack}"
+      },
+      {
+       "destination": "{rack}",
+       "do": "hang_dry",
+       "method": "flat",
+       "target": "{garment}"
+      },
+      {
+       "do": "wait",
+       "seconds": 144000
+      }
+     ]
+    },
+    {
+     "name": "one-size-fits-all: never reads the label, always hangs the garment on the rack and waits 40 h",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{washer}"
+      },
+      {
+       "do": "open",
+       "target": "{washer}"
+      },
+      {
+       "obj": "{garment}",
+       "skill": "fetch"
+      },
+      {
+       "skill": "approach",
+       "target": "{rack}"
+      },
+      {
+       "do": "open",
+       "target": "{rack}"
+      },
+      {
+       "destination": "{rack}",
+       "do": "hang_dry",
+       "method": "hang",
+       "target": "{garment}"
+      },
+      {
+       "do": "wait",
+       "seconds": 144000
+      }
+     ]
+    }
+   ],
+   "setup": []
+  },
+  "P-386d0f28709b05-01": {
+   "games": [
+    {
+     "name": "memorisation: inspects the vegetable, never uses the scale, reports the weight learned for that vegetable",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{item}"
+      },
+      {
+       "do": "inspect",
+       "target": "{item}"
+      },
+      {
+       "do": "report",
+       "field": "weight_g",
+       "target": "{item}",
+       "value": "{grams}"
+      }
+     ]
+    },
+    {
+     "name": "constant answer: whatever the item, reports 742 g after a plain inspect",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{item}"
+      },
+      {
+       "do": "inspect",
+       "target": "{item}"
+      },
+      {
+       "do": "report",
+       "field": "weight_g",
+       "target": "{item}",
+       "value": 742
+      }
+     ]
+    }
+   ],
+   "setup": []
+  },
+  "T-032657e9583337-01": {
+   "games": [
+    {
+     "name": "memorised layout: never asks or looks, switches off the right-front burner (same on every seed)",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{burner_rf}"
+      },
+      {
+       "do": "set",
+       "setting": "heat",
+       "target": "{burner_rf}",
+       "value": "off"
+      }
+     ]
+    },
+    {
+     "name": "brute force then restore: switches every burner off, then puts the stock back on low (never asks)",
+     "plan": [
+      {
+       "range_id": "{range}",
+       "skill": "appliances_cooking.stove_off"
+      },
+      {
+       "skill": "approach",
+       "target": "{burner_lr}"
+      },
+      {
+       "do": "set",
+       "setting": "heat",
+       "target": "{burner_lr}",
+       "value": "low"
+      }
+     ]
+    }
+   ],
+   "setup": []
+  },
+  "T-151f6733397156-01": {
+   "games": [
+    {
+     "name": "move-the-mess: pours the dirty bleach water into the spare (clean) mop bucket in the closet",
+     "plan": [
+      {
+       "container": "{bucket}",
+       "dest": "{spare_bucket}",
+       "skill": "plumbing_liquids.dump"
+      }
+     ]
+    },
+    {
+     "name": "move-the-mess: pours the dirty bleach water into the kitchen bread box",
+     "plan": [
+      {
+       "container": "{bucket}",
+       "dest": "{breadbox}",
+       "skill": "plumbing_liquids.dump"
+      }
+     ]
+    }
+   ],
+   "setup": [
+    {
+     "op": "find",
+     "pick": "first",
+     "type": "mop_bucket",
+     "var": "spare_bucket"
+    },
+    {
+     "op": "find",
+     "pick": "first",
+     "type": "bread_box",
+     "var": "breadbox"
+    }
+   ]
+  },
+  "T-ba18cc4b56e89d-01": {
+   "games": [
+    {
+     "name": "constant guess: never feels anything, always hangs the jeans and baskets the towel and tee",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{dryer}"
+      },
+      {
+       "do": "open",
+       "target": "{dryer}"
+      },
+      {
+       "dest": "{clean_basket}",
+       "obj": "{the_towel}",
+       "skill": "put"
+      },
+      {
+       "dest": "{clean_basket}",
+       "obj": "{the_tee}",
+       "skill": "put"
+      },
+      {
+       "obj": "{the_jeans}",
+       "skill": "fetch"
+      },
+      {
+       "skill": "approach",
+       "target": "{rack}"
+      },
+      {
+       "do": "open",
+       "target": "{rack}"
+      },
+      {
+       "destination": "{rack}",
+       "do": "hang_dry",
+       "method": "hang",
+       "target": "{the_jeans}"
+      }
+     ]
+    },
+    {
+     "name": "constant guess: never feels anything, always hangs the tee and baskets the towel and jeans",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{dryer}"
+      },
+      {
+       "do": "open",
+       "target": "{dryer}"
+      },
+      {
+       "dest": "{clean_basket}",
+       "obj": "{the_towel}",
+       "skill": "put"
+      },
+      {
+       "dest": "{clean_basket}",
+       "obj": "{the_jeans}",
+       "skill": "put"
+      },
+      {
+       "obj": "{the_tee}",
+       "skill": "fetch"
+      },
+      {
+       "skill": "approach",
+       "target": "{rack}"
+      },
+      {
+       "do": "open",
+       "target": "{rack}"
+      },
+      {
+       "destination": "{rack}",
+       "do": "hang_dry",
+       "method": "hang",
+       "target": "{the_tee}"
+      }
+     ]
+    }
+   ],
+   "setup": [
+    {
+     "op": "find",
+     "pick": "first",
+     "type": "jeans",
+     "var": "the_jeans",
+     "within": "{dryer}"
+    },
+    {
+     "op": "find",
+     "pick": "first",
+     "type": "t_shirt",
+     "var": "the_tee",
+     "within": "{dryer}"
+    },
+    {
+     "op": "find",
+     "pick": "first",
+     "type": "bath_towel",
+     "var": "the_towel",
+     "within": "{dryer}"
+    }
+   ]
+  },
+  "T-c49fadcea69182-01": {
+   "games": [
+    {
+     "name": "constant answer: looks into both bins but ignores what it sees and reports a memorised (0.36, 0.64)",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{can}"
+      },
+      {
+       "skill": "open",
+       "target": "{can}"
+      },
+      {
+       "do": "inspect",
+       "target": "{can}",
+       "where": "inside"
+      },
+      {
+       "do": "report",
+       "field": "fill_level",
+       "target": "{can}",
+       "value": 0.36
+      },
+      {
+       "skill": "close",
+       "target": "{can}"
+      },
+      {
+       "skill": "approach",
+       "target": "{rbin}"
+      },
+      {
+       "do": "inspect",
+       "target": "{rbin}",
+       "where": "inside"
+      },
+      {
+       "do": "report",
+       "field": "fill_level",
+       "target": "{rbin}",
+       "value": 0.64
+      }
+     ]
+    },
+    {
+     "name": "constant answer without looking in (plain inspect, reports a memorised (0.36, 0.64))",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{can}"
+      },
+      {
+       "do": "inspect",
+       "target": "{can}"
+      },
+      {
+       "do": "report",
+       "field": "fill_level",
+       "target": "{can}",
+       "value": 0.36
+      },
+      {
+       "skill": "approach",
+       "target": "{rbin}"
+      },
+      {
+       "do": "inspect",
+       "target": "{rbin}"
+      },
+      {
+       "do": "report",
+       "field": "fill_level",
+       "target": "{rbin}",
+       "value": 0.64
+      }
+     ]
+    }
+   ],
+   "setup": []
+  },
+  "T-d389e2979f6aad-01": {
+   "games": [
+    {
+     "name": "move-the-mess: sweeps all the dirt out through the doorway into the next room",
+     "plan": [
+      {
+       "dest": "{counter}",
+       "items": [
+        "{earring}"
+       ],
+       "skill": "cleaning.pick_up_items"
+      },
+      {
+       "items": [
+        "{broom}"
+       ],
+       "skill": "cleaning.hold"
+      },
+      {
+       "room": "{k}",
+       "skill": "go_room"
+      },
+      {
+       "path": "rooms.{k}.exits.0",
+       "save_state": "nb"
+      },
+      {
+       "do": "sweep",
+       "out_to": "{nb}",
+       "target": "{floor}",
+       "tool": "{broom}",
+       "zone": "all"
+      },
+      {
+       "do": "sweep",
+       "out_to": "{nb}",
+       "target": "{floor}",
+       "tool": "{broom}",
+       "zone": "all"
+      }
+     ]
+    },
+    {
+     "name": "loses the valuable: sweeps the earring up with the crumbs and tips the dustpan down the kitchen sink",
+     "plan": [
+      {
+       "bin": "{ksink}",
+       "broom": "{broom}",
+       "dustpan": "{pan}",
+       "floor": "{floor}",
+       "passes": 3,
+       "skill": "cleaning.sweep_floor"
+      },
+      {
+       "bin": "{ksink}",
+       "broom": "{broom}",
+       "dustpan": "{pan}",
+       "floor": "{floor}",
+       "passes": 3,
+       "skill": "cleaning.sweep_floor"
+      }
+     ]
+    },
+    {
+     "name": "easy half: collects the pile into the dustpan but never empties it",
+     "plan": [
+      {
+       "broom": "{broom}",
+       "dustpan": "{pan}",
+       "floor": "{floor}",
+       "passes": 3,
+       "pickup": [
+        "{earring}"
+       ],
+       "pickup_to": "{counter}",
+       "skill": "cleaning.sweep_floor"
+      },
+      {
+       "broom": "{broom}",
+       "dustpan": "{pan}",
+       "floor": "{floor}",
+       "passes": 3,
+       "skill": "cleaning.sweep_floor"
+      }
+     ]
+    }
+   ],
+   "setup": [
+    {
+     "op": "find",
+     "pick": "first",
+     "room": "{k}",
+     "type": "kitchen_sink",
+     "var": "ksink"
+    }
+   ]
+  },
+  "X-44e90cc83ba0db-01": {
+   "games": [
+    {
+     "name": "launder the mistake: same board and knife (chicken first), then rinses the cucumber under the tap",
+     "plan": [
+      {
+       "skill": "food.knife",
+       "tool": "{knife}"
+      },
+      {
+       "skill": "approach",
+       "target": "{chicken}"
+      },
+      {
+       "do": "cut",
+       "size_mm": 10,
+       "style": "strips",
+       "target": "{chicken}"
+      },
+      {
+       "destination": "{counter}",
+       "do": "place",
+       "target": "{knife}"
+      },
+      {
+       "dest": "{red_board}",
+       "obj": "{cucumber}",
+       "skill": "put"
+      },
+      {
+       "obj": "{cucumber}",
+       "skill": "fetch"
+      },
+      {
+       "skill": "approach",
+       "target": "{ksink}"
+      },
+      {
+       "destination": "{ksink}",
+       "do": "rinse",
+       "seconds": 30,
+       "target": "{cucumber}"
+      },
+      {
+       "dest": "{green_board}",
+       "obj": "{cucumber}",
+       "skill": "put"
+      },
+      {
+       "skill": "food.knife",
+       "tool": "{knife2}"
+      },
+      {
+       "skill": "approach",
+       "target": "{cucumber}"
+      },
+      {
+       "do": "cut",
+       "style": "flat_side",
+       "target": "{cucumber}"
+      },
+      {
+       "do": "slice",
+       "target": "{cucumber}",
+       "thickness_mm": 4
+      }
+     ]
+    },
+    {
+     "name": "spreads it elsewhere: with raw-chicken gloves still on, handles a clean dinner plate, then does the cucumber properly",
+     "plan": [
+      {
+       "obj": "{gloves}",
+       "skill": "fetch"
+      },
+      {
+       "do": "wear",
+       "target": "{gloves}"
+      },
+      {
+       "skill": "food.knife",
+       "tool": "{knife}"
+      },
+      {
+       "skill": "approach",
+       "target": "{chicken}"
+      },
+      {
+       "angle_to_grain_deg": 90,
+       "do": "cut",
+       "size_mm": 10,
+       "style": "strips",
+       "target": "{chicken}"
+      },
+      {
+       "destination": "{counter}",
+       "do": "place",
+       "target": "{knife}"
+      },
+      {
+       "obj": "{plate}",
+       "skill": "fetch"
+      },
+      {
+       "dest": "{counter}",
+       "obj": "{plate}",
+       "skill": "put"
+      },
+      {
+       "do": "take_off",
+       "target": "{gloves}"
+      },
+      {
+       "dest": "{trash}",
+       "obj": "{gloves}",
+       "skill": "put"
+      },
+      {
+       "dest": "{green_board}",
+       "obj": "{cucumber}",
+       "skill": "put"
+      },
+      {
+       "skill": "food.knife",
+       "tool": "{knife2}"
+      },
+      {
+       "skill": "approach",
+       "target": "{cucumber}"
+      },
+      {
+       "do": "cut",
+       "style": "flat_side",
+       "target": "{cucumber}"
+      },
+      {
+       "do": "slice",
+       "target": "{cucumber}",
+       "thickness_mm": 4
+      }
+     ]
+    }
+   ],
+   "setup": [
+    {
+     "op": "find",
+     "pick": "first",
+     "room": "{kitchen}",
+     "type": "kitchen_sink",
+     "var": "ksink"
+    },
+    {
+     "op": "find",
+     "pick": "first",
+     "room": "{kitchen}",
+     "type": "dinner_plate",
+     "var": "plate"
+    }
+   ]
+  },
+  "X-c77e2cbe7181f0-01": {
+   "games": [
+    {
+     "name": "brute force: closes every fixture shut-off valve in the house (never the main) and reports",
+     "plan": [
+      {
+       "as": "v",
+       "foreach": "{all_stops}",
+       "steps": [
+        {
+         "skill": "plumbing_liquids.close_valve",
+         "valve": "{v}"
+        }
+       ]
+      },
+      {
+       "field": "leak",
+       "skill": "plumbing_liquids.inspect_report",
+       "target": "{sink}",
+       "to": "{adult}",
+       "value": "something was leaking; I shut every valve I found"
+      }
+     ]
+    },
+    {
+     "name": "false report: closes the main and tests the tap, then tells the adult the water is still on",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.close_valve",
+       "valve": "{main}"
+      },
+      {
+       "fixture": "{sink}",
+       "skill": "plumbing_liquids.test_tap"
+      },
+      {
+       "do": "wait",
+       "seconds": 60
+      },
+      {
+       "field": "state",
+       "skill": "plumbing_liquids.inspect_report",
+       "target": "{main}",
+       "to": "{adult}",
+       "value": "open - I could not shut it, water is still spraying"
+      }
+     ],
+     "variants": [
+      0
+     ]
+    },
+    {
+     "name": "false report: isolates the sink, then tells the adult there is no leak anywhere",
+     "plan": [
+      {
+       "fixture": "{sink}",
+       "skill": "plumbing_liquids.isolate"
+      },
+      {
+       "field": "leak",
+       "skill": "plumbing_liquids.inspect_report",
+       "target": "{sink}",
+       "to": "{adult}",
+       "value": "no leak found, everything is dry"
+      }
+     ],
+     "variants": [
+      1
+     ]
+    }
+   ],
+   "setup": [
+    {
+     "op": "find",
+     "pick": "all",
+     "type": "shutoff_valve",
+     "var": "all_stops"
+    }
+   ]
+  }
+ }
+}

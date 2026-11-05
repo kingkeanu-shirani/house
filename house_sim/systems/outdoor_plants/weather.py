@@ -577,19 +577,21 @@ def wind_effects(w, dt):
         if rid is None:
             continue
         if kind == "object":
-            _object_wind(w, eid, rid, gusts)       # the kernel's exposure rule decides (porch roofs, covers, boxes)
+            with C.caused(w, eid):
+                _object_wind(w, eid, rid, gusts)   # the kernel's exposure rule decides (porch roofs, covers, boxes)
             continue
         if C.is_roofed(w, rid) and g < 15.0:
             continue
         kids = gusts.cmap()                         # before this handler's first write
-        if kind == "umbrella":
-            _umbrella_wind(w, eid, g)
-        elif kind == "cover":
-            _cover_wind(w, eid, g)
-        elif kind == "pile":
-            _pile_wind(w, eid, g, dt)
-        elif kind == "plant_cover":
-            _plant_cover_wind(w, eid, g, kids)
+        with C.caused(w, eid):
+            if kind == "umbrella":
+                _umbrella_wind(w, eid, g)
+            elif kind == "cover":
+                _cover_wind(w, eid, g)
+            elif kind == "pile":
+                _pile_wind(w, eid, g, dt)
+            elif kind == "plant_cover":
+                _plant_cover_wind(w, eid, g, kids)
 
 
 def _sorted_has(ids, eid):
@@ -1012,7 +1014,7 @@ def precip_effects(w, dt):
     state = w.s
     rooms_of = C.outdoor_map(w)
     exposed_rooms = {rid for rid in set(rooms_of.values()) if not C.is_roofed(w, rid)}
-    for eid in sorted(e for e, rid in rooms_of.items() if rid in exposed_rooms):
+    for eid in C.each_caused(w, sorted(e for e, rid in rooms_of.items() if rid in exposed_rooms)):
         record = state["entities"].get(eid)
         if record is None:
             continue
@@ -1181,7 +1183,7 @@ def slow_weather(w, periods):
     sun = C.daylight(w)
     wind = float(wx.get("wind_mps", 2.0))
     state = w.s
-    for eid in slow_candidates(w):
+    for eid in C.each_caused(w, slow_candidates(w)):
         record = state["entities"][eid]
         wet = float(record.get("wetness", 0.0) or 0.0)
         snow = float(record.get("snow_cm", 0.0) or 0.0)

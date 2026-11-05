@@ -1,6 +1,7 @@
 """Reference skills (privileged routing only; every state change goes through runner.do).
 
   plumbing_liquids.goto(target)                      approach, stepping around wet/slippery cells when possible
+  plumbing_liquids.operate(target, verb, hold, near) a verb on a thing where it is, or held at near (damaging settings skills)
   plumbing_liquids.set_tap_temp(fixture, target_c, tol=2, flow=1)   open a tap and adjust it by measuring the water
   plumbing_liquids.fill_sink(sink, stopper, target_c, level, soap, soap_ml)
   plumbing_liquids.shut_tap(fixture, report_to=None) close to snug, watch 60 s, report a persistent drip
@@ -332,6 +333,24 @@ def isolate(r, fixture):
         r.do("open", target=cab)
     goto(r, fixture)
     r.do("shut_off", target=fixture)
+
+
+@skill("plumbing_liquids.operate")
+def operate(r, target, verb, hold=False, near=None, **args):
+    """Do one of this domain's verbs on a thing where it is, or held (hold=True) and at `near` (a hose at the spigot it
+    goes on), then stand up again; destination "here" is the room the robot stands in. The plan step the damaging
+    settings skills give a battery policy (hardening)."""
+    if hold:
+        _fetch(r, target)
+    place = near or (None if hold else target)
+    if place:
+        goto(r, place)
+        _crouch_for(r, place)
+    if args.get("destination") == "here":
+        args["destination"] = r.state["robot"]["room"]
+    out = r.do(verb, target=target, **args)
+    _stand(r)
+    return out
 
 
 @skill("plumbing_liquids.close_valve")

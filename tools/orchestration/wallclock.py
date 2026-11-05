@@ -21,6 +21,11 @@ correctness test disguised as a bound (it skipped with the bound's message) kept
   correctness run (it never ran its body) fails the run, unless its registry entry carries a dated `skip` exception
   pinned to the exact source of the method (`source_sha256`) -- for a bound a counting clock cannot keep (a relative
   bound such as "the new step is faster than the old one"); the gate then also requires the perf job to have run it.
+* **The switch is read in one form only** (phase-2 carry-over, closeout_REV 8, closeout_VER2). The mark scan follows a
+  module constant holding the switch's name, module-level flags and helpers, helper methods, setUp and decorators; a
+  mark that reads the switch outside its own legacy guard (`mark_problems`: a module-level flag that skips it in the
+  correctness run, a body that returns early when relaxed) fails the correctness run whatever the registry says, and
+  a registered bound without a mark (`registered_without_mark`) fails it too.
 
 Stdlib only; imported by test modules (`from tools.orchestration.wallclock import wall_clock_bound`), so it imports
 nothing else of the project.
@@ -85,36 +90,112 @@ def method_source_sha(lines, node):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _is_switch(node):
-    return isinstance(node, ast.Constant) and node.value == PERF_ENV
+def _is_switch(node, consts=()):
+    return (isinstance(node, ast.Constant) and node.value == PERF_ENV) or \
+        (isinstance(node, ast.Name) and node.id in consts)
 
 
-def _kind(item):
-    """"guard" when a test method reads HOUSE_SIM_PERF_TESTS itself (os.environ.get / os.getenv / os.environ[...] /
-    `in os.environ`), "helper" when it calls wall_clock_bound only, None when it is no bound (a test that only sets or
-    removes the switch for a child process is none)."""
-    guard = helper = False
-    for n in ast.walk(item):
+def _reads(node, consts=(), readers=()):
+    """(direct, helper, indirect) of a piece of code: it reads HOUSE_SIM_PERF_TESTS itself (os.environ.get / os.getenv /
+    os.environ[...] / `in os.environ`, the name literally or through a module constant holding it), calls
+    wall_clock_bound, or uses a name or self.method in `readers` (a module-level flag or helper that reads it). A test
+    that only sets or removes the switch for a child process reads nothing."""
+    direct = helper = indirect = False
+    for n in ast.walk(node):
         if isinstance(n, ast.Call):
             f = n.func
             name = f.id if isinstance(f, ast.Name) else (f.attr if isinstance(f, ast.Attribute) else None)
             if name == HELPER:
                 helper = True
-            elif name in ("get", "getenv") and n.args and _is_switch(n.args[0]):
-                guard = True
+            elif name in ("get", "getenv") and n.args and _is_switch(n.args[0], consts):
+                direct = True
         elif isinstance(n, ast.Subscript):
             index = n.slice.value if type(n.slice).__name__ == "Index" else n.slice      # ast.Index before 3.9
-            guard = guard or _is_switch(index)
-        elif isinstance(n, ast.Compare) and _is_switch(n.left) and any(isinstance(op, (ast.In, ast.NotIn))
-                                                                       for op in n.ops):
-            guard = True
-    return "guard" if guard else ("helper" if helper else None)
+            direct = direct or (isinstance(n.ctx, ast.Load) and _is_switch(index, consts))
+        elif isinstance(n, ast.Compare) and _is_switch(n.left, consts) and any(isinstance(op, (ast.In, ast.NotIn))
+                                                                               for op in n.ops):
+            direct = True
+        elif isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load) and n.id in readers:
+            indirect = True
+        elif isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id in ("self", "cls") and \
+                n.attr in readers:
+            indirect = True
+    return direct, helper, indirect
+
+
+def _is_legacy_guard(stmt, consts=()):
+    """The one form a bound may read the switch in: `if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+    self.skipTest("wall-clock bound off ...")`, nothing else in the block."""
+    if not (isinstance(stmt, ast.If) and not stmt.orelse and len(stmt.body) == 1):
+        return False
+    test, body = stmt.test, stmt.body[0]
+    if not (isinstance(test, ast.Compare) and len(test.ops) == 1 and isinstance(test.ops[0], ast.Eq) and
+            isinstance(test.comparators[0], ast.Constant) and test.comparators[0].value == "0"):
+        return False
+    read = test.left
+    if not (isinstance(read, ast.Call) and read.args and _is_switch(read.args[0], consts)):
+        return False
+    return isinstance(body, ast.Expr) and isinstance(body.value, ast.Call) and \
+        isinstance(body.value.func, ast.Attribute) and body.value.func.attr == "skipTest"
+
+
+def _reads_outside_guard(item, consts=()):
+    """True when a method reads the switch anywhere but in its legacy guard (a body returning early under the relaxed
+    value ran in no correctness run and nothing recorded a skip: closeout_VER2)."""
+    def scan(stmts):
+        for stmt in stmts:
+            if _is_legacy_guard(stmt, consts):
+                continue
+            blocks = [getattr(stmt, f, None) for f in ("body", "orelse", "finalbody", "handlers")]
+            parts = [p for block in blocks if isinstance(block, list) for p in block]
+            if parts and not isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                # the statement's own expressions (a test, an iterable), then its blocks
+                own = [c for c in ast.iter_child_nodes(stmt) if c not in parts]
+                if any(_reads(c, consts)[0] for c in own) or scan(parts):
+                    return True
+            elif _reads(stmt, consts)[0]:
+                return True
+        return False
+    return any(_reads(d, consts)[0] for d in item.decorator_list) or scan(item.body)
+
+
+def _module_readers(tree):
+    """(constants holding the switch's name, names bound at module level whose value reads it and helper functions that
+    read it, to a fixed point): what perf_marks follows out of a test method (closeout_REV 8: a switch read at module
+    level or in a helper was no perf mark, skipped in the correctness run and ran nowhere)."""
+    consts, readers = set(), set()
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and _is_switch(node.value):
+            consts.update(t.id for t in node.targets if isinstance(t, ast.Name))
+    changed = True
+    while changed:
+        changed = False
+        for node in tree.body:
+            if isinstance(node, (ast.ClassDef, ast.Import, ast.ImportFrom)):
+                continue
+            direct, _, indirect = _reads(node, consts, readers)
+            if not (direct or indirect):
+                continue
+            names = set()
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                names.add(node.name)
+            else:
+                names.update(n.id for n in ast.walk(node) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store))
+            if names - readers:
+                readers |= names
+                changed = True
+    return consts, readers
+
+
+SETUP_METHODS = ("setUp", "setUpClass", "tearDown", "tearDownClass", "asyncSetUp", "asyncTearDown")
 
 
 def perf_marks(files):
-    """{file name: {test id: {"kind", "source_sha256"}}} of the wall-clock bounds of test files: the test methods of
-    a class that read HOUSE_SIM_PERF_TESTS or call wall_clock_bound. Ids are "<tests folder>.<module>.<Class>.
-    <method>", as unittest prints them."""
+    """{file name: {test id: {"kind", "source_sha256"[, "problem"]}}} of the wall-clock bounds of test files: the test
+    methods of a class that read HOUSE_SIM_PERF_TESTS (themselves, through a module constant, a module-level flag or
+    helper, a helper method, a setUp or a class or function decorator) or call wall_clock_bound. Ids are
+    "<tests folder>.<module>.<Class>.<method>", as unittest prints them. "problem" says why a mark is not a bound the
+    correctness runs can relax: it reads the switch outside its own legacy guard (mark_problems: the run fails)."""
     out = {}
     for path in sorted(str(f) for f in files):
         try:
@@ -126,19 +207,64 @@ def perf_marks(files):
         lines = source.splitlines()
         module = "{}.{}".format(os.path.basename(os.path.dirname(os.path.abspath(path))),
                                 os.path.splitext(os.path.basename(path))[0])
+        consts, readers = _module_readers(tree)
+        # a module-level setUpModule that reads the switch binds every test of the file (readers holds it)
+        module_wide = "setUpModule" in readers or "tearDownModule" in readers
         marks = {}
         for node in tree.body:
             if not isinstance(node, ast.ClassDef):
                 continue
+            local = set(readers)
+            changed = True
+            while changed:
+                changed = False
+                for item in node.body:
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and \
+                            not item.name.startswith("test") and item.name not in local:
+                        direct, _, indirect = _reads(item, consts, local)
+                        if direct or indirect:
+                            local.add(item.name)
+                            changed = True
+                    elif isinstance(item, (ast.Assign, ast.AnnAssign)):
+                        direct, _, indirect = _reads(item, consts, local)
+                        names = {n.id for n in ast.walk(item) if isinstance(n, ast.Name) and
+                                 isinstance(n.ctx, ast.Store)}
+                        if (direct or indirect) and names - local:
+                            local |= names
+                            changed = True
+            class_wide = module_wide or any(
+                _reads(d, consts, local)[0] or _reads(d, consts, local)[2] for d in node.decorator_list) or \
+                any(name in local for name in SETUP_METHODS)
             for item in node.body:
                 if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and item.name.startswith("test"):
-                    kind = _kind(item)
-                    if kind:
-                        marks["{}.{}.{}".format(module, node.name, item.name)] = {
-                            "kind": kind, "source_sha256": method_source_sha(lines, item)}
+                    direct, helper, indirect = _reads(item, consts, local)
+                    if not (direct or helper or indirect or class_wide):
+                        continue
+                    mark = {"kind": "guard" if direct or indirect or class_wide else "helper",
+                            "source_sha256": method_source_sha(lines, item)}
+                    if indirect or class_wide:
+                        mark["problem"] = "reads {} outside the test method (a module-level flag, a helper or a " \
+                                          "setUp): no bound can be relaxed that way".format(PERF_ENV)
+                    elif direct and _reads_outside_guard(item, consts):
+                        mark["problem"] = "reads {} in another form than the bound's guard `if os.environ.get({!r}, " \
+                                          "\"1\") == \"0\": self.skipTest(...)`".format(PERF_ENV, PERF_ENV)
+                    marks["{}.{}.{}".format(module, node.name, item.name)] = mark
         if marks:
             out[os.path.basename(path)] = marks
     return out
+
+
+def mark_problems(marks):
+    """{test id: why} of the flat perf marks that hide from the correctness runs (closeout_REV 8, closeout_VER2): the
+    switch read outside the test method, or in another form than the legacy guard (a body that returns early when
+    relaxed). A correctness run with one fails, whatever the registry says."""
+    return {tid: info["problem"] for tid, info in sorted(marks.items()) if info.get("problem")}
+
+
+def registered_without_mark(marks, bounds):
+    """Registered bounds with no perf mark in the tree: a bound whose guard and timing assertions were deleted (it would
+    only have failed tests/test_gate_tool.py's registry pin, which an edit of that test also removes: closeout_VER2)."""
+    return sorted(tid for tid in bounds if tid not in marks)
 
 
 def flat_marks(marks_by_file):

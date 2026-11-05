@@ -5,7 +5,7 @@
   "closed_vent": {"class": "function", "synonyms": ["vent_closed", "partly_closed", "damper_closed", "shut_vent"], "evidence": [{"field": "settings"}, {"field": "vent_issues"}]},
   "dirty_filter": {"class": "condition", "synonyms": ["filter_dirty", "clogged_filter", "change_filter", "filter_needs_changing"], "evidence": [{"field": "filter_indicator"}, {"field": "soil"}]},
   "wrapped_filter": {"class": "function", "synonyms": ["filter_still_wrapped", "plastic_on_filter", "shrink_wrapped_filter"], "evidence": [{"field": "shrink_wrapped"}]},
-  "reversed_filter": {"class": "function", "synonyms": ["filter_backwards", "filter_reversed", "wrong_way_filter"], "evidence": [{"field": "reversed"}]},
+  "reversed_filter": {"class": "function", "synonyms": ["filter_backwards", "filter_reversed", "wrong_way_filter", "backwards", "installed_backwards"], "evidence": [{"field": "reversed"}]},
   "short_cycling": {"class": "function", "synonyms": ["short_cycles", "cycling_on_and_off", "keeps_turning_off"], "evidence": [{"field": "starts"}]},
   "frozen_coil": {"class": "function", "synonyms": ["iced_coil", "coil_frozen", "ice_on_coil"], "evidence": [{"field": "fault"}]},
   "stuffy": {"class": "living", "synonyms": ["stale_air", "airless", "close_air"], "evidence": [{"field": "co2_ppm", "near": true}]},

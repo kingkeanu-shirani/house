@@ -22,9 +22,9 @@
                                     "units": ["F", "C"], "heat_setpoint": {"min": 45, "max": 90, "step": 1}, "cool_setpoint": {"min": 50, "max": 92, "step": 1}},
                 "instructions": "Mode: OFF / HEAT / COOL / AUTO. Changing a setpoint while following the schedule holds it until the next period; HOLD = permanent; RESUME (hold none) returns to the schedule.",
                 "affordances": ["read", "set"]},
-      "perception": {"read": ["display", "reading_c", "hold_until", "active_period", "instructions"], "hidden": ["controls_hvac", "zone_rooms", "hold_until_s", "hold_ends_at_period"],
-                     "faces": {"display": "display", "reading_c": "display", "hold_until": "display", "active_period": "display"}},
-      "view": {"faces": {"display": 0}, "text_m": {"display": 0.012, "reading_c": 0.012, "hold_until": 0.004, "active_period": 0.004, "instructions": 0.003},
+      "perception": {"read": ["display", "reading_c", "readings", "hold_until", "active_period", "instructions"], "hidden": ["controls_hvac", "zone_rooms", "hold_until_s", "hold_ends_at_period"],
+                     "faces": {"display": "display", "reading_c": "display", "readings": "display", "hold_until": "display", "active_period": "display"}},
+      "view": {"faces": {"display": 0}, "text_m": {"display": 0.012, "reading_c": 0.012, "readings": 0.012, "hold_until": 0.004, "active_period": 0.004, "instructions": 0.003},
                "doc": "The LCD faces into the room from its wall: room-temperature digits about 12 mm high, the HOLD UNTIL time and the schedule-period word about 4 mm; the instructions card inside the cover is 3 mm print. Read from in front (the face) or with the wrist camera up close."}},
     "smart_thermostat": {"is_a": "thermostat", "doc": "Wi-Fi thermostat: status visible remotely (remote_status), setpoints also through the app.",
       "props": {"label": "smart thermostat", "remote_status": true, "control_kinds": {"mode": "app", "heat_setpoint": "app", "cool_setpoint": "app", "hold": "app", "fan": "app"}},
@@ -232,9 +232,9 @@
     "hygrometer": {"is_a": "portable_object", "doc": "Digital thermo-hygrometer (display shows room RH and temperature; rh_pct / temp_display are the same digits as numbers, read-tier).",
       "props": {"label": "hygrometer", "category": "hygrometer", "climate_kind": "hygrometer", "battery_powered": true, "battery_level": 1.0,
                 "size_m": [0.08, 0.02, 0.1], "mass_kg": 0.08, "volume_l": 0.2, "display": "", "rh_pct": null, "temp_display": null},
-      "perception": {"read": ["display", "rh_pct", "temp_display"], "measure": {"battery_level": "battery_tester"},
-                     "faces": {"display": "display", "rh_pct": "display", "temp_display": "display"}},
-      "view": {"faces": {"display": 0}, "text_m": {"display": 0.01, "rh_pct": 0.01, "temp_display": 0.008},
+      "perception": {"read": ["display", "rh_pct", "temp_display", "readings"], "measure": {"battery_level": "battery_tester"},
+                     "faces": {"display": "display", "rh_pct": "display", "temp_display": "display", "readings": "display"}},
+      "view": {"faces": {"display": 0}, "text_m": {"display": 0.01, "rh_pct": 0.01, "temp_display": 0.008, "readings": 0.008},
                "doc": "A desk thermo-hygrometer's LCD faces the way it stands (its support's front): RH digits about 10 mm, the temperature 8 mm. Read from in front or with the wrist camera."}}
   }
 }

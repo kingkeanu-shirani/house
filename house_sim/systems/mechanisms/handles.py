@@ -60,12 +60,13 @@ def _wrong_way(ctx, eid, rec, pulling, newtons):
     return "It doesn't move: this one opens by {} from this side (you strained it)".format("pushing" if pulling else "pulling")
 
 
-def _test(ctx, eid, rec, newtons):
-    """Gentle pull/push test of a closed closure: holds if latched/locked, else it moves."""
+def _test(ctx, eid, rec, newtons, pulling):
+    """Gentle pull/push test of a closed closure: holds if latched/locked, else it moves. A hinged door cannot swing
+    toward its stop: a test the wrong way (pulling a door that opens by pushing from this side) moves nothing whatever
+    the latch does, so it tells nothing and records nothing (closeout_breakages: it used to swing the door open)."""
     w = ctx.w
     state = w.s
     kind = C.kind_of(rec)
-    secure = False
     if kind == "pet_door":
         from . import latches
         return latches.pet_door_test(ctx, eid, rec)
@@ -73,22 +74,10 @@ def _test(ctx, eid, rec, newtons):
         rm, mech = C.mut_mech(w, eid)
         mech["tested_at"], mech["test_held"] = state["time_s"], False
         return "It is not shut ({:.0f}% open)".format(100 * C.num(C.mget(w.ent(eid), "open_frac", 1.0), 1.0))
-    locked = bool(rec.get("locked"))
-    if locked and C.mget(rec, "bolt_throw", 1.0) is not None and C.num(C.mget(rec, "bolt_throw", 1.0), 1.0) < 0.9:
-        locked = False
+    if not _direction_ok(ctx, eid, rec, pulling):
+        return "It doesn't move: this one opens by {} from this side".format("pushing" if pulling else "pulling")
+    secure = K.secure_now(rec)
     hasp = C.mget(rec, "hasp") or {}
-    if hasp.get("padlock") and hasp.get("closed") and hasp.get("through_staple", True):
-        locked = True
-    latched = K.is_latched(rec)
-    # trying the handle without unlocking: a lockable closure must be locked, a latch-only one latched
-    if kind in C.WINDOW_KINDS:
-        secure = locked
-    elif kind in C.LID_KINDS:
-        secure = bool(rec.get("sealed") or rec.get("latched") or C.num(C.mget(rec, "clasps_closed")) > 0)
-    elif rec.get("lockable") or hasp:
-        secure = locked
-    else:
-        secure = latched
     rm, mech = C.mut_mech(w, eid)
     mech["tested_at"] = state["time_s"]
     mech["test_held"] = bool(secure)
@@ -262,7 +251,7 @@ def pull_handle(ctx):
         from . import latches
         return latches.fixed_leaf(ctx, eid, opening=ctx.args["extent"] > 0)
     if ctx.args["test"]:
-        return _test(ctx, eid, rec, min(newtons, C.FORCE_N["normal"]))
+        return _test(ctx, eid, rec, min(newtons, C.FORCE_N["normal"]), True)
     if not rec.get("openable"):
         raise ActionError("Nothing here opens by pulling", "precondition")
     if grip == "surface" and C.num(rec.get("temperature_c"), 21.0) > C.num(rec.get("max_touch_temp_c"), 50.0):
@@ -347,7 +336,6 @@ def push_handle(ctx):
         require(rec.get("open"), "Take the lid off to wipe the rim and threads", "precondition")
         rm, mech = C.mut_mech(w, eid)
         mech["rim_clean"] = True
-        from ..core import add_soil
         add_soil(w, rag, "paint", 0.2)
         return "Wiped the rim and threads clean"
     if part == "rings" and kind == "curtain":
@@ -373,7 +361,7 @@ def push_handle(ctx):
         hh["fixed"] = "reseated_roller"
         return "Lifted the drawer front and re-seated the roller on its track"
     if ctx.args["test"]:
-        return _test(ctx, eid, rec, min(newtons, C.FORCE_N["normal"]))
+        return _test(ctx, eid, rec, min(newtons, C.FORCE_N["normal"]), False)
     if kind == "pet_door":
         from . import latches
         return latches.pet_door_test(ctx, eid, rec)

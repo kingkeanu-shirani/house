@@ -28,6 +28,7 @@ HARDNESS_BAR = {"cedar": 14.0, "redwood": 14.0, "pine": 22.0, "pressure_treated_
                 "glass": 40.0, "fabric": 8.0, "screen": 6.0}
 NOZZLE = {"0": 1.0, "15": 0.3, "25": 0.15, "40": 0.07, "soap": 0.01, "shower": 0.005, "jet": 0.03}
 PRESSURE_WASHER_DB = 80.0    # an electric 1900 psi washer at 1 m, pump and jet (manufacturers list 76-85 dB(A))
+WASHER_KW = 1.8              # that washer's motor
 
 
 def _soil(w, eid, kind, amount):
@@ -56,15 +57,24 @@ def drop_cloth_under(w, eid):
     return None
 
 
+DUST_KINDS = ("drywall_dust", "sawdust", "dust")
+DUST_G_PER_LEVEL = 7.5       # a floor cell's worth: 0.25 m2 x about 30 g/m2 per soil level (cleaning's scale); a pass over one
+                             # patch sheds 1.5 g, under the debris tolerance of 5 g: several patches' dust is not
+
+
 def _mess(w, eid, kind, amount, notes, what):
     cloth = drop_cloth_under(w, eid)
+    origin = "created:{}".format(eid)
+    grams = float(amount) * DUST_G_PER_LEVEL if kind in DUST_KINDS else 0.0    # paint and spatter are soil, not debris
     if cloth:
         _soil(w, cloth, kind, amount)
+        C.mess_flow(w, "debris", grams, origin, "entity:" + cloth, origin=origin)
         return
     room = w.root_room(eid)
     floor = _floor(w, room) if room else None
     if floor:
         _soil(w, floor, kind, amount)
+        C.mess_flow(w, "debris", grams, origin, C.floor_key(w, room), origin=origin)
     room_rec = w.s["rooms"].get(room, {})
     _, cells = C.anchor_cells(w, eid)
     for other in sorted(w.children(room)) if room else []:
@@ -114,9 +124,9 @@ def patch(ctx):
                           "Hold a putty knife")
     mat = ctx.args.get("material")
     if not mat:
-        mat = next((h for h in w.held_items() if w.ent(h).get("product") == "spackle"), None) or \
+        mat = next((h for h in C.known_held(w, ctx) if w.ent(h).get("product") == "spackle"), None) or \
             next((e for e in sorted(w.children(C.robot_room(w))) + sorted(w.s["entities"]) if w.s["entities"].get(e, {}).get("product") == "spackle"
-                  and C.near_robot(w, e, 2)), None)
+                  and C.near_robot(w, e, 2) and not C.must_identify(ctx, e)), None)
     require(mat and w.ent(mat).get("product") == "spackle", "Have spackle within reach", "resource")
     require(ctx.holding(mat) or C.near_robot(w, mat, 2), "Keep the spackle within reach", "precondition")
     require(float(w.ent(mat).get("amount_l", 0.0)) > 0.005, "The spackle tub is empty", "resource")
@@ -161,11 +171,11 @@ def eye_mm(value):
 def _patch_tube(ctx, eid, rec):
     w = ctx.w
     infl = rec["inflation"]
-    kit = next((h for h in w.held_items() if w.ent(h).get("product") == "patch_kit"), None) or \
-        next((e for e in sorted(w.s["entities"]) if w.ent(e).get("product") == "patch_kit" and C.near_robot(w, e, 2)), None)
+    kit = next((h for h in C.known_held(w, ctx) if w.ent(h).get("product") == "patch_kit"), None) or \
+        next((e for e in sorted(w.s["entities"]) if w.ent(e).get("product") == "patch_kit" and C.near_robot(w, e, 2) and not C.must_identify(ctx, e)), None)
     require(kit, "Have a patch kit at hand", "resource")
     require(int(w.ent(kit).get("patches", 0)) > 0, "The patch kit is out of patches", "resource")
-    require(infl.get("puncture_located"), "Find the puncture first (inflate a little and inspect closely)", "precondition")
+    require("ball" in (rec.get("_punctures_located") or ()), "Find the puncture first (inflate a little and inspect closely)", "precondition")
     km = w.mut(kit)
     km["patches"] = int(km["patches"]) - 1
     m = w.mut(eid)
@@ -312,8 +322,8 @@ def paint(ctx):
     rec = ctx.obj(eid, touch=True)
     require(isinstance(rec.get("paint"), dict) or rec.get("paintable"), "That surface is not painted", "argument")
     tool = C.resolve_tool(ctx, ctx.args.get("tool"), lambda r: "paint" in C.tool_caps(r), "Hold a brush or roller")
-    can = ctx.args.get("paint") or next((h for h in w.held_items() if w.ent(h).get("paint")), None) or \
-        next((e for e in sorted(w.s["entities"]) if w.ent(e).get("paint") and C.near_robot(w, e, 2) and w.ent(e).get("open")), None)
+    can = ctx.args.get("paint") or next((h for h in C.known_held(w, ctx) if w.ent(h).get("paint")), None) or \
+        next((e for e in sorted(w.s["entities"]) if w.ent(e).get("paint") and C.near_robot(w, e, 2) and w.ent(e).get("open") and not C.must_identify(ctx, e)), None)
     require(can and w.ent(can).get("paint"), "Have an open can of paint within reach", "resource")
     crec = w.ent(can)
     require(crec.get("open") or not crec.get("openable"), "Open the paint can first", "precondition")
@@ -496,7 +506,7 @@ def regrout(ctx):
         ctx.spend(300.0 * cracked)
         return "Raked out {:.1f} m of cracked grout{}".format(cracked, ": " + "; ".join(notes) if notes else "")
     tool = C.resolve_tool(ctx, ctx.args.get("tool"), lambda r: r.get("tool_kind") == "grout_float", "Hold a grout float")
-    bag = next((e for e in sorted(w.s["entities"]) if w.ent(e).get("product") == "grout" and (ctx.holding(e) or C.near_robot(w, e, 2))), None)
+    bag = next((e for e in sorted(w.s["entities"]) if w.ent(e).get("product") == "grout" and (ctx.holding(e) or C.near_robot(w, e, 2)) and not C.must_identify(ctx, e)), None)
     require(bag, "Have grout within reach", "resource")
     C.use_tool(ctx, tool, "float_grout")
     if not g.get("raked"):
@@ -596,7 +606,13 @@ def pressure_wash(ctx):
     area = float(rec.get("area_m2", 4.0))
     seconds = 45.0 * area * (1.0 if nozzle in ("15", "0") else 0.7)
     util = w.sec("utilities")
-    util["water_l"] = round(float(util.get("water_l", 1e5)) - float(trec.get("flow_lpm", 4.5)) * seconds / 60.0, 3)
+    used_l = float(trec.get("flow_lpm", 4.5)) * seconds / 60.0
+    util["water_l"] = round(float(util.get("water_l", 1e5)) - used_l, 3)
+    C.count_water(w, used_l)
+    C.book_energy(w, tool, WASHER_KW, seconds)
+    # the run-off: water from the supply lands where the surface is (outdoors a sink for clean water, indoors a flood the
+    # ledger charges: 6.5)
+    C.log_spill(w, "water", used_l, tool, room=room)
     C.drain_battery(w, tool, 0.0)
     ctx.spend(seconds)
     if ctx.realistic:
@@ -654,7 +670,7 @@ def seal_surface(ctx):
     require(rec.get("sealable"), "That surface does not take sealer", "argument")
     tool = C.resolve_tool(ctx, ctx.args.get("tool"), lambda r: "paint" in C.tool_caps(r), "Hold a roller or brush")
     can = ctx.args.get("product") or next((e for e in sorted(w.s["entities"]) if w.ent(e).get("product") == "deck_sealer" and
-                                           (ctx.holding(e) or C.near_robot(w, e, 2))), None)
+                                           (ctx.holding(e) or C.near_robot(w, e, 2)) and not C.must_identify(ctx, e)), None)
     require(can and w.ent(can).get("product") == "deck_sealer", "Have the sealer within reach", "resource")
     crec = w.ent(can)
     require(crec.get("open") or not crec.get("openable"), "Open the can first", "precondition")
@@ -766,48 +782,48 @@ def cure_system(w, dt, tick):
         m = None
         for i, h in enumerate(rec.get("holes") if holes else []):
             if isinstance(h, dict) and h.get("state") == "filled_wet" and now >= float(h.get("dry_at", 0.0)):
-                m = m or w.mut(eid)
+                m = m or w.mut(eid, cause=eid)
                 m["holes"][i]["state"] = "recessed" if h.get("shrinks") else "filled"
         joint = rec.get("caulk_joint")
         if isinstance(joint, dict) and joint.get("state") == "bead" and not joint.get("cured"):
             wet = rec.get("water_running") or rec.get("on") or float(rec.get("wetness", 0.0)) > 0.5 or \
                 any(w.ent(c).get("water_running") for c in w.children(eid))
             if wet:
-                m = m or w.mut(eid)
+                m = m or w.mut(eid, cause=eid)
                 m["caulk_joint"].update(state="failed", continuity=0.4, washed_out=True)
                 C.log(w, "caulk_washed_out", target=eid)
             elif now - float(joint.get("applied_at", now)) >= float(joint.get("cure_s", 86400.0)):
-                m = m or w.mut(eid)
+                m = m or w.mut(eid, cause=eid)
                 m["caulk_joint"]["cured"] = True
                 m["caulk_joint"]["state"] = "cured" if joint.get("bond_ok") else "failed"
         grout = rec.get("grout")
         if isinstance(grout, dict) and grout.get("state") == "filled" and not grout.get("cured"):
             wet = rec.get("water_running") or float(rec.get("wetness", 0.0)) > 0.5 or any(w.ent(c).get("water_running") for c in w.children(eid))
             if wet:
-                m = m or w.mut(eid)
+                m = m or w.mut(eid, cause=eid)
                 m["grout"].update(state="failed", washed_out=True)
             elif now - float(grout.get("filled_at", now)) >= float(grout.get("cure_s", 259200.0)):
-                m = m or w.mut(eid)
+                m = m or w.mut(eid, cause=eid)
                 m["grout"]["cured"] = True
                 m["grout"]["state"] = "failed" if grout.get("skim") else "cured"
         seal = rec.get("seal")
         if isinstance(seal, dict) and not seal.get("cured") and not seal.get("failed"):
             if outdoor and wet_weather:
-                m = m or w.mut(eid)
+                m = m or w.mut(eid, cause=eid)
                 m["seal"]["failed"] = True
                 m["seal"]["quality"] = min(float(seal.get("quality", 1.0)), 0.2)
                 C.log(w, "sealer_washed_out", target=eid)
             elif now - float(seal.get("applied_at", now)) >= float(seal.get("cure_s", 86400.0)):
-                m = m or w.mut(eid)
+                m = m or w.mut(eid, cause=eid)
                 m["seal"]["cured"] = True
         if outdoor and wet_weather and rec.get("sealable") and float(rec.get("wetness", 0.0)) < 0.9:
-            m = m or w.mut(eid)
+            m = m or w.mut(eid, cause=eid)
             m["wetness"] = 0.95
         elif drying:
             rate = (1.0 / (36 * 3600.0)) if outdoor else (1.0 / (3 * 3600.0))
             if outdoor and float((w.s.get("weather") or {}).get("temperature_c", 18.0)) > 20:
                 rate *= 1.5
-            m = m or w.mut(eid)
+            m = m or w.mut(eid, cause=eid)
             m["wetness"] = C.rnd(max(0.0, float(rec.get("wetness", 0.0)) - dt * rate), 4)
 
 

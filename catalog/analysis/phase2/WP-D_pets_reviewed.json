@@ -1,0 +1,65 @@
+[
+ {
+  "kind": "golden",
+  "key": "specs/A-afe8d8c6d6d883-01",
+  "code": "P2",
+  "package": "P2-WPD:pets",
+  "decision": "proposed (WP-D pets; this package does not own tests/data/room_golden.json, so the main session re-records and signs). The state digest only (steps, time and evaluation unchanged): logs.gone.*.by physical -> volition (the dog's eating is pets.agents, now tagged). A/B on frozen trees (the working tree with pets' files at HEAD vs with this package): tools/golden.py dump --all + diff: 9 of 243 spec entries, 0 of the 8 script runs."
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-0adf708ce0749a-01",
+  "code": "P2",
+  "package": "P2-WPD:pets",
+  "decision": "proposed (WP-D pets; this package does not own tests/data/room_golden.json, so the main session re-records and signs). The state digest only (steps, time and evaluation unchanged): the piles' baseline refuse flag (entities / logs.gone last.waste), the bag's _waste_origins, logs.mess_flows of pet_waste and waste_item. A/B on frozen trees (the working tree with pets' files at HEAD vs with this package): tools/golden.py dump --all + diff: 9 of 243 spec entries, 0 of the 8 script runs."
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-28ff695081cd2c-01",
+  "code": "P2",
+  "package": "P2-WPD:pets",
+  "decision": "proposed (WP-D pets; this package does not own tests/data/room_golden.json, so the main session re-records and signs). The state digest only (steps, time and evaluation unchanged): logs.gone.*.by physical -> volition (a pet eating, pets.agents tagged). A/B on frozen trees (the working tree with pets' files at HEAD vs with this package): tools/golden.py dump --all + diff: 9 of 243 spec entries, 0 of the 8 script runs."
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-79a861877a2a67-01",
+  "code": "P2",
+  "package": "P2-WPD:pets",
+  "decision": "proposed (WP-D pets; this package does not own tests/data/room_golden.json, so the main session re-records and signs). The state digest only (steps, time and evaluation unchanged): the bag's _waste_origins and logs.mess_flows of the scooped box (pet_waste). A/B on frozen trees (the working tree with pets' files at HEAD vs with this package): tools/golden.py dump --all + diff: 9 of 243 spec entries, 0 of the 8 script runs."
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-7fe081a3de29f8-01",
+  "code": "P2",
+  "package": "P2-WPD:pets",
+  "decision": "proposed (WP-D pets; this package does not own tests/data/room_golden.json, so the main session re-records and signs). The state digest only (steps, time and evaluation unchanged): the trash can's _waste_origins, empty: leftovers binned are no pet waste (add_waste keeps count per origin). A/B on frozen trees (the working tree with pets' files at HEAD vs with this package): tools/golden.py dump --all + diff: 9 of 243 spec entries, 0 of the 8 script runs."
+ },
+ {
+  "kind": "golden",
+  "key": "specs/T-c541cb694906f5-01",
+  "code": "P2",
+  "package": "P2-WPD:pets",
+  "decision": "proposed (WP-D pets; this package does not own tests/data/room_golden.json, so the main session re-records and signs). The state digest only (steps, time and evaluation unchanged): pets.*.last_check.fit.gear.*.reading: the fit check's structured reading (15.2). A/B on frozen trees (the working tree with pets' files at HEAD vs with this package): tools/golden.py dump --all + diff: 9 of 243 spec entries, 0 of the 8 script runs."
+ },
+ {
+  "kind": "golden",
+  "key": "specs/X-befab43585cde3-01",
+  "code": "P2",
+  "package": "P2-WPD:pets",
+  "decision": "proposed (WP-D pets; this package does not own tests/data/room_golden.json, so the main session re-records and signs). The state digest only (steps, time and evaluation unchanged): logs.gone.*.by physical -> volition (a pet eating, pets.agents tagged). A/B on frozen trees (the working tree with pets' files at HEAD vs with this package): tools/golden.py dump --all + diff: 9 of 243 spec entries, 0 of the 8 script runs."
+ },
+ {
+  "kind": "golden",
+  "key": "specs/X-c7a6de4ed9ba04-01",
+  "code": "P2",
+  "package": "P2-WPD:pets",
+  "decision": "proposed (WP-D pets; this package does not own tests/data/room_golden.json, so the main session re-records and signs). The state digest only (steps, time and evaluation unchanged): power_w on the basking lamp and the ceramic emitter (6.8: they drew nothing on the meter), electrical.house_load_w follows; last_check.reading (15.2). A/B on frozen trees (the working tree with pets' files at HEAD vs with this package): tools/golden.py dump --all + diff: 9 of 243 spec entries, 0 of the 8 script runs."
+ },
+ {
+  "kind": "golden",
+  "key": "specs/X-fee35ef3aac659-01",
+  "code": "P2",
+  "package": "P2-WPD:pets",
+  "decision": "proposed (WP-D pets; this package does not own tests/data/room_golden.json, so the main session re-records and signs). The state digest only (steps, time and evaluation unchanged): sealed: true on the pet medication (closeout_breakages row 5, its golden row named there). A/B on frozen trees (the working tree with pets' files at HEAD vs with this package): tools/golden.py dump --all + diff: 9 of 243 spec entries, 0 of the 8 script runs."
+ }
+]

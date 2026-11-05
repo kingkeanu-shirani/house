@@ -1,0 +1,20 @@
+{
+ "about": "Truth mappings of the mechanisms domain's states and issues (VERIFY_HARDENING 13.1, 13.3; WP-D mechanisms; the format of truth.json, whose keys this file never repeats). The words are this domain's vocabulary (data/vocab/mechanisms.json); each condition reads the record field this domain writes: a blind's or shade's lift (raised from 95 %, lowered up to 5 %: a half-raised blind is neither), the hidden cause a diagnosis finds (a sagging or misaligned latch by its millimetres: 6 mm is what a latch bar still catches; a strike 3 mm off stops a bolt seating; a jammed cylinder or smart lock; a sticking drawer's or sash's cause), a derailed track or off-slides drawer, a curtain rod that came down, a cross-threaded lid, a misaligned photo eye (both the mechanism's hidden flag and the scene's), a cord loop within a small child's reach (below 1.5 m), gas that has been flowing unlit. A thing with no such record leaves the claim unknown (never scored). 'jammed' and 'propped' keep truth.json's top-level fields: a blind's mech.jammed and a door's mech.propped_by are requested from WP4 (a domain file may not repeat a key). No acts: latch / unlatch need lexicon verbs (requested from WP4).",
+ "states": {
+  "raised": [{"field": "mech.lift_frac", "op": "gte", "value": 0.95}],
+  "lowered": [{"field": "mech.lift_frac", "op": "lte", "value": 0.05}]
+ },
+ "issues": {
+  "latch_misaligned": [{"field": "_mech.sag_mm", "op": "gt", "value": 6.0}, {"field": "_mech.latch_offset_mm", "op": "gt", "value": 6.0}],
+  "broken_latch": [{"field": "_mech.fault", "op": "eq", "value": "bent_bar"}, {"field": "_mech.fault", "op": "eq", "value": "latch_not_catching"}, {"field": "_mech.fault", "op": "eq", "value": "missing_screw"}, {"field": "_mech.fault", "op": "eq", "value": "broken_latch"}, {"field": "_mech.fault", "op": "eq", "value": "strike_misaligned_latch"}],
+  "strike_misaligned": [{"field": "_mech.strike_offset_mm", "op": "gt", "value": 3.0}, {"field": "_mech.fault", "op": "eq", "value": "strike_misaligned"}],
+  "lock_jammed": [{"field": "_mech.fault", "op": "eq", "value": "smart_jam"}, {"field": "_mech.fault", "op": "eq", "value": "cylinder_jam"}],
+  "sticking": [{"field": "_mech.stick", "op": "is_true"}, {"field": "_mech.stuck", "op": "is_true"}],
+  "off_track": [{"field": "mech.track", "op": "eq", "value": "derailed"}, {"field": "off_slides", "op": "is_true"}],
+  "rod_down": [{"field": "mech.rod", "op": "eq", "value": "down"}],
+  "cross_threaded": [{"field": "mech.cross_threaded", "op": "is_true"}],
+  "sensor_misaligned": [{"field": "_misaligned", "op": "is_true"}, {"field": "_mech.misaligned", "op": "is_true"}],
+  "cord_hazard": [{"field": "mech.cord_low_m", "op": "lt", "value": 1.5}],
+  "gas_unlit": [{"field": "mech.gas.unlit_s", "op": "gt", "value": 0.0}]
+ }
+}
