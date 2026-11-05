@@ -938,6 +938,37 @@
   },
   {
    "op": "event",
+   "when": {
+    "all": [
+     {
+      "path": "time_s",
+      "op": "gte",
+      "value": "{t_burst}"
+     },
+     {
+      "any": [
+       {
+        "path": "entities.{cvalve}.valve_open",
+        "op": "is_false"
+       },
+       {
+        "path": "entities.main_water_valve.valve_open",
+        "op": "is_false"
+       }
+      ]
+     }
+    ]
+   },
+   "effect": "people.say",
+   "args": {
+    "person": "resident_1",
+    "channel": "phone",
+    "text": "Looks like the water's off now, thanks. Leave the laundry room, I'll deal with it after this call."
+   },
+   "kind": "c8b_leave_laundry"
+  },
+  {
+   "op": "event",
    "at_s": "{t_call}",
    "effect": "people.say",
    "args": {
