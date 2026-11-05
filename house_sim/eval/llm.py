@@ -353,7 +353,7 @@ def make_transport(provider, allow_network=False, base_url=None):
 
 # ----- rate limiting and the response cache -------------------------------------------------------------------------
 class RateLimiter:
-    """At most `rpm` request starts per minute across all threads sharing this limiter."""
+    """At most `rpm` request starts per minute across all threads sharing this limiter (SharedRateLimiter: processes)."""
 
     def __init__(self, rpm=None, clock=time.monotonic, sleep=time.sleep):
         self.interval = 60.0 / float(rpm) if rpm else 0.0
@@ -372,6 +372,25 @@ class RateLimiter:
         if delay > 0:
             self.sleep(delay)
         return delay
+
+
+class SharedRateLimiter(RateLimiter):
+    """RateLimiter across worker processes (--workers N): the next start and the lock live in shared memory, and
+    time.monotonic is system-wide, so every worker reads one clock. As with agents.SharedCostLedger, it reaches the
+    workers through the pool's initargs. context: a multiprocessing context."""
+
+    def __init__(self, rpm, context):
+        self._slot = context.RawArray("d", [-1.0])      # negative: no request has started yet
+        super().__init__(rpm)
+        self._lock = context.Lock()
+
+    @property
+    def _next(self):
+        return None if self._slot[0] < 0 else self._slot[0]
+
+    @_next.setter
+    def _next(self, value):
+        self._slot[0] = -1.0 if value is None else value
 
 
 def _strip_userinfo(url):
@@ -432,7 +451,7 @@ class ResponseCache:
         if secret is None:
             import secrets
             path.parent.mkdir(parents=True, exist_ok=True)
-            tmp = path.with_name(path.name + ".{}.tmp".format(threading.get_ident()))
+            tmp = path.with_name("{}.{}.{}.tmp".format(path.name, os.getpid(), threading.get_ident()))
             tmp.write_text(secrets.token_hex(32), encoding="ascii")
             try:
                 os.replace(str(tmp), str(path))
@@ -444,7 +463,7 @@ class ResponseCache:
     def put(self, key, response, meta=None):
         path = self.path(key)
         path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_name(path.name + ".{}.tmp".format(threading.get_ident()))
+        tmp = path.with_name("{}.{}.{}.tmp".format(path.name, os.getpid(), threading.get_ident()))
         tmp.write_text(json.dumps({"key": key, "meta": meta or {}, "response": response}, ensure_ascii=False), encoding="utf-8")
         os.replace(str(tmp), str(path))
 

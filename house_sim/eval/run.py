@@ -25,19 +25,24 @@ import argparse
 import copy
 import hashlib
 import hmac
+import importlib
 import json
+import multiprocessing
 import os
+import pickle
 import re
 import sys
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from datetime import datetime, timezone
-from pathlib import Path
+from functools import wraps
+from pathlib import Path, PurePath
+from types import BuiltinFunctionType, FunctionType
 
 from ..catalog import ROOT, read_jsonl
-from .agents import (Budget, BudgetExceeded, CostLedger, action_catalog, canonical_name, filter_result, is_done, make_agent,
-                     parse_agent_spec, redact_url_credentials)
+from .agents import (Budget, BudgetExceeded, CostLedger, SharedCostLedger, action_catalog, canonical_name, filter_result, is_done,
+                     make_agent, parse_agent_spec, redact_url_credentials)
 
 HARNESS_VERSION = "3"     # 2: keyed private-text digests (instruction_hmac), harness_fingerprint, cache provenance;
 #                           3: a secret per-episode nonce (episode_nonce: handles and fixed draws; review H8)
@@ -59,6 +64,7 @@ RECORD_KEYS = ("catalog_id", "split", "seed_tag", "agent", "privileged", "succes
                "done_declared", "end_reason", "log", "spec_hash", "perception", "camera", "kind", "section", "domain",
                "risk_level", "fidelity", "phases")
 CAMERA_MODES = ("room", "geometric")
+MAX_WORKERS = 61                         # the largest process pool concurrent.futures allows on Windows
 
 
 def _now():
@@ -482,6 +488,27 @@ def _llm_cache_stats(agent, usage):
             "responses": int((usage or {}).get("calls", 0) or 0), "hits": int((usage or {}).get("cache_hits", 0) or 0)}
 
 
+_ONE_EPISODE = threading.Lock()
+
+
+def _one_episode_at_a_time(run_one):
+    """The simulator keeps per-episode working data in module-level objects (a memo of the world being ticked, "inside a
+    plumbing system", ...). Two episodes at once in one process read each other's values, sometimes with an exception
+    and sometimes with only a different result, so a second concurrent episode is refused here instead of quietly
+    scored. Parallel episodes run in worker processes (run(workers=N))."""
+    @wraps(run_one)
+    def guarded(*args, **kwargs):
+        if not _ONE_EPISODE.acquire(blocking=False):
+            raise RuntimeError("another episode is running in this process: the simulator is not thread-safe, so "
+                               "parallel episodes need separate processes (run(workers=N), --workers N)")
+        try:
+            return run_one(*args, **kwargs)
+        finally:
+            _ONE_EPISODE.release()
+    return guarded
+
+
+@_one_episode_at_a_time
 def _run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None, ledger=None, run_id=None, private_dir=None, name=None,
                  save_replay=True, code_versions=None, camera=None):
     from ..kernel.engine import HouseEnv, actions_fingerprint
@@ -875,14 +902,109 @@ def _sanitize_options(options):
     return out
 
 
+# ----- episodes of a run, in this process or in worker processes ----------------------------------------------------
+def _play_episode(agent_spec, agent_options, record, episode, name, arguments):
+    """One episode of a run with a fresh agent: (record, extra), or (None, {"aborted": why}) for a harness-level failure
+    (e.g. a refused test seed), which stops the run cleanly."""
+    try:
+        return _run_episode(record, episode, make_agent(agent_spec, **agent_options), name=name, **arguments)
+    except Exception as exc:  # noqa: BLE001
+        return None, {"aborted": "harness error on {} {}: {}: {}".format(episode["catalog_id"], episode.get("seed_tag"),
+                                                                         type(exc).__name__, str(exc)[:300])}
+
+
+_WORKER = {}                             # one worker process's copy of what every episode of the run shares
+
+
+def _simulator_modules():
+    """The package's modules imported so far, in import order."""
+    package = __name__.split(".")[0]
+    return [name for name, module in list(sys.modules.items()) if module is not None and name.split(".")[0] == package]
+
+
+def _end_with_parent():
+    """A worker must not outlive the parent of its run: nobody would read its results, an episode that is out would go on
+    writing logs and spending on the run's LLM key, and the output pipes it inherited would keep a caller's
+    subprocess.run(capture_output=True, timeout=...) waiting. The thread does nothing but wait for the parent."""
+    parent = multiprocessing.parent_process()
+
+    def watch():
+        parent.join()
+        os._exit(1)
+    threading.Thread(target=watch, name="end-with-parent", daemon=True).start()
+
+
+def _worker_init(agent_spec, agent_options, arguments, safe_mode, modules):
+    """A worker process starts as the parent stands: it imports the parent's modules in the parent's order (the plugin
+    tables fill in import order; this module and what it imports come first here, and none of them registers anything),
+    and takes the parent's safe mode (its engine may have been imported before main() set HOUSE_SIM_SAFE, and run.json
+    records the parent's)."""
+    _end_with_parent()
+    for name in modules:
+        importlib.import_module(name)
+    from ..kernel import engine
+    engine.SAFE = safe_mode
+    _WORKER.update(agent_spec=agent_spec, agent_options=agent_options, arguments=arguments)
+
+
+def _worker_episode(job):
+    record, episode, name = job
+    return _play_episode(_WORKER["agent_spec"], _WORKER["agent_options"], record, episode, name, _WORKER["arguments"])
+
+
+def _importing_main():
+    """True while this process is a spawned worker importing the parent's main script again (multiprocessing's own check
+    reads the same attribute)."""
+    return bool(getattr(multiprocessing.current_process(), "_inheriting", False))
+
+
+def _object_in(value):
+    """The first thing in an agent option that can keep state of its own, or None: plain data cannot, and neither can a
+    function or class named at module level, which a worker imports instead of copying."""
+    if type(value) in (type(None), bool, int, float, str, bytes) or isinstance(value, (PurePath, FunctionType, BuiltinFunctionType, type)):
+        return None
+    if type(value) is dict:
+        value = list(value) + list(value.values())
+    if type(value) in (list, tuple):
+        return next((found for found in map(_object_in, value) if found is not None), None)
+    return value
+
+
+def _worker_problem(filters, options):
+    """Why this run's agent objects cannot cross into worker processes, or None. An object run() is handed is one
+    object for every episode, in one process: a pickled copy per worker would quietly change what it does (a canned
+    transport's next answer, a count kept across episodes), so the run is refused instead. A ResponseCache only names a
+    directory, so it crosses. A named function's module-level state cannot be seen from here; each worker has its own."""
+    from .llm import DisabledTransport, ResponseCache, UrllibTransport
+    for transport in (filters.get("transport"), options.get("transport")):
+        if transport is not None and type(transport) not in (UrllibTransport, DisabledTransport):
+            return "the injected {} cannot be shared with worker processes".format(type(transport).__name__)
+    for key, value in options.items():
+        found = None if key == "transport" or type(value) is ResponseCache else _object_in(value)
+        if found is not None:
+            return "the agent option {} holds a {}, which would become one copy per worker".format(key, type(found).__name__)
+    try:
+        pickle.dumps(options)
+    except Exception as exc:  # noqa: BLE001  (a lambda, a lock, ...: what pickle raises depends on the object)
+        return "the agent options cannot be sent to worker processes ({}: {})".format(type(exc).__name__, str(exc)[:200])
+    return None
+
+
 def run(agent_spec, split, specs, out_dir, workers=1, caps=None, dry_run=False, **filters):
-    """Run agent_spec on every selected episode of a split. specs: records or spec dicts (None = all authored).
+    """Run agent_spec on every selected episode of a split. specs: records or spec dicts (None = all authored). workers:
+    episodes at once, each worker a separate process (the simulator is not thread-safe; capped at MAX_WORKERS and the
+    number of episodes; below 2 everything runs in this process). With 2 or more, a transport object or an agent option
+    that holds an object or cannot be pickled is refused (ValueError) before anything is written, and a script must guard
+    its call with if __name__ == "__main__": (a spawned worker imports the script again, and run() refuses there).
     filters: ids, sections, kinds, domains, limit, seeds, seeds_per_entry, verify ("evidence" | "fly" | "none"),
     verify_seeds, perception, camera ("room" | "geometric": every episode in that camera mode; None: each spec's own),
     agent_options, allow_network, transport, cache_dir, use_cache, rpm, run_id,
     private_dir, save_replays (default True), emit (print-like or None). Returns the run summary (also written to run.json).
     For the test split the LLM response cache defaults to private_dir/cache, and a cache_dir or private_dir inside the
     repository, the results root or out_dir is refused (ValueError) before anything is written."""
+    if int(workers or 1) > 1 and not dry_run and _importing_main():
+        raise RuntimeError('a worker process imported the main script again and reached run(workers={}): a script that runs '
+                           'parallel episodes must guard the call with if __name__ == "__main__":'.format(workers))
     emit = filters.get("emit", print)
     say = (lambda *a: emit(*a)) if emit else (lambda *a: None)
     caps = dict(DEFAULT_CAPS, **(caps or {}))
@@ -979,12 +1101,21 @@ def run(agent_spec, split, specs, out_dir, workers=1, caps=None, dry_run=False, 
             for requested in (filters.get("cache_dir"), options.get("cache_dir")):
                 if requested:
                     _refuse_public_location(requested, out_dir, "the test-split LLM response cache (--cache-dir / cache_dir)")
+    worker_count = max(1, min(int(workers or 1), MAX_WORKERS, len(episodes)))
+    context = None
+    if worker_count > 1:
+        problem = _worker_problem(filters, options)
+        if problem:
+            raise ValueError("refusing to run with {} workers: {}; use workers=1".format(worker_count, problem))
+        # spawn on every platform: a worker starts clean, and a fork of this process could copy a held lock
+        context = multiprocessing.get_context("spawn")
     out_dir.mkdir(parents=True, exist_ok=True)
-    ledger = CostLedger(caps.get("max_cost_usd"))
+    ledger = SharedCostLedger(caps.get("max_cost_usd"), context) if context else CostLedger(caps.get("max_cost_usd"))
     shared = {}
     llm_transport, cache_info = None, None
     if kind in ("llm", "mock"):
-        from .llm import MockTransport, RateLimiter, ResponseCache, cache_source, load_prices, transport_kind, PRICES_PATH
+        from .llm import (MockTransport, RateLimiter, ResponseCache, SharedRateLimiter, cache_source, load_prices, transport_kind,
+                          PRICES_PATH)
         transport = filters.get("transport")
         if transport is not None:
             shared["transport"] = transport
@@ -1018,7 +1149,8 @@ def run(agent_spec, split, specs, out_dir, workers=1, caps=None, dry_run=False, 
                       "namespace": "mock" if kind == "mock" else provider,
                       "explicit": bool(requested_cache or options.get("cache_dir") or options.get("cache")),
                       "private": shared.get("cache") is not None and split == "test"}
-        shared["rate_limiter"] = RateLimiter(filters.get("rpm") or options.get("rpm"))
+        rpm = filters.get("rpm") or options.get("rpm")
+        shared["rate_limiter"] = SharedRateLimiter(rpm, context) if context else RateLimiter(rpm)
         if caps.get("max_steps"):
             options.setdefault("max_steps", caps["max_steps"])
         prices_path = Path(options.get("prices_path") or PRICES_PATH)
@@ -1045,7 +1177,8 @@ def run(agent_spec, split, specs, out_dir, workers=1, caps=None, dry_run=False, 
                 "agent": canonical_name(agent_spec), "agent_spec": redact_url_credentials(agent_spec), "privileged": kind == "oracle", "split": split,
                 "filters": _jsonable({k: filters.get(k) for k in ("ids", "sections", "kinds", "domains", "limit", "seeds_per_entry")}),
                 "seeds": list(filters.get("seeds") or []) if split != "test" else None,
-                "caps": _jsonable(caps), "workers": int(workers or 1), "perception": "realistic" if split == "test" else (filters.get("perception") or "realistic"),
+                "caps": _jsonable(caps), "workers": int(workers or 1), "worker_processes": worker_count if context else 0,
+                "perception": "realistic" if split == "test" else (filters.get("perception") or "realistic"),
                 # the modes episodes actually run in: anything but ["realistic"] is a privileged-perception run
                 "perception_modes": perception_modes, "privileged_perception": perception_modes != ["realistic"],
                 # the forced camera mode (--camera), None = each spec's own; camera_modes: what episodes ran in
@@ -1076,52 +1209,80 @@ def run(agent_spec, split, specs, out_dir, workers=1, caps=None, dry_run=False, 
                 "planned_episodes_sha256": hashlib.sha256(json.dumps(plan, separators=(",", ":")).encode("utf-8")).hexdigest()}
     (out_dir / "run.json").write_text(json.dumps(run_info, indent=1, ensure_ascii=False), encoding="utf-8")
     from ..kernel.plugins import load_domains
-    load_domains()                      # import every domain once before any worker thread starts
+    load_domains()                      # import every domain once before any episode starts
 
     results = [None] * len(episodes)
     usages = [None] * len(episodes)
-    lock = threading.Lock()
     state = {"aborted": None, "done": 0}
     stream = (out_dir / "episodes.jsonl").open("w", encoding="utf-8", newline="\n")
+    agent_options = dict(options, **shared)
+    arguments = {"caps": caps, "out_dir": out_dir, "perception": filters.get("perception"), "ledger": ledger, "run_id": run_id,
+                 "private_dir": private_dir, "save_replay": filters.get("save_replays", True), "code_versions": code_versions,
+                 "camera": filters.get("camera")}
 
     def job(index):
         episode = episodes[index]
-        with lock:
-            if state["aborted"]:
-                return None
-        if ledger.exhausted():
-            return None
+        return by_id[episode["catalog_id"]], episode, names[index]
+
+    def stopping():
+        return state["aborted"] or ledger.exhausted()
+
+    def collect(index, outcome):
+        record, extra = outcome
+        if record is None:
+            state["aborted"] = state["aborted"] or extra["aborted"]
+            return
+        results[index] = record
+        usages[index] = extra.get("usage") or {}
+        stream.write(json.dumps(record, ensure_ascii=False, sort_keys=False) + "\n")
+        stream.flush()
+        state["done"] += 1
+        if extra.get("fatal") and not state["aborted"]:
+            state["aborted"] = "fatal provider error: " + str(extra.get("error"))[:300]
+        say("[{}/{}] {} {} success={} steps={} end={} cost=${:.4f}".format(state["done"], len(episodes), record["catalog_id"],
+                                                                         record["seed_tag"], record["success"], record["steps"],
+                                                                         record["end_reason"], record["cost_usd"]))
+
+    def lost_worker(index, exc):
+        """A worker that cannot report (it died, or its result could not be read): no record, and the run stops."""
+        episode = episodes[index]
+        return None, {"aborted": "worker process failed on {} {}: {}: {}".format(episode["catalog_id"], episode.get("seed_tag"),
+                                                                                 type(exc).__name__, str(exc)[:300])}
+
+    def run_in_workers():
+        """At most worker_count episodes out at a time, so the checks in stopping() hold for each one that starts."""
+        running, upcoming = {}, 0
         try:
-            agent = make_agent(agent_spec, **dict(options, **shared))
-            record, extra = _run_episode(by_id[episode["catalog_id"]], episode, agent, caps, out_dir, filters.get("perception"),
-                                         ledger, run_id, private_dir, names[index], save_replay=filters.get("save_replays", True),
-                                         code_versions=code_versions, camera=filters.get("camera"))
-        except Exception as exc:  # noqa: BLE001  (harness-level failure, e.g. a refused test seed): stop the run cleanly
-            with lock:
-                if not state["aborted"]:
-                    state["aborted"] = "harness error on {} {}: {}: {}".format(episode["catalog_id"], episode.get("seed_tag"),
-                                                                            type(exc).__name__, str(exc)[:300])
-            return None
-        with lock:
-            results[index] = record
-            usages[index] = extra.get("usage") or {}
-            stream.write(json.dumps(record, ensure_ascii=False, sort_keys=False) + "\n")
-            stream.flush()
-            state["done"] += 1
-            if extra.get("fatal") and not state["aborted"]:
-                state["aborted"] = "fatal provider error: " + str(extra.get("error"))[:300]
-            say("[{}/{}] {} {} success={} steps={} end={} cost=${:.4f}".format(state["done"], len(episodes), record["catalog_id"],
-                                                                             record["seed_tag"], record["success"], record["steps"],
-                                                                             record["end_reason"], record["cost_usd"]))
-        return record
+            with ProcessPoolExecutor(max_workers=worker_count, mp_context=context, initializer=_worker_init,
+                                     initargs=(agent_spec, agent_options, arguments, bool(engine.SAFE), _simulator_modules())) as pool:
+                while running or (upcoming < len(episodes) and not stopping()):
+                    while upcoming < len(episodes) and len(running) < worker_count and not stopping():
+                        try:
+                            running[pool.submit(_worker_episode, job(upcoming))] = upcoming
+                        except Exception as exc:  # noqa: BLE001  (the pool broke while a result was on its way)
+                            collect(upcoming, lost_worker(upcoming, exc))
+                        upcoming += 1
+                    finished, _ = wait(list(running), return_when=FIRST_COMPLETED)
+                    for future in finished:
+                        index = running.pop(future)
+                        try:
+                            outcome = future.result()
+                        except Exception as exc:  # noqa: BLE001
+                            outcome = lost_worker(index, exc)
+                        collect(index, outcome)
+        finally:
+            # left early (a Ctrl-C this process alone got): the pool waited for the episodes still out, and their logs are written
+            for future, index in running.items():
+                if future.done() and not future.cancelled() and future.exception() is None:
+                    collect(index, future.result())
 
     try:
-        if int(workers or 1) <= 1:
-            for i in range(len(episodes)):
-                job(i)
+        if context:
+            run_in_workers()
         else:
-            with ThreadPoolExecutor(max_workers=max(1, min(int(workers), 64))) as pool:
-                list(pool.map(job, range(len(episodes))))
+            for i in range(len(episodes)):
+                if not stopping():
+                    collect(i, _play_episode(agent_spec, agent_options, *job(i), arguments))
     finally:
         stream.close()
     done = [r for r in results if r is not None]
@@ -1285,7 +1446,10 @@ def build_parser():
     p.add_argument("--limit", type=int, help="Run at most N episodes.")
     p.add_argument("--seeds", nargs="+", type=int, help="dev/train only.")
     p.add_argument("--seeds-per-entry", type=int)
-    p.add_argument("--workers", type=int, default=1, help="Parallel episodes (threads).")
+    p.add_argument("--workers", type=int, default=1,
+                   help="Parallel episodes, each worker a separate process (cap {}; the simulator is not thread-safe). Given the "
+                        "same episode nonces, records are the same as with one worker, except what a run-wide cost cap, a "
+                        "wall-clock cap or a live model decides.".format(MAX_WORKERS))
     p.add_argument("--out", help="Results directory (default results/<run_id>/).")
     p.add_argument("--run-id")
     p.add_argument("--dry-run", action="store_true", help="Print the episode list with estimated tokens and cost; no calls.")

@@ -204,9 +204,10 @@ or edited, so there are no history-editing or thinking-block replay issues, and 
   network or the cache, so caps trip at the same step on reruns; `spent_usd` in the log's usage counts network
   responses only.
 * **Caps**: before each request the agent checks the per-episode token cap (`--max-tokens`), per-episode cost cap
-  (`--max-episode-cost-usd`) and the per-run cost cap (`--max-cost-usd`, a thread-safe ledger shared by all
-  episodes, with reservations so parallel workers cannot overshoot together) against a worst case (prompt estimated
-  at 3 characters per token at the higher of the input and cache-write prices, plus `max_output_tokens` of output).
+  (`--max-episode-cost-usd`) and the per-run cost cap (`--max-cost-usd`, a ledger shared by all episodes, in shared
+  memory across worker processes, with reservations so parallel workers cannot overshoot together) against a worst
+  case (prompt estimated at 3 characters per token at the higher of the input and cache-write prices, plus
+  `max_output_tokens` of output).
   After each step the harness also checks the recorded totals. When the run ledger is exhausted, remaining episodes
   are skipped (`run.json`: `episodes_skipped`, `skipped_reason`).
 * **Response cache**: on disk (`--cache-dir`, `--no-cache`), so a rerun makes no calls (`usage.cache_hits`): the
@@ -234,8 +235,27 @@ or edited, so there are no history-editing or thinking-block replay issues, and 
   (`backoff_base` 1 s doubling, jitter, `backoff_max` 30 s; `retry-after` honoured). Other 4xx are fatal: the episode
   ends with `agent_error` and the run stops scheduling new episodes (`status: aborted`).
 * **Rate limit**: `--rpm N` request starts per minute shared by all workers.
-* **Parallel episodes**: `--workers N` threads (cap 64), one fresh agent per episode; `episodes.jsonl` is written in
-  episode order. The simulator is CPU-bound, so threads mostly help LLM runs.
+* **Parallel episodes**: `--workers N` runs N worker processes (spawned on every platform; cap 61, the Windows limit
+  of a process pool, and at most one per episode), one fresh agent per episode; `episodes.jsonl` is written in episode
+  order. For every agent, LLM agents included: the simulator keeps per-episode working data in module-level objects,
+  so two episodes in one process read each other's values, sometimes with an exception and sometimes with only a
+  different result. `_run_episode` refuses a second concurrent episode in a process (`RuntimeError`). Given the same
+  episode nonces (a public episode without a response cache gets a fresh random one per run), an episode's record, log
+  and replay do not depend on N, except where something outside the episode decides: how far a run gets under a
+  run-wide cost cap depends on how the workers' spending interleaves (more episodes start at a higher N), and a
+  wall-clock cap and a live model's answers vary by nature. What episodes share crosses explicitly: the run's cost
+  ledger and rate limiter live in shared memory (`agents.SharedCostLedger`, `llm.SharedRateLimiter`), and the response
+  cache is on disk. Every worker imports the simulator once and holds its own memory, so a run costs that much per
+  worker, which matters for a large N on an LLM run. With N of 2 or more, `run()` refuses (`ValueError`, before anything
+  is written) a transport object other than the real network or disabled one, an agent option that holds any other
+  object (plain data, paths, a `ResponseCache` and functions named at module level cross, since none keeps state of its
+  own in the option; what a named function keeps in its module is one copy per worker, which `run()` cannot see), and
+  options that cannot be pickled: an object meant for all episodes would quietly become one copy per worker.
+  A worker process that dies ends the run with `status: aborted`, and the pool ends the other workers at once. Its
+  episode has no record, but what it spent stays in `ledger.spent_usd`, so that figure can exceed `totals.cost_usd`, and
+  a reservation it held stays in `ledger.reserved_usd`: the ledger is the true figure. A worker ends itself when the
+  parent process is gone (`run.json` then stays `running`). A Ctrl-C the parent alone gets waits for the episodes that
+  are out and keeps their records.
 
 ## Command line
 
@@ -371,7 +391,9 @@ Until then no schema-4 spec can be HARDENED (the batteries, WP6, have not landed
 
 * `run.json`: `format`, `harness_version` (`"2"`), `run_id`, `status` (running / complete / incomplete / aborted),
   `agent`, `agent_spec`, `privileged`, `split`, `filters`, `seeds` (never for test), `caps` (including
-  `require_done` and `max_steps`: the done protocol and step cap every log must repeat), `workers`, `perception`,
+  `require_done` and `max_steps`: the done protocol and step cap every log must repeat), `workers` (as asked),
+  `worker_processes` (the processes it used, 0: everything in the parent; a run without this key is from before
+  `--workers` used processes, and with `workers` above 1 its episodes shared one process), `perception`,
   `perception_modes` (the modes the episodes actually ran in) and `privileged_perception` (true when that is anything
   but `["realistic"]`: such a run must be labelled and ranked apart from normal runs, like a privileged agent),
   `camera` (the `--camera` value, null: each spec's own) and `camera_modes` (the camera modes the episodes ran in),
@@ -460,7 +482,10 @@ verify_perception, verify_workers, perception, camera ("room" | "geometric" | No
 allow_network, transport (inject a fake;
 it never uses the default cache), cache_dir, use_cache, rpm, run_id, private_dir, emit`. caps: `max_steps, max_sim_s,
 max_wall_s, max_tokens, max_cost_usd_episode, max_cost_usd, require_done, max_consecutive_invalid`. LLM agent
-options include `prices_path`, `price_provider` and `price_free` (declare an unlisted model free).
+options include `prices_path`, `price_provider` and `price_free` (declare an unlisted model free). A script that
+passes `workers` of 2 or more must put the call under `if __name__ == "__main__":`. A spawned worker imports the main
+script again, so its top level runs once per worker; a `run()` reached that way raises `RuntimeError`, the worker dies,
+and the script's own run ends `status: aborted`.
 
 ## Tests
 
@@ -483,7 +508,9 @@ test logs carry only keyed (split-key HMAC) digests of the instruction and memor
 warns (`TestUnpricedModels`); mock and injected-transport answers never serve a real run and never write the default
 cache, while genuine network entries still do (`TestCacheProvenance`); run.json and every log record both
 fingerprints, `replay_log` reports mismatches, and the harness fingerprint moves with harness code and prices.json
-(`TestVersionFingerprints`).
+(`TestVersionFingerprints`). `tests/test_parallel_workers.py`, offline too, covers `--workers`: episodes do not reach
+each other (these tests fail with worker threads), what they do share (ledger, rate limiter), objects refused up front,
+and a worker that dies, a parent that is killed or interrupted, and a script without a `__main__` guard.
 
 ## Limits
 
@@ -506,8 +533,9 @@ fingerprints, `replay_log` reports mismatches, and the harness fingerprint moves
   verified had a reference plan that fails under realistic perception (refused "not visible" steps or values the
   robot never observed), so even the privileged oracle cannot reach 100% over the whole dev split.
   `--verify-perception realistic` keeps only specs that are solvable in the episode mode.
-* Threads share one process; a hostile in-process agent could read private attributes (docs/EVALUATION.md):
-  evaluate untrusted agents in a separate process speaking to the harness.
+* An agent shares a process with its episode, whichever process that is (the parent, or a worker with `--workers`); a
+  hostile in-process agent could read private attributes (docs/EVALUATION.md): evaluate untrusted agents in a separate
+  process speaking to the harness.
 
 ## Leaderboard and submission verification (`house_sim/eval/leaderboard.py`)
 

@@ -20,6 +20,7 @@ import json
 import random
 import re
 import threading
+from contextlib import contextmanager
 
 DEFAULT_ANTHROPIC_MODEL = "claude-opus-5-5"
 DONE = "done"
@@ -40,9 +41,9 @@ class BudgetExceeded(RuntimeError):
 
 
 class CostLedger:
-    """Run-wide cost accounting shared by parallel episodes (thread-safe). A request reserves its worst-case cost
-    first, so concurrent workers cannot overshoot the cap together; the reservation is replaced by the actual
-    cost afterwards."""
+    """Run-wide cost accounting shared by the episodes of a run (thread-safe; across worker processes: SharedCostLedger).
+    A request reserves its worst-case cost first, so concurrent workers cannot overshoot the cap together; the
+    reservation is replaced by the actual cost afterwards."""
 
     def __init__(self, max_cost_usd=None):
         self.max_cost_usd = None if max_cost_usd is None else float(max_cost_usd)
@@ -67,13 +68,58 @@ class CostLedger:
     def release(self, reservation):
         self.commit(reservation, 0.0)
 
+    def _reading(self):
+        return self._lock
+
     def exhausted(self):
-        with self._lock:
+        with self._reading():
             return self.max_cost_usd is not None and self.spent + self.reserved >= self.max_cost_usd - 1e-12
 
     def snapshot(self):
-        with self._lock:
+        with self._reading():
             return {"spent_usd": round(self.spent, 6), "reserved_usd": round(self.reserved, 6), "max_cost_usd": self.max_cost_usd}
+
+
+class SharedCostLedger(CostLedger):
+    """The run ledger across worker processes (--workers N): the totals and the lock live in shared memory, so a
+    reservation made in one worker counts in all of them. multiprocessing can hand these to a process only while it
+    starts, so the ledger goes to the workers through the pool's initargs. context: a multiprocessing context."""
+
+    READ_PATIENCE_S = 2.0
+
+    def __init__(self, max_cost_usd, context):
+        self._totals = context.RawArray("d", 2)
+        super().__init__(max_cost_usd)
+        self._lock = context.Lock()
+
+    @contextmanager
+    def _reading(self):
+        """A worker can die holding the lock, which then stays taken for good. The parent only reads, and it must still
+        finish the run: a holder needs microseconds, so past READ_PATIENCE_S it reads without the lock. The worst this
+        reads is a commit half done, with spent + reserved too low, so at most one more episode starts and meets the cap
+        at its first reserve(). Writers wait for ever: they are workers, and the pool ends them when one of them dies."""
+        held = self._lock.acquire(timeout=self.READ_PATIENCE_S)
+        try:
+            yield
+        finally:
+            if held:
+                self._lock.release()
+
+    @property
+    def spent(self):
+        return self._totals[0]
+
+    @spent.setter
+    def spent(self, value):
+        self._totals[0] = value
+
+    @property
+    def reserved(self):
+        return self._totals[1]
+
+    @reserved.setter
+    def reserved(self, value):
+        self._totals[1] = value
 
 
 class Budget:
