@@ -2426,6 +2426,19 @@ class Tier1AdoptionTests(unittest.TestCase):
         self.assertIn("interrupted: doorbell", result["message"])
         self.assertLess(env.world.s["time_s"] - t0, 120)
 
+    def test_a_roster_of_plain_names_does_not_crash_the_door_or_the_questions(self):
+        from house_sim.systems.people import knowledge
+        state = {"household": {"expected_visitors": ["guest_a", {"name": "Dana"}]}}
+        self.assertIsNone(knowledge._expected_entry(state, "Lee"))
+        self.assertEqual(knowledge._expected_entry(state, "Dana"), {"name": "Dana"})
+        ops = [{"op": "helper", "name": "people.visitor", "args": {"kind": "expected_guest", "at_s": 20}}]
+        env, b, r = build(ops, residents=[{"id": "resident_1", "role": "adult", "label": "Jordan", "age": 45}],
+                          start="2026-10-09T17:30:00")
+        ok(self, env, "wait", seconds=600, interrupt_on=["doorbell"])
+        env.world.s["household"]["expected_visitors"] = ["guest_a"]
+        r.run([{"skill": "people.answer_door", "door": "{front_door}", "ask": "appointment"}])
+        self.assertFalse(any("Internal simulator error" in str(entry.get("message")) for entry in env.world.s.get("action_log") or []))
+
     def test_the_doorbell_is_not_heard_once_nobody_is_left_at_the_door(self):
         ops = [{"op": "helper", "name": "people.visitor", "args": {"kind": "expected_guest", "at_s": 20}}]
         env, b, r = build(ops, residents=[{"id": "resident_1", "role": "adult", "label": "Jordan", "age": 45}],

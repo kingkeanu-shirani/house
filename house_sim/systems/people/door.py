@@ -152,7 +152,7 @@ def answer_door(ctx):
     entry.update(time_s=C.now_s(state), channel=channel, recognition=copy.deepcopy(rec))
     entry["asked"] = sorted(set(entry.get("asked") or []) | ({question} if question != "none" else set()))
     if question == "appointment":
-        expected = [v for v in C.household(state).get("expected_visitors") or [] if v.get("appointment")]
+        expected = [v for v in C.household(state).get("expected_visitors") or [] if isinstance(v, dict) and v.get("appointment")]
         entry["appointment_ok"] = any(v.get("appointment") and v["appointment"] == ident.get("appointment") for v in expected)
     screened[pid] = entry
     visible = {k: v for k, v in (p.get("appearance") or {}).items()} if "face" in modalities else {}

@@ -210,14 +210,14 @@ def established_identity(state, vid):
     if screened.get("appointment_ok"):
         ident = (C.person(state, vid) or {}).get("_identity") or {}
         for entry in C.household(state).get("expected_visitors") or []:
-            if entry.get("appointment") and entry.get("appointment") == ident.get("appointment"):
+            if isinstance(entry, dict) and entry.get("appointment") and entry.get("appointment") == ident.get("appointment"):
                 return "appointment", entry
     return None
 
 
 def _expected_entry(state, name):
     for entry in C.household(state).get("expected_visitors") or []:
-        if name and C.norm(entry.get("name")) == C.norm(name):
+        if name and isinstance(entry, dict) and C.norm(entry.get("name")) == C.norm(name):
             return entry
     return None
 
