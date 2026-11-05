@@ -1704,8 +1704,8 @@ def soil_rise(before, after):
 
     def part_total(part):
         return sum(float(v) for v in (part or {}).values() if _number(v))
-    earlier = before.get("soil_faces") if isinstance(before.get("soil_faces"), dict) else {}
-    rises = [part_total(part) - part_total(earlier.get(face)) for face, part in faces.items()]
+    earlier = before.get("soil_faces") if isinstance(before.get("soil_faces"), dict) and before.get("soil_faces") else None
+    rises = [part_total(part) - (part_total(earlier.get(face)) if earlier is not None else soil_total(before)) for face, part in faces.items()]
     rises += [part_total(part) - soil_total(before) for part in shadows.values()]
     return max(rises) if rises else 0.0
 

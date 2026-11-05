@@ -45,7 +45,7 @@
     "offline": [{"field": "online", "op": "is_false"}]
   },
   "issues": {
-    "leak": [{"field": "plumb_source", "op": "exists", "value": true}, {"field": "leaking", "op": "is_true"}, {"field": "dripping", "op": "is_true"},
+    "leak": [{"field": "leaking", "op": "is_true"}, {"field": "dripping", "op": "is_true"},
              {"field": "drip_rate_lph", "op": "gt", "value": 0}, {"field": "water_spray", "op": "is_true"}],
     "broken": [{"field": "broken", "op": "is_true"}, {"field": "shattered", "op": "is_true"}],
     "cracked": [{"field": "cracked", "op": "is_true"}, {"field": "liner_cracked", "op": "is_true"},

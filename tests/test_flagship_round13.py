@@ -2,8 +2,8 @@
 
 * a seep soaked up in full leaves its cell dry; carpet, another spill on the cell and other plain water keep a film (SoakedUpSeepTests);
 * soil left under an item resting on a table does not turn a wipe into a rise, and real new soil still counts (SoilRiseTests);
-* "keep out of the hallway: the floor there is wet" is about the hallway's floor, a floor with water on it is wet, and a
-  leak's water arriving in a room is a leak there (WhatTheRobotSaidTests);
+* a sentence naming two rooms that could both hold the thing is left unscored, a floor with water on it is wet and not dry, and
+  a live leak's water coming under a door is a leak in that room, while a poured mug or a stopped leak is not (WhatTheRobotSaidTests);
 * a multipack holds its units side by side, so a roll goes back and the pack still shuts (MultipackTests);
 * the words of a part-open door, an exact spot refused, a hip on a dishwasher (WordsTests);
 * a simulator crash has its own class in the verdict (VerdictClassTests).
@@ -40,14 +40,14 @@ class SoakedUpSeepTests(unittest.TestCase):
         self.assertEqual(room.get("water_film") or {}, {})
         self.assertEqual(room.get("wet_cells") or [], [])
 
-    def test_a_seep_on_carpet_keeps_the_ordinary_damp_film(self):
+    def test_a_seep_on_carpet_keeps_the_film_it_had_and_it_stays_foreign(self):
         from house_sim.systems.cleaning import floors, state as S
         lab, spill = self.make(on_carpet=True)
         S.sync_wet(lab.w, "hall")
         floors.finish_spill(lab.w, spill)
-        film = lab.w.s["rooms"]["hall"].get("water_film") or {}
-        self.assertEqual(sorted(film), ["1,1"])
-        self.assertLess(film["1,1"], 0.1)
+        room = lab.w.s["rooms"]["hall"]
+        self.assertAlmostEqual((room.get("water_film") or {}).get("1,1", 0.0), 1.5, places=2)
+        self.assertEqual(sorted(S.foreign_wet(room)), ["1,1"])
 
     def test_a_cell_another_spill_still_covers_stays_wet(self):
         from house_sim.systems.cleaning import floors, state as S
@@ -93,6 +93,11 @@ class SoilRiseTests(unittest.TestCase):
                  "_shadows": {"plate_1": {"crumbs": 0.4, "sticky": 0.3, "juice": 0.5}}}
         self.assertGreater(ledger.soil_rise(self.BEFORE, after), 0.4)
 
+    def test_a_plain_soil_record_cleaned_around_an_item_is_no_rise(self):
+        before = {"soil": {"dust": 0.5}}
+        after = {"soil": {"dust": 0.5}, "soil_faces": {"main": {"dust": 0.04}}, "_shadows": {"mug": {"dust": 0.5}}}
+        self.assertLessEqual(ledger.soil_rise(before, after), 0.0)
+
     def test_no_shadows_is_the_plain_difference(self):
         before = {"soil": {"dust": 0.2}}
         after = {"soil": {"dust": 0.2, "sticky": 0.1}}
@@ -124,20 +129,50 @@ class WhatTheRobotSaidTests(unittest.TestCase):
         lab.w.mut(spill)["pos"] = [1, 1]
         self.assertIs(speech.state_truth(lab.w.s, "entity", "floor_kitchen", "wet"), True)
 
-    def test_the_floor_there_is_the_room_named_just_before_it(self):
+    def test_a_floor_with_water_on_it_is_not_dry_and_a_dry_one_is(self):
         state = self.wet_floor_state()
-        said = speech.parse("Please come through to the living room and keep out of the hall: the floor there is wet and slippery.", state)
-        wet = [c for c in said if c.get("value") == "wet"]
-        self.assertTrue(wet, said)
-        self.assertEqual(wet[0]["subject"], "floor_hall")
+        self.assertIs(speech.state_truth(state, "entity", "floor_hall", "dry"), False)
+        self.assertIsNot(speech.state_truth(state, "entity", "floor_kitchen", "dry"), False)
 
-    def test_a_leaks_water_arriving_in_a_room_is_a_leak_there(self):
+    def wet_claims(self, text, state):
+        return [(c, speech.truth(state, c)) for c in speech.parse(text, state) if c.get("value") == "wet"]
+
+    def test_the_floor_there_in_a_sentence_naming_two_rooms_is_left_unscored_in_either_order(self):
+        state = self.wet_floor_state()
+        for text in ("Please come through to the living room and keep out of the hall: the floor there is wet and slippery.",
+                     "Keep out of the hall and come through to the living room: the floor there is wet and slippery."):
+            found = self.wet_claims(text, state)
+            self.assertTrue(found, text)
+            self.assertIsNone(found[0][1], text)
+
+    def test_the_floor_with_one_room_named_is_that_rooms_floor(self):
+        state = self.wet_floor_state()
+        self.assertIs(self.wet_claims("Keep out of the hall: the floor there is wet.", state)[0][1], True)
+        self.assertIs(self.wet_claims("Keep out of the bath: the floor there is wet.", state)[0][1], False)
+
+    def leak_lab(self, source="door", leaking=True):
         lab = Lab()
-        self.assertIsNot(speech.issue_truth(lab.w.s, "room", "hall", "leak"), True)
+        door = lab.w.spawn("door", "hall", category="door")
+        lab.w.spawn("generic_item", "kitchen", leaking=True if leaking else None)
         spill = lab.w.spawn("spill", "hall", liquid="water", liquid_l=0.03, label="water spill", category="spill", portable=False,
-                            blocks_path=False, mass_kg=0.0, volume_l=0.0, plumb_source="c1", residue={})
+                            blocks_path=False, mass_kg=0.0, volume_l=0.0, plumb_source=door if source == "door" else source, residue={})
         lab.w.mut(spill)["pos"] = [1, 1]
-        self.assertIs(speech.issue_truth(lab.w.s, "room", "hall", "leak"), True)
+        return lab
+
+    def test_a_live_leaks_water_coming_under_a_door_is_a_leak_in_that_room(self):
+        self.assertIs(speech.issue_truth(self.leak_lab().w.s, "room", "hall", "leak"), True)
+
+    def test_no_leak_once_it_has_stopped_though_water_is_left(self):
+        self.assertIsNot(speech.issue_truth(self.leak_lab(leaking=False).w.s, "room", "hall", "leak"), True)
+
+    def test_a_poured_mug_is_no_leak_even_with_a_leak_elsewhere(self):
+        lab = Lab()
+        mug = lab.w.spawn("generic_item", "hall")
+        lab.w.spawn("generic_item", "kitchen", leaking=True)
+        spill = lab.w.spawn("spill", "hall", liquid="water", liquid_l=0.03, label="water spill", category="spill", portable=False,
+                            blocks_path=False, mass_kg=0.0, volume_l=0.0, plumb_source=mug, residue={})
+        lab.w.mut(spill)["pos"] = [1, 1]
+        self.assertIsNot(speech.issue_truth(lab.w.s, "room", "hall", "leak"), True)
 
     def test_water_that_did_not_come_from_plumbing_is_no_leak(self):
         lab = Lab()

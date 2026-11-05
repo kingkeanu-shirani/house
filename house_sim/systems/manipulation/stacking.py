@@ -1364,7 +1364,7 @@ def arrange(ctx):
             return "Arranged {} on {}".format(eid, dest)
         spos = None
     if spos is not None:
-        require(isinstance(spos, list) and len(spos) == 2, "spos must be [x, y]", "argument")
+        require(isinstance(spos, list) and len(spos) == 2 and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in spos), "spos must be [x, y]", "argument")
         spot = geometry.surface_spot(w.s, dest, eid, want=spos)
         require(spot is not None, geometry.spot_refusal(w.s, dest, eid, spos), "precondition")
     place_item(ctx, eid, dest, None, spos, None, None, ctx.args.get("orientation"))

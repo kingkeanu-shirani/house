@@ -1318,6 +1318,8 @@ def place_item(ctx, target, dest, relation=None, spos=None, cell=None, shelf=Non
                 require(not parent.get("container") or parent.get("accepts_on", True) or parent.get("open"), "Put it in that")
                 if parent.get("portable") and not parent.get("surface"):
                     require(parent.get("stackable") and record.get("stackable", True), "That cannot be stacked on")
+                if spos is not None:
+                    require(isinstance(spos, list) and len(spos) == 2 and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in spos), "spos must be [x, y]", "argument")
                 spot = geometry.surface_spot(state, dest, target, want=spos)
                 require(spot is not None, "No free space there" if spos is None else geometry.spot_refusal(state, dest, target, spos))
                 spos = spot
@@ -1638,7 +1640,7 @@ def _open_close(ctx, opening):
     require(record.get("openable"), "It does not open")
     require(not record.get("locked"), "It is locked; unlock it first")
     part_open = (record.get("mech") or {}).get("open_frac")
-    if opening and record.get("open") and isinstance(part_open, (int, float)) and part_open < 0.99:
+    if opening and record.get("open") and isinstance(part_open, (int, float)) and part_open < 0.99 and record.get("kind") != "overhead_door":
         raise ActionError("It is open only about {:.0f}%; push it wider (push_handle with extent=1)".format(float(part_open) * 100.0))
     require(record.get("open", False) != opening, "It is already " + ("open" if opening else "closed"))
     machine = record.get("appliance") or {}

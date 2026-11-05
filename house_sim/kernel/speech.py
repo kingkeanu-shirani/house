@@ -1146,9 +1146,17 @@ class _Parse(object):
         named_rooms = [m for m in ms if m.kind == "room" and not self._location_place(m, a)]
         scope_room = named_rooms[0].ids[0] if named_rooms else self.robot_room
         for m in ms:
-            # a thing named after a room belongs to the nearest room before it ("keep out of the hallway: the floor there")
-            before_it = [r for r in named_rooms if r.j <= m.i]
-            _resolve_quant(ws, m, a, state, max(before_it, key=lambda r: r.j).ids[0] if before_it else scope_room)
+            room = scope_room
+            if m.kind == "entity" and m.room is None and len(m.ids) > 1 and len(named_rooms) > 1:
+                # several rooms named: the one that holds such a thing, and when more than one does, any of them
+                # ("keep out of the hallway and come through to the living room: the floor there is wet")
+                holding = [r.ids[0] for r in named_rooms if any(root_room(state, e) in r.ids for e in m.ids)]
+                if len(holding) == 1:
+                    room = holding[0]
+                elif holding:
+                    m.ids = [e for e in m.ids if root_room(state, e) in holding]
+                    room = None
+            _resolve_quant(ws, m, a, state, room)
         wh = ("what", "how", "when", "where", "which", "who", "why")
         # an inverted auxiliary opens a question, except in a clause that carries on the one before it with no
         # subject of its own ("the window is open but is now closed": its subject is the first clause's)
@@ -2454,9 +2462,25 @@ def _issue_conds(issue):
     return conds
 
 
+def _leak_reaches(state, rid):
+    """A leak still running somewhere, and its water coming into this room under a door. Only doors count as a source:
+    a poured mug is no leak, and once the leak has stopped the water left behind is not one either."""
+    entities = state.get("entities") or {}
+    if not any(isinstance(rec, dict) and rec.get("leaking") is True for rec in entities.values()):
+        return False
+    for rec in entities.values():
+        if isinstance(rec, dict) and rec.get("location") == rid and rec.get("category") == "spill" and float(rec.get("liquid_l") or 0.0) > 0.0:
+            source = entities.get(rec.get("plumb_source"))
+            if isinstance(source, dict) and source.get("category") == "door":
+                return True
+    return False
+
+
 def issue_truth(state, kind, sid, issue):
     """Whether a subject has an issue (truth.json, else the vocabulary evidence fields named like the issue or its
     synonyms, when they are booleans): True / False / None. A room is the any of its entities."""
+    if kind == "room" and issue == "leak" and _leak_reaches(state, sid):
+        return True
     if kind in ("room", "house"):
         members = [e for e, r in (state.get("entities") or {}).items() if isinstance(r, dict) and
                    (kind == "house" or root_room(state, e) == sid)]
@@ -2505,8 +2529,8 @@ def state_truth(state, kind, sid, word):
     rec = _record_of(state, kind, sid)
     if rec is None:
         return None
-    if word == "wet" and kind == "entity" and _water_on_floor(state, rec):
-        return True
+    if word in ("wet", "dry") and kind == "entity" and _water_on_floor(state, rec):
+        return word == "wet"
     return _conds_truth(state, kind, sid, rec, conds, "first")
 
 

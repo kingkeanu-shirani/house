@@ -398,8 +398,8 @@ def _adopted_cells(w, spill, rid):
 
 def finish_spill(w, spill, residue_scale=1.0):
     """Liquid gone: leave residue on the floor cells or the surface it was on, then remove the spill. A film adopted
-    from the spill's own wet cell stood for this water, so it does not outlive it: plain water on a hard floor leaves
-    that cell dry, anything else leaves the ordinary damp film."""
+    from the spill's own wet cell stood for this water, so plain water on a hard floor leaves that cell dry. Carpet and
+    a spill with residue keep the film they had."""
     rec = w.ent(spill)
     residue = rec.get("residue") or {}
     loc = rec.get("location")
@@ -407,8 +407,6 @@ def finish_spill(w, spill, residue_scale=1.0):
         floor = S.floor_of(w, loc)
         if floor:
             adopted = _adopted_cells(w, spill, loc)
-            for key in adopted:
-                S.set_film(w, loc, key, 0.0)
             for key in spill_cells(w, spill):
                 for kind, level in sorted(residue.items()):
                     S.add_cell_soil(w, floor, key, kind, level * residue_scale)
@@ -1410,7 +1408,7 @@ def mop_noise_db(ctx):
         duration=lambda ctx: ctx.data.get("seconds", 60.0), energy=0.04, noise=0.0, category="physical", noise_db=vacuum_noise_db,
         doc="Vacuum a floor zone/cells, a rug, upholstery (faces: seat, crevices, back, under_cushions), a mattress, curtains, "
             "vents, stairs or a vehicle interior with a held vacuum. The fitted head/attachment (install crevice_tool, "
-            "upholstery_tool, dust_brush, pet_tool, low_profile_head; settings: mode carpet|hard_floor, suction low|medium|high; the default mode is carpet, which on a hard floor cleans less and scatters crumbs) "
+            "upholstery_tool, dust_brush, pet_tool, low_profile_head; settings: mode carpet|hard_floor, suction low|medium|high; a floor vacuum's default mode is carpet, which on a hard floor cleans less and scatters loose debris) "
             "decides reach under furniture, edges and fabrics. Small objects in the path are sucked up; cords and socks jam it.")
 def vacuum(ctx):
     w = ctx.w
@@ -1529,7 +1527,7 @@ def vacuum(ctx):
             consequences.append("fine dust blew out of the exhaust")
         summary = "Vacuumed {} cells x{} ({} {})".format(len(chosen), passes, head, mode)
         if ctx.data.get("scattered"):
-            summary += "; scattered some crumbs"
+            summary += "; scattered some of it"
         if skipped:
             summary += "; skipped {} ({})".format(len(skipped), ", ".join(sorted(set(skipped.values()))))
     else:
