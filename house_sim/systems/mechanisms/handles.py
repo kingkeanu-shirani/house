@@ -304,7 +304,7 @@ def pull_handle(ctx):
             "seats weatherstripped doors; forcing past an obstruction crushes it), pop a push-to-open front, push test a latch "
             "or lock (test=true), hold a door open (hold_s), push a window screen out (part=screen), cut a painted sash free "
             "with a held blade (part=seal tool=...), re-seat a derailed track or lift a sagging gate while shutting it (lift=true). "
-            "where=hip pushes with the body when both hands are full.")
+            "where=hip pushes a room door, hatch or gate with the body when both hands are full; anything else needs a free hand.")
 def push_handle(ctx):
     w = ctx.w
     state = w.s
@@ -328,6 +328,9 @@ def push_handle(ctx):
         return controls.flush(ctx, eid, max(ctx.args["hold_s"], 0.3))
     if kind == "overhead_door":
         raise ActionError("Use the opener's wall button or remote (press)", "precondition")
+    if where == "hip" and kind not in C.DOOR_KINDS:
+        require(hands_free_count(w) >= 1 or rec.get("hands_free_operable") or rec.get("push_operable"),
+                "The hip only works on a door or gate; put something down first", "capability")
     _hands_ok(ctx, rec, allow_body=where == "hip" and kind in C.DOOR_KINDS)
     if part == "screen":
         from . import windows

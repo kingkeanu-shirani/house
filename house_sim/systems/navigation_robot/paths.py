@@ -863,7 +863,7 @@ def go_to(ctx):
             if gap is not None:
                 # the leaf stopped too narrow to pass: the walk, the open and the stop stand (a refused move would roll
                 # them all back and describe a door that is shut again, from wherever the robot started)
-                return "Stopped at {} in {}: it opened only about {:.0f} cm".format(door_id, w.robot["room"], gap)
+                return "Stopped at {} in {}: it opened only about {:.0f} cm; push_handle with extent=1 tries it wider".format(door_id, w.robot["room"], gap)
         else:
             if ctx.args["social"]:
                 if not _social_walk(ctx, [C.cell(conn["cells"][here])], avoid, speed):
@@ -875,7 +875,7 @@ def go_to(ctx):
                     ctx.env.perform(door_args, ctx)
                     if _down(ctx):
                         return _down(ctx)
-                return "Stopped at {} in {}: it is open only about {:.0f} cm".format(door_id, w.robot["room"], _narrow_door_cm(ctx, conn))
+                return "Stopped at {} in {}: it is open only about {:.0f} cm; push it wider (push_handle with extent=1) to pass".format(door_id, w.robot["room"], _narrow_door_cm(ctx, conn))
         args = {"action": "move", "target": nxt}
         if avoid:
             args["avoid"] = list(avoid)

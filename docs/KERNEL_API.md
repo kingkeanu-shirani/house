@@ -1851,3 +1851,5 @@ Nothing here is specific to the episode. Where a generated house or a schema-2 o
   one already above zero at the start was free to rise under `worse: true`, so this one change can add a charge, for a
   garment a dryer wrinkles further.
 - `ActionSpec` refuses a non-word entry in an `avoid` list as an argument error; a cell there used to crash `hazards.fresh_margins` as an internal error.
+
+Flagship round 13: `ledger.soil_rise` compares parts one by one when soil stays under a resting item (`_shadows`), so a wipe that cleaned the rest is no rise; `speech.state_truth` reads a floor as wet from its room's wet cells and spills; a clause's multi-id mention is scoped by the nearest room named before it; `truth.json` leak also holds for a spill with `plumb_source`; `geometry.spot_refusal` says whether an exact spot ran off the edge or overlapped; `floors.finish_spill` clears a film adopted from the spill's own cell when plain water on a hard floor is gone.

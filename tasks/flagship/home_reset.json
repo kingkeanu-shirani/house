@@ -461,7 +461,7 @@
    "type": "drinking_glass",
    "on": "{table}",
    "props": {
-    "label": "half-empty glass"
+    "label": "used glass"
    }
   },
   {

@@ -1040,6 +1040,17 @@ def rect_overlap(a_pos, a_size, b_pos, b_size, margin=0.0):
                 a_pos[1] + a_size[1] <= b_pos[1] + margin + eps or b_pos[1] + b_size[1] <= a_pos[1] + margin + eps)
 
 
+def spot_refusal(state, surface_id, item_id, want):
+    """Why an exact spot was refused. No sizes in the words: what the robot sees of them may differ from the truth."""
+    surface = state["entities"][surface_id]
+    sw, sd = (surface.get("surface_size_m") or (surface.get("size_m") or [0.5, 0.5])[:2])[:2]
+    iw, idp = footprint_m(state["entities"][item_id])
+    x, y = round(float(want[0]), 3), round(float(want[1]), 3)
+    if x < -1e-9 or y < -1e-9 or x + iw > sw + 1e-9 or y + idp > sd + 1e-9:
+        return "That spot runs off the edge (spos is the item's corner)"
+    return "That spot overlaps something already there"
+
+
 def surface_spot(state, surface_id, item_id, want=None, step=0.05):
     """A position [x, y] (meters from the surface's corner) where item fits without overlap.
 

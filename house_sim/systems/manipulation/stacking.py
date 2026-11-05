@@ -388,7 +388,7 @@ def stack(ctx):
                            "hand": "?str:left|right", "method": "?str:lift|twist_free"},
         duration=3.0, energy=0.01, category="physical",
         doc="Take the top item off the stack that contains target (top-down only) into a free hand, or straight onto destination. "
-            "Stuck nested glasses need method=twist_free; yanking them cracks glass.")
+            "Stuck nested glasses need method=twist_free; yanking them cracks glass. spos is the item's corner, as in place.")
 def unstack(ctx):
     w = ctx.w
     target = ctx.args["target"]
@@ -889,7 +889,10 @@ def packed_height(rec, inner):
 def layered_container(rec):
     """Carried containers (boxes, bags, suitcases, bins, coolers) are packed in layers: whatever goes in
     later rests on what is already there. Furniture storage (cabinets, drawers, shelving, fridges,
-    closets, car trunks) holds items side by side on each shelf until that shelf's floor is used up."""
+    closets, car trunks) holds items side by side on each shelf until that shelf's floor is used up. A multipack's
+    units stand side by side in its wrap, which is how setup holds them."""
+    if rec.get("multipack"):
+        return False
     return bool(rec.get("portable")) or bool(rec.get("pack_layers"))
 
 
@@ -1274,7 +1277,7 @@ def _extent_along(rec, yaw, vx, vy):
                            "frame": "?target", "facing": "?target", "feature": "?str", "cell": "?cell",
                            "orientation": "?str:upright|upside_down|on_side|flat|on_edge"},
         duration=3.0, energy=0.01, category="physical",
-        doc="Place a held (or re-place a reachable) item precisely: at spos [x,y] on a surface, or relative_to another item "
+        doc="Place a held (or re-place a reachable) item precisely: at spos [x,y] on a surface (the item's corner, as in place), or relative_to another item "
             "(side left/right/front/behind/on/center with gap_m, judged from frame = a chair/person/the robot), with yaw_deg or "
             "a feature (handle, blade_edge, front, label) facing an entity. For floor furniture give cell and yaw_deg.")
 def arrange(ctx):
@@ -1363,7 +1366,7 @@ def arrange(ctx):
     if spos is not None:
         require(isinstance(spos, list) and len(spos) == 2, "spos must be [x, y]", "argument")
         spot = geometry.surface_spot(w.s, dest, eid, want=spos)
-        require(spot is not None, "That exact spot is occupied or off the edge", "precondition")
+        require(spot is not None, geometry.spot_refusal(w.s, dest, eid, spos), "precondition")
     place_item(ctx, eid, dest, None, spos, None, None, ctx.args.get("orientation"))
     if yaw is not None:
         w.mut(eid)["yaw_deg"] = round(C.num(yaw) % 360.0, 2)

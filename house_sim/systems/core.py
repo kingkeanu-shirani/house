@@ -1319,7 +1319,7 @@ def place_item(ctx, target, dest, relation=None, spos=None, cell=None, shelf=Non
                 if parent.get("portable") and not parent.get("surface"):
                     require(parent.get("stackable") and record.get("stackable", True), "That cannot be stacked on")
                 spot = geometry.surface_spot(state, dest, target, want=spos)
-                require(spot is not None, "No free space there" if spos is None else "That exact spot is occupied or off the edge")
+                require(spot is not None, "No free space there" if spos is None else geometry.spot_refusal(state, dest, target, spos))
                 spos = spot
             if parent.get("waste_stream") and is_waste_container(parent):
                 require(record.get("waste_stream") == parent["waste_stream"] or parent.get("accepts_any_waste") or
@@ -1342,7 +1342,7 @@ def place_item(ctx, target, dest, relation=None, spos=None, cell=None, shelf=Non
 @action("place", params={"target": "entity", "destination": "?target", "relation": "?str:on|in|hung|under|behind",
                          "spos": "?list", "cell": "?cell", "shelf": "?int", "orientation": "?str:upright|upside_down|on_side|flat|rotated"},
         duration=2.0, category="physical", inverse=_place_inverse,
-        doc="Set a held item on/in/under a destination or on the current room's floor (destination omitted or a room id). spos=[x,y] meters places precisely on a surface (on a counter or a range y = 0 is the back; with no spos it takes the first free spot from the back); cell=[col,row] on the floor. With a child home, a hot item left within 30 cm of a surface's front edge counts as unsafe.")
+        doc="Set a held item on/in/under a destination or on the current room's floor (destination omitted or a room id). spos=[x,y] meters places precisely on a surface (on a counter or a range y = 0 is the back; with no spos it takes the first free spot from the back). spos is the item's corner nearest the surface's [0,0] corner; x runs along surface_size_m[0] and y along surface_size_m[1], so the item's far edge is at y plus its depth. Sizes you see are approximate; leave a margin. cell=[col,row] on the floor. With a child home, a hot item left within 30 cm of a surface's front edge counts as unsafe.")
 def place(ctx):
     w = ctx.w
     target = ctx.args["target"]
@@ -1610,7 +1610,8 @@ def take_off(ctx):
     w = ctx.w
     target = ctx.args["target"]
     record = w.s["entities"].get(target)
-    require(record and record.get("location") == "robot" and record.get("relation") == "worn", "Not wearing that")
+    require(record, "Name it by its handle")
+    require(record.get("location") == "robot" and record.get("relation") == "worn", "Not wearing that")
     hand = ctx.free_hand()
     require(hand is not None, "No free hand", "capability")
     w.mut(target).update(relation="held", held_hand=hand)
@@ -1636,6 +1637,9 @@ def _open_close(ctx, opening):
     record = ctx.obj(target, touch=True)
     require(record.get("openable"), "It does not open")
     require(not record.get("locked"), "It is locked; unlock it first")
+    part_open = (record.get("mech") or {}).get("open_frac")
+    if opening and record.get("open") and isinstance(part_open, (int, float)) and part_open < 0.99:
+        raise ActionError("It is open only about {:.0f}%; push it wider (push_handle with extent=1)".format(float(part_open) * 100.0))
     require(record.get("open", False) != opening, "It is already " + ("open" if opening else "closed"))
     machine = record.get("appliance") or {}
     require(not (machine.get("state") == "running" and machine.get("door_interlock", True)), "The door is interlocked while running", "safety")

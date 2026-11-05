@@ -1143,10 +1143,12 @@ class _Parse(object):
         ms = _scope_mentions(ws, ms, state, self.robot_room)
         # the room a location claim puts its subject in is no scope for that subject ("the mug is in the kitchen"
         # must not pick the mug that is there)
-        scope_room = next((m.ids[0] for m in ms if m.kind == "room" and not self._location_place(m, a)),
-                          self.robot_room)
+        named_rooms = [m for m in ms if m.kind == "room" and not self._location_place(m, a)]
+        scope_room = named_rooms[0].ids[0] if named_rooms else self.robot_room
         for m in ms:
-            _resolve_quant(ws, m, a, state, scope_room)
+            # a thing named after a room belongs to the nearest room before it ("keep out of the hallway: the floor there")
+            before_it = [r for r in named_rooms if r.j <= m.i]
+            _resolve_quant(ws, m, a, state, max(before_it, key=lambda r: r.j).ids[0] if before_it else scope_room)
         wh = ("what", "how", "when", "where", "which", "who", "why")
         # an inverted auxiliary opens a question, except in a clause that carries on the one before it with no
         # subject of its own ("the window is open but is now closed": its subject is the first clause's)
@@ -2478,6 +2480,23 @@ def issue_truth(state, kind, sid, issue):
     return _conds_truth(state, kind, sid, rec, out, "any")
 
 
+def _water_on_floor(state, rec):
+    """A floor holds no wetness of its own: the water on it is its room's wet cells and the spills lying in the room."""
+    if rec.get("category") != "floor" and "floor_surface" not in (rec.get("is_a") or ()):
+        return False
+    rid = rec.get("location")
+    room = (state.get("rooms") or {}).get(rid)
+    if not isinstance(room, dict):
+        return False
+    if room.get("wet_cells"):
+        return True
+    for other in (state.get("entities") or {}).values():
+        if isinstance(other, dict) and other.get("location") == rid and other.get("category") == "spill" and \
+                float(other.get("liquid_l") or 0.0) > 0.0:
+            return True
+    return False
+
+
 def state_truth(state, kind, sid, word):
     """Whether a subject is in a state (truth.json states, the first present field decides): True / False / None."""
     conds = truth_tables()["states"].get(word)
@@ -2486,6 +2505,8 @@ def state_truth(state, kind, sid, word):
     rec = _record_of(state, kind, sid)
     if rec is None:
         return None
+    if word == "wet" and kind == "entity" and _water_on_floor(state, rec):
+        return True
     return _conds_truth(state, kind, sid, rec, conds, "first")
 
 

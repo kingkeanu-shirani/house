@@ -1357,7 +1357,7 @@ class Ledger(object):
             before, after = self.B[eid], self.F.get(eid)
             if after is None or after == before:
                 continue
-            rise = soil_total(after) - soil_total(before)
+            rise = soil_rise(before, after)
             least = SOIL_EPS
             if isinstance(after.get("_cells"), dict):
                 rise -= left.get(after.get("location"), 0.0)
@@ -1692,6 +1692,22 @@ def soil_total(record):
     if _number(soil):
         return float(soil)
     return 0.0
+
+
+def soil_rise(before, after):
+    """How much dirtier a thing is. Its soil total keeps each kind's highest level over all its parts, and soil left
+    under an item resting on it (_shadows) keeps its old level after the rest is wiped, so a trace on the wiped part
+    would read as a rise though no part got dirtier: with shadows the parts are compared one by one."""
+    shadows, faces = after.get("_shadows"), after.get("soil_faces")
+    if not (isinstance(shadows, dict) and shadows and isinstance(faces, dict)) or isinstance(after.get("_cells"), dict):
+        return soil_total(after) - soil_total(before)
+
+    def part_total(part):
+        return sum(float(v) for v in (part or {}).values() if _number(v))
+    earlier = before.get("soil_faces") if isinstance(before.get("soil_faces"), dict) else {}
+    rises = [part_total(part) - part_total(earlier.get(face)) for face, part in faces.items()]
+    rises += [part_total(part) - soil_total(before) for part in shadows.values()]
+    return max(rises) if rises else 0.0
 
 
 def water_sensitive(record, watch=None):

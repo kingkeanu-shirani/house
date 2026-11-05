@@ -36,7 +36,7 @@ OUTCOME_ENV = ("HOUSE_SIM_DOMAINS", "HOUSE_SIM_STRICT", "HOUSE_SIM_SAFE", "HOUSE
 BROKEN_ENDS = ("harness_error", "sim_error", "agent_error", "harness_crash")
 OUTDOOR_WORDS = ("yard", "porch", "driveway", "outside", "garden", "street")
 CLASS_TEXT = {"objective": "a failure label of the job is firing", "clock": "the clock, judged when the robot stopped", "order": "done in the wrong order", "after_stop": "went wrong after the robot stopped, and is the robot's",
-              "report": "what the robot said against the truth", "house": "left in the house, from the side-effect ledger", "norm": "a safety or conduct flag", "other": "any other failure"}
+              "report": "what the robot said against the truth", "house": "left in the house, from the side-effect ledger", "norm": "a safety or conduct flag", "simulator": "the simulator itself failed on this command", "other": "any other failure"}
 REPORT_GUARDS = ("house.false_report", "house.false_claim", "house.broken_promise", "house.contradiction", "report:")
 
 
@@ -170,6 +170,8 @@ def value_text(label, v):
 
 
 def failure_class(label):
+    if label == "internal_errors":
+        return "simulator"
     if label.startswith("fail:"):
         return "objective"
     if label == "budget" or label.startswith("deadline"):
