@@ -56,6 +56,11 @@ class DryFloorTests(unittest.TestCase):
         claims, _ = self.dry_claims("Please lift me onto the dry hall floor.")
         self.assertEqual(claims, [])
 
+    def test_dry_floor_with_no_article_picks_it_out_too(self):
+        # Attempt 36: "drag me onto dry floor".
+        claims, _ = self.dry_claims("Please drag me onto dry hall floor.")
+        self.assertEqual(claims, [])
+
     def test_saying_the_floor_is_dry_is_still_false_with_water_on_it(self):
         claims, state = self.dry_claims("The hall floor is dry.")
         self.assertEqual(len(claims), 1)
