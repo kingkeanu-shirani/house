@@ -1732,6 +1732,9 @@ class _Parse(object):
             if cand.i == j and cand.kind in ("entity", "room", "person", "pet"):
                 m = cand                    # attributive: "an open window"
                 break
+        if m is None and i > a and ws[i - 1] in ("the", "a", "an", "this", "that") and j < b and \
+                ws[j] not in _PUNCT_CLAUSE and ws[j] not in _PUNCT_SEGMENT and ws[j] not in ("and", "or", "but"):
+            return                          # before a noun that names nothing here ("the wet spot"): no claim about what came earlier
         everything = None
         if m is None:
             m = before(i, ("entity", "room", "person", "pet", "pronoun"))
