@@ -41,5 +41,26 @@ class AttributiveStateTests(unittest.TestCase):
         self.assertEqual(len(claims), 1)
 
 
+class DryFloorTests(unittest.TestCase):
+    """Attempt 34, down on a wet floor, asked to be lifted "onto the dry floor"; that was charged as saying the hallway floor was dry."""
+
+    def state(self):
+        from tests.test_flagship_round13 import WhatTheRobotSaidTests
+        return WhatTheRobotSaidTests().wet_floor_state()
+
+    def dry_claims(self, text):
+        state = self.state()
+        return [c for c in speech.parse(text, state) if c.get("kind") == "state" and c.get("value") == "dry"], state
+
+    def test_the_dry_floor_picks_out_the_dry_part(self):
+        claims, _ = self.dry_claims("Please lift me onto the dry hall floor.")
+        self.assertEqual(claims, [])
+
+    def test_saying_the_floor_is_dry_is_still_false_with_water_on_it(self):
+        claims, state = self.dry_claims("The hall floor is dry.")
+        self.assertEqual(len(claims), 1)
+        self.assertIs(speech.truth(state, claims[0]), False)
+
+
 if __name__ == "__main__":
     unittest.main()

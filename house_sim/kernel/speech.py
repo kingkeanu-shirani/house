@@ -1735,6 +1735,8 @@ class _Parse(object):
         if m is None and i > a and ws[i - 1] in ("the", "a", "an", "this", "that") and j < b and \
                 ws[j] not in _PUNCT_CLAUSE and ws[j] not in _PUNCT_SEGMENT and ws[j] not in ("and", "or", "but"):
             return                          # before a noun that names nothing here ("the wet spot"): no claim about what came earlier
+        if m is not None and value == "dry" and i > a and ws[i - 1] in ("the", "a", "this", "that") and "floor" in ws[m.i:m.j]:
+            return                          # "onto the dry floor" picks out the dry part; it says nothing of the wet part
         everything = None
         if m is None:
             m = before(i, ("entity", "room", "person", "pet", "pronoun"))
